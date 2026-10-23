@@ -1,49 +1,8 @@
-mc02(h723)和官方c板（f407）电控代码
+# foray_mcu_controller
 
-## 当前文件结构
+> **L2** · owner 角色：MCU控制
 
- - Application 应用层
- - Libraries   常用库
- - Platform    平台层
+下位机控制仓库，适配多型号
 
-```text
-controller_code/
-├── Application/
-│   ├── Imu/
-│   ├── Module/
-│   └── Task/
-│       ├── 0_imu/
-│       ├── 1_chassis/
-│       ├── 2_gimbal/
-│       └── 4_communication/
-├── Libraries/
-│   ├── Algorithm/
-│   │   ├── alg_controller/
-│   │   ├── alg_crc/
-│   │   ├── alg_estimate/
-│   │   ├── alg_filter/
-│   │   ├── alg_fsm/
-│   │   ├── alg_kinematics/
-│   │   ├── alg_math/
-│   │   └── alg_slope/
-│   ├── Component/
-│   ├── Device/
-│   │   ├── bmi088/
-│   │   ├── buzzer/
-│   │   ├── motor/
-│   │   │   └── dji/
-│   │   └── ws2812/
-│   └── Protocol/
-│       ├── dji/
-│       └── sbus/
-├── Platform/
-│   ├── Interface/
-│   ├── PortKit/
-│   ├── STM32F4/
-│   │   └── RM_Cboard/
-│   └── STM32H7/
-│       └── DM_MC02/
-│           └── Port/
-│  
-└── README.md
-```
+## 项目架构图
+![项目架构](.docs/images/架构图.png "项目架构图")
