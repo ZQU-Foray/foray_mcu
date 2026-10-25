@@ -1,0 +1,39 @@
+# foray_mcu 代码格式（clang-format 16 及以上；CI 与本机建议统一用 18）
+# 组织规则（.github/CONTRIBUTING.md「代码风格」）：4 空格缩进、LF、UTF-8、文件末尾保留一个换行。
+# 来源：ControllerCode 454201f^ 的 Libraries/Algorithm/.clang-format，原样沿用（历史中唯一缩进为 4 的配置），
+# 只追加文件末尾的 LineEnding 与 InsertNewlineAtEOF 两项，用来落实组织的 LF 与末尾换行要求。
+# CubeMX 生成区与厂商代码不参与格式化；手写代码在 P0.5 一次性格式化，见评审报告 §5.12。
+BasedOnStyle: LLVM
+Language: Cpp
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+
+ColumnLimit: 120
+BreakBeforeBraces: Allman
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: Empty
+
+PointerAlignment: Right
+AlignConsecutiveDeclarations: false
+AlignConsecutiveAssignments: false
+AlignTrailingComments: true
+
+SpaceBeforeParens: ControlStatements
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+
+KeepEmptyLinesAtTheStartOfBlocks: false
+MaxEmptyLinesToKeep: 1
+
+BinPackArguments: false
+BinPackParameters: false
+AllowAllArgumentsOnNextLine: true
+AllowAllParametersOfDeclarationOnNextLine: true
+
+SortIncludes: false
+ReflowComments: false
+
+LineEnding: LF
+InsertNewlineAtEOF: true

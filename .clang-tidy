@@ -1,0 +1,76 @@
+# foray_mcu 命名规则：ROS 2 C++ 风格（Google 风格基础上的修改），与组织 CONTRIBUTING 的 C/C++ 命名一致。
+#   类型（类、结构体、枚举类型、别名、模板参数）PascalCase；
+#   函数、方法、变量、参数 snake_case；私有与受保护成员加尾下划线；全局变量加 g_ 前缀；
+#   命名空间 snake_case；枚举值、宏、编译期常量 UPPER_SNAKE_CASE。
+# 由 readability-identifier-naming 检查执行；P0.5 用 --fix 批量改名，之后在 CI 中检查。
+# 迁移源中的 C ABI（Detail/*.h、Port、PortKit 的 C 函数）在 P3a 合并进 C++ 契约时按新规则重写，P0.5 不对其改名。
+# 本文件是首版：P0.5 首次运行后按实测结果微调，改动在 decision.md 登记（见评审报告 §5.12）。
+Checks: '-*,readability-identifier-naming'
+WarningsAsErrors: ''
+HeaderFilterRegex: '(/app/|/config/|/src/|/test/|/legacy/Application/|/legacy/Libraries/)'
+CheckOptions:
+  # ---- 命名空间 ----
+  - key: readability-identifier-naming.NamespaceCase
+    value: lower_case
+  # ---- 类型 ----
+  - key: readability-identifier-naming.ClassCase
+    value: CamelCase
+  - key: readability-identifier-naming.StructCase
+    value: CamelCase
+  - key: readability-identifier-naming.UnionCase
+    value: CamelCase
+  - key: readability-identifier-naming.EnumCase
+    value: CamelCase
+  - key: readability-identifier-naming.TypeAliasCase
+    value: CamelCase
+  - key: readability-identifier-naming.TypedefCase
+    value: CamelCase
+  - key: readability-identifier-naming.TemplateParameterCase
+    value: CamelCase
+  # ---- 函数与方法 ----
+  - key: readability-identifier-naming.FunctionCase
+    value: lower_case
+  - key: readability-identifier-naming.MethodCase
+    value: lower_case
+  # ---- 变量与参数 ----
+  - key: readability-identifier-naming.VariableCase
+    value: lower_case
+  - key: readability-identifier-naming.LocalVariableCase
+    value: lower_case
+  - key: readability-identifier-naming.ParameterCase
+    value: lower_case
+  - key: readability-identifier-naming.GlobalVariableCase
+    value: lower_case
+  - key: readability-identifier-naming.GlobalVariablePrefix
+    value: g_
+  # ---- 数据成员：结构体公开字段不加后缀；私有、受保护成员加尾下划线 ----
+  - key: readability-identifier-naming.PublicMemberCase
+    value: lower_case
+  - key: readability-identifier-naming.PrivateMemberCase
+    value: lower_case
+  - key: readability-identifier-naming.PrivateMemberSuffix
+    value: _
+  - key: readability-identifier-naming.ProtectedMemberCase
+    value: lower_case
+  - key: readability-identifier-naming.ProtectedMemberSuffix
+    value: _
+  # ---- 常量：编译期常量与全局/静态常量全大写；局部 const 与 const 参数按普通变量 ----
+  - key: readability-identifier-naming.ConstexprVariableCase
+    value: UPPER_CASE
+  - key: readability-identifier-naming.GlobalConstantCase
+    value: UPPER_CASE
+  - key: readability-identifier-naming.StaticConstantCase
+    value: UPPER_CASE
+  - key: readability-identifier-naming.ClassConstantCase
+    value: UPPER_CASE
+  - key: readability-identifier-naming.LocalConstantCase
+    value: lower_case
+  - key: readability-identifier-naming.ConstantParameterCase
+    value: lower_case
+  - key: readability-identifier-naming.ConstantMemberCase
+    value: lower_case
+  # ---- 枚举值与宏 ----
+  - key: readability-identifier-naming.EnumConstantCase
+    value: UPPER_CASE
+  - key: readability-identifier-naming.MacroDefinitionCase
+    value: UPPER_CASE
