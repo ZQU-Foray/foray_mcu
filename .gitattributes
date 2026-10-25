@@ -1,0 +1,13 @@
+# 行尾：仓库内文件按原样保存，不做自动转换。
+# 原因：迁移源有 47 个文件以 CRLF 入库（主要是 CubeMX 生成文件），其余为 LF。
+# 打开自动转换会让这些文件在 Windows 与 WSL 之间来回显示为"已修改"。
+# 手写代码的行尾在 P0.5 格式化时统一为 LF；生成区保持 CubeMX 的输出原样。
+* -text
+
+# 二进制文件
+*.png binary
+*.jpg binary
+*.pdf binary
+*.a binary
+*.bin binary
+*.elf binary

@@ -1,0 +1,50 @@
+# foray_mcu 忽略规则
+# 原则：只忽略构建产物、IDE 目录与本机配置；测试、工具、脚本、文档一律入库。
+# 迁移源的旧 .gitignore 排除了 Tests/、Tools/、*.py、*.sh、*.cfg 等，曾造成资产丢失，已删除。
+
+# ---- 构建产物 ----
+build/
+build-*/
+cmake-build-*/
+output/
+*.o
+*.obj
+*.d
+*.su
+*.elf
+*.hex
+*.bin
+*.map
+*.lst
+
+# 测试基准数据（如录制的 IMU 原始数据）需要入库
+!test/data/**
+
+# ---- 本机配置 ----
+CMakeUserPresets.json
+
+# ---- IDE ----
+.idea/
+.vscode/
+.vs/
+.settings/
+
+# ---- 本机工具与 AI 助手的状态目录 ----
+.claude/
+.codex/
+.omc/
+.deepseek/
+.sisyphus/
+.reasonix/
+.agent/
+
+# ---- Python 环境与缓存 ----
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# ---- 日志与临时文件 ----
+*.log
+tmp/
