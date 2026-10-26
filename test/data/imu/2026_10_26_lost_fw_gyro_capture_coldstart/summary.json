@@ -1,0 +1,100 @@
+{
+  "version": 2,
+  "state": 2,
+  "state_name": "已冻结",
+  "count": 20000,
+  "stored": 1024,
+  "tick_hz": 480000000,
+  "first_tick": 1430606309,
+  "last_tick": 1950313123,
+  "elapsed_ticks": 4814674110,
+  "elapsed_s": 10.0305710625,
+  "rate_hz": 1993.8047271074802,
+  "sequence_gaps": 0,
+  "min_interval_ticks": 213278,
+  "max_interval_ticks": 268288,
+  "last_sequence": 61102,
+  "drdy": [
+    41408,
+    61407
+  ],
+  "coalesced": [
+    305,
+    305
+  ],
+  "errors": [
+    0,
+    0
+  ],
+  "temperature_c": [
+    49.75,
+    50.125
+  ],
+  "axes": {
+    "x": {
+      "mean_lsb": 0.4026,
+      "std_lsb": 55.38492857483884,
+      "min_lsb": -202,
+      "max_lsb": 194
+    },
+    "y": {
+      "mean_lsb": -5.3122,
+      "std_lsb": 54.91903614558435,
+      "min_lsb": -208,
+      "max_lsb": 210
+    },
+    "z": {
+      "mean_lsb": 1.8543,
+      "std_lsb": 65.31445913050189,
+      "min_lsb": -270,
+      "max_lsb": 282
+    }
+  },
+  "channels": {
+    "accelerometer": {
+      "count": 16087,
+      "read_gaps": 0,
+      "drdy_gaps": 0,
+      "last_read": 49191,
+      "last_drdy": 49278,
+      "last_tick": 1950217449,
+      "coalesced_start": 87,
+      "coalesced_end": 87,
+      "errors_start": 0,
+      "errors_end": 0,
+      "overflow_start": 0,
+      "overflow_end": 0,
+      "high_water": 1,
+      "late_starts": 0,
+      "ambiguous": 0,
+      "max_start_ticks": 40686,
+      "max_complete_ticks": 53108,
+      "max_harvest_ticks": 2231057801705190634,
+      "elapsed_ticks": 569059093428305921,
+      "sum_start_ticks": 1481270225377689600
+    },
+    "gyroscope": {
+      "count": 20000,
+      "read_gaps": 0,
+      "drdy_gaps": 0,
+      "last_read": 61102,
+      "last_drdy": 61407,
+      "last_tick": 1950313123,
+      "coalesced_start": 305,
+      "coalesced_end": 305,
+      "errors_start": 0,
+      "errors_end": 0,
+      "overflow_start": 0,
+      "overflow_end": 0,
+      "high_water": 1,
+      "late_starts": 0,
+      "ambiguous": 0,
+      "max_start_ticks": 39672,
+      "max_complete_ticks": 51756,
+      "max_harvest_ticks": 2232123769638382096,
+      "elapsed_ticks": 672025733144510465,
+      "sum_start_ticks": 1777966454516219904
+    }
+  },
+  "address": "0x24000788"
+}
