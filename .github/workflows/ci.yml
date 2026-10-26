@@ -241,7 +241,7 @@ jobs:
         shell: bash
         run: |
           cd build/legacy
-          grep ' Release/mc02_cpp.bin$' "$GITHUB_WORKSPACE/docs/decisions/baseline-a2cfd16/SHA256SUMS" | sha256sum -c -
+          grep ' Release/mc02_cpp.bin$' "$GITHUB_WORKSPACE/docs/ai/decisions/baseline-a2cfd16/SHA256SUMS" | sha256sum -c -
           echo "Debug（只供参考，镜像内含工具链安装路径）："
           sha256sum Debug/mc02_cpp.bin
 
