@@ -1,6 +1,6 @@
 # 开发计划（foray_mcu 结构重构）
 
-> 当前状态：**P0、P0.5 已验收（2026-10-26），下一步 P1 构建骨架**（方案已确认，[decision.md](decision.md) Decision-20261025-01 至 -05 均为 Accepted；里程碑合并入 `main` 暂缓）。
+> 当前状态：**P0、P0.5、P1 已验收（2026-10-26），下一步 P2 机械搬迁**（方案已确认，[decision.md](decision.md) Decision-20261025-01 至 -05 均为 Accepted；里程碑合并入 `main` 暂缓）。
 > 权威方案见 [docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md](docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md)；本文件只记录执行计划、进度与验收标准。
 > 迁移源 ControllerCode 原样放在 `legacy/`；各阶段的动作、验收与回滚以下文为准，不跨阶段混做。
 
@@ -40,30 +40,33 @@
 - [x] 验收（2026-10-26）：同工具链下 legacy Debug/Release `.bin` SHA 与基线逐字节一致；符号"地址+大小+类型"集合一致（改名后的符号表已入档，供 P1 对照）；宿主测试 13/13 绿；命名检查 0 处
 - [ ] 回滚：revert 对应提交
 
-### P1 构建骨架（零源码改动，2–4 人日）
+### P1 构建骨架（零源码改动，2–4 人日，✅ 2026-10-26 验收）
 
-- [ ] 根 `CMakeLists.txt` + `CMakePresets.json` + `cmake/toolchains/`（首批 arm-gcc-cortex-m7、arm-gcc-cortex-m4f、host）
-- [ ] 建立 `src/hal`（INTERFACE，C++ 契约）+ 过渡 target `foray_hal_detail`（现有 `Detail/*.h`，P3a 删除）+ `src/boot`（INTERFACE）+ `src/hal/os`（最小契约头）+ `src/utils`；`platform/mock` 最小实现；最小 host test target
-- [ ] 顶层 executable 链接 assembly/port/board（assembly/board 可先空实现）；**port 与 board 用 OBJECT 库**（避免 HAL 弱符号回调被丢弃）；设置链接脚本、hex/bin 后处理、烧录目标
-- [ ] 每个 target 私有 include；严格告警按 target 设置；删除全局 include 与 `file(GLOB)`
-- [ ] 源码此时仍按迁移源根路径 include，设过渡 target `foray_legacy_include` 暴露 `legacy/`，并标注"P2 结束时删除"
-- [ ] 符号对照工具（放 `tool/ci/`）：`nm` 文本跨平台不能直接 diff（排序与 `_sdata` 差异，见基线对照文档 §7），需按 `readelf -sW` 归一化；CI 的 `firmware-legacy` 作业改为根工程构建 + 符号集合对照
-- [ ] 验收：**不改任何业务源码**；**`nm -S` 的符号名与大小集合与基线一致**（`.bin` SHA 预计因链接顺序改变而不同，只作参考）；`ctest` 可运行；`cmake --graphviz` 的节点/边集合与评审报告 §5.2 一致（允许空实现）
-- [ ] 回滚：revert P1 单个提交，回到基线
+> 过程、对照数据与发现见 [P1 构建骨架记录](docs/ai/decisions/2026-10-26-P1-构建骨架/README.md)，设计决定见 Decision-20261026-07；target 名去掉项目前缀见 Decision-20261026-06。
+
+- [x] 根 `CMakeLists.txt` + `CMakePresets.json`（arm-debug、arm-release、host-tests）+ `cmake/toolchains/`（arm-gcc-cortex-m7、arm-gcc-cortex-m4f、host）；唯一开关 `-DPROFILE`，profile `baseline`（a2cfd16 基线固件）的 `profile.cmake` 声明板卡 `st/stm32h7/board_dm`，板卡的 `board.cmake` 声明板标识 `dm_mc02` 与 CPU，配置时与工具链核对
+- [x] 建立 `src/hal`（INTERFACE，迁移期为 `legacy/Platform/Interface/*.hpp`）+ 过渡 target `hal_detail`（`Detail/*.h`，P3a 删除）+ `src/boot`（INTERFACE，P3b 才有内容）+ `src/hal/os`（最小契约头草案：`CriticalSection` RAII 守卫、`now_ticks()`/`tick_frequency_hz()`）+ `src/utils`（INTERFACE，P3a 才有内容）；`platform/mock` 实现 hal_os（时间与临界区可由测试控制）；新增宿主测试 `hal_os_mock`
+- [x] 顶层 executable `firmware_baseline` 链接 `assembly_baseline` 与 `port_dm_mc02`；port、board 与生成区（`mx_generated_dm_mc02`、`rtos_dm_mc02`、`usb_dm_mc02`）、迁移期的 `portkit` 均为 OBJECT 库，间接依赖的目标文件经 `link_object_library()` 进入固件；board 带链接脚本，port 带 `--wrap`；生成 `.map/.hex/.bin`，`flash`/`openocd-server` 目标（OpenOCD + CMSIS-DAP，`tool/flash/openocd/`）
+- [x] 每个 target 显式声明 include 与依赖；严格告警（`-Wextra -Werror`）按 target 设置，`-Wall` 与迁移源一样加给全部代码（GCC 15 在 -O0 下 `-Wall` 会改变生成代码）；新工程没有全局 include 与 `file(GLOB)`（`arch_check.py scan` 检查）
+- [x] 源码仍在 `legacy/` 原地、按迁移源根路径 include，过渡 target `legacy_include` 暴露 `legacy/`，标注"P2 结束时删除"；迁移源的两个构建期开关由 `legacy_build_options` 提供（P3b 删除）
+- [x] 符号对照工具 `tool/ci/symbols.py`（`readelf -sW` 归一化，名称、大小、类型、绑定、输出段，不含地址）；依赖图检查 `tool/ci/arch_check.py`；CI 的 `firmware-legacy` 改为 `firmware`：根工程构建 + 与迁移源逐配置比较符号集合 + 依赖图检查，迁移源 Release SHA 校验保留到 P2；`host-tests`、`lint-naming` 改用根工程 preset；新增 `lint-arch`
+- [x] 宿主测试改由根工程引入：框架单元测试链接 `lib_*`/`driver_*`；底盘集成测试仍直接编译 app 源码（例外 X-10，P3b）
+- [x] 验收（2026-10-26）：**业务源码零改动**（`legacy/` 无任何变更）；**符号集合与迁移源构建一致**——Debug 1426 个、Release 1038 个函数与对象符号的名称、大小、类型、绑定、输出段全部相同（Windows xPack GCC 15.2.1 与 Linux Arm GNU 15.2.Rel1 各验证一次）；`.bin` SHA 如预期不同（`.text` 等段因链接顺序有几个字节的对齐填充差异），唯一的符号表差异是 `QuaternionEkf.cpp` 的 FILE 符号（该文件的代码在迁移源中也被 `--gc-sections` 全部回收）；`ctest` 14/14（MSYS2 g++ 16.2、WSL g++ 11.4）；依赖图检查通过（与评审报告 §5.2 一致，迁移期放行的边逐条注明），并做了反向验证；命名检查 0 处
+- [x] 回滚：revert P1 的合并提交即回到 P0.5 状态（`legacy/` 自带的构建仍可用）
 
 ### P2 机械搬迁（1:1 项，不改行为，2–3 人日）
 
 - [ ] 从 `legacy/` 逐目录 `git mv`（文件名同时改为 snake_case，头文件保护宏随路径更新）+ include 机械改写（下列来源路径都在 `legacy/` 下）：`Application/Task/{0_imu,1_chassis,2_gimbal,4_communication}`→`app/tasks/`+能力目录；`Libraries/Algorithm|Component`→`src/lib/`（先保留子目录名）；`Libraries/Device`→`src/driver/`（含 `DjiMotorModelMap.hpp`，Q11 默认不移动）；`Libraries/Protocol`→`src/driver/protocol/`；`Platform/Interface`→`src/hal/`；`Platform/STM32H7/DM_MC02`→`platform/st/stm32h7/board_dm/`
 - [ ] 拆分 `cubemx/`（生成物）与 `port/`（手写实现，此阶段仍是原 C 文件）、`board/`（pinmap/能力清单/启动胶水）；`Platform/Interface/Detail/` 暂放 `src/hal/detail/`
-- [ ] 去掉裸头名 include（`Can.hpp`/`Time.hpp` 等）；**删除 `foray_legacy_include`**，此后层边界由构建保证
-- [ ] 验收：构建绿；符号名与大小集合对照基线；`git diff -M` 为 rename + include/CMake 机械行（无逻辑改动）；`ctest` 绿；`git log --follow` 可追溯
+- [ ] 去掉裸头名 include（`Can.hpp`/`Time.hpp` 等）；**删除 `legacy_include`**，此后层边界由构建保证
+- [ ] 验收：构建绿；符号集合对照基线（迁移源构建随搬迁失效，改用 P1 存档的归一化符号表 `docs/ai/decisions/2026-10-26-P1-构建骨架/symbols-{Debug,Release}.txt` 作基准，CI 的 `firmware` 作业同步调整并删除迁移源 SHA 校验）；`git diff -M` 为 rename + include/CMake 机械行（无逻辑改动）；`ctest` 绿；`git log --follow` 可追溯
 - [ ] 回滚：revert P2 分支，P1 基线仍在
 
 ### P2.5 混合文件拆分搬迁（不改行为，2–4 人日）
 
 > 处理评审报告 §7.2.1 的"非一对一映射"项：只移位/拆文件，不改逻辑。
 
-- [ ] `Application/Entry.*` → `config/assembly/entry_legacy.*`（P3b 再收敛为 `foray_boot_*`）
+- [ ] `Application/Entry.*` → `config/assembly/entry_legacy.*`（P3b 再收敛为 `boot_*`）
 - [ ] `Application/Task/TaskManager.*` → `app/common/task_manager.*`（P3b 再拆任务表到 `config/assembly`）
 - [ ] `Application/Imu/*` → `app/imu/`（P3b 再拆 `ImuBodyMapping` 与时钟注入）
 - [ ] `Platform/PortKit/*` → `src/utils/`（队列/通知）+ `src/hal/os/`（临界区契约）+ `platform/.../port/critical.c`（实现）
@@ -89,7 +92,7 @@
 ### P3b 装配根与能力拆分（允许改行为，10–20 人日，丢失业务重建另计）
 
 - [ ] 拆分 `config/profiles/<profile>/profile.cmake`（纯数据）与 `config/assembly`（任务表/对象构造/启动入口）；`IMU_ENABLE_DIAGNOSTICS`、`IMU_GYRO_BANDWIDTH` 收进 profile
-- [ ] 落地 boot ABI：`src/boot/foray_boot.h` + `foray_boot_init/init_rtos/run`；生成区改为只调这三个符号
+- [ ] 落地 boot ABI：`src/boot/boot.h` + `boot_init/init_rtos/run`；生成区改为只调这三个符号
 - [ ] `app` 按能力拆分 target：imu / chassis / gimbal / remote / link / launch；msg v1（最新值邮箱/SPSC 队列）与能力拆分同步落地
 - [ ] 任务层从 `cmsis_os2` 改用 FreeRTOS 原生 API（约 15 处调用）
 - [ ] 在新结构中重建丢失的业务链（遥控 → 底盘/云台）与其他丢失功能（L1–L6，见 [丢失功能与恢复依据](docs/ai/decisions/2026-10-26-丢失功能与恢复依据.md)）；其中加热控制（L6）以原固件冷启动实测曲线为验收下限
@@ -116,7 +119,7 @@
 
 ## 当前 Agent State
 
-`EXECUTING`（P0、P0.5 均于 2026-10-26 验收，里程碑合并入 `main` 按负责人要求暂缓；P0.5 的格式化与改名后 legacy Debug/Release 仍与基线逐字节一致，下一步是 P1 构建骨架）。
+`EXECUTING`（P0、P0.5、P1 均于 2026-10-26 验收，里程碑合并入 `main` 按负责人要求暂缓；P1 根工程构建的固件与迁移源构建的符号集合一致，下一步是 P2 机械搬迁）。
 状态词表：`REVIEW_PENDING`（等待评审）/ `PLANNING`（方案已批准、编制细节）/ `EXECUTING`（实施中）/ `BLOCKED`（外部阻塞）/ `DONE`（阶段完成）。
 
 ## Before Snapshot
@@ -181,3 +184,5 @@ Q1–Q18 已全部确认（见评审报告 v1.0 §11.1 与 decision.md）。仍�
 | 2026-10-26 | P0 | P0 验收：`git log --follow`、`ctest`、基线 SHA 与符号表、Q4 证据表均满足；`dev` → `main` 里程碑合并暂缓 | ✅ 已验收 |
 | 2026-10-26 | P0.5 | 新增 `tool/ci/format.py`；一次性格式化 126 个手写文件（`c23eb5e`，登记于 `.git-blame-ignore-revs`）；CI lint-c 改为全量检查。legacy Debug/Release 与基线逐字节一致，ctest 13/13 | 格式化完成，改名待做 |
 | 2026-10-26 | P0.5 | 新增 `tool/ci/naming.py` 与 CI `lint-naming`；`.clang-tidy` 微调（Decision-20261026-05）；C++ 标识符按 ROS 2 命名改名（`2b3fbf8`，自动 2190 处 + 手工修正）与改名后格式化（`0c51793`），均登记于 `.git-blame-ignore-revs`。legacy Debug/Release 与基线逐字节一致，符号地址/大小集合一致，ctest 13/13，命名检查 0 处 | P0.5 验收 |
+| 2026-10-26 | P0.5 | 修复：宿主测试的编译期检查漏改 `GM6020_CURRENT`（旧名不存在导致检查空过），补正向对照 | 已修复 |
+| 2026-10-26 | P1 | 根工程构建骨架（target 按目标结构组织，源码仍在 `legacy/`）；`symbols.py`、`arch_check.py`；CI 改用根工程（`firmware`、`lint-arch`）；target 名去掉项目前缀（Decision-20261026-06、-07）。根工程固件与迁移源符号集合一致（Debug 1426、Release 1038），ctest 14/14，依赖图检查通过 | P1 验收 |

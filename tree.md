@@ -1,9 +1,9 @@
 # 目录结构说明（foray_mcu）
 
-> 状态：**方案已确认，P0、P0.5 已验收（2026-10-26），下一步 P1**。本文件描述"目标结构"与"当前实际状态"的差异。
+> 状态：**方案已确认，P0、P0.5、P1 已验收（2026-10-26），下一步 P2**。本文件描述"目标结构"与"当前实际状态"的差异。
 > 目标结构以 [docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md](docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md) 为准；"目标位置"按阶段落地，是否已落地以状态图例为准。
 
-## 当前实际结构（2026-10-26，P0.5 完成）
+## 当前实际结构（2026-10-26，P1 完成）
 
 ```text
 foray_mcu/
@@ -11,40 +11,55 @@ foray_mcu/
 ├── .gitignore / .gitattributes / .clang-format / .clang-tidy   仓库规则、格式与命名配置
 ├── .git-blame-ignore-revs     git blame 忽略的纯格式/纯改名提交
 ├── .foray-layer / CODEOWNERS  组织合规件（layer: MCU；@ZQU-Foray/电控组）
-├── .github/workflows/ci.yml   CI 第一版：lint-c 增量、宿主测试、legacy 固件 Release SHA 闸门
+├── .github/workflows/ci.yml   CI：lint-python、lint-c、lint-naming、lint-arch、host-tests、firmware（符号对照）
+├── .github/actions/setup-arm-gcc/   CI 共用：安装 xPack Arm GNU 工具链与 Ninja
 ├── README.md / AGENTS.md / plan.md / tree.md / decision.md   五件套
-├── legacy/                   迁移源 ControllerCode a2cfd16 原样副本（P0–P2.5 只做机械搬出）
+├── CMakeLists.txt / CMakePresets.json   根工程（P1）：唯一开关 -DPROFILE；preset arm-debug、arm-release、host-tests
+├── cmake/
+│   ├── toolchains/           arm-gcc-cortex-m7、arm-gcc-cortex-m4f、host（-m4f 尚无使用者，P3a 用）
+│   ├── targets.cmake         严格告警、OBJECT 库目标文件传递、固件产物、烧录目标
+│   └── legacy.cmake          迁移期过渡件：legacy_include（P2 删）、legacy_build_options（P3b 删）
+├── src/                      框架 target：hal、hal_detail、hal_os、boot、utils、lib_*、driver_*
+│   ├── hal/os/               最小 OS 契约草案（clock.hpp、critical_section.hpp），唯一已搬入的代码
+│   └── {hal,boot,utils,lib,driver}/CMakeLists.txt   源码仍引用 legacy/ 路径
+├── app/CMakeLists.txt        产品 target：app_imu、app_chassis、app_gimbal、app_remote、app_tasks、app_common
+├── config/
+│   ├── profiles/baseline/profile.cmake   a2cfd16 基线固件（DM-MC02）；profiles/profile.hpp.in 生成 profile.hpp
+│   └── assembly/CMakeLists.txt           assembly_baseline（迁移期为 legacy/Application/Entry.cpp）
+├── platform/
+│   ├── st/stm32h7/board_dm/  board.cmake（板标识 dm_mc02）+ CMakeLists.txt（mx_generated、rtos、usb、portkit、port、board、os_freertos）
+│   └── mock/                 platform_mock：hal_os 的宿主替身
+├── legacy/                   迁移源 ControllerCode a2cfd16 原样副本（P0–P2.5 只做机械搬出；自带构建保留到 P2 做 SHA 对照）
 │   ├── Application/          业务层：任务、IMU、模块、启动入口
 │   ├── Libraries/            算法、组件、设备驱动、设备协议
 │   ├── Platform/             Interface（契约 + C ABI）、PortKit、STM32H7/DM_MC02（CubeMX 工程 + Port）
 │   ├── .docs/images/         既有架构图
 │   └── README.md
-├── app/ config/              空骨架（P2 起填充）
-├── platform/                 空骨架：st/board_c、st/board_dm/{bsp_impl,cubemx}、ti（空目录不入 git）
-├── src/
-│   ├── bsp/hardware/         7 个 0 字节占位 .hpp（未纳入 git，P1 建 src/hal 时删除）
-│   └── bsp/os/、driver/、lib/、middleware/、msg/、utils/    空
-├── test/host/                宿主测试（P0 独立 CMake 工程，13 项 ctest；来源 fd1edbb，见 test/host/README.md）
+├── test/host/                宿主测试（由根工程 host-tests preset 引入，14 项 ctest；来源 fd1edbb，见 test/host/README.md）
 ├── test/data/imu/            真实 IMU 数据（原固件静态陀螺采集 ×2）
 ├── test/data/heater/         原固件加热冷启动曲线（L6 重做的验收下限）
 ├── tool/debug/               SWD 只读轮询、IMU 采集与加热日志解码（Python）
-├── tool/ci/format.py         C/C++ 格式检查与格式化入口（CI 与本地共用）
-├── tool/ci/naming.py         C++ 命名检查与修正入口（clang-tidy，CI 与本地共用）
+├── tool/flash/openocd/       OpenOCD 配置（DM-MC02 + CMSIS-DAP）
+├── tool/ci/                  format.py（格式）、naming.py（命名）、symbols.py（符号对照）、arch_check.py（依赖图与文本扫描）
 └── docs/
     ├── assets/controller_code-架构图.png                    迁移源架构图（人工绘制，PNG 内嵌 5 页）
     └── ai/                      AI 撰写的文档（Decision-20261026-03）
         ├── README.md                docs/ai 索引
-        ├── architecture.md          分层判据、依赖规则、例外登记表（v1）
+        ├── architecture.md          分层判据、依赖规则、例外登记表（v1.1）
         ├── assets/controller_code-固件恢复可行性评估.md      迁移源基线证据（未入 git 的工作区文件转存）
         ├── reviews/2026-10-25-foray_mcu-架构评审报告.md      v1.0（已确认）
         ├── reviews/archive/                                  v0.1–v0.4 原文存档
         ├── decisions/2026-10-25-迁移基线与对照.md           基线数据、SHA、工具链、P0 复核记录、芯片 Flash 存档记录
         ├── decisions/2026-10-26-丢失功能与恢复依据.md       丢失功能清单（L1–L6）与行为证据
         ├── decisions/2026-10-26-P0.5-改名/                  P0.5 改名过程、改名表、手工修正脚本、改名后符号表
+        ├── decisions/2026-10-26-P1-构建骨架/                P1 过程与对照、归一化符号表（P2 的对照基准）
         └── decisions/baseline-a2cfd16/                      基线符号表与段表（nm -S / size -A）、SHA256SUMS
 ```
 
-**事实**：本仓已建 git 并推送到 GitHub，迁移源在 `legacy/`，可在 `legacy/Platform/STM32H7/DM_MC02` 构建（P0 已复现，SHA-256 与基线一致）；还没有根 `CMakeLists.txt`；宿主测试已恢复到 `test/host/`（独立工程，直接编译 `legacy/` 源码）；其余目标结构目录仍是空骨架。
+**事实**：
+- 根工程按目标结构组织 target，固件 `firmware_baseline` 与迁移源构建的符号集合一致（P1 验收）；
+- 源码仍在 `legacy/` 原地编译，P2 起搬到 `src/`、`app/`、`config/`、`platform/`；
+- `src/msg`、`src/middleware`、`src/third_party`、`app/` 下的能力目录与 `platform/st/stm32f4` 等尚未建立，按阶段落地。
 
 ## 目标结构（已确认，按阶段实施）
 
@@ -56,7 +71,7 @@ foray_mcu/
 ├── CMakePresets.json             预设矩阵：profile × board × Debug/Release + host-tests
 ├── cmake/
 │   ├── toolchains/               arm-gcc-cortex-m7 / arm-gcc-cortex-m4f / host；按需 arm-gcc-cortex-r5、tiarmclang-cortex-r5、arm-gcc-cortex-m0plus
-│   ├── foray_targets.cmake       统一 target 属性、严格告警、公共 include 规则
+│   ├── targets.cmake       统一 target 属性、严格告警、公共 include 规则
 │   └── checks/                   分层/include/禁止依赖检查脚本
 ├── app/                          业务能力（按能力/角色，不按兵种）
 │   ├── common/                   任务外壳、周期循环、基础类型（唯一允许接触 OS 的 app 子目录；FreeRTOS 原生 API）
@@ -69,7 +84,7 @@ foray_mcu/
 │   ├── debug_comm/               调优调试（临时，调优后删）
 │   └── tasks/                    各能力任务薄壳（线程/节拍/外设独占）
 ├── config/
-│   ├── profiles/<profile>/       profile.cmake（纯数据：能力集合、参数、板卡）+ foray_profile.hpp.in
+│   ├── profiles/<profile>/       profile.cmake（纯数据：PROFILE_ID、BOARD、FEATURES、参数）；profiles/profile.hpp.in 生成 profile.hpp
 │   ├── assembly/                 组合根：boot ABI 实现、任务表、对象装配、参数注入
 │   └── generated/                构建生成物（gitignore，不手改）
 ├── platform/
@@ -88,7 +103,7 @@ foray_mcu/
 ├── src/                          通用框架（平台无关、可宿主编译）
 │   ├── hal/                      C++ 契约：can/gpio/pwm/spi/time/uart/usb_cdc.hpp（由 port 直接实现；不设 C ABI 子层）
 │   │   └── os/                   最小 OS 契约：临界区 + 单调时基（Q10；线程、队列不进框架）
-│   ├── boot/                     启动 ABI：foray_boot_init / init_rtos / run（由 Application/Entry.h 演进；生成区只认它）
+│   ├── boot/                     启动 ABI：boot_init / init_rtos / run（由 Application/Entry.h 演进；生成区只认它）
 │   ├── lib/                      纯算法/组件：math/control/estimate/filter/kinematics/fsm/crc/slope
 │   ├── driver/                   设备与设备协议：imu/bmi088、motor/dji（含型号档案映射，Q11）、motor/damiao、misc、protocol
 │   ├── msg/                      最新值邮箱/SPSC 队列（v1，与 P3b 能力拆分同步落地）；topic 在 P3b 后按需引入
@@ -125,8 +140,8 @@ foray_mcu/
 | 🟡 规划中 | 评审通过后实施 |
 | ⛔ 冻结/禁止 | 生成区、组织契约、手写协议等 |
 
-当前：五件套与评审报告为 ✅（已确认）；git 仓库、`legacy/` 布局与格式/命名配置为 ✅；其余全部 🟡；`legacy/`（只做机械搬迁）与 `platform/**/cubemx/**`、`*.ioc`、`.mxproject` 为 ⛔。
-**注意**：`src/hal` 目前**不存在**（P1 建立，Q2 已确认）；当前占位是 `src/bsp/hardware` 下 7 个 0 字节 `.hpp`，未纳入 git。
+当前：五件套与评审报告为 ✅（已确认）；git 仓库、`legacy/` 布局、格式/命名配置与根工程构建骨架（P1）为 ✅；源码搬迁（P2 起）为 🟡；`legacy/`（只做机械搬迁）与 `platform/**/cubemx/**`、`*.ioc`、`.mxproject` 为 ⛔。
+**注意**：P1 的 target 已按目标位置建立，但除 `src/hal/os` 外源码仍在 `legacy/`，下表"当前状态"按源码所在位置标注。
 
 ## 关键位置（目标态）
 
@@ -134,21 +149,21 @@ foray_mcu/
 |---|---|---|
 | 迁移源（原样） | `legacy/` | ⛔ 只做机械搬出 |
 | 业务能力实现 | `app/<capability>/` | 🟡 待迁移 |
-| 产品/机器人装配（能力集合、参数） | `config/profiles/<profile>/` | 🟡 待建 |
-| 组合根（任务表、对象构造、启动） | `config/assembly/` | 🟡 待建 |
-| 跨平台硬件契约（C++） | 目标 `src/hal/`；当前占位 `src/bsp/hardware/` | 🟡 待建（P1） |
-| 启动 ABI（生成区 ↔ 装配根） | `src/boot/` | 🟡 待建 |
-| 最小 OS 契约 / 并发原语 | `src/hal/os/`、`src/utils/` | 🟡 待建（P3a） |
+| 产品/机器人装配（能力集合、参数） | `config/profiles/<profile>/` | ✅ schema 已定稿（P1，`baseline`）；能力决定链接在 P3b |
+| 组合根（任务表、对象构造、启动） | `config/assembly/` | ✅ target 已建（P1，源码 P2.5 搬入） |
+| 跨平台硬件契约（C++） | `src/hal/` | ✅ target 已建（P1，源码 P2 搬入，契约 v1 在 P3a） |
+| 启动 ABI（生成区 ↔ 装配根） | `src/boot/` | 🟡 target 已建，内容在 P3b |
+| 最小 OS 契约 / 并发原语 | `src/hal/os/`、`src/utils/` | 📄 OS 契约草案与宿主替身（P1）；port 实现与并发原语在 P3a |
 | 设备驱动与协议 | `src/driver/` | 🟡 待迁移 |
 | 算法与组件 | `src/lib/` | 🟡 待迁移 |
 | 板级生成区（CubeMX） | `platform/<vendor>/<mcu>/<board>/cubemx/` | 🟡 待迁移 |
 | 板级手写适配（Port） | `platform/<vendor>/<mcu>/<board>/port/` | 🟡 待迁移 |
-| 宿主测试 | `test/host/`（从 ControllerCode `fd1edbb` 恢复） | ✅ 已恢复（P0 独立工程，13 项全绿；`ImuStream` 待重写） |
-| 组织合规件 | `.foray-layer`、`CODEOWNERS`、`.github/workflows/ci.yml` | ✅ 已落地（P0，CI 第一版，见 Decision-20261026-01） |
+| 宿主测试 | `test/host/`（从 ControllerCode `fd1edbb` 恢复） | ✅ 由根工程引入（P1，14 项全绿；`ImuStream` 待重写） |
+| 组织合规件 | `.foray-layer`、`CODEOWNERS`、`.github/workflows/ci.yml` | ✅ 已落地（P0；CI 在 P0.5、P1 扩充，见 Decision-20261026-01、-05、-07） |
 | 链路协议生成头 | `src/third_party/foray_interfaces/generated/lower_link.hpp` | 🟡 待 vendor |
 | 架构评审 | `docs/ai/reviews/`（v1.0；旧版在 `archive/`） | ✅ 已确认 |
 | 迁移基线证据 | `docs/ai/decisions/2026-10-25-迁移基线与对照.md`、`docs/ai/decisions/baseline-a2cfd16/`、`docs/ai/assets/controller_code-固件恢复可行性评估.md` | ✅ P0 已复核（SHA 一致，符号表入档） |
-| 决策与基线 | `docs/ai/decisions/`、`decision.md` | 🟡 待补 |
+| 决策与基线 | `docs/ai/decisions/`、`decision.md` | ✅ 随阶段登记（P1 对照基准见 `docs/ai/decisions/2026-10-26-P1-构建骨架/`） |
 
 ## 迁移源对照（粗粒度）
 

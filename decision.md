@@ -348,6 +348,92 @@
 
 ---
 
+## Decision-20261026-06（名字去掉 foray 前缀，Accepted）
+
+- **Date**：2026-10-26
+- **Status**：Accepted（负责人 2026-10-26 要求："所有原本有 foray 前缀的都不需要这些前缀，其它不变"）
+- **Source**：负责人指示；适用于评审报告 §5、`docs/ai/architecture.md` 与此前决策中的命名
+
+**Decision**：计划中凡是带 `foray`/`FORAY` 前缀的名字一律去掉前缀，含义与结构不变：
+
+| 类别 | 原名 | 新名 |
+|---|---|---|
+| CMake target | `foray_hal`、`foray_hal_os`、`foray_boot`、`foray_utils`、`foray_msg`、`foray_lib_<pkg>`、`foray_driver_<device>`、`foray_middleware_<svc>`、`foray_app_<capability>`、`foray_app_common`、`foray_assembly_<profile>`、`foray_profile_<profile>`、`foray_firmware_<profile>`、`foray_os_freertos_<board>`、`foray_port_<board>`、`foray_board_<board>`、`foray_mx_generated_<board>`、`foray_rtos_<board>`、`foray_usb_<board>`、`foray_platform_mock`、`foray_test_<name>`、`foray_hal_detail`、`foray_legacy_include` | 去掉 `foray_`，如 `hal`、`port_<board>`、`legacy_include` |
+| CMake 变量 | `FORAY_PROFILE`（以及示意 schema 中的 `FORAY_PROFILE_ID`、`FORAY_BOARD`、`FORAY_FEATURES` 等） | `PROFILE`、`PROFILE_ID`、`BOARD`、`FEATURES` |
+| 启动入口（C 链接） | `foray_boot_init`、`foray_boot_init_rtos`、`foray_boot_run`，头文件 `src/boot/foray_boot.h` | `boot_init`、`boot_init_rtos`、`boot_run`，`src/boot/boot.h`（P3b 落地） |
+| 文件与函数 | `cmake/foray_targets.cmake`、`foray_profile.hpp(.in)`、宿主测试的 `foray_host_test()` | `cmake/targets.cmake`、`profile.hpp(.in)`、`host_test()` |
+
+**不改**（不是计划里的前缀）：仓库名 `foray_mcu`、组织规定的 `.foray-layer`、外部仓库 `foray_interfaces`、`foray_docs` 等。
+
+**适用**：此前的 Accepted 决策与评审报告 v1.0 中的旧名一律按上表理解，不逐条改写历史记录；`docs/ai/architecture.md`、`plan.md`、`tree.md` 等现行文档已同步。
+
+**Consequences**：
+- target 名不再带项目标识。将来把框架提成独立仓库、被其他 CMake 工程引入时（P5），`hal`、`utils` 这类通用名可能与对方的 target 重名，届时用带命名空间的 ALIAS（如 `framework::hal`）或在提取时统一加前缀。
+- 架构检查（`tool/ci/arch_check.py`）按新名字的命名白名单判定 target 所在的层。
+
+---
+
+## Decision-20261026-07（P1 构建骨架的设计与验收，Accepted）
+
+- **Date**：2026-10-26
+- **Status**：Accepted（按 plan.md P1 执行；过程与对照数据见 `docs/ai/decisions/2026-10-26-P1-构建骨架/`）
+- **Source**：评审报告 §5.2、§5.4、§7.2 P1、§7.3；Decision-20261026-06
+
+**Context**：P1 要在零源码改动的前提下建立根工程与 target 骨架，并以"符号名与大小集合与基线一致"验收。源码在 P2 之前仍在 `legacy/`。
+
+**Decision**：
+
+1. **profile 与板卡的 schema**（评审报告 §5.4 要求 P1 定稿）：
+   - 唯一开关是 `-DPROFILE=<名称>`；
+   - `config/profiles/<名称>/profile.cmake` 只含数据：`PROFILE_ID`（须与目录名一致）、`BOARD`（`platform/` 下的板卡目录）、`FEATURES`（P3b 起决定链接哪些能力）；
+   - 板卡目录下的 `board.cmake` 声明 `BOARD_ID`（target 名后缀）、`BOARD_CPU`（配置时与工具链核对）、`BOARD_OPENOCD_CONFIG`；
+   - 第一个 profile 是 `baseline`（a2cfd16 基线固件，DM-MC02，板标识 `dm_mc02`），P1–P2.5 用它做符号对照，P3b 起再按兵种建立正式 profile；
+   - `profile_<名称>` 是生成头 `profile.hpp`（`profile::ID`、`profile::BOARD`），叶子 target。
+2. **target 归属**：每个 legacy 文件按 P2/P2.5 的目标位置归属一个 target（头文件也列入），源码引用 `legacy/` 路径，P2 搬迁时只改路径。图中新增的节点有三类：
+   - `app_tasks`：任务外壳，对应 `app/tasks`；
+   - 迁移期过渡件：`legacy_include`、`legacy_build_options`、`portkit`；
+   - `msg`、`middleware_<svc>` 暂不建立，P3b/P4 有内容时再建。
+3. **OBJECT 库的目标文件传递**：CMake 只把直接链接的 OBJECT 库放进最终链接。`link_object_library()` 用 PRIVATE 链接保留依赖边，同时把 `$<TARGET_OBJECTS:…>` 放进链接接口。这样 port 下的生成区、assembly 下的 board 都能进入固件，依赖图也保持与 §5.2 一致。
+4. **编译选项与迁移源一致**：工具链文件照抄迁移源的 CPU、优化、调试选项，Release 不定义 `NDEBUG`。C 用 gnu11，C++ 用 C++17。差异只限于对应文件不使用的宏，逐文件对照表见证据目录。两点经验：
+   - **`-Wall` 加给全部代码**：GCC 15 在 -O0 下 `-Wall` 会改变生成代码，空死循环里多一条 `nop`。按 target 加会使 34 个函数大小不同，所以由工具链统一添加；
+   - **严格告警**（`-Wextra -Werror`）按 target 添加，只加给手写代码。
+5. **include 约定**（P2 起适用）：
+   - 新代码以层的根目录为 include 根：框架为 `src/`（`#include "hal/os/clock.hpp"`），产品为 `app/`；两边一级目录不重名；
+   - 不把仓库根加入 include 路径；
+   - 迁移期的 `legacy_include` 与 `hal` 对 `legacy/Platform/Interface` 的暴露在 P2 删除。
+6. **头文件保护宏**：路径大写，单下划线分隔，如 `HAL_OS_CLOCK_HPP`，与迁移源一致。`architecture.md` 原示例的双下划线写法通不过 `.clang-tidy` 的宏命名检查，而且是 C++ 保留标识符，予以更正。
+7. **最小 OS 契约草案**：`hal::os::CriticalSection`（RAII，可嵌套，析构恢复进入前状态）、`hal::os::now_ticks()`、`hal::os::tick_frequency_hz()`。platform_mock 实现并有宿主测试；固件的 port 实现与契约 v1 冻结在 P3a。
+8. **宿主测试**：
+   - 由根工程在宿主构建中引入；框架的单元测试链接 `lib_*`、`driver_*` target；
+   - 底盘集成测试要用影子头，仍在测试里直接编译 app 源码，例外 X-10 缩小为这一项，P3b 解决；
+   - 测试可执行文件为 `test_<名称>`，ctest 名称不变。
+9. **工具与 CI**：
+   - `tool/ci/symbols.py`：readelf 归一化的符号对照。存档的符号表在 Windows xPack 与 Linux Arm GNU 两套工具链上逐项一致，解决了基线对照文档 §7 记录的 `nm` 跨平台问题；
+   - `tool/ci/arch_check.py`：依赖图检查与文本扫描；
+   - CI 的 `firmware` 作业比较根工程与迁移源构建的符号集合；`lint-arch` 做文本扫描；`host-tests` 与 `lint-naming` 改用根工程 preset；
+   - 迁移源构建与 Release SHA 校验保留到 P2；
+   - xPack 安装抽成 `.github/actions/setup-arm-gcc`。
+10. **新增例外**：X-14（`legacy_build_options`，P3b）、X-15（`portkit`，P2.5）、X-16（`os_freertos_<board>` 只能整目录暴露 CubeMX 的 `Core/Inc`）。依赖图中迁移期放行的边：
+    - `hal → hal_detail`（X-07）；
+    - `mx_generated → hal_detail/legacy_include`（X-01、X-09）；
+    - `lib_estimate → driver_bmi088`（已知结构债）；
+    - `app_common → app_tasks`（TaskManager 含任务表，P3b）。
+
+**验证**：
+- 根工程固件与迁移源构建的符号集合一致：Debug 1426 个、Release 1038 个函数与对象符号，名称、大小、类型、绑定、输出段全部相同；Windows xPack GCC 15.2.1 与 Linux Arm GNU 15.2.Rel1 各验证一次；
+- `.bin` 因对齐填充差几个字节，SHA 不同（预期内）；
+- ctest 14/14（MSYS2 g++ 16.2、WSL g++ 11.4）；
+- 依赖图检查与文本扫描通过，并做了反向验证；
+- 命名检查 0 处，格式检查 131 个文件通过；
+- `legacy/` 无任何改动。
+
+**Alternatives / Rejected**：
+- **固件直接链接全部 OBJECT 库**：依赖图会变成"固件 → 生成区"，与 §5.2 不符，检查也无法区分合法与违规的直连，否决。
+- **把 port、board 改为 STATIC 加 WHOLE_ARCHIVE**：需要 CMake 3.24，且与规则"port 与 board 用 OBJECT"不符，否决。
+- **只给手写代码加 `-Wall`**：会改变生成代码（第 4 点），否决。
+
+---
+
 ## 待登记
 
 - 分支保护的具体设置（组织规范 §6.1、§10，负责人在 GitHub 上操作后补记）。

@@ -1,38 +1,42 @@
 # 宿主测试（test/host）
 
-在宿主机上编译 `legacy/` 中的被测源码，用 ctest 运行，不需要开发板。
+在宿主机上编译被测代码，用 ctest 运行，不需要开发板。由根工程在宿主构建中引入（`host-tests` preset）。
 
-> 当前是 P0 的独立 CMake 工程：还没有根 CMakeLists，被测源码直接引用 `legacy/` 路径。
-> P1 建根工程后改由根工程引入（`host-tests` 预设），P2 搬迁源码时同步更新 `CMakeLists.txt` 中的路径与边界检查清单。
+- 测框架代码的单元测试直接链接框架 target（`lib_*`、`driver_*`）与 `platform_mock`；
+- 测产品代码的底盘集成测试要用影子头替换 DJI 映射与 `cmsis_os2.h`，仍在测试里直接编译 app 源码（例外 X-10，P3b 改为链接）；
+- 被测源码在 P2 之前仍在 `legacy/`，搬迁时同步更新 `CMakeLists.txt` 中直接编译的 app 源码路径与边界检查清单。
 
 ## 运行
 
-需要 CMake ≥ 3.22、Ninja，以及 GCC 或 Clang（不支持 MSVC）。
+需要 CMake ≥ 3.22、Ninja，以及 GCC 或 Clang（不支持 MSVC）。在仓库根执行：
 
 ```sh
-cmake -S test/host -B build/host-tests -G Ninja
-cmake --build build/host-tests
-ctest --test-dir build/host-tests --output-on-failure
+cmake --preset host-tests
+cmake --build --preset host-tests
+ctest --preset host-tests
 ```
 
-Windows 上用 MSYS2 UCRT64 的 g++：配置时加 `-DCMAKE_CXX_COMPILER=C:/msys64/ucrt64/bin/g++.exe`，并保证 `C:\msys64\ucrt64\bin` 在 `PATH` 中（运行测试需要它的运行库）。
+Windows 上用 MSYS2 UCRT64 的 gcc/g++：在 `CMakeUserPresets.json`（不入库）里继承 `host-tests` 并指定 `CMAKE_C_COMPILER`、`CMAKE_CXX_COMPILER`，或配置时加 `-DCMAKE_C_COMPILER=C:/msys64/ucrt64/bin/gcc.exe -DCMAKE_CXX_COMPILER=C:/msys64/ucrt64/bin/g++.exe`，并保证 `C:\msys64\ucrt64\bin` 在 `PATH` 中（运行测试需要它的运行库）。
 
-CI 的 `host-tests` 作业（`.github/workflows/ci.yml`）在 GitHub Actions 的 Ubuntu 上运行同样的三条命令。
+CI 的 `host-tests` 作业（`.github/workflows/ci.yml`）在 GitHub Actions 的 Ubuntu 上运行同样的三条命令，并检查宿主构建的依赖图。
 
-已验证环境（2026-10-26，13/13 通过）：WSL Ubuntu 22.04 + g++ 11.4.0 + CMake 3.31.6；Windows + MSYS2 UCRT64 g++ 16.2.0 + CMake 4.4.4。
+已验证环境（2026-10-26，14/14 通过）：WSL Ubuntu 22.04 + g++ 11.4.0 + CMake 3.31.6；Windows + MSYS2 UCRT64 g++ 16.2.0 + CMake 4.4.4。
 
 ## 测试清单
 
-| ctest 名称 | 测试源码 | 被测源码（`legacy/` 下） |
+可执行文件名为 `test_<ctest 名称>`。
+
+| ctest 名称 | 测试源码 | 被测 target 或源码 |
 |---|---|---|
-| `dji_protocol` | `unit/protocol/DjiEscTest.cpp` | `Libraries/Protocol/dji/DjiEsc.cpp` |
-| `dji_motor` | `unit/motor/DjiMotorTest.cpp` | `DjiMotor.cpp` + 协议 |
-| `dji_adapter` | `unit/motor/DjiMotorAdapterTest.cpp` | `DjiMotorAdapter.cpp` + 驱动 + 协议 |
-| `angle_wrap` | `unit/motor/AngleWrapTest.cpp` | 驱动 + 协议 |
-| `motor_group` | `unit/motor/MotorGroupTest.cpp` | 适配器 + 驱动 + 协议 |
-| `brand_extension` | `unit/motor/BrandExtensionTest.cpp` | 只用 `MotorGroup.hpp`（非 DJI 最小适配器） |
-| `bmi088_acquisition` | `unit/imu_acquisition/bmi088_acquisition_test.cpp` | `Libraries/Device/bmi088/*.cpp`、`Application/Imu/ImuDiagnostics.cpp` |
-| `chassis_controller` | `integration/chassis/ChassisControllerTest.cpp` | `ChassisController.cpp`、`Pid.cpp`、`ChassisTask.cpp`（模拟电机） |
+| `dji_protocol` | `unit/protocol/DjiEscTest.cpp` | `driver_protocol_dji` |
+| `dji_motor` | `unit/motor/DjiMotorTest.cpp` | `driver_motor_dji`（含协议） |
+| `dji_adapter` | `unit/motor/DjiMotorAdapterTest.cpp` | `driver_motor_dji` |
+| `angle_wrap` | `unit/motor/AngleWrapTest.cpp` | `driver_motor_dji` |
+| `motor_group` | `unit/motor/MotorGroupTest.cpp` | `driver_motor_dji` |
+| `brand_extension` | `unit/motor/BrandExtensionTest.cpp` | `driver_motor`（只用 `MotorGroup.hpp`，非 DJI 最小适配器） |
+| `bmi088_acquisition` | `unit/imu_acquisition/bmi088_acquisition_test.cpp` | `driver_bmi088`；测试源码直接 `#include` 了 `Application/Imu/ImuDiagnostics.cpp` |
+| `hal_os_mock` | `unit/hal_os/mock_os_test.cpp` | `platform_mock`（hal_os 的宿主替身：时基、临界区嵌套） |
+| `chassis_controller` | `integration/chassis/ChassisControllerTest.cpp` | `lib_control`；直接编译 `ChassisController.cpp`、`ChassisTask.cpp`（模拟电机） |
 | `controller_equivalence` | `integration/chassis/ControllerEquivalenceTest.cpp` | 同上 |
 | `mock_normal` / `mock_read_failure` / `mock_command_failure` / `mock_init_failure` | `integration/chassis/ChassisMockTest.cpp` | 同上，按场景参数运行 |
 
@@ -46,7 +50,7 @@ CI 的 `host-tests` 作业（`.github/workflows/ci.yml`）在 GitHub Actions 的
 ```text
 test/host/
 ├── CMakeLists.txt
-├── unit/{protocol,motor,imu_acquisition}/   单元测试
+├── unit/{protocol,motor,imu_acquisition,hal_os}/   单元测试
 ├── integration/chassis/                     底盘任务 + 控制器 + 模拟电机
 └── support/                                 测试替身
     ├── DjiPlatformStub.hpp                  CAN/时基 C ABI 桩
@@ -59,6 +63,7 @@ test/host/
 
 ## 来源与适配记录
 
+> P1（2026-10-26）：宿主测试改由根工程引入，`foray_host_test()` 改名为 `host_test()`（Decision-20261026-06），框架单元测试改为链接被测 target，新增 `hal_os_mock`。
 > P0.5（2026-10-26）把测试与被测代码中的 C++ 标识符按 ROS 2 命名统一改名（如 `SetEnabled` → `set_enabled`，`canStub` → `g_can_stub`）。下表是 P0 时的适配记录，保留当时的名字；新旧名字对照见 [P0.5 改名表](../../docs/ai/decisions/2026-10-26-P0.5-改名/改名表.tsv)。文件名在 P2 搬迁时再改。
 
 全部测试来自 ControllerCode 提交 `fd1edbb` 的 `Tests/`。提交 `21f78d6` 原样放入（blob 哈希与 `fd1edbb` 逐一一致），随后的提交只做以下适配，**未改动 `legacy/` 中任何文件**：
