@@ -1,6 +1,6 @@
 # 开发计划（foray_mcu 结构重构）
 
-> 当前状态：**P0 基线与资产恢复进行中**（方案已确认，[decision.md](decision.md) Decision-20261025-01 至 -05 均为 Accepted）。
+> 当前状态：**P0 已验收（2026-10-26），进入 P0.5 格式与命名统一**（方案已确认，[decision.md](decision.md) Decision-20261025-01 至 -05 均为 Accepted；里程碑合并入 `main` 暂缓）。
 > 权威方案见 [docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md](docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md)；本文件只记录执行计划、进度与验收标准。
 > 迁移源 ControllerCode 原样放在 `legacy/`；各阶段的动作、验收与回滚以下文为准，不跨阶段混做。
 
@@ -16,7 +16,7 @@
 - [x] 评审报告定稿为 v1.0（v0.1–v0.4 原文存档于 `docs/ai/reviews/archive/`）
 - [x] 完善 `docs/ai/architecture.md`：分层判据、16 条依赖规则（含检查方式与生效阶段）、一级目录白名单、生成区治理、例外登记表（X-01–X-13，含 `-Wdouble-promotion` 豁免清单）、框架边界与可移植性、命名与格式（v1，2026-10-26，Decision-20261026-02）
 
-### P0 基线与资产恢复（2–4 人日，进行中）
+### P0 基线与资产恢复（2–4 人日，✅ 2026-10-26 验收）
 
 - [x] 建 git 仓库（`main`，提交身份 9isl，仓库级配置）；以 `legacy` remote（GitHub `ZQU-Foray/foray_mcu_controller`）导入 main、dev、chore/align-org-structure 的历史；tag `baseline/a2cfd16`（2026-10-25）
 - [x] 迁移源整体移入 `legacy/`：一个纯重命名提交，333 个文件全部 100% 相似（2026-10-25，`c3490b2`）
@@ -29,7 +29,7 @@
 - [x] 录制一段真实 IMU 数据存入 `test/data/`，作为重构与精度调整的回归对照（2026-10-26，P0 范围内完成）：不烧录、只读 SWD，从原固件取得两份 50 ℃ 静态陀螺采集（各 2 万样本统计 + 1024 个原始样本，结果高度一致；噪声来自达妙小云台电机）→ `test/data/imu/`；原固件加热冷启动曲线（到 50 ℃ 24.1 s、过冲 0.375 ℃、111 s 进入 ±0.25 ℃）→ `test/data/heater/`。**移交 P3b**：姿态解算回归所需的长时间加速度计 + 陀螺原始序列，现有诊断录不出，待新结构实现 IMU 数据流后补录（见 P3b 任务）
 - [x] 补齐组织合规件：`.foray-layer`（layer: MCU / depends_on_layers: [X2]，沿用迁移源 `chore/align-org-structure`）、`CODEOWNERS`（`* @ZQU-Foray/电控组`）、`.github/workflows/ci.yml`（第一版：lint-c 增量格式检查 + 宿主测试 + legacy 固件构建且 Release SHA 与基线一致；设计见 Decision-20261026-01）。本机已模拟各作业（2026-10-26）；GitHub 上首次运行结果见 PR。待负责人：给电控组本仓 Write 权限
 - [x] 确认迁移基线：负责人确认最新进度找不回，以 `a2cfd16` 为基线，丢失的新电机控制、启动时间优化、上下位机通信、云台逻辑在新结构中重做（2026-10-25）；2026-10-26 负责人补充：加热启动性能与超调优化也已丢失。完整清单与证据见 [丢失功能与恢复依据](docs/ai/decisions/2026-10-26-丢失功能与恢复依据.md)
-- [ ] 验收：`git log --follow` 可用；`ctest` 绿；基线 SHA 与符号表入档；Q4 证据表填毕（已完成）
+- [x] 验收（2026-10-26）：`git log --follow` 可用（迁移源文件追溯到原始提交，`docs/ai/` 下文档追溯到移动前）；`ctest` 绿（CI `host-tests`）；基线 SHA 与符号表入档（`docs/ai/decisions/baseline-a2cfd16/`）；Q4 证据表填毕。里程碑合并（`dev` → `main`）按负责人要求暂缓
 
 ### P0.5 格式与命名统一（不改行为，3–5 人日）
 
@@ -116,7 +116,7 @@
 
 ## 当前 Agent State
 
-`EXECUTING`（P0 进行中：git 仓库、历史导入、`legacy/` 布局、忽略规则与格式/命名配置、GitHub 首推、芯片 Flash 存档、基线构建复现已完成；host 测试已恢复（13 项全绿）、组织合规件与 CI 第一版已合并，`docs/ai/architecture.md` v1 已合并；IMU 数据与原固件加热冷启动曲线已入库；P0 各项任务已完成，剩余 P0 验收与里程碑合并（`dev` → `main`），之后进入 P0.5）。
+`EXECUTING`（P0 已于 2026-10-26 验收，里程碑合并入 `main` 按负责人要求暂缓；下一步 P0.5：统一格式与命名，`legacy/` 的 Release 镜像须保持与基线逐字节一致）。
 状态词表：`REVIEW_PENDING`（等待评审）/ `PLANNING`（方案已批准、编制细节）/ `EXECUTING`（实施中）/ `BLOCKED`（外部阻塞）/ `DONE`（阶段完成）。
 
 ## Before Snapshot
@@ -178,3 +178,4 @@ Q1–Q18 已全部确认（见评审报告 v1.0 §11.1 与 decision.md）。仍�
 | 2026-10-26 | P0 | 只读 SWD 取得原固件静态陀螺采集并入库；定位原固件加热器状态（算法与 `a2cfd16` 不同）；建立丢失功能清单（新增 L6 加热优化）；新增 `tool/debug/` | 进行中 |
 | 2026-10-26 | P0 | 记录原固件加热冷启动曲线（到 50 ℃ 24.1 s、过冲 +0.375 ℃、111 s 进入 ±0.25 ℃），作为 L6 重做的验收下限；第二份陀螺采集验证可重复；新增 `heater_log_decode.py`；`swd_poll.py` 改用单调时钟 | P0 任务完成，待验收 |
 | 2026-10-26 | P0 | AI 撰写的文档移入 `docs/ai/`（Decision-20261026-03），全仓 105 条相对链接全部可解析 | P0 任务完成，待验收 |
+| 2026-10-26 | P0 | P0 验收：`git log --follow`、`ctest`、基线 SHA 与符号表、Q4 证据表均满足；`dev` → `main` 里程碑合并暂缓 | ✅ 已验收 |
