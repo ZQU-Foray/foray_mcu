@@ -6,7 +6,7 @@
 ## 0. 当前阶段
 
 本仓处于 **P0（基线与资产恢复）**：方案已确认（[decision.md](decision.md) Decision-20261025-01 至 -05 均为 Accepted；评审报告 `docs/reviews/2026-10-25-foray_mcu-架构评审报告.md` v1.0，旧版在 `docs/reviews/archive/`，不再维护）。
-迁移源 ControllerCode `a2cfd16` 原样放在 `legacy/`（基线 tag `baseline/a2cfd16`）；还没有根 CMakeLists、测试与新结构代码。**按 [plan.md](plan.md) 的阶段顺序推进，不跨阶段混做。**
+迁移源 ControllerCode `a2cfd16` 原样放在 `legacy/`（基线 tag `baseline/a2cfd16`）；还没有根 CMakeLists 与新结构代码；宿主测试已恢复到 `test/host/`（P0 独立 CMake 工程，见 `test/host/README.md`）。**按 [plan.md](plan.md) 的阶段顺序推进，不跨阶段混做。**
 
 ## 1. 语言与格式
 

@@ -21,7 +21,8 @@ foray_mcu/
 ├── src/
 │   ├── bsp/hardware/         7 个 0 字节占位 .hpp（未纳入 git，P1 建 src/hal 时删除）
 │   └── bsp/os/、driver/、lib/、middleware/、msg/、utils/    空
-├── test/ tool/               空
+├── test/host/                宿主测试（P0 独立 CMake 工程，13 项 ctest；来源 fd1edbb，见 test/host/README.md）
+├── tool/                     空
 └── docs/
     ├── README.md                docs 索引
     ├── architecture.md          分层判据与依赖规则（占位，P0 完善）
@@ -33,7 +34,7 @@ foray_mcu/
     └── decisions/baseline-a2cfd16/                          基线符号表与段表（nm -S / size -A，Debug 与 Release）
 ```
 
-**事实**：本仓已建 git 并推送到 GitHub，迁移源在 `legacy/`，可在 `legacy/Platform/STM32H7/DM_MC02` 构建（P0 已复现，SHA-256 与基线一致）；还没有根 `CMakeLists.txt` 和测试；目标结构目录仍是空骨架。
+**事实**：本仓已建 git 并推送到 GitHub，迁移源在 `legacy/`，可在 `legacy/Platform/STM32H7/DM_MC02` 构建（P0 已复现，SHA-256 与基线一致）；还没有根 `CMakeLists.txt`；宿主测试已恢复到 `test/host/`（独立工程，直接编译 `legacy/` 源码）；其余目标结构目录仍是空骨架。
 
 ## 目标结构（已确认，按阶段实施）
 
@@ -129,7 +130,7 @@ foray_mcu/
 | 算法与组件 | `src/lib/` | 🟡 待迁移 |
 | 板级生成区（CubeMX） | `platform/<vendor>/<mcu>/<board>/cubemx/` | 🟡 待迁移 |
 | 板级手写适配（Port） | `platform/<vendor>/<mcu>/<board>/port/` | 🟡 待迁移 |
-| 宿主测试 | `test/host/`（从 ControllerCode `fd1edbb` 恢复） | 🟡 待恢复 |
+| 宿主测试 | `test/host/`（从 ControllerCode `fd1edbb` 恢复） | ✅ 已恢复（P0 独立工程，13 项全绿；`ImuStream` 待重写） |
 | 链路协议生成头 | `src/third_party/foray_interfaces/generated/lower_link.hpp` | 🟡 待 vendor |
 | 架构评审 | `docs/reviews/`（v1.0；旧版在 `archive/`） | ✅ 已确认 |
 | 迁移基线证据 | `docs/decisions/2026-10-25-迁移基线与对照.md`、`docs/decisions/baseline-a2cfd16/`、`docs/assets/controller_code-固件恢复可行性评估.md` | ✅ P0 已复核（SHA 一致，符号表入档） |
