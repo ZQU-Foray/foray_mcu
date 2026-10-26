@@ -184,7 +184,7 @@ void process_gyroscope(const device::Bmi088SampleRecord &record, float temperatu
     }
 
     if (!g_accel_available || platform::Time::ticks_to_seconds(record.drdy_tick - g_last_accel_tick) >
-                               AttitudeEstimator::ACCELEROMETER_STALE_LIMIT_SECONDS)
+                                  AttitudeEstimator::ACCELEROMETER_STALE_LIMIT_SECONDS)
     {
         ++g_statistics_archive.accel_stale;
     }
@@ -224,8 +224,9 @@ bool AttitudeEstimator::init() noexcept
     // 标定允许的三轴均值不能在 VQF 首次零偏更新时被限幅截断。
     config.bias_clip_rad_per_sec = calibration_config.maximum_mean_rate_rad_per_sec;
     constexpr float GYRO_PERIOD_SECONDS =
-        device::Bmi088Gyro::BANDWIDTH_REGISTER_VALUE == device::Bmi088Gyro::GYRO_BANDWIDTH_2000_HZ_532_HZ ? 1.0F / 2000.0F
-                                                                                                   : 1.0F / 1000.0F;
+        device::Bmi088Gyro::BANDWIDTH_REGISTER_VALUE == device::Bmi088Gyro::GYRO_BANDWIDTH_2000_HZ_532_HZ
+            ? 1.0F / 2000.0F
+            : 1.0F / 1000.0F;
     g_ready = g_estimator.init(config, GYRO_PERIOD_SECONDS, 1.0F / 1600.0F);
 
     g_calibration_injected = false;

@@ -13,9 +13,9 @@ constexpr std::size_t SEND_RESULT_COUNT{6U};
 DjiMotor::DjiMotor(platform::Can::Channel channel, const Profile &profile) noexcept
     : channel_{channel}, esc_{profile.dialect}, profile_{profile},
       command_kind_{profile.dialect.commands[static_cast<std::size_t>(protocol::DjiEsc::CommandKind::CURRENT)]
-                               .group_one_control_identifier != 0U
-                       ? protocol::DjiEsc::CommandKind::CURRENT
-                       : protocol::DjiEsc::CommandKind::VOLTAGE}
+                                .group_one_control_identifier != 0U
+                        ? protocol::DjiEsc::CommandKind::CURRENT
+                        : protocol::DjiEsc::CommandKind::VOLTAGE}
 {
 }
 
@@ -204,10 +204,10 @@ void DjiMotor::receive_frames() noexcept
         }
 
         if (esc_.decode_feedback(frame.identifier,
-                                frame.identifier_type == platform::Can::IdentifierType::EXTENDED,
-                                frame.length,
-                                frame.data.data(),
-                                feedback_) != protocol::DjiEsc::DecodeResult::ACCEPTED)
+                                 frame.identifier_type == platform::Can::IdentifierType::EXTENDED,
+                                 frame.length,
+                                 frame.data.data(),
+                                 feedback_) != protocol::DjiEsc::DecodeResult::ACCEPTED)
         {
             continue;
         }
@@ -295,8 +295,9 @@ void DjiMotor::transmit_commands() noexcept
         frame.length = static_cast<std::uint8_t>(command.data.size());
         frame.data = command.data;
         const platform::Can::SendResult result = platform::Can::try_send(channel_, frame);
-        const std::size_t index = static_cast<std::size_t>(result) < SEND_RESULT_COUNT ? static_cast<std::size_t>(result)
-                                                                                     : SEND_RESULT_COUNT - 1U;
+        const std::size_t index = static_cast<std::size_t>(result) < SEND_RESULT_COUNT
+                                      ? static_cast<std::size_t>(result)
+                                      : SEND_RESULT_COUNT - 1U;
         ++tx_result_counts_[index];
         dirty_ = true;
     }
@@ -341,12 +342,13 @@ void DjiMotor::fill_snapshot(std::size_t index, Snapshot &snapshot) const noexce
     snapshot.total_turns =
         motor.total_angle_counts / static_cast<std::int32_t>(protocol::DjiEsc::ANGLE_COUNTS_PER_REVOLUTION);
     snapshot.total_angle_degrees = static_cast<float>(motor.total_angle_counts) * 360.0F /
-                                 static_cast<float>(protocol::DjiEsc::ANGLE_COUNTS_PER_REVOLUTION);
+                                   static_cast<float>(protocol::DjiEsc::ANGLE_COUNTS_PER_REVOLUTION);
     snapshot.rotor_speed_rpm = motor.feedback.rotor_speed_raw;
     snapshot.torque_current_raw = motor.feedback.torque_current_raw;
     snapshot.torque_current_ratio =
         protocol::DjiEsc::control_ratio(motor.feedback.torque_current_raw, esc_.get_command_spec(command_kind_));
-    snapshot.motor_temperature_celsius = profile_.has_temperature_feedback ? motor.feedback.motor_temperature_celsius : 0U;
+    snapshot.motor_temperature_celsius =
+        profile_.has_temperature_feedback ? motor.feedback.motor_temperature_celsius : 0U;
 }
 
 bool DjiMotor::device_id_valid(std::uint8_t device_id) const noexcept

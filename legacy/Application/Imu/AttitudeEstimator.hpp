@@ -28,23 +28,23 @@ class AttitudeEstimator final
     struct Output final
     {
         std::uint32_t version{OUTPUT_VERSION};
-        std::uint32_t update_tick{0U};                // 最近一次更新的 drdy_tick
+        std::uint32_t update_tick{0U};               // 最近一次更新的 drdy_tick
         float quaternion[4]{1.0F, 0.0F, 0.0F, 0.0F}; // 机体系到世界系，标量在前
-        float euler_degrees[3]{};                     // ZYX：yaw、pitch、roll
-        float gyro_bias_rad_per_sec[3]{};                // VQF 估计的三轴原始陀螺零偏
-        float yaw_total_degrees{0.0F};                 // 跨 ±180° 累计的连续 yaw
-        float bias_uncertainty_rad_per_sec{0.0F};        // 三轴零偏不确定度上界
-        std::uint32_t update_count{0U};               // 有效陀螺更新次数
-        float gyroscope_deviation_ratio{0.0F};         // 静止判据的陀螺偏离与阈值之比
+        float euler_degrees[3]{};                    // ZYX：yaw、pitch、roll
+        float gyro_bias_rad_per_sec[3]{};            // VQF 估计的三轴原始陀螺零偏
+        float yaw_total_degrees{0.0F};               // 跨 ±180° 累计的连续 yaw
+        float bias_uncertainty_rad_per_sec{0.0F};    // 三轴零偏不确定度上界
+        std::uint32_t update_count{0U};              // 有效陀螺更新次数
+        float gyroscope_deviation_ratio{0.0F};       // 静止判据的陀螺偏离与阈值之比
         std::uint32_t valid{0U};                     // 至少一次陀螺更新且姿态有限
-        std::uint32_t rest_detected{0U};              // VQF 连续静止判定结果
-        float last_accel_correction_radians{0.0F};      // 最近一次倾角修正角
-        float accelerometer_deviation_ratio{0.0F};     // 静止判据的加速度偏离与阈值之比
+        std::uint32_t rest_detected{0U};             // VQF 连续静止判定结果
+        float last_accel_correction_radians{0.0F};   // 最近一次倾角修正角
+        float accelerometer_deviation_ratio{0.0F};   // 静止判据的加速度偏离与阈值之比
         // 版本 2 起的上电静止标定结果与状态，版本 3 保持字段位置不变。
         float calibration_bias_rad_per_sec[3]{};   // 静止窗口估计的三轴零偏
         float calibration_spread_rad_per_sec[3]{}; // 窗口内每轴极差
-        std::uint32_t calibration_state{0U};    // 见 GyroBiasCalibration::State
-        std::uint32_t calibration_samples{0U};  // 当前窗口样本数
+        std::uint32_t calibration_state{0U};       // 见 GyroBiasCalibration::State
+        std::uint32_t calibration_samples{0U};     // 当前窗口样本数
         float calibration_temperature_celsius{0.0F};
         std::uint32_t calibration_elapsed_ms{0U}; // 累计处于采样状态的时间
     };
@@ -63,7 +63,7 @@ class AttitudeEstimator final
         std::uint32_t rejected_sequence{0U};
         std::uint32_t gyro_gaps{0U};
         std::uint32_t accel_stale{0U}; // 陀螺更新时最近加速度样本超过诊断年龄上限
-        std::uint32_t reserved[3]{};  // 原加速度复用与预测计数槽位，不再使用
+        std::uint32_t reserved[3]{};   // 原加速度复用与预测计数槽位，不再使用
         std::uint32_t calibration_restarts{0U};
     };
     static_assert(sizeof(Statistics) == 48U, "统计布局必须稳定");

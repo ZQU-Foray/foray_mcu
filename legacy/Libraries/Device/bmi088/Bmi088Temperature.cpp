@@ -81,11 +81,11 @@ bool Bmi088Temperature::try_start() noexcept
     transmit_buffer_.fill(0U);
     transmit_buffer_[0] = static_cast<std::uint8_t>(READ_FLAG | DATA_REGISTER);
     const platform::Spi::Result result = platform::Spi::start_transfer_async(platform::Spi::Device::IMU_ACCELEROMETER,
-                                                                           transmit_buffer_.data(),
-                                                                           receive_buffer_.data(),
-                                                                           transmit_buffer_.size(),
-                                                                           Bmi088Transfer::complete,
-                                                                           &completion_);
+                                                                             transmit_buffer_.data(),
+                                                                             receive_buffer_.data(),
+                                                                             transmit_buffer_.size(),
+                                                                             Bmi088Transfer::complete,
+                                                                             &completion_);
     switch (result)
     {
     case platform::Spi::Result::STARTED:

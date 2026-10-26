@@ -102,10 +102,10 @@ class ZeroRateBiasObserver final
 
     struct Snapshot final
     {
-        bool static_qualified{false};    // 当前窗口判据是否合格
-        bool correction_applied{false};  // 是否已产生过可用的零偏修正
-        float bias_rad_per_sec{0.0F};      // z 轴零偏估计（绝对原始零偏）
-        float variance_rad_per_sec2{0.0F}; // 该估计的协方差
+        bool static_qualified{false};       // 当前窗口判据是否合格
+        bool correction_applied{false};     // 是否已产生过可用的零偏修正
+        float bias_rad_per_sec{0.0F};       // z 轴零偏估计（绝对原始零偏）
+        float variance_rad_per_sec2{0.0F};  // 该估计的协方差
         float window_mean_rad_per_sec[3]{}; // 最近一个完整窗口的三轴均值
         float window_std_rad_per_sec[3]{};  // 最近一个完整窗口的三轴标准差
         float accel_norm_mean_mps2{0.0F};
@@ -174,9 +174,9 @@ class ZeroRateBiasObserver final
 
     Config config_{};
     float bias_rad_per_sec_{0.0F};       // 仅 z 轴零偏，绝对原始零偏
-    float variance_{0.0F};            // 零偏估计协方差
+    float variance_{0.0F};               // 零偏估计协方差
     float process_noise_per_tick_{0.0F}; // q / tick 频率，逐样本累加用
-    float block_sum_[3]{};             // 当前子块：单精度逐样本累加
+    float block_sum_[3]{};               // 当前子块：单精度逐样本累加
     float block_sum_squares_[3]{};
     float block_accel_sum_{0.0F};
     float block_accel_sum_squares_{0.0F};

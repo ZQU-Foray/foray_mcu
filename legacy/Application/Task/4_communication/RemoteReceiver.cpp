@@ -53,7 +53,7 @@ void publish_snapshot(const platform::Uart::Statistics &uart_statistics) noexcep
     flags |= g_latest_frame.failsafe ? FAILSAFE_FLAG : 0U;
     g_snapshot_flags.store(flags, std::memory_order_relaxed);
     g_snapshot_connected.store(g_has_accepted_frame && !g_link_timed_out && !g_latest_frame.failsafe ? 1U : 0U,
-                            std::memory_order_relaxed);
+                               std::memory_order_relaxed);
 
     const protocol::SbusParser::Statistics &parser_statistics = g_parser.get_statistics();
     g_snapshot_accepted_frame_count.store(parser_statistics.accepted_frame_count, std::memory_order_relaxed);
@@ -125,7 +125,8 @@ void RemoteReceiver::process() noexcept
     }
 
     bool link_state_changed = false;
-    if (g_has_accepted_frame && !g_link_timed_out && platform::Time::has_elapsed_ms(g_last_accepted_frame_tick, LINK_TIMEOUT_MS))
+    if (g_has_accepted_frame && !g_link_timed_out &&
+        platform::Time::has_elapsed_ms(g_last_accepted_frame_tick, LINK_TIMEOUT_MS))
     {
         g_link_timed_out = true;
         link_state_changed = true;

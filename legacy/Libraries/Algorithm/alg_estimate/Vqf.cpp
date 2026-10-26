@@ -35,7 +35,8 @@ void set_rotation_matrix(const alg_math::Quaternion &attitude, alg_math::Matrix3
 
 bool same_config(const Vqf::Config &first, const Vqf::Config &second) noexcept
 {
-    return first.tau_acc_seconds == second.tau_acc_seconds && first.rest_bias_est_enabled == second.rest_bias_est_enabled &&
+    return first.tau_acc_seconds == second.tau_acc_seconds &&
+           first.rest_bias_est_enabled == second.rest_bias_est_enabled &&
            first.motion_bias_est_enabled == second.motion_bias_est_enabled &&
            first.bias_sigma_init_deg_per_sec == second.bias_sigma_init_deg_per_sec &&
            first.bias_forgetting_time_seconds == second.bias_forgetting_time_seconds &&
@@ -43,7 +44,8 @@ bool same_config(const Vqf::Config &first, const Vqf::Config &second) noexcept
            first.bias_sigma_motion_deg_per_sec == second.bias_sigma_motion_deg_per_sec &&
            first.bias_vertical_forgetting_factor == second.bias_vertical_forgetting_factor &&
            first.bias_sigma_rest_deg_per_sec == second.bias_sigma_rest_deg_per_sec &&
-           first.rest_min_seconds == second.rest_min_seconds && first.rest_filter_tau_seconds == second.rest_filter_tau_seconds &&
+           first.rest_min_seconds == second.rest_min_seconds &&
+           first.rest_filter_tau_seconds == second.rest_filter_tau_seconds &&
            first.rest_threshold_gyr_rad_per_sec == second.rest_threshold_gyr_rad_per_sec &&
            first.rest_threshold_acc_meters_per_sec2 == second.rest_threshold_acc_meters_per_sec2;
 }
@@ -53,9 +55,10 @@ bool same_config(const Vqf::Config &first, const Vqf::Config &second) noexcept
 bool Vqf::init(const Config &config, float gyro_period_seconds, float accel_period_seconds) noexcept
 {
     const bool periods_valid = std::isfinite(gyro_period_seconds) && std::isfinite(accel_period_seconds) &&
-                              gyro_period_seconds > 0.0F && accel_period_seconds > 0.0F;
+                               gyro_period_seconds > 0.0F && accel_period_seconds > 0.0F;
     const bool time_constants_valid = std::isfinite(config.tau_acc_seconds) && config.tau_acc_seconds > 0.0F &&
-                                    std::isfinite(config.rest_filter_tau_seconds) && config.rest_filter_tau_seconds > 0.0F;
+                                      std::isfinite(config.rest_filter_tau_seconds) &&
+                                      config.rest_filter_tau_seconds > 0.0F;
     const bool scales_valid =
         std::isfinite(config.rest_min_seconds) && config.rest_min_seconds >= 0.0F &&
         std::isfinite(config.bias_forgetting_time_seconds) && config.bias_forgetting_time_seconds > 0.0F &&
@@ -100,8 +103,8 @@ bool Vqf::init(const Config &config, float gyro_period_seconds, float accel_peri
     const double p_motion = alg_math::square(static_cast<double>(config.bias_sigma_motion_deg_per_sec) * 100.0);
     bias_motion_w_ = alg_math::square(p_motion) / bias_v_ + p_motion;
     bias_vertical_w_ = bias_motion_w_ / (static_cast<double>(config.bias_vertical_forgetting_factor) > 1.0e-10
-                                         ? static_cast<double>(config.bias_vertical_forgetting_factor)
-                                         : 1.0e-10);
+                                             ? static_cast<double>(config.bias_vertical_forgetting_factor)
+                                             : 1.0e-10);
     const double p_rest = alg_math::square(static_cast<double>(config.bias_sigma_rest_deg_per_sec) * 100.0);
     bias_rest_w_ = alg_math::square(p_rest) / bias_v_ + p_rest;
 
@@ -153,8 +156,8 @@ void Vqf::update_gyroscope(const alg_math::Vector3 &gyro_rad_per_sec) noexcept
         rest_last_gyro_lp_ = alg_math::Vector3{gyro_lp[0], gyro_lp[1], gyro_lp[2]};
 
         rest_squared_deviations_[0] = alg_math::square(static_cast<double>(gyro[0]) - static_cast<double>(gyro_lp[0])) +
-                                    alg_math::square(static_cast<double>(gyro[1]) - static_cast<double>(gyro_lp[1])) +
-                                    alg_math::square(static_cast<double>(gyro[2]) - static_cast<double>(gyro_lp[2]));
+                                      alg_math::square(static_cast<double>(gyro[1]) - static_cast<double>(gyro_lp[1])) +
+                                      alg_math::square(static_cast<double>(gyro[2]) - static_cast<double>(gyro_lp[2]));
 
         if (rest_squared_deviations_[0] >= alg_math::square(rest_threshold_gyr_) ||
             std::fabs(static_cast<double>(gyro_lp[0])) > bias_clip_ ||
@@ -207,9 +210,10 @@ void Vqf::update_accelerometer(const alg_math::Vector3 &accel_meters_per_sec2) n
         rest_accel_low_pass_.filter(accel, accel_lp);
         rest_last_accel_lp_ = alg_math::Vector3{accel_lp[0], accel_lp[1], accel_lp[2]};
 
-        rest_squared_deviations_[1] = alg_math::square(static_cast<double>(accel[0]) - static_cast<double>(accel_lp[0])) +
-                                    alg_math::square(static_cast<double>(accel[1]) - static_cast<double>(accel_lp[1])) +
-                                    alg_math::square(static_cast<double>(accel[2]) - static_cast<double>(accel_lp[2]));
+        rest_squared_deviations_[1] =
+            alg_math::square(static_cast<double>(accel[0]) - static_cast<double>(accel_lp[0])) +
+            alg_math::square(static_cast<double>(accel[1]) - static_cast<double>(accel_lp[1])) +
+            alg_math::square(static_cast<double>(accel[2]) - static_cast<double>(accel_lp[2]));
 
         if (rest_squared_deviations_[1] >= alg_math::square(rest_threshold_acc_))
         {
@@ -296,7 +300,7 @@ void Vqf::update_accelerometer(const alg_math::Vector3 &accel_meters_per_sec2) n
         rotation_low_passed.value[index] = static_cast<double>(rotation_lp[index]);
     }
     double bias_projection_low_passed[2]{static_cast<double>(bias_projection_lp[0]),
-                                      static_cast<double>(bias_projection_lp[1])};
+                                         static_cast<double>(bias_projection_lp[1])};
 
     double innovation[3]{};
     double variance[3]{};
@@ -352,7 +356,8 @@ void Vqf::update_accelerometer(const alg_math::Vector3 &accel_meters_per_sec2) n
         }
 
         // K = P R^T inv(W + R P R^T)
-        const alg_math::Matrix3 gain_transposed = alg_math::multiply_transposed_second(bias_covariance_, rotation_low_passed);
+        const alg_math::Matrix3 gain_transposed =
+            alg_math::multiply_transposed_second(bias_covariance_, rotation_low_passed);
         alg_math::Matrix3 innovation_covariance = alg_math::multiply(rotation_low_passed, gain_transposed);
         innovation_covariance.value[0] += variance[0];
         innovation_covariance.value[4] += variance[1];
@@ -363,14 +368,14 @@ void Vqf::update_accelerometer(const alg_math::Vector3 &accel_meters_per_sec2) n
         }
         const alg_math::Matrix3 gain_base =
             alg_math::multiply_transposed_first(rotation_low_passed, innovation_covariance); // R^T inv(...)
-        const alg_math::Matrix3 gain = alg_math::multiply(bias_covariance_, gain_base);   // P R^T inv(...)
+        const alg_math::Matrix3 gain = alg_math::multiply(bias_covariance_, gain_base);      // P R^T inv(...)
 
         gyro_bias_.x += static_cast<float>(gain.value[0] * innovation[0] + gain.value[1] * innovation[1] +
-                                          gain.value[2] * innovation[2]);
+                                           gain.value[2] * innovation[2]);
         gyro_bias_.y += static_cast<float>(gain.value[3] * innovation[0] + gain.value[4] * innovation[1] +
-                                          gain.value[5] * innovation[2]);
+                                           gain.value[5] * innovation[2]);
         gyro_bias_.z += static_cast<float>(gain.value[6] * innovation[0] + gain.value[7] * innovation[1] +
-                                          gain.value[8] * innovation[2]);
+                                           gain.value[8] * innovation[2]);
 
         // P = P - K R P
         const alg_math::Matrix3 update =
@@ -478,7 +483,8 @@ bool Vqf::set_internal_state(const InternalState &state) noexcept
     // 两阶段恢复：先整体校验（不写任何状态），全部通过后再写入，
     // 避免出现"部分子状态已更新、其余仍是旧值"的混合态。
     if (!same_config(state.config, config_) || state.gyro_period_seconds != gyro_period_ ||
-        state.accel_period_seconds != accel_period_ || !accel_low_pass_.is_internal_state_compatible(state.accel_low_pass) ||
+        state.accel_period_seconds != accel_period_ ||
+        !accel_low_pass_.is_internal_state_compatible(state.accel_low_pass) ||
         !motion_bias_rotation_low_pass_.is_internal_state_compatible(state.motion_bias_rotation_low_pass) ||
         !motion_bias_projection_low_pass_.is_internal_state_compatible(state.motion_bias_projection_low_pass) ||
         !rest_gyro_low_pass_.is_internal_state_compatible(state.rest_gyro_low_pass) ||
@@ -517,8 +523,8 @@ Vqf::State Vqf::get_state() const noexcept
     state.gyro_bias_rad_per_sec = gyro_bias_;
     state.euler_radians = alg_math::to_euler_zyx_radians(state.quaternion);
     state.euler_degrees = alg_math::Vector3{alg_math::rad_to_deg(state.euler_radians.x),
-                                           alg_math::rad_to_deg(state.euler_radians.y),
-                                           alg_math::rad_to_deg(state.euler_radians.z)};
+                                            alg_math::rad_to_deg(state.euler_radians.y),
+                                            alg_math::rad_to_deg(state.euler_radians.z)};
     state.last_accel_correction_radians = last_accel_correction_radians_;
     state.rest_detected = rest_detected_;
     state.valid = valid_;
@@ -526,12 +532,12 @@ Vqf::State Vqf::get_state() const noexcept
 
     // 零偏不确定度：用最大绝对行和作为最大特征值的上界（Gershgorin）
     // 从 0.01 deg/s 换算到 rad/s。
-    const double row1 =
-        std::fabs(bias_covariance_.value[0]) + std::fabs(bias_covariance_.value[1]) + std::fabs(bias_covariance_.value[2]);
-    const double row2 =
-        std::fabs(bias_covariance_.value[3]) + std::fabs(bias_covariance_.value[4]) + std::fabs(bias_covariance_.value[5]);
-    const double row3 =
-        std::fabs(bias_covariance_.value[6]) + std::fabs(bias_covariance_.value[7]) + std::fabs(bias_covariance_.value[8]);
+    const double row1 = std::fabs(bias_covariance_.value[0]) + std::fabs(bias_covariance_.value[1]) +
+                        std::fabs(bias_covariance_.value[2]);
+    const double row2 = std::fabs(bias_covariance_.value[3]) + std::fabs(bias_covariance_.value[4]) +
+                        std::fabs(bias_covariance_.value[5]);
+    const double row3 = std::fabs(bias_covariance_.value[6]) + std::fabs(bias_covariance_.value[7]) +
+                        std::fabs(bias_covariance_.value[8]);
     const double bound = std::min(std::max(std::max(row1, row2), row3), bias_p0_);
     state.bias_uncertainty_rad_per_sec =
         static_cast<float>(std::sqrt(bound) * static_cast<double>(alg_math::PI) / 100.0 / 180.0);

@@ -45,7 +45,8 @@ class SbusParser final
     }
 
     // 仅解析一帧，不修改流解析器状态，供协议测试和离线数据使用。
-    [[nodiscard]] static bool decode_frame(const std::array<std::uint8_t, FRAME_SIZE> &raw_frame, Frame &frame) noexcept;
+    [[nodiscard]] static bool decode_frame(const std::array<std::uint8_t, FRAME_SIZE> &raw_frame,
+                                           Frame &frame) noexcept;
 
   private:
     [[nodiscard]] static bool is_supported_end_byte(std::uint8_t byte) noexcept;

@@ -42,11 +42,11 @@ class TaskManager final
    */
     struct StackHealth final
     {
-        std::uint32_t sample_count{0U};                   // 已完成的采样轮数（约 1 Hz）
-        std::uint32_t sampled_task_count{0U};              // 本轮实际采样的任务数
-        std::uint32_t minimum_free_words{0U};              // 全部任务中最小的剩余栈（字）
+        std::uint32_t sample_count{0U};                       // 已完成的采样轮数（约 1 Hz）
+        std::uint32_t sampled_task_count{0U};                 // 本轮实际采样的任务数
+        std::uint32_t minimum_free_words{0U};                 // 全部任务中最小的剩余栈（字）
         std::uint32_t low_margin_task_index{MARGIN_OK_INDEX}; // 余量不足的任务下标，充足时为 MARGIN_OK_INDEX
-        std::uint32_t free_words[MAXIMUM_SAMPLED_TASKS]{};  // 与任务表同序的剩余栈（字）
+        std::uint32_t free_words[MAXIMUM_SAMPLED_TASKS]{};    // 与任务表同序的剩余栈（字）
     };
     // 调试器与脚本按字节偏移解析本快照，布局被锁定。
     static_assert(sizeof(StackHealth) == 28U, "栈余量快照布局必须稳定");
@@ -55,8 +55,8 @@ class TaskManager final
     enum class State : std::uint8_t
     {
         UNINITIALIZED = 0U, // 尚未调用 Init
-        PRE_KERNEL_READY,     // Init 完成：平台前置条件通过，未创建 RTOS 对象
-        RTOS_READY,          // init_rtos 完成：全部应用线程已创建，等待内核接管
+        PRE_KERNEL_READY,   // Init 完成：平台前置条件通过，未创建 RTOS 对象
+        RTOS_READY,         // init_rtos 完成：全部应用线程已创建，等待内核接管
         RUNNING,            // Start 完成：内核已在运行且任务表就绪
         ERROR               // 初始化或线程创建失败，需复位后重试
     };

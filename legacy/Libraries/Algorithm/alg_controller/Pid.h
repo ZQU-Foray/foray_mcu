@@ -38,7 +38,7 @@ class PID
         float kf = 0.0f; // 参考前馈增益，单位＝输出量/输入量（速度环 N·m/rpm，角度环 rpm/deg）
         float default_dt = 0.01f;
 
-        float maxout = 0.0f;           // 输出总限幅，PI、D 与前馈之和不得超过它
+        float maxout = 0.0f;             // 输出总限幅，PI、D 与前馈之和不得超过它
         float feed_forward_limit = 0.0f; // 前馈独立限幅，Kf 非零时必须满足 0 < feed_forward_limit ≤ Maxout
         float integral_limit = 0.0f;
 

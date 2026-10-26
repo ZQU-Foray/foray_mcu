@@ -68,7 +68,8 @@ class Spi final
             return Result::INVALID_ARGUMENT;
         }
 
-        return to_result(SpiPort_Transmit(to_port_device(device), data, static_cast<std::uint32_t>(length), timeout_ms));
+        return to_result(
+            SpiPort_Transmit(to_port_device(device), data, static_cast<std::uint32_t>(length), timeout_ms));
     }
 
     /**
@@ -142,10 +143,10 @@ class Spi final
    * @note 通知在中断上下文执行，最终结果应通过 get_async_result 查询。
    */
     [[nodiscard]] static Result start_transmit_async(Device device,
-                                                   const std::uint8_t *data,
-                                                   std::size_t length,
-                                                   CompletionNotification notification,
-                                                   void *context) noexcept
+                                                     const std::uint8_t *data,
+                                                     std::size_t length,
+                                                     CompletionNotification notification,
+                                                     void *context) noexcept
     {
         if (length > std::numeric_limits<std::uint32_t>::max())
         {
@@ -167,9 +168,9 @@ class Spi final
    */
     template <std::size_t Size>
     [[nodiscard]] static Result start_transmit_async(Device device,
-                                                   const std::array<std::uint8_t, Size> &data,
-                                                   CompletionNotification notification,
-                                                   void *context) noexcept
+                                                     const std::array<std::uint8_t, Size> &data,
+                                                     CompletionNotification notification,
+                                                     void *context) noexcept
     {
         return start_transmit_async(device, data.data(), data.size(), notification, context);
     }
@@ -189,11 +190,11 @@ class Spi final
    * @note 通知在中断上下文执行，最终结果应通过 get_async_result 查询。
    */
     [[nodiscard]] static Result start_transfer_async(Device device,
-                                                   const std::uint8_t *transmit_data,
-                                                   std::uint8_t *receive_data,
-                                                   std::size_t length,
-                                                   CompletionNotification notification,
-                                                   void *context) noexcept
+                                                     const std::uint8_t *transmit_data,
+                                                     std::uint8_t *receive_data,
+                                                     std::size_t length,
+                                                     CompletionNotification notification,
+                                                     void *context) noexcept
     {
         if (length > std::numeric_limits<std::uint32_t>::max())
         {
@@ -201,11 +202,11 @@ class Spi final
         }
 
         return to_result(SpiPort_StartTransferAsync(to_port_device(device),
-                                                   transmit_data,
-                                                   receive_data,
-                                                   static_cast<std::uint32_t>(length),
-                                                   notification,
-                                                   context));
+                                                    transmit_data,
+                                                    receive_data,
+                                                    static_cast<std::uint32_t>(length),
+                                                    notification,
+                                                    context));
     }
 
     /**
@@ -220,10 +221,10 @@ class Spi final
    */
     template <std::size_t Size>
     [[nodiscard]] static Result start_transfer_async(Device device,
-                                                   const std::array<std::uint8_t, Size> &transmit_data,
-                                                   std::array<std::uint8_t, Size> &receive_data,
-                                                   CompletionNotification notification,
-                                                   void *context) noexcept
+                                                     const std::array<std::uint8_t, Size> &transmit_data,
+                                                     std::array<std::uint8_t, Size> &receive_data,
+                                                     CompletionNotification notification,
+                                                     void *context) noexcept
     {
         return start_transfer_async(
             device, transmit_data.data(), receive_data.data(), transmit_data.size(), notification, context);

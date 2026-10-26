@@ -20,7 +20,7 @@ constexpr float DEFAULT_CONTROL_PERIOD_SECONDS{0.128F};
 constexpr float preheat_threshold_for(float target_celsius)
 {
     return target_celsius - 2.0F < Bmi088Heater::PREHEAT_THRESHOLD_CELSIUS ? target_celsius - 2.0F
-                                                                        : Bmi088Heater::PREHEAT_THRESHOLD_CELSIUS;
+                                                                           : Bmi088Heater::PREHEAT_THRESHOLD_CELSIUS;
 }
 // 默认服务点的预热门槛受 PREHEAT_THRESHOLD_CELSIUS 钳位（45 ℃）。
 static_assert(preheat_threshold_for(Bmi088Heater::DEFAULT_TARGET_CELSIUS) == Bmi088Heater::PREHEAT_THRESHOLD_CELSIUS);
@@ -80,7 +80,8 @@ void Bmi088Heater::set_enabled(bool enabled) noexcept
 
 bool Bmi088Heater::set_target_celsius(float target_celsius) noexcept
 {
-    if (!std::isfinite(target_celsius) || target_celsius < MINIMUM_TARGET_CELSIUS || target_celsius > MAXIMUM_TARGET_CELSIUS)
+    if (!std::isfinite(target_celsius) || target_celsius < MINIMUM_TARGET_CELSIUS ||
+        target_celsius > MAXIMUM_TARGET_CELSIUS)
     {
         return false;
     }

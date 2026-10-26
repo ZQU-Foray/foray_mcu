@@ -80,7 +80,8 @@ volatile TaskManager::StackHealth g_stack_health_archive{};
 
 bool TaskManager::init() noexcept
 {
-    if (g_manager_state == State::PRE_KERNEL_READY || g_manager_state == State::RTOS_READY || g_manager_state == State::RUNNING)
+    if (g_manager_state == State::PRE_KERNEL_READY || g_manager_state == State::RTOS_READY ||
+        g_manager_state == State::RUNNING)
     {
         return true;
     }
@@ -130,7 +131,8 @@ bool TaskManager::init_rtos() noexcept
     }
 
     // 记录创建时机：PRE_KERNEL 是设计口径，POST_KERNEL 说明启动路径少接了一个入口。
-    g_rtos_init_timing = (osKernelGetState() == osKernelRunning) ? RtosInitTiming::POST_KERNEL : RtosInitTiming::PRE_KERNEL;
+    g_rtos_init_timing =
+        (osKernelGetState() == osKernelRunning) ? RtosInitTiming::POST_KERNEL : RtosInitTiming::PRE_KERNEL;
 
     for (std::size_t index = 0U; index < TASK_COUNT; ++index)
     {
@@ -191,7 +193,8 @@ void TaskManager::sample_stack_health() noexcept
     }
 
     const platform::Time::Tick now = platform::Time::now_ticks();
-    if (g_stack_health_anchored && !platform::Time::has_elapsed_ms(g_last_stack_health_tick, STACK_HEALTH_SAMPLE_PERIOD_MS))
+    if (g_stack_health_anchored &&
+        !platform::Time::has_elapsed_ms(g_last_stack_health_tick, STACK_HEALTH_SAMPLE_PERIOD_MS))
     {
         return; // 限频：调用方可以每拍调用
     }

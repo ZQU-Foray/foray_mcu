@@ -242,15 +242,16 @@ void GyroBiasCalibration::finalize() noexcept
     }
 
     const double inverse = 1.0 / static_cast<double>(count_);
-    const alg_math::Vector3 mean{
-        static_cast<float>(sum_x_ * inverse), static_cast<float>(sum_y_ * inverse), static_cast<float>(sum_z_ * inverse)};
+    const alg_math::Vector3 mean{static_cast<float>(sum_x_ * inverse),
+                                 static_cast<float>(sum_y_ * inverse),
+                                 static_cast<float>(sum_z_ * inverse)};
     const alg_math::Vector3 spread{maximum_.x - minimum_.x, maximum_.y - minimum_.y, maximum_.z - minimum_.z};
 
     // 均值超限说明窗口内存在慢速转动，不能当作零偏，重新开始。
     if (!alg_math::is_finite(mean) || std::fabs(mean.x) > config_.maximum_mean_rate_rad_per_sec ||
-        std::fabs(mean.y) > config_.maximum_mean_rate_rad_per_sec || std::fabs(mean.z) > config_.maximum_mean_rate_rad_per_sec ||
-        spread.x > config_.maximum_spread_rad_per_sec || spread.y > config_.maximum_spread_rad_per_sec ||
-        spread.z > config_.maximum_spread_rad_per_sec)
+        std::fabs(mean.y) > config_.maximum_mean_rate_rad_per_sec ||
+        std::fabs(mean.z) > config_.maximum_mean_rate_rad_per_sec || spread.x > config_.maximum_spread_rad_per_sec ||
+        spread.y > config_.maximum_spread_rad_per_sec || spread.z > config_.maximum_spread_rad_per_sec)
     {
         restart_window();
         return;

@@ -133,9 +133,9 @@ void add_moments(volatile ProfileMoments &moments, const device::Bmi088SampleRec
 }
 
 void reset_thermal_block(volatile ThermalProfileBlock &block,
-                       const device::Bmi088SampleRecord &record,
-                       float temperature,
-                       std::uint32_t temperature_reads)
+                         const device::Bmi088SampleRecord &record,
+                         float temperature,
+                         std::uint32_t temperature_reads)
 {
     block.first_tick = block.last_tick = record.drdy_tick;
     block.temperature_min = block.temperature_max = temperature;
@@ -158,9 +158,9 @@ void freeze_thermal_profile(const device::Bmi088 &imu)
 }
 
 void observe_thermal_profile(const device::Bmi088 &imu,
-                           const device::Bmi088SampleRecord &record,
-                           bool gyroscope,
-                           float temperature)
+                             const device::Bmi088SampleRecord &record,
+                             bool gyroscope,
+                             float temperature)
 {
     if (g_gyro_thermal_profile_request == 1U)
     {
@@ -172,7 +172,8 @@ void observe_thermal_profile(const device::Bmi088 &imu,
         g_gyro_thermal_profile.tick_hz = platform::Time::tick_frequency_hz();
         g_gyro_thermal_profile.temperature_reads_start = g_gyro_thermal_profile.temperature_reads_end =
             imu.get_temperature().get_read_count();
-        g_gyro_thermal_profile.gyro_errors_start = g_gyro_thermal_profile.gyro_errors_end = imu.get_gyroscope().get_error_count();
+        g_gyro_thermal_profile.gyro_errors_start = g_gyro_thermal_profile.gyro_errors_end =
+            imu.get_gyroscope().get_error_count();
         g_gyro_thermal_profile.accel_errors_start = g_gyro_thermal_profile.accel_errors_end =
             imu.get_accelerometer().get_error_count();
         g_gyro_thermal_profile.gyro_overflow_start = g_gyro_thermal_profile.gyro_overflow_end =
@@ -188,7 +189,8 @@ void observe_thermal_profile(const device::Bmi088 &imu,
             g_gyro_thermal_profile.state = 0U;
             return;
         }
-        reset_thermal_block(g_gyro_thermal_profile.blocks[0], record, temperature, imu.get_temperature().get_read_count());
+        reset_thermal_block(
+            g_gyro_thermal_profile.blocks[0], record, temperature, imu.get_temperature().get_read_count());
     }
     if (g_gyro_thermal_profile.state != 1U || !std::isfinite(temperature))
         return;
@@ -209,7 +211,8 @@ void observe_thermal_profile(const device::Bmi088 &imu,
             freeze_thermal_profile(imu);
             return;
         }
-        reset_thermal_block(g_gyro_thermal_profile.blocks[index], record, temperature, imu.get_temperature().get_read_count());
+        reset_thermal_block(
+            g_gyro_thermal_profile.blocks[index], record, temperature, imu.get_temperature().get_read_count());
     }
     auto &current = g_gyro_thermal_profile.blocks[index];
     current.last_tick = record.drdy_tick;
@@ -226,7 +229,8 @@ void observe_channel(const device::Bmi088 &imu, const device::Bmi088SampleRecord
 {
     auto &c = g_gyro_capture.channels[gyro ? 1 : 0];
     const auto &queue = gyro ? imu.get_gyroscope_queue() : imu.get_accelerometer_queue();
-    const auto coalesced = gyro ? imu.get_gyroscope_coalesced_event_count() : imu.get_accelerometer_coalesced_event_count();
+    const auto coalesced =
+        gyro ? imu.get_gyroscope_coalesced_event_count() : imu.get_accelerometer_coalesced_event_count();
     const auto errors = gyro ? imu.get_gyroscope().get_error_count() : imu.get_accelerometer().get_error_count();
     if (c.count == 0U)
     {

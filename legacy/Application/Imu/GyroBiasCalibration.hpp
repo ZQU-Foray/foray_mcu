@@ -30,16 +30,16 @@ class GyroBiasCalibration final
     enum class State : std::uint32_t
     {
         WAITING_FOR_TEMPERATURE = 0U, // 恒温未到位
-        SAMPLING = 1U,              // 正在积累静止窗口
-        COMPLETED = 2U,             // 已完成，零偏有效
-        TIMED_OUT = 3U               // 超时放弃，零偏无效
+        SAMPLING = 1U,                // 正在积累静止窗口
+        COMPLETED = 2U,               // 已完成，零偏有效
+        TIMED_OUT = 3U                // 超时放弃，零偏无效
     };
 
     struct Config final
     {
         std::uint32_t tick_frequency_hz{480000000U}; // 与 platform::Time 一致
-        float target_celsius{50.0F};                // 与恒温目标一致，且必须等于
-                                                   // Bmi088Heater::DEFAULT_TARGET_CELSIUS
+        float target_celsius{50.0F};                 // 与恒温目标一致，且必须等于
+                                                     // Bmi088Heater::DEFAULT_TARGET_CELSIUS
         float temperature_tolerance_celsius{0.5F};
         // 温度稳定门控：进带后还要在 temperature_settle_ms 内把极差压在
         // temperature_stability_celsius 以内才开窗。实测：本板温度量化步长 0.125 ℃，
@@ -68,10 +68,10 @@ class GyroBiasCalibration final
         State state{State::WAITING_FOR_TEMPERATURE};
         alg_math::Vector3 bias_rad_per_sec{};   // 标定结果
         alg_math::Vector3 spread_rad_per_sec{}; // 窗口内每轴极差
-        std::uint32_t samples{0U};           // 当前窗口已积累样本数
-        std::uint32_t restarts{0U};          // 窗口因运动/温度被重启的次数
-        std::uint32_t elapsed_ms{0U};         // 累计处于采样状态的时间
-        std::uint32_t temperature_hold_ms{0U}; // 带内温度连续稳定保持的时长
+        std::uint32_t samples{0U};              // 当前窗口已积累样本数
+        std::uint32_t restarts{0U};             // 窗口因运动/温度被重启的次数
+        std::uint32_t elapsed_ms{0U};           // 累计处于采样状态的时间
+        std::uint32_t temperature_hold_ms{0U};  // 带内温度连续稳定保持的时长
         float temperature_celsius{0.0F};
         bool bias_valid{false};
     };

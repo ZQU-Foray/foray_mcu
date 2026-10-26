@@ -28,8 +28,9 @@ bool Bmi088::pop_next_sample(Bmi088SampleRecord &record, bool &gyroscope) noexce
         ((accelerometer_data_ready_pending_ && not_later(accelerometer_event_.tick)) ||
          (accelerometer_.has_pending_transfer() && not_later(accelerometer_inflight_.drdy_tick))))
         return false;
-    if (gyroscope_.is_ready() && ((gyroscope_data_ready_pending_ && before(gyroscope_event_.tick, candidate)) ||
-                                 (gyroscope_.has_pending_transfer() && before(gyroscope_inflight_.drdy_tick, candidate))))
+    if (gyroscope_.is_ready() &&
+        ((gyroscope_data_ready_pending_ && before(gyroscope_event_.tick, candidate)) ||
+         (gyroscope_.has_pending_transfer() && before(gyroscope_inflight_.drdy_tick, candidate))))
         return false;
     return gyroscope ? gyroscope_queue_.pop(record) : accelerometer_queue_.pop(record);
 }
@@ -116,7 +117,8 @@ bool Bmi088::start_gyroscope() noexcept
     gyroscope_inflight_.drdy_sequence = gyroscope_event_.sequence;
     gyroscope_inflight_.drdy_tick = gyroscope_event_.tick;
     gyroscope_inflight_.start_tick = start;
-    constexpr auto ODR = Bmi088Gyro::BANDWIDTH_REGISTER_VALUE == Bmi088Gyro::GYRO_BANDWIDTH_2000_HZ_532_HZ ? 2000U : 1000U;
+    constexpr auto ODR =
+        Bmi088Gyro::BANDWIDTH_REGISTER_VALUE == Bmi088Gyro::GYRO_BANDWIDTH_2000_HZ_532_HZ ? 2000U : 1000U;
     if (static_cast<std::uint32_t>(start - gyroscope_event_.tick) >= platform::Time::tick_frequency_hz() / ODR)
     {
         gyroscope_inflight_.flags |= Bmi088SampleRecord::LATE_START;
@@ -155,8 +157,9 @@ void Bmi088::process() noexcept
         return;
     }
 
-    if (platform::Time::has_elapsed_ms(last_temperature_start_tick_, TEMPERATURE_PERIOD_MS) && temperature_.is_enabled() &&
-        !accelerometer_.has_pending_transfer() && !temperature_.has_pending_transfer() && temperature_.try_start())
+    if (platform::Time::has_elapsed_ms(last_temperature_start_tick_, TEMPERATURE_PERIOD_MS) &&
+        temperature_.is_enabled() && !accelerometer_.has_pending_transfer() && !temperature_.has_pending_transfer() &&
+        temperature_.try_start())
     {
         last_temperature_start_tick_ = platform::Time::now_ticks();
     }
@@ -170,7 +173,7 @@ void Bmi088::process() noexcept
     if (accelerometer_data_ready_pending_ && gyroscope_data_ready_pending_)
     {
         prefer_accelerometer = static_cast<std::uint32_t>(now - accelerometer_event_.tick) >=
-                              static_cast<std::uint32_t>(now - gyroscope_event_.tick);
+                               static_cast<std::uint32_t>(now - gyroscope_event_.tick);
     }
     if (prefer_accelerometer)
     {

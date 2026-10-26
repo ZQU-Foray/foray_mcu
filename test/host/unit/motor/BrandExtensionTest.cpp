@@ -81,8 +81,8 @@ template <> struct MotorAdapterFor<K_FICTIONAL_MODEL>
     using Adapter = FictionalAdapter;
     static constexpr std::size_t MAXIMUM_MOTORS{FictionalAdapter::MAXIMUM_MOTORS};
     template <std::size_t N>
-    [[nodiscard]] static FictionalAdapter::Config make_config(platform::Can::Channel channel,
-                                                             const std::array<MotorConnection, N> &connections) noexcept
+    [[nodiscard]] static FictionalAdapter::Config
+    make_config(platform::Can::Channel channel, const std::array<MotorConnection, N> &connections) noexcept
     {
         FictionalAdapter::Config config{};
         config.channel = channel;

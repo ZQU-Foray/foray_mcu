@@ -14,17 +14,17 @@ bool is_valid_config(const alg_controller::PID::Config &config)
 {
     const bool mode_valid =
         config.mode == alg_controller::PIDMode::POSITION || config.mode == alg_controller::PIDMode::DELTA;
-    const bool param_finite = is_finite(config.kp) && is_finite(config.ki) && is_finite(config.kd) && is_finite(config.kf) &&
-                             is_finite(config.default_dt) && is_finite(config.maxout) &&
-                             is_finite(config.feed_forward_limit) && is_finite(config.integral_limit) &&
-                             is_finite(config.dead_zone) && is_finite(config.i_var_a) && is_finite(config.i_var_b) &&
-                             is_finite(config.d_lpf_rc) && is_finite(config.out_lpf_rc);
+    const bool param_finite = is_finite(config.kp) && is_finite(config.ki) && is_finite(config.kd) &&
+                              is_finite(config.kf) && is_finite(config.default_dt) && is_finite(config.maxout) &&
+                              is_finite(config.feed_forward_limit) && is_finite(config.integral_limit) &&
+                              is_finite(config.dead_zone) && is_finite(config.i_var_a) && is_finite(config.i_var_b) &&
+                              is_finite(config.d_lpf_rc) && is_finite(config.out_lpf_rc);
     const bool feed_forward_valid = config.feed_forward_limit >= 0.0f && config.feed_forward_limit <= config.maxout &&
-                                  (config.kf == 0.0f || config.feed_forward_limit > 0.0f);
+                                    (config.kf == 0.0f || config.feed_forward_limit > 0.0f);
 
     return mode_valid && param_finite && feed_forward_valid && config.default_dt > 0.0f && config.default_dt < 1.0f &&
-           config.maxout >= 0.0f && config.integral_limit >= 0.0f && config.dead_zone >= 0.0f && config.i_var_a >= 0.0f &&
-           config.i_var_b >= 0.0f && config.d_lpf_rc >= 0.0f && config.out_lpf_rc >= 0.0f;
+           config.maxout >= 0.0f && config.integral_limit >= 0.0f && config.dead_zone >= 0.0f &&
+           config.i_var_a >= 0.0f && config.i_var_b >= 0.0f && config.d_lpf_rc >= 0.0f && config.out_lpf_rc >= 0.0f;
 }
 
 } // namespace

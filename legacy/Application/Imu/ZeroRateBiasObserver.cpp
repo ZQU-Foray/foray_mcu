@@ -20,9 +20,9 @@ void ZeroRateBiasObserver::reset() noexcept
 {
     bias_rad_per_sec_ = 0.0F;
     variance_ = config_.initial_variance_rad_per_sec2;
-    process_noise_per_tick_ = config_.tick_frequency_hz == 0U
-                               ? 0.0F
-                               : config_.process_noise_rad_per_sec2_per_sec / static_cast<float>(config_.tick_frequency_hz);
+    process_noise_per_tick_ = config_.tick_frequency_hz == 0U ? 0.0F
+                                                              : config_.process_noise_rad_per_sec2_per_sec /
+                                                                    static_cast<float>(config_.tick_frequency_hz);
     for (int axis = 0; axis < 3; ++axis)
     {
         sum_[axis] = 0.0;
@@ -142,8 +142,8 @@ void ZeroRateBiasObserver::finish_window() noexcept
         window_std_[axis] = static_cast<float>(std::sqrt(variance > 0.0 ? variance : 0.0));
     }
     accel_norm_mean_ = static_cast<float>(accel_norm_sum_ * inverse);
-    const double accel_variance =
-        accel_norm_sum_squares_ * inverse - static_cast<double>(accel_norm_mean_) * static_cast<double>(accel_norm_mean_);
+    const double accel_variance = accel_norm_sum_squares_ * inverse -
+                                  static_cast<double>(accel_norm_mean_) * static_cast<double>(accel_norm_mean_);
     accel_norm_std_ = static_cast<float>(std::sqrt(accel_variance > 0.0 ? accel_variance : 0.0));
 
     bool qualified = window_valid_ && count_ > 0U;

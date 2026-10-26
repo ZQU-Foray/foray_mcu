@@ -15,9 +15,9 @@ constexpr float ADAPTIVE_THRESHOLD_RATIO{0.1F};           // 自适应增益的�
 constexpr float ADAPTIVE_SPAN_RATIO{0.9F};                // 自适应增益的线性区间比例
 constexpr std::uint32_t DIVERGENCE_ERROR_LIMIT{50U};      // 连续未通过次数达到该值判定为发散
 constexpr float STABLE_GYRO_NORM{0.3F};                   // 静止判据：角速度范数上限，rad/s
-constexpr float REFERENCE_GRAVITY{9.8F};                 // 静止判据：重力范数中心值，m/s^2
+constexpr float REFERENCE_GRAVITY{9.8F};                  // 静止判据：重力范数中心值，m/s^2
 constexpr float STABLE_GRAVITY_TOLERANCE{0.5F};           // 静止判据：重力范数容差，m/s^2
-constexpr float BIAS_CORRECTION_RATE_LIMIT{1.0e-2F};       // 收敛后零偏增量限幅，每秒
+constexpr float BIAS_CORRECTION_RATE_LIMIT{1.0e-2F};      // 收敛后零偏增量限幅，每秒
 constexpr float BIAS_VARIANCE_LIMIT{1.0e4F};              // 零偏方差限幅，防止发散
 constexpr float ORIENTATION_COSINE_REFERENCE{1.5707963F}; // 方向余弦归一化参考，约 π/2
 
@@ -359,7 +359,8 @@ void QuaternionEkf::correction_step(Filter &filter, void *context) noexcept
         // 自适应增益：残差越小增益越接近 1，否则更相信预测。
         if (chi_square > ADAPTIVE_THRESHOLD_RATIO * CHI_SQUARE_THRESHOLD && self.converged_)
         {
-            self.adaptive_gain_scale_ = (CHI_SQUARE_THRESHOLD - chi_square) / (ADAPTIVE_SPAN_RATIO * CHI_SQUARE_THRESHOLD);
+            self.adaptive_gain_scale_ =
+                (CHI_SQUARE_THRESHOLD - chi_square) / (ADAPTIVE_SPAN_RATIO * CHI_SQUARE_THRESHOLD);
         }
         else
         {
@@ -430,8 +431,8 @@ void QuaternionEkf::publish_state() noexcept
 
     state.euler_radians = alg_math::to_euler_zyx_radians(state.quaternion);
     state.euler_degrees = alg_math::Vector3{alg_math::rad_to_deg(state.euler_radians.x),
-                                           alg_math::rad_to_deg(state.euler_radians.y),
-                                           alg_math::rad_to_deg(state.euler_radians.z)};
+                                            alg_math::rad_to_deg(state.euler_radians.y),
+                                            alg_math::rad_to_deg(state.euler_radians.z)};
 
     // yaw 跨 ±180° 时累计圈数，得到连续角度。
     if (state.euler_degrees.x - yaw_angle_last_ > 180.0F)

@@ -84,8 +84,8 @@ void map_sensor_vector_to_body(const AxisMapping &mapping, const float (&sensor)
  * @param mapping 固定轴映射。
  */
 void gyro_record_to_body(const device::Bmi088SampleRecord &record,
-                      float (&body)[3],
-                      const AxisMapping &mapping = BMI088_SENSOR_TO_BODY) noexcept;
+                         float (&body)[3],
+                         const AxisMapping &mapping = BMI088_SENSOR_TO_BODY) noexcept;
 
 /**
  * @brief 加速度计样本换算并映射为机体系加速度。
@@ -94,8 +94,8 @@ void gyro_record_to_body(const device::Bmi088SampleRecord &record,
  * @param mapping 固定轴映射。
  */
 void accel_record_to_body(const device::Bmi088SampleRecord &record,
-                       float (&body)[3],
-                       const AxisMapping &mapping = BMI088_SENSOR_TO_BODY) noexcept;
+                          float (&body)[3],
+                          const AxisMapping &mapping = BMI088_SENSOR_TO_BODY) noexcept;
 
 } // namespace alg_estimate
 

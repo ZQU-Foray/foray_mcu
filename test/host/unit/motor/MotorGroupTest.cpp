@@ -42,7 +42,7 @@ int main()
     assert(g_can_stub.last_tx_channel == CAN_PORT_CHANNEL_1);
     assert(g_can_stub.last_tx_identifier == 0x200);
     assert(g_can_stub.last_tx_data[0] == 3 && g_can_stub.last_tx_data[1] == 0xE8); // 1A ->1000
-    assert(g_can_stub.tx_count == sent + 1);                                 // four slots still one frame
+    assert(g_can_stub.tx_count == sent + 1);                                       // four slots still one frame
     other.process();
     assert(g_can_stub.last_tx_channel == CAN_PORT_CHANNEL_2);
     const auto raw = static_cast<std::int16_t>((g_can_stub.last_tx_data[0] << 8) | g_can_stub.last_tx_data[1]);

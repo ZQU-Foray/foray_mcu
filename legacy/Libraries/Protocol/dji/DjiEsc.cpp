@@ -69,10 +69,10 @@ bool DjiEsc::encode(CommandKind kind,
 }
 
 DjiEsc::DecodeResult DjiEsc::decode_feedback(std::uint32_t identifier,
-                                            bool extended_identifier,
-                                            std::uint8_t data_length,
-                                            const std::uint8_t *data,
-                                            Feedback &feedback) noexcept
+                                             bool extended_identifier,
+                                             std::uint8_t data_length,
+                                             const std::uint8_t *data,
+                                             Feedback &feedback) noexcept
 {
     if (data == nullptr || extended_identifier || data_length != static_cast<std::uint8_t>(FRAME_DATA_LENGTH))
     {

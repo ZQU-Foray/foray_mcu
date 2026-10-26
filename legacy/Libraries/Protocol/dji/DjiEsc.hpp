@@ -55,9 +55,9 @@ class DjiEsc final
     };
 
     [[nodiscard]] static constexpr Dialect make_dialect(const CommandSpec &current,
-                                                       const CommandSpec &voltage,
-                                                       std::uint32_t feedback_identifier_base,
-                                                       std::uint8_t maximum_device_count) noexcept
+                                                        const CommandSpec &voltage,
+                                                        std::uint32_t feedback_identifier_base,
+                                                        std::uint8_t maximum_device_count) noexcept
     {
         return {{{current, voltage}}, feedback_identifier_base, maximum_device_count};
     }
@@ -152,10 +152,10 @@ class DjiEsc final
    * @param feedback 输出解析结果。
    */
     [[nodiscard]] DecodeResult decode_feedback(std::uint32_t identifier,
-                                              bool extended_identifier,
-                                              std::uint8_t data_length,
-                                              const std::uint8_t *data,
-                                              Feedback &feedback) noexcept;
+                                               bool extended_identifier,
+                                               std::uint8_t data_length,
+                                               const std::uint8_t *data,
+                                               Feedback &feedback) noexcept;
 
     /**
    * @brief 把任意控制值钳位到指定命令种类的有符号满量程内。

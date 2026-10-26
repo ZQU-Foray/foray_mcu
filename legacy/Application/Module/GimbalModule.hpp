@@ -45,14 +45,14 @@ class GimbalModule final
     {
         alg_controller::PID::Config speed_loop; // 输出轴 rpm → N·m（Maxout＝电调/热限幅）
         alg_controller::PID::Config angle_loop; // 输出轴 deg → rpm（Maxout 被 max_gimbal_speed_rpm 覆盖）
-        float min_angle_deg{0.0F};               // 该轴角度目标下限（机械限位）
-        float max_angle_deg{0.0F};               // 该轴角度目标上限
+        float min_angle_deg{0.0F};              // 该轴角度目标下限（机械限位）
+        float max_angle_deg{0.0F};              // 该轴角度目标上限
     };
 
     /** @brief 模块配置（缺省值不可用：所有字段必须由任务层显式给出）。 */
     struct Config final
     {
-        AxisConfig axis[MOTOR_COUNT]{};    // 每轴一份配置
+        AxisConfig axis[MOTOR_COUNT]{};      // 每轴一份配置
         float max_torque_newton_meter{0.0F}; // 输出轴力矩总限幅（策略总限幅，全轴共享）
         float max_gimbal_speed_rpm{0.0F};    // 输出轴转速目标/外环输出限幅（全轴共享）
     };
@@ -61,12 +61,12 @@ class GimbalModule final
     enum class InitFailure : std::uint8_t
     {
         NONE = 0U,
-        TORQUE_LIMIT_INVALID,       // 总限幅非有限或非正
-        SPEED_LIMIT_INVALID,        // 转速限幅非有限或非正
-        ANGLE_RANGE_INVALID,        // 某轴角度范围非法（非有限或下限不小于上限）
+        TORQUE_LIMIT_INVALID,        // 总限幅非有限或非正
+        SPEED_LIMIT_INVALID,         // 转速限幅非有限或非正
+        ANGLE_RANGE_INVALID,         // 某轴角度范围非法（非有限或下限不小于上限）
         TORQUE_LIMIT_EXCEEDS_DEVICE, // 总限幅超过执行器力矩能力
         SPEED_LIMIT_EXCEEDS_DEVICE,  // 某轴电调/热限幅超过执行器力矩能力
-        CONTROLLER_REJECTED        // 骨架拒绝（PID 配置非法等）
+        CONTROLLER_REJECTED          // 骨架拒绝（PID 配置非法等）
     };
 
     GimbalModule() noexcept = default;

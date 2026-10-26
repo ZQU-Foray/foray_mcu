@@ -37,17 +37,17 @@ class Vqf final
    */
     struct Config final
     {
-        float tau_acc_seconds{3.0F};                      // τ_acc：加速度计低通时间常数，越大越信陀螺
-        bool rest_bias_est_enabled{true};                  // 静止窗口内更新零偏
-        bool motion_bias_est_enabled{true};                // 运动过程中更新零偏
-        float bias_sigma_init_deg_per_sec{0.5F};             // 零偏初值标准差（deg/s）
-        float bias_forgetting_time_seconds{100.0F};        // 零偏方差从 0 涨到 (0.1 deg/s)^2 所需时间
-        float bias_clip_rad_per_sec{0.0349065851F};         // 零偏限幅，等价 2.0 deg/s
-        float bias_sigma_motion_deg_per_sec{0.1F};           // 运动更新的量测噪声（deg/s）
-        float bias_vertical_forgetting_factor{1.0e-4F};    // 运动更新中重力方向分量的遗忘因子
-        float bias_sigma_rest_deg_per_sec{0.03F};            // 静止更新的量测噪声（deg/s）
-        float rest_min_seconds{1.5F};                     // 方差持续低于阈值多久才算静止
-        float rest_filter_tau_seconds{0.5F};               // 静止判定用的低通时间常数
+        float tau_acc_seconds{3.0F};                    // τ_acc：加速度计低通时间常数，越大越信陀螺
+        bool rest_bias_est_enabled{true};               // 静止窗口内更新零偏
+        bool motion_bias_est_enabled{true};             // 运动过程中更新零偏
+        float bias_sigma_init_deg_per_sec{0.5F};        // 零偏初值标准差（deg/s）
+        float bias_forgetting_time_seconds{100.0F};     // 零偏方差从 0 涨到 (0.1 deg/s)^2 所需时间
+        float bias_clip_rad_per_sec{0.0349065851F};     // 零偏限幅，等价 2.0 deg/s
+        float bias_sigma_motion_deg_per_sec{0.1F};      // 运动更新的量测噪声（deg/s）
+        float bias_vertical_forgetting_factor{1.0e-4F}; // 运动更新中重力方向分量的遗忘因子
+        float bias_sigma_rest_deg_per_sec{0.03F};       // 静止更新的量测噪声（deg/s）
+        float rest_min_seconds{1.5F};                   // 方差持续低于阈值多久才算静止
+        float rest_filter_tau_seconds{0.5F};            // 静止判定用的低通时间常数
         float rest_threshold_gyr_rad_per_sec{0.0349065851F}; // 陀螺方差阈值，等价 2.0 deg/s
         float rest_threshold_acc_meters_per_sec2{0.5F};      // 加速度计方差阈值
     };
@@ -55,15 +55,15 @@ class Vqf final
     /** @brief 对外状态快照。 */
     struct State final
     {
-        alg_math::Quaternion quaternion{};      // body → earth，earth 重力沿 +z
-        alg_math::Vector3 gyro_bias_rad_per_sec{};  // 机体系零偏估计
-        float bias_uncertainty_rad_per_sec{0.0F};   // 零偏估计不确定度
-        alg_math::Vector3 euler_radians{};       // ZYX：yaw、pitch、roll
-        alg_math::Vector3 euler_degrees{};       // 同上，单位 degree
+        alg_math::Quaternion quaternion{};         // body → earth，earth 重力沿 +z
+        alg_math::Vector3 gyro_bias_rad_per_sec{}; // 机体系零偏估计
+        float bias_uncertainty_rad_per_sec{0.0F};  // 零偏估计不确定度
+        alg_math::Vector3 euler_radians{};         // ZYX：yaw、pitch、roll
+        alg_math::Vector3 euler_degrees{};         // 同上，单位 degree
         float last_accel_correction_radians{0.0F}; // 最近一次倾角修正的转角（诊断）
-        bool rest_detected{false};               // 最近一次加速度计更新时的静止判定
-        bool valid{false};                      // 至少完成一次陀螺更新
-        std::uint32_t update_count{0U};          // 有效陀螺更新次数
+        bool rest_detected{false};                 // 最近一次加速度计更新时的静止判定
+        bool valid{false};                         // 至少完成一次陀螺更新
+        std::uint32_t update_count{0U};            // 有效陀螺更新次数
     };
 
     /**
@@ -77,7 +77,7 @@ class Vqf final
         float gyroscope_deviation_ratio{0.0F};     // sqrt(陀螺侧方差)/阈值，≥1 判为运动
         float accelerometer_deviation_ratio{0.0F}; // sqrt(加速度计侧方差)/阈值，≥1 判为运动
         float accumulated_rest_seconds{0.0F};      // 加速度计侧累计满足静止条件的时长
-        bool rest_detected{false};                // 当前静止判定结果
+        bool rest_detected{false};                 // 当前静止判定结果
     };
 
     /**
@@ -217,7 +217,7 @@ class Vqf final
     // 姿态状态
     alg_math::Quaternion gyro_quat_{};  // 角速度积分四元数
     alg_math::Quaternion accel_quat_{}; // 倾角修正四元数
-    alg_math::Vector3 last_accel_lp_{};  // 最近一次惯性系下低通后的加速度
+    alg_math::Vector3 last_accel_lp_{}; // 最近一次惯性系下低通后的加速度
     float last_accel_correction_radians_{0.0F};
     alg_filter::ButterworthLowPass<3U> accel_low_pass_{}; // 惯性系加速度低通（τ_acc / 加速度计周期）
 

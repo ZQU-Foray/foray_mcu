@@ -43,12 +43,14 @@ class Bmi088Accel final
     static constexpr std::uint8_t ACCEL_RANGE_12G{0x02U};
     static constexpr std::uint8_t ACCEL_RANGE_24G{0x03U};
 
-    static constexpr std::uint8_t CONF_REGISTER_VALUE{static_cast<std::uint8_t>(ACCEL_BANDWIDTH_NORMAL | ACCEL_ODR_1600_HZ)};
+    static constexpr std::uint8_t CONF_REGISTER_VALUE{
+        static_cast<std::uint8_t>(ACCEL_BANDWIDTH_NORMAL | ACCEL_ODR_1600_HZ)};
     static constexpr std::uint8_t RANGE_REGISTER_VALUE{ACCEL_RANGE_3G};
     static constexpr float MPS2_PER_LSB{
         (RANGE_REGISTER_VALUE == ACCEL_RANGE_6G
              ? 6.0F
-             : (RANGE_REGISTER_VALUE == ACCEL_RANGE_12G ? 12.0F : (RANGE_REGISTER_VALUE == ACCEL_RANGE_24G ? 24.0F : 3.0F))) *
+             : (RANGE_REGISTER_VALUE == ACCEL_RANGE_12G ? 12.0F
+                                                        : (RANGE_REGISTER_VALUE == ACCEL_RANGE_24G ? 24.0F : 3.0F))) *
         9.80665F / 32768.0F};
 
     enum class State : std::uint8_t

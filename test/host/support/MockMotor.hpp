@@ -51,7 +51,7 @@ namespace device
 // 模拟映射共用装配：全部型号指向模拟适配器。
 template <std::size_t N>
 [[nodiscard]] mock::Adapter::Config make_mock_config(platform::Can::Channel channel,
-                                                   const std::array<MotorConnection, N> &connections) noexcept
+                                                     const std::array<MotorConnection, N> &connections) noexcept
 {
     static_assert(N > 0U && N <= mock::Adapter::MAXIMUM_MOTORS, "电机数量超出模拟适配器能力");
     mock::Adapter::Config config{};
@@ -71,7 +71,7 @@ template <> struct MotorAdapterFor<MotorModel::M2006>
     static constexpr std::size_t MAXIMUM_MOTORS{mock::Adapter::MAXIMUM_MOTORS};
     template <std::size_t N>
     [[nodiscard]] static mock::Adapter::Config make_config(platform::Can::Channel channel,
-                                                          const std::array<MotorConnection, N> &connections) noexcept
+                                                           const std::array<MotorConnection, N> &connections) noexcept
     {
         return make_mock_config(channel, connections);
     }
@@ -83,7 +83,7 @@ template <> struct MotorAdapterFor<MotorModel::M3508>
     static constexpr std::size_t MAXIMUM_MOTORS{mock::Adapter::MAXIMUM_MOTORS};
     template <std::size_t N>
     [[nodiscard]] static mock::Adapter::Config make_config(platform::Can::Channel channel,
-                                                          const std::array<MotorConnection, N> &connections) noexcept
+                                                           const std::array<MotorConnection, N> &connections) noexcept
     {
         return make_mock_config(channel, connections);
     }
@@ -95,7 +95,7 @@ template <> struct MotorAdapterFor<MotorModel::GM6020_CURRENT>
     static constexpr std::size_t MAXIMUM_MOTORS{mock::Adapter::MAXIMUM_MOTORS};
     template <std::size_t N>
     [[nodiscard]] static mock::Adapter::Config make_config(platform::Can::Channel channel,
-                                                          const std::array<MotorConnection, N> &connections) noexcept
+                                                           const std::array<MotorConnection, N> &connections) noexcept
     {
         return make_mock_config(channel, connections);
     }

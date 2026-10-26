@@ -55,8 +55,8 @@ bool is_finite(const alg_kinematics::WheelDelta &value)
 
 bool is_finite(const alg_odometry::OdometryState &value)
 {
-    return is_finite(value.x) && is_finite(value.y) && is_finite(value.yaw) && is_finite(value.vx) && is_finite(value.vy) &&
-           is_finite(value.wz);
+    return is_finite(value.x) && is_finite(value.y) && is_finite(value.yaw) && is_finite(value.vx) &&
+           is_finite(value.vy) && is_finite(value.wz);
 }
 
 void body_to_world(float body_x, float body_y, float yaw, float &world_x, float &world_y)
@@ -83,8 +83,8 @@ bool Kinematics::init(const Config &config)
 
     const bool mode_valid = config.mode == KinematicsMode::OMNI || config.mode == KinematicsMode::MECANUM;
     const bool param_finite = is_finite(config.wheel_radius) && is_finite(config.wheel_base_length) &&
-                             is_finite(config.wheel_base_width) && is_finite(config.reduction_ratio) &&
-                             is_finite(config.lateral_scale);
+                              is_finite(config.wheel_base_width) && is_finite(config.reduction_ratio) &&
+                              is_finite(config.lateral_scale);
 
     if (!mode_valid || !param_finite || config.wheel_radius <= 0.0f || config.wheel_base_length < 0.0f ||
         config.wheel_base_width < 0.0f || config.reduction_ratio <= 0.0f || config.lateral_scale <= 0.0f)
@@ -96,8 +96,8 @@ bool Kinematics::init(const Config &config)
     const float velocity_to_rpm = 60.0f * config.reduction_ratio / (TWO_PI * config.wheel_radius);
     const float rpm_to_velocity = TWO_PI * config.wheel_radius / (60.0f * config.reduction_ratio);
 
-    if (!is_finite(rotation_radius) || rotation_radius <= 0.0f || !is_finite(velocity_to_rpm) || velocity_to_rpm <= 0.0f ||
-        !is_finite(rpm_to_velocity) || rpm_to_velocity <= 0.0f)
+    if (!is_finite(rotation_radius) || rotation_radius <= 0.0f || !is_finite(velocity_to_rpm) ||
+        velocity_to_rpm <= 0.0f || !is_finite(rpm_to_velocity) || rpm_to_velocity <= 0.0f)
     {
         return false;
     }

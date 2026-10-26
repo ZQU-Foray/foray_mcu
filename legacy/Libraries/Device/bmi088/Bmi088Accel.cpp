@@ -181,11 +181,11 @@ void Bmi088Accel::begin_step() noexcept
     }
 
     const platform::Spi::Result result = platform::Spi::start_transfer_async(platform::Spi::Device::IMU_ACCELEROMETER,
-                                                                           transmit_buffer_.data(),
-                                                                           receive_buffer_.data(),
-                                                                           length,
-                                                                           Bmi088Transfer::complete,
-                                                                           &completion_);
+                                                                             transmit_buffer_.data(),
+                                                                             receive_buffer_.data(),
+                                                                             length,
+                                                                             Bmi088Transfer::complete,
+                                                                             &completion_);
     switch (result)
     {
     case platform::Spi::Result::STARTED:
@@ -297,11 +297,11 @@ void Bmi088Accel::complete_step() noexcept
 
     case Step::READ_DATA:
         sample_.x_axis = static_cast<std::int16_t>(static_cast<std::uint16_t>(receive_buffer_[2]) |
-                                                  (static_cast<std::uint16_t>(receive_buffer_[3]) << 8U));
+                                                   (static_cast<std::uint16_t>(receive_buffer_[3]) << 8U));
         sample_.y_axis = static_cast<std::int16_t>(static_cast<std::uint16_t>(receive_buffer_[4]) |
-                                                  (static_cast<std::uint16_t>(receive_buffer_[5]) << 8U));
+                                                   (static_cast<std::uint16_t>(receive_buffer_[5]) << 8U));
         sample_.z_axis = static_cast<std::int16_t>(static_cast<std::uint16_t>(receive_buffer_[6]) |
-                                                  (static_cast<std::uint16_t>(receive_buffer_[7]) << 8U));
+                                                   (static_cast<std::uint16_t>(receive_buffer_[7]) << 8U));
         sample_valid_ = true;
         ++read_count_;
         return;

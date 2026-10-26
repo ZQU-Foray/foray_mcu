@@ -172,11 +172,11 @@ void Bmi088Gyro::begin_step() noexcept
     }
 
     const platform::Spi::Result result = platform::Spi::start_transfer_async(platform::Spi::Device::IMU_GYROSCOPE,
-                                                                           transmit_buffer_.data(),
-                                                                           receive_buffer_.data(),
-                                                                           length,
-                                                                           Bmi088Transfer::complete,
-                                                                           &completion_);
+                                                                             transmit_buffer_.data(),
+                                                                             receive_buffer_.data(),
+                                                                             length,
+                                                                             Bmi088Transfer::complete,
+                                                                             &completion_);
     switch (result)
     {
     case platform::Spi::Result::STARTED:
@@ -234,7 +234,8 @@ void Bmi088Gyro::complete_step() noexcept
 
     case Step::VERIFY_CORE_CONFIGURATION:
         if ((receive_buffer_[1] & RANGE_REGISTER_READ_MASK) != (RANGE_REGISTER_VALUE & RANGE_REGISTER_READ_MASK) ||
-            (receive_buffer_[2] & BANDWIDTH_REGISTER_READ_MASK) != (BANDWIDTH_REGISTER_VALUE & BANDWIDTH_REGISTER_READ_MASK))
+            (receive_buffer_[2] & BANDWIDTH_REGISTER_READ_MASK) !=
+                (BANDWIDTH_REGISTER_VALUE & BANDWIDTH_REGISTER_READ_MASK))
         {
             ++configuration_verify_attempts_;
             if (configuration_verify_attempts_ < CONFIGURATION_VERIFY_MAX_ATTEMPTS)
@@ -285,11 +286,11 @@ void Bmi088Gyro::complete_step() noexcept
 
     case Step::READ_DATA:
         sample_.x_axis = static_cast<std::int16_t>(static_cast<std::uint16_t>(receive_buffer_[1]) |
-                                                  (static_cast<std::uint16_t>(receive_buffer_[2]) << 8U));
+                                                   (static_cast<std::uint16_t>(receive_buffer_[2]) << 8U));
         sample_.y_axis = static_cast<std::int16_t>(static_cast<std::uint16_t>(receive_buffer_[3]) |
-                                                  (static_cast<std::uint16_t>(receive_buffer_[4]) << 8U));
+                                                   (static_cast<std::uint16_t>(receive_buffer_[4]) << 8U));
         sample_.z_axis = static_cast<std::int16_t>(static_cast<std::uint16_t>(receive_buffer_[5]) |
-                                                  (static_cast<std::uint16_t>(receive_buffer_[6]) << 8U));
+                                                   (static_cast<std::uint16_t>(receive_buffer_[6]) << 8U));
         sample_valid_ = true;
         ++read_count_;
         return;

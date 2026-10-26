@@ -39,8 +39,8 @@ class QuaternionEkf final
     {
         float process_noise_quaternion = 10.0F;     // Q1：四元数过程噪声方差率
         float process_noise_bias = 0.001F;          // Q2：零偏过程噪声方差率
-        float measure_noise = 1.0e7F;              // R：加速度量测噪声方差
-        float fading_factor = 1.0F;                // 零偏方差渐消因子，大于 1 时按 1 处理
+        float measure_noise = 1.0e7F;               // R：加速度量测噪声方差
+        float fading_factor = 1.0F;                 // 零偏方差渐消因子，大于 1 时按 1 处理
         float initial_quaternion_variance = 1.0e5F; // 四元数初值方差
         float initial_bias_variance = 100.0F;       // 零偏初值方差
         float initial_cross_variance = 0.1F;        // 初值协方差非对角项
@@ -51,18 +51,18 @@ class QuaternionEkf final
      */
     struct State final
     {
-        alg_math::Quaternion quaternion{};     // 机体系到世界系
+        alg_math::Quaternion quaternion{};         // 机体系到世界系
         alg_math::Vector3 gyro_bias_rad_per_sec{}; // 仅 x/y 被估计，z 恒为零
-        alg_math::Vector3 euler_radians{};      // ZYX：yaw、pitch、roll
-        alg_math::Vector3 euler_degrees{};      // 同上，单位 degree
-        float yaw_total_degrees = 0.0F;          // 跨 ±180° 累计后的连续 yaw
-        float chi_square = 0.0F;                // 最近一次卡方检验统计量
-        float adaptive_gain_scale = 1.0F;        // 最近一次自适应增益缩放
-        std::uint32_t update_count = 0U;        // 有效更新次数
-        std::uint32_t divergence_count = 0U;    // 被判定为发散的次数
-        bool converged = false;                // 卡方检验判定已收敛
-        bool stable = false;                   // 最近一次静止判据结果
-        bool valid = false;                    // 至少完成一次更新且状态有限
+        alg_math::Vector3 euler_radians{};         // ZYX：yaw、pitch、roll
+        alg_math::Vector3 euler_degrees{};         // 同上，单位 degree
+        float yaw_total_degrees = 0.0F;            // 跨 ±180° 累计后的连续 yaw
+        float chi_square = 0.0F;                   // 最近一次卡方检验统计量
+        float adaptive_gain_scale = 1.0F;          // 最近一次自适应增益缩放
+        std::uint32_t update_count = 0U;           // 有效更新次数
+        std::uint32_t divergence_count = 0U;       // 被判定为发散的次数
+        bool converged = false;                    // 卡方检验判定已收敛
+        bool stable = false;                       // 最近一次静止判据结果
+        bool valid = false;                        // 至少完成一次更新且状态有限
     };
 
     QuaternionEkf() noexcept = default;

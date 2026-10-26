@@ -47,12 +47,12 @@ class Bmi088Gyro final
     static constexpr std::uint8_t BANDWIDTH_REGISTER_VALUE{BMI088_GYRO_BANDWIDTH_REGISTER};
     static_assert(BANDWIDTH_REGISTER_VALUE == GYRO_BANDWIDTH_2000_HZ_532_HZ ||
                   BANDWIDTH_REGISTER_VALUE == GYRO_BANDWIDTH_1000_HZ_116_HZ);
-    static constexpr float DPS_PER_LSB{
-        (RANGE_REGISTER_VALUE == GYRO_RANGE_1000_DPS
-             ? 1000.0F
-             : (RANGE_REGISTER_VALUE == GYRO_RANGE_500_DPS ? 500.0F
-                                                      : (RANGE_REGISTER_VALUE == GYRO_RANGE_250_DPS ? 250.0F : 2000.0F))) /
-        32768.0F};
+    static constexpr float DPS_PER_LSB{(RANGE_REGISTER_VALUE == GYRO_RANGE_1000_DPS
+                                            ? 1000.0F
+                                            : (RANGE_REGISTER_VALUE == GYRO_RANGE_500_DPS
+                                                   ? 500.0F
+                                                   : (RANGE_REGISTER_VALUE == GYRO_RANGE_250_DPS ? 250.0F : 2000.0F))) /
+                                       32768.0F};
 
     enum class State : std::uint8_t
     {

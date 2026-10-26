@@ -28,9 +28,9 @@ enum class AxisControlMode : std::uint8_t
 enum class ControllerStatus : std::uint8_t
 {
     NOT_READY = 0U, // 未完成 Init
-    DISABLED,      // 未使能
+    DISABLED,       // 未使能
     INVALID_DT,     // 本拍步长非法（非有限、≤0 或 ≥1 s）
-    ACTIVE         // 已使能且步长合法，各轴状态见 AxisStatus
+    ACTIVE          // 已使能且步长合法，各轴状态见 AxisStatus
 };
 
 /**
@@ -41,11 +41,11 @@ enum class ControllerStatus : std::uint8_t
 enum class AxisStatus : std::uint8_t
 {
     TORQUE_OPEN_LOOP = 0U, // Torque 模式：目标钳位后直通（非故障）
-    CLOSED_LOOP,          // 闭环正常输出
-    DISABLED,            // 控制器级未就绪/未使能/步长非法
-    FEEDBACK_INVALID,     // 反馈无效、离线或量测非有限
-    TARGET_INVALID,       // 目标非有限
-    LOOP_FAULT            // PID 拒绝计算（内部数值溢出，状态已自动回溯）
+    CLOSED_LOOP,           // 闭环正常输出
+    DISABLED,              // 控制器级未就绪/未使能/步长非法
+    FEEDBACK_INVALID,      // 反馈无效、离线或量测非有限
+    TARGET_INVALID,        // 目标非有限
+    LOOP_FAULT             // PID 拒绝计算（内部数值溢出，状态已自动回溯）
 };
 
 /**
@@ -54,7 +54,7 @@ enum class AxisStatus : std::uint8_t
  */
 enum class TargetClamp : std::uint8_t
 {
-    NONE = 0U,    // 目标直通（无机械限位的执行器，例如车轮）
+    NONE = 0U,     // 目标直通（无机械限位的执行器，例如车轮）
     ABSOLUTE_RANGE // 钳到 [min_target, max_target]（有机械限位的执行器，例如云台）
 };
 
@@ -130,7 +130,7 @@ template <std::size_t AxisCount> class AxisController final
     {
         alg_controller::PID::Config speed_loop; // 输出轴 rpm → N·m（Maxout＝电调/热限幅）
         alg_controller::PID::Config angle_loop; // 输出轴 deg → rpm（Maxout 被 max_speed_rpm 覆盖）
-        TargetClamp clamp{TargetClamp::NONE};  // 角度目标预处理策略
+        TargetClamp clamp{TargetClamp::NONE};   // 角度目标预处理策略
         float min_target{0.0F};                 // 仅 clamp == ABSOLUTE_RANGE 时校验与使用
         float max_target{0.0F};                 // 同上
     };
@@ -138,10 +138,10 @@ template <std::size_t AxisCount> class AxisController final
     /** @brief 控制器配置。 */
     struct Config final
     {
-        AxisConfig axis[AxisCount]{};     // 每轴一份，互不影响
+        AxisConfig axis[AxisCount]{};        // 每轴一份，互不影响
         float max_torque_newton_meter{0.0F}; // 策略总限幅（输出轴 N·m）
-        float max_speed_rpm{0.0F};          // 速度目标与外环输出限幅（输出轴 rpm）
-        Mode initial_mode{Mode::SPEED};    // 上电默认模式
+        float max_speed_rpm{0.0F};           // 速度目标与外环输出限幅（输出轴 rpm）
+        Mode initial_mode{Mode::SPEED};      // 上电默认模式
         FailurePolicy failure_policy{FailurePolicy::CLEAR_TARGETS}; // 命令失败时的目标策略
     };
 
@@ -333,10 +333,10 @@ template <std::size_t AxisCount> class AxisController final
                 float (&out_torque_newton_meter)[AxisCount]) noexcept
     {
         const bool dt_valid = std::isfinite(dt) && dt > 0.0F && dt < 1.0F;
-        controller_status_ = !ready_
-                                ? ControllerStatus::NOT_READY
-                                : (!is_enabled() ? ControllerStatus::DISABLED
-                                                : (dt_valid ? ControllerStatus::ACTIVE : ControllerStatus::INVALID_DT));
+        controller_status_ =
+            !ready_ ? ControllerStatus::NOT_READY
+                    : (!is_enabled() ? ControllerStatus::DISABLED
+                                     : (dt_valid ? ControllerStatus::ACTIVE : ControllerStatus::INVALID_DT));
         const bool active = (controller_status_ == ControllerStatus::ACTIVE);
         const Mode mode = get_mode();
 
@@ -398,7 +398,8 @@ template <std::size_t AxisCount> class AxisController final
                     reset_axis();
                     continue;
                 }
-                target_rpm = alg_math::limit(angle_pids_[axis].get_out(), -config_.max_speed_rpm, config_.max_speed_rpm);
+                target_rpm =
+                    alg_math::limit(angle_pids_[axis].get_out(), -config_.max_speed_rpm, config_.max_speed_rpm);
             }
 
             if (!speed_pids_[axis].calculate_loop(measurement.speed_rpm, target_rpm, dt))
@@ -408,14 +409,15 @@ template <std::size_t AxisCount> class AxisController final
                 reset_axis();
                 continue;
             }
-            out_torque_newton_meter[axis] =
-                alg_math::limit(speed_pids_[axis].get_out(), -config_.max_torque_newton_meter, config_.max_torque_newton_meter);
+            out_torque_newton_meter[axis] = alg_math::limit(
+                speed_pids_[axis].get_out(), -config_.max_torque_newton_meter, config_.max_torque_newton_meter);
             axis_status_[axis] = AxisStatus::CLOSED_LOOP;
         }
     }
 
     /** @brief 读取单轴 PID 输出，供诊断与等价性测试使用（不改变任何状态）。 */
-    [[nodiscard]] bool get_loop_output(std::size_t axis, float &speed_loop_output, float &angle_loop_output) const noexcept
+    [[nodiscard]] bool
+    get_loop_output(std::size_t axis, float &speed_loop_output, float &angle_loop_output) const noexcept
     {
         if (axis >= AxisCount)
         {
@@ -434,13 +436,14 @@ template <std::size_t AxisCount> class AxisController final
    * @return Kf 为 0，或 `|Kf| × target_magnitude` 不超过前馈独立限幅时返回 true。
    */
     [[nodiscard]] static bool feed_forward_in_linear_range(const alg_controller::PID::Config &loop_config,
-                                                       float target_magnitude) noexcept
+                                                           float target_magnitude) noexcept
     {
         if (loop_config.kf == 0.0F)
         {
             return true;
         }
-        return target_magnitude > 0.0F && std::fabs(loop_config.kf) * target_magnitude <= loop_config.feed_forward_limit;
+        return target_magnitude > 0.0F &&
+               std::fabs(loop_config.kf) * target_magnitude <= loop_config.feed_forward_limit;
     }
 
     /** @brief 按该轴策略预处理角度目标（Angle 模式专用）。 */

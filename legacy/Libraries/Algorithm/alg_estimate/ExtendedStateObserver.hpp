@@ -101,11 +101,11 @@ template <std::size_t Order> class ExtendedStateObserver final
     enum class UpdateStatus : std::uint8_t
     {
         NOT_UPDATED = 0U,   // 尚未更新或已复位
-        OK,                // 最近一次更新成功
+        OK,                 // 最近一次更新成功
         NOT_CONFIGURED,     // 步长或增益未配置
         INVALID_INPUT,      // 量测或控制量非有限
         CORRECTION_INVALID, // 修正函数返回非有限
-        DIVERGENCE         // 下一拍状态非有限（数值发散，本次更新被拒绝）
+        DIVERGENCE          // 下一拍状态非有限（数值发散，本次更新被拒绝）
     };
 
     /**
@@ -115,10 +115,10 @@ template <std::size_t Order> class ExtendedStateObserver final
     struct Diagnostics final
     {
         UpdateStatus last_status{UpdateStatus::NOT_UPDATED}; // 最近一次 Update 的结果
-        std::uint32_t update_count{0U};                     // 成功更新次数
-        std::uint32_t failure_count{0U};                    // 累计失败次数
-        std::uint32_t consecutive_failures{0U};             // 连续失败次数，成功即清零
-        std::uint32_t divergence_count{0U};                 // 判定为发散的次数（进入发散的次数）
+        std::uint32_t update_count{0U};                      // 成功更新次数
+        std::uint32_t failure_count{0U};                     // 累计失败次数
+        std::uint32_t consecutive_failures{0U};              // 连续失败次数，成功即清零
+        std::uint32_t divergence_count{0U};                  // 判定为发散的次数（进入发散的次数）
     };
 
     /**

@@ -22,7 +22,8 @@ constexpr std::uint32_t TASK_PERIOD_TICKS{1U};
 constexpr std::uint32_t ACCELEROMETER_DATA_READY_FLAG{1UL << 0U};
 constexpr std::uint32_t GYROSCOPE_DATA_READY_FLAG{1UL << 1U};
 constexpr std::uint32_t TRANSFER_COMPLETED_FLAG{1UL << 2U};
-constexpr std::uint32_t DATA_READY_FLAGS{ACCELEROMETER_DATA_READY_FLAG | GYROSCOPE_DATA_READY_FLAG | TRANSFER_COMPLETED_FLAG};
+constexpr std::uint32_t DATA_READY_FLAGS{ACCELEROMETER_DATA_READY_FLAG | GYROSCOPE_DATA_READY_FLAG |
+                                         TRANSFER_COMPLETED_FLAG};
 
 // 上电零偏标定的温度门控必须与恒温服务点一致；两者不一致时标定永远进不了
 // 采样状态，z 轴零偏完全不会被扣除，yaw 直接积分原始零偏。
@@ -122,8 +123,9 @@ bool ImuTask::init() noexcept
     g_task_handle = osThreadGetId();
     g_bmi088.set_completion_notification(transfer_completed_callback, nullptr);
     if (!platform::Gpio::set_interrupt_callback(platform::Gpio::Pin::IMU_ACCELEROMETER_INTERRUPT,
-                                              accelerometer_data_ready_callback) ||
-        !platform::Gpio::set_interrupt_callback(platform::Gpio::Pin::IMU_GYROSCOPE_INTERRUPT, gyroscope_data_ready_callback))
+                                                accelerometer_data_ready_callback) ||
+        !platform::Gpio::set_interrupt_callback(platform::Gpio::Pin::IMU_GYROSCOPE_INTERRUPT,
+                                                gyroscope_data_ready_callback))
     {
         g_bmi088_heater.set_enabled(false);
         osThreadExit();

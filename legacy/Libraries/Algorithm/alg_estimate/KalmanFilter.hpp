@@ -242,22 +242,22 @@ template <std::size_t StateDim, std::size_t MeasureDim, std::size_t ControlDim =
     }
 
     // 状态与矩阵：调用方初始化并读写，用户步骤函数直接改写这里的矩阵
-    StateVector state{};                  // x̂(k|k)
+    StateVector state{};                   // x̂(k|k)
     StateVector predicted_state{};         // x̂(k|k-1)
     StateVector filtered_value{};          // 本轮更新后的 x̂
-    StateMatrix covariance{};             // P(k|k)
+    StateMatrix covariance{};              // P(k|k)
     StateMatrix predicted_covariance{};    // P(k|k-1)
-    StateMatrix transition{};             // F
+    StateMatrix transition{};              // F
     StateMatrix process_noise{};           // Q
-    MeasurementMatrix measurement{};      // H
+    MeasurementMatrix measurement{};       // H
     MeasureMatrix measurement_noise{};     // R
     MeasureMatrix innovation_covariance{}; // S = H·P'·Hᵀ + R
     MeasureMatrix innovation_inverse{};    // S⁻¹，供用户步骤（如卡方检验）复用
-    GainMatrix gain{};                    // K
+    GainMatrix gain{};                     // K
     MeasureVector measurement_input{};     // 调用方写入的量测，取量测后清空
     MeasureVector measurement_vector{};    // z
     ControlVector control_input{};         // 调用方写入的控制量
-    ControlVector control{};              // u，每轮从 control_input 复制
+    ControlVector control{};               // u，每轮从 control_input 复制
     ControlInputMatrix control_matrix{};   // B
     StateVector minimum_variance{};        // 状态方差下限，全零表示不限制
     std::uint8_t valid_measurement_count{0U};
@@ -328,7 +328,8 @@ template <std::size_t StateDim, std::size_t MeasureDim, std::size_t ControlDim =
         predicted_state = StateVector::template multiply<StateDim>(transition, state);
         if constexpr (ControlDim > 0U)
         {
-            predicted_state = predicted_state.added(StateVector::template multiply<ControlDim>(control_matrix, control));
+            predicted_state =
+                predicted_state.added(StateVector::template multiply<ControlDim>(control_matrix, control));
         }
     }
 

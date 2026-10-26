@@ -12,7 +12,8 @@ constexpr float SQRT2 = 1.41421356237f;
 
 bool is_valid_cutoff(float cutoff_freq, float dt)
 {
-    return std::isfinite(cutoff_freq) && std::isfinite(dt) && cutoff_freq > 0.0f && dt > 0.0f && cutoff_freq * dt < 0.5f;
+    return std::isfinite(cutoff_freq) && std::isfinite(dt) && cutoff_freq > 0.0f && dt > 0.0f &&
+           cutoff_freq * dt < 0.5f;
 }
 } // namespace
 
@@ -67,8 +68,8 @@ float ButterworthFilter::calc(float input)
         return state_[2];
     }
 
-    const float output =
-        param_[0] * input + param_[1] * state_[0] + param_[2] * state_[1] - param_[3] * state_[2] - param_[4] * state_[3];
+    const float output = param_[0] * input + param_[1] * state_[0] + param_[2] * state_[1] - param_[3] * state_[2] -
+                         param_[4] * state_[3];
     if (!std::isfinite(output))
     {
         return state_[2];
@@ -212,8 +213,8 @@ bool BandPassFilter::init(const Config &config)
 
     const float hp_alpha = 1.0f / (1.0f + TWO_PI * config.low_cutoff * config.dt);
     const float lp_alpha = config.dt / (1.0f / (TWO_PI * config.high_cutoff) + config.dt);
-    if (!std::isfinite(hp_alpha) || !std::isfinite(lp_alpha) || hp_alpha <= 0.0f || hp_alpha >= 1.0f || lp_alpha <= 0.0f ||
-        lp_alpha >= 1.0f)
+    if (!std::isfinite(hp_alpha) || !std::isfinite(lp_alpha) || hp_alpha <= 0.0f || hp_alpha >= 1.0f ||
+        lp_alpha <= 0.0f || lp_alpha >= 1.0f)
     {
         return false;
     }

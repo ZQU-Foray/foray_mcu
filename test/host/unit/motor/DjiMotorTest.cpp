@@ -233,7 +233,7 @@ int main()
     assert(gm_bus.enable_motor(1U));
     assert(!gm_bus.enable_motor(8U));
     assert(!gm_bus.set_current_ampere(1U, 1.0F)); // 电压模式无电流满量程
-    assert(!gm_bus.set_torque(1U, 1.0F));        // 电压模式力矩接口同样不可用
+    assert(!gm_bus.set_torque(1U, 1.0F));         // 电压模式力矩接口同样不可用
     assert(gm_bus.set_torque_ratio(1U, 0.5F));    // 0.5*25000 = 12500 = 0x30D4
     reset_rx();
     gm_bus.process(); // 仅设备 1 在役：单帧 0x1FF

@@ -157,7 +157,8 @@ class Uart final
             return TransmitResult::INVALID_ARGUMENT;
         }
 
-        return to_transmit_result(UartPort_TryWrite(to_port_endpoint(endpoint), data, static_cast<std::uint32_t>(length)));
+        return to_transmit_result(
+            UartPort_TryWrite(to_port_endpoint(endpoint), data, static_cast<std::uint32_t>(length)));
     }
 
     /**
@@ -168,7 +169,8 @@ class Uart final
    * @return 返回已启动、忙、未就绪、不支持或参数错误等结果。
    */
     template <std::size_t Size>
-    [[nodiscard]] static TransmitResult try_write(Endpoint endpoint, const std::array<std::uint8_t, Size> &data) noexcept
+    [[nodiscard]] static TransmitResult try_write(Endpoint endpoint,
+                                                  const std::array<std::uint8_t, Size> &data) noexcept
     {
         return try_write(endpoint, data.data(), data.size());
     }

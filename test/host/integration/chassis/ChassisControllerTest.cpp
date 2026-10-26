@@ -129,7 +129,7 @@ int main()
         rpm += ((out[0] / KT * SPEED_PER_AMP) - rpm) * DT / TAU;
     }
     assert(std::fabs(rpm - 1440.0F) < 80.0F); // 收敛到转子目标
-    assert(peak_abs_torque >= 0.5F);            // 启动阶段曾接近安培限幅
+    assert(peak_abs_torque >= 0.5F);          // 启动阶段曾接近安培限幅
 
     // 转速目标钳位：超大目标 → 转子目标被钳 18000 → 输出为安培限幅
     controller.set_wheel_target(0U, 100000.0F);

@@ -32,7 +32,7 @@ int main()
     assert(adapter.set_torque(2, 0.54F));
     assert(adapter.set_torque(3, 0.72F));
     assert(g_can_stub.tx_count == 1); // setters do not send
-    assert(adapter.init());       // idempotent, retains staged commands
+    assert(adapter.init());           // idempotent, retains staged commands
     adapter.process();
     assert(g_can_stub.tx_count == 2);
     assert(g_can_stub.last_tx_data == (std::array<std::uint8_t, 8>{0x07, 0xD0, 0xFC, 0x18, 0x0B, 0xB8, 0x0F, 0xA0}));

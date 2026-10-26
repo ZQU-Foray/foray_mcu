@@ -91,11 +91,12 @@ class Can final
    * false（未实现），此时接收全部标准帧，业务须自行软件过滤。
    */
     [[nodiscard]] static bool configure_standard_receive_filter(Channel channel,
-                                                             bool enabled,
-                                                             std::uint32_t first_identifier,
-                                                             std::uint32_t last_identifier) noexcept
+                                                                bool enabled,
+                                                                std::uint32_t first_identifier,
+                                                                std::uint32_t last_identifier) noexcept
     {
-        return CanPort_ConfigureStandardReceiveFilter(to_port_channel(channel), enabled, first_identifier, last_identifier);
+        return CanPort_ConfigureStandardReceiveFilter(
+            to_port_channel(channel), enabled, first_identifier, last_identifier);
     }
 
     /**
@@ -125,10 +126,10 @@ class Can final
     [[nodiscard]] static SendResult try_send(Channel channel, const Frame &frame) noexcept
     {
         return to_send_result(CanPort_TrySend(to_port_channel(channel),
-                                            frame.identifier,
-                                            static_cast<CanPort_IdentifierType>(frame.identifier_type),
-                                            frame.length,
-                                            frame.data.data()));
+                                              frame.identifier,
+                                              static_cast<CanPort_IdentifierType>(frame.identifier_type),
+                                              frame.length,
+                                              frame.data.data()));
     }
 
     /**
@@ -144,12 +145,13 @@ class Can final
         std::uint32_t identifier = 0U;
         std::uint8_t length = 0U;
 
-        const ReceiveResult result = to_receive_result(CanPort_TryReceive(to_port_channel(channel),
-                                                                        &identifier,
-                                                                        &identifier_type,
-                                                                        &length,
-                                                                        frame.data.data(),
-                                                                        static_cast<std::uint8_t>(frame.data.size())));
+        const ReceiveResult result =
+            to_receive_result(CanPort_TryReceive(to_port_channel(channel),
+                                                 &identifier,
+                                                 &identifier_type,
+                                                 &length,
+                                                 frame.data.data(),
+                                                 static_cast<std::uint8_t>(frame.data.size())));
 
         if (result == ReceiveResult::RECEIVED)
         {
