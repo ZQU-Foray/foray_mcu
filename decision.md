@@ -40,7 +40,7 @@
 ## Decision-20261025-01（结构重构方案，Accepted）
 
 - **Date**：2026-10-25
-- **Status**：**Accepted**（2026-10-25，负责人确认评审报告 **v1.0** §11.1 的 Q1–Q18 全部采纳建议；评审材料见 [docs/reviews/2026-10-25-foray_mcu-架构评审报告.md](docs/reviews/2026-10-25-foray_mcu-架构评审报告.md)）
+- **Status**：**Accepted**（2026-10-25，负责人确认评审报告 **v1.0** §11.1 的 Q1–Q18 全部采纳建议；评审材料见 [docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md](docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md)）
 - **影响范围**：目录结构、CMake target 模型、平台契约、启动接缝、迁移流程；**不影响迁移源代码行为（P0–P2.5 为不改行为阶段，P3a 只改接口不改行为）**
 
 **Context**：
@@ -51,7 +51,7 @@
   3. CubeMX 生成代码反向 include 应用头（`main.c`/`freertos.c` → `Application/Entry.h`），启动权在生成区（`Entry.h` 已是纯 C 启动契约，收口工作量小）；
   4. 平台契约枚举是"本机器人能力集"（CAN 3 通道、SPI 3 设备、UART 2 端点、PWM 2 通道、GPIO 8 脚，Interface 与 Detail 双份硬编码），多板复用会污染公共契约。
 - 新结构提案（app 按兵种 / config 装配根 / platform 按厂商和开发板 / src 通用框架 + bsp/topic/算法/组件）方向正确，但存在 `config` 双角色成环、`app` 按兵种复制分叉、`src/bsp` 命名与 os/boot 契约缺失（v0.4 起不再要求 C ABI 层）、CubeMX 边界破口四处必须先修正的边界。
-- 另：ControllerCode 的 host 测试（`fd1edbb` 的 `Tests/` 26 文件 / 2,979 行；该提交共 28 文件 / 3,008 行）已被后续提交删除且被 `.gitignore` 屏蔽；`.docs/`、`Tools/`、`*.py`、`*.cfg`、`.clang-format/.clang-tidy` 等排除/删除导致测试、工具、证据链丢失。迁移基线数据（Debug/Release `.bin` 与 SHA）所在的《固件恢复可行性评估》也未入 git，本仓已转存到 `docs/assets/` 与 `docs/decisions/`。本仓必须先把这些资产恢复，再谈结构迁移。
+- 另：ControllerCode 的 host 测试（`fd1edbb` 的 `Tests/` 26 文件 / 2,979 行；该提交共 28 文件 / 3,008 行）已被后续提交删除且被 `.gitignore` 屏蔽；`.docs/`、`Tools/`、`*.py`、`*.cfg`、`.clang-format/.clang-tidy` 等排除/删除导致测试、工具、证据链丢失。迁移基线数据（Debug/Release `.bin` 与 SHA）所在的《固件恢复可行性评估》也未入 git，本仓已转存到 `docs/assets/` 与 `docs/ai/decisions/`。本仓必须先把这些资产恢复，再谈结构迁移。
 - 负责人确认的前提见 Decision-20261025-02（平台范围与开发前提）与 Decision-20261025-03（双精度浮点暂不处理）。
 
 **Decision**：
@@ -211,7 +211,7 @@
 3. `.github/workflows/ci.yml` 从组织模板复制：lint-python、test-python 保持原样（无 Python 文件时自动跳过），只把 ruff 改为 `--output-format=github` 输出，让错误直接标在 PR 的文件行上（2026-10-26 补充）；删除 build-ros2（本仓不是 ROS 2 工作空间）。
 4. **lint-c 改为增量检查**：只检查相对 PR 基准（或推送前提交）改动的 C/C++ 文件；用 CI 脚本中的正则排除 `legacy/Platform/STM32H7/DM_MC02/{Core,Drivers,Middlewares,USB_DEVICE}/`、`platform/**/cubemx/`、`src/third_party/`；clang-format 通过 pip 固定为 18.1.8。P0.5 一次性格式化之后改为全量检查（排除项保留）。
 5. 新增 **host-tests** 作业：构建并运行 `test/host`（ctest）。
-6. 新增 **firmware-legacy** 作业：用 xPack GCC 15.2.1-1.1 linux-x64（发布包 SHA-256 固定在 CI 中）构建 `legacy/` 的 Debug 与 Release。**Release 镜像必须与基线 SHA-256 逐字节一致**（`docs/decisions/baseline-a2cfd16/SHA256SUMS`）；Debug 镜像内含工具链安装路径，只要求构建成功。该闸门在 P0–P0.5 有效，P1 起改为根工程构建 + 符号名与大小集合对照。
+6. 新增 **firmware-legacy** 作业：用 xPack GCC 15.2.1-1.1 linux-x64（发布包 SHA-256 固定在 CI 中）构建 `legacy/` 的 Debug 与 Release。**Release 镜像必须与基线 SHA-256 逐字节一致**（`docs/ai/decisions/baseline-a2cfd16/SHA256SUMS`）；Debug 镜像内含工具链安装路径，只要求构建成功。该闸门在 P0–P0.5 有效，P1 起改为根工程构建 + 符号名与大小集合对照。
 7. **分支模型按组织规范 §6.1**（负责人 2026-10-26 确认）：从 `main`（`28a5533`）建 `dev`；日常 PR 一律合到 `dev`，功能分支从 `dev` 切出；`main` 只承载里程碑快照，每个阶段（如 P0）验收后由 `dev` 合入 `main`。
 
 **Reason**：
@@ -230,20 +230,20 @@
 
 ---
 
-## Decision-20261026-02（docs/architecture.md v1 与例外登记表，Accepted）
+## Decision-20261026-02（docs/ai/architecture.md v1 与例外登记表，Accepted）
 
 - **Date**：2026-10-26
 - **Status**：Accepted（PR 合并即负责人评审通过）
 - **Source**：评审报告 v1.0 §3.2–§3.3、§5、§8.4；Decision-20260219-01、Decision-20261025-01 至 -05、Decision-20261026-01
 
-**Context**：评审报告 §8.4 要求 `docs/architecture.md` 在 P0 创建并与 §5 的依赖规则一致。规则、例外与白名单此前分散在评审报告、多条决策与 plan.md 中，评审 PR 时没有一张可对照的清单。
+**Context**：评审报告 §8.4 要求 `docs/ai/architecture.md` 在 P0 创建并与 §5 的依赖规则一致。规则、例外与白名单此前分散在评审报告、多条决策与 plan.md 中，评审 PR 时没有一张可对照的清单。
 
 **Decision**：
 
-1. `docs/architecture.md` v1 作为分层判据、16 条依赖规则、一级目录白名单、生成区治理与例外登记的唯一人读入口；规则条文与评审报告 §5.3 一致，另为每条规则标注检查方式与生效阶段（与 plan.md 的阶段对齐）。
+1. `docs/ai/architecture.md` v1 作为分层判据、16 条依赖规则、一级目录白名单、生成区治理与例外登记的唯一人读入口；规则条文与评审报告 §5.3 一致，另为每条规则标注检查方式与生效阶段（与 plan.md 的阶段对齐）。
 2. 已批准的例外集中登记为 X-01–X-13；其中 X-10（`test/host` 在 P0 作为独立 CMake 工程直接编译 `legacy/` 源码，不链接被测 target 与 `platform/mock`）为本条新登记，P1 改由根工程引入后取消。
 3. 违反目标规则但不属于例外的既有问题列为"已知结构债"；评审报告 §2.3 缺口 1（SPI 可选能力被当作必选）此前未排期，补入 plan.md P3a。
-4. 此后新增或修改规则、白名单、例外：先在本文件登记，再改 `docs/architecture.md` 与 CI 检查。
+4. 此后新增或修改规则、白名单、例外：先在本文件登记，再改 `docs/ai/architecture.md` 与 CI 检查。
 
 **Reason**：
 
@@ -251,7 +251,26 @@
 
 **Alternatives / Rejected**：
 
-- 只在 `docs/architecture.md` 中引用评审报告章节：评审报告是历史记录，会随阶段推进与决策变化而过时，否决。
+- 只在 `docs/ai/architecture.md` 中引用评审报告章节：评审报告是历史记录，会随阶段推进与决策变化而过时，否决。
+
+---
+
+## Decision-20261026-03（AI 撰写的文档放入 docs/ai/，Accepted）
+
+- **Date**：2026-10-26
+- **Status**：Accepted（负责人要求）
+- **Source**：负责人 2026-10-26 指示
+
+**Context**：`docs/` 下的评审报告、架构判据、基线与决策证据都由 AI 撰写，与人工撰写的文档混在一起，读者无法区分来源与可信程度。
+
+**Decision**：
+
+1. AI 撰写的文档统一放在 `docs/ai/`：`architecture.md`、`README.md`（改为 docs/ai 索引）、`reviews/`（含 `archive/`）、`decisions/`（含 `baseline-a2cfd16/`）、`assets/controller_code-固件恢复可行性评估.md`（从迁移源转存，按写作时间与风格判断为 AI 撰写）。
+2. 人工制作的材料留在 `docs/` 的其他位置：`docs/assets/controller_code-架构图.png`（迁移源既有架构图）。
+3. 此后 AI 代理新写的文档一律放 `docs/ai/`（写入 `AGENTS.md`）；根目录五件套与各目录内 `README.md` 的位置由组织规范与工具约定固定，不受此限。
+4. 移动用 `git mv` 完成（`git log --follow` 可追溯），全仓引用同步更新；评审报告历史版本（`archive/`）只修正链接目标、不改正文（其中 24 条链接在移动前就是断的，一并修复）。
+
+**Reason**：区分 AI 产出与人工产出，便于评审时判断哪些内容需要人逐条核对。
 
 ---
 
