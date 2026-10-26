@@ -208,7 +208,7 @@
 
 1. `.foray-layer` 沿用迁移源 `f1f46cd` 的版本（`layer: MCU`、`depends_on_layers: [X2]`，与 Decision-20260219-01 一致）。
 2. `CODEOWNERS` 放在仓库根目录，内容为 `* @ZQU-Foray/电控组`。链路协议的算法组 Review 规则等 P4 vendor 生成头时再加（届时需要先给算法组 Write 权限）。
-3. `.github/workflows/ci.yml` 从组织模板复制：lint-python、test-python 保持原样（无 Python 文件时自动跳过）；删除 build-ros2（本仓不是 ROS 2 工作空间）。
+3. `.github/workflows/ci.yml` 从组织模板复制：lint-python、test-python 保持原样（无 Python 文件时自动跳过），只把 ruff 改为 `--output-format=github` 输出，让错误直接标在 PR 的文件行上（2026-10-26 补充）；删除 build-ros2（本仓不是 ROS 2 工作空间）。
 4. **lint-c 改为增量检查**：只检查相对 PR 基准（或推送前提交）改动的 C/C++ 文件；用 CI 脚本中的正则排除 `legacy/Platform/STM32H7/DM_MC02/{Core,Drivers,Middlewares,USB_DEVICE}/`、`platform/**/cubemx/`、`src/third_party/`；clang-format 通过 pip 固定为 18.1.8。P0.5 一次性格式化之后改为全量检查（排除项保留）。
 5. 新增 **host-tests** 作业：构建并运行 `test/host`（ctest）。
 6. 新增 **firmware-legacy** 作业：用 xPack GCC 15.2.1-1.1 linux-x64（发布包 SHA-256 固定在 CI 中）构建 `legacy/` 的 Debug 与 Release。**Release 镜像必须与基线 SHA-256 逐字节一致**（`docs/decisions/baseline-a2cfd16/SHA256SUMS`）；Debug 镜像内含工具链安装路径，只要求构建成功。该闸门在 P0–P0.5 有效，P1 起改为根工程构建 + 符号名与大小集合对照。
