@@ -10,7 +10,7 @@ RoboMaster 多兵种、多开发板的 MCU 下位机固件。本仓以 `Controll
 
 - 迁移源基线：`ControllerCode` `main` @ `a2cfd16`（2026-10-23，19 个提交，git 跟踪 333 个文件，项目自有代码约 2.3 万行）。
 - 目标平台：STM32H723（DM-MC02，主力，先行）、STM32F407（RM C 板）、TI TM4C / AM26x（按需）；`src/` + `platform/` 作为可复用框架，另供 MSPM0 等小项目（大概率裸机）使用。
-- 当前状态：已建 git 并推送到 GitHub，基线 tag `baseline/a2cfd16`；迁移源原样放在 `legacy/`，可在 `legacy/Platform/STM32H7/DM_MC02` 构建（P0 已复现，SHA-256 与基线一致）；目标结构目录（`app/ config/ platform/ src/ test/ tool/`）仍是空骨架；还没有根 CMakeLists 和测试。
+- 当前状态：已建 git 并推送到 GitHub，基线 tag `baseline/a2cfd16`；迁移源原样放在 `legacy/`，可在 `legacy/Platform/STM32H7/DM_MC02` 构建（P0 已复现，SHA-256 与基线一致）；宿主测试已从 `fd1edbb` 恢复到 `test/host/`（P0 独立工程，13 项 ctest 全绿，运行方式见 [test/host/README.md](test/host/README.md)）；其余目标结构目录（`app/ config/ platform/ src/ tool/`）仍是空骨架；还没有根 CMakeLists。
 - 结构方案与完整评审材料：**[docs/reviews/2026-10-25-foray_mcu-架构评审报告.md](docs/reviews/2026-10-25-foray_mcu-架构评审报告.md)**。
 - 方案已确认（[decision.md](decision.md) Decision-20261025-01 至 -05），执行计划与进度见 [plan.md](plan.md)。
 
