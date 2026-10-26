@@ -154,10 +154,12 @@ function(check_motor_group result should_compile model count)
 static_assert(sizeof(device::MotorGroup<${model}, ${count}>) > 0);
 int main() {}")
 endfunction()
+# 每个被拒绝的型号都配一个能编译的对照，保证"被拒绝"来自数量检查，而不是型号名写错。
 check_motor_group(MOTOR_GROUP_VALID TRUE device::MotorModel::M2006 4)
 check_motor_group(MOTOR_ZERO_COMPILES FALSE device::MotorModel::M2006 0)
 check_motor_group(MOTOR_NINE_COMPILES FALSE device::MotorModel::M2006 9)
-check_motor_group(GIMBAL_EIGHT_COMPILES FALSE device::MotorModel::GM6020Current 8)
+check_motor_group(GIMBAL_GROUP_VALID TRUE device::MotorModel::GM6020_CURRENT 4)
+check_motor_group(GIMBAL_EIGHT_COMPILES FALSE device::MotorModel::GM6020_CURRENT 8)
 # 未映射型号：即使已包含 DJI 映射，255 仍无特化，必须在编译期拒绝。
 check_motor_group(UNKNOWN_MODEL_COMPILES FALSE "static_cast<device::MotorModel>(255)" 1)
 # 未包含任何品牌映射时，合法型号同样无法实例化（映射是唯一入口）。
