@@ -5,7 +5,7 @@
 
 ## 0. 当前阶段
 
-本仓 **P0（基线与资产恢复）已于 2026-10-26 验收，当前进入 P0.5（格式与命名统一）**：方案已确认（[decision.md](decision.md) Decision-20261025-01 至 -05 均为 Accepted；评审报告 `docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md` v1.0，旧版在 `docs/ai/reviews/archive/`，不再维护）。
+本仓 **P0（基线与资产恢复）、P0.5（格式与命名统一）已于 2026-10-26 验收，下一步是 P1（构建骨架）**：方案已确认（[decision.md](decision.md) Decision-20261025-01 至 -05 均为 Accepted；评审报告 `docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md` v1.0，旧版在 `docs/ai/reviews/archive/`，不再维护）。
 迁移源 ControllerCode `a2cfd16` 原样放在 `legacy/`（基线 tag `baseline/a2cfd16`）；还没有根 CMakeLists 与新结构代码；宿主测试已恢复到 `test/host/`（P0 独立 CMake 工程，见 `test/host/README.md`）。**按 [plan.md](plan.md) 的阶段顺序推进，不跨阶段混做。**
 
 ## 1. 语言与格式
@@ -13,6 +13,7 @@
 - 注释、文档、提交信息一律使用 **简体中文**；文件编码 **UTF-8（无 BOM）**。
 - 主语言 **C++17**（`-fno-rtti -fno-exceptions -fno-threadsafe-statics`，无堆分配，热路径不用虚函数）。C 只用于三处外部强制的接缝：CubeMX 生成区调用的启动入口（`extern "C"` 声明，实现写在 C++ 里）、覆盖 HAL 弱符号的回调、生成区里的中断入口。覆盖 HAL 回调的 `.cpp` 必须 include 对应 HAL 头，否则回调会被 C++ 改名而静默失效（评审报告 §5.11）。
 - 命名按 ROS 2 C++ 风格，格式按组织规则（4 空格、LF、UTF-8、文件末尾换行），分别由根目录 `.clang-tidy` 与 `.clang-format` 执行；clang-format/clang-tidy 统一用 18（评审报告 §5.12、Decision-20261025-04）。格式化与改名必须单独提交，并登记到 `.git-blame-ignore-revs`。
+- `.clang-tidy` 查不出的命名约定（Decision-20261026-05）：标识符里"数值+单位"和序号单独成段（`ACCEL_ODR_100_HZ`、`POWER_24V_0`、`CHANNEL_1`），名字里固有的数字不拆（型号 `BMI088`、`GM6020_CURRENT`，术语 `crc8`，标号 `WHEEL_M1`）。C ABI 的"模块_函数"、`os*`、`HAL_*` 回调不按 C++ 规则改名。
 - 不提交编译产物（`build/`、`*.elf`、`*.hex`、`*.bin`、`*.map`）、IDE 配置、临时文件与日志。
 - **AI 撰写的文档放在 `docs/ai/`**（评审报告、架构判据、决策证据、转存材料等），人工撰写的文档放在 `docs/` 的其他位置，以便区分来源（Decision-20261026-03）。根目录五件套与各目录内的 `README.md` 位置由组织规范与工具约定固定，不受此限。
 
@@ -56,5 +57,5 @@
 
 - 本仓 `layer: MCU`，**不在 L1–L5 分层内**，位于 L2 下行 HAL 之下；`depends_on_layers: [X2]`，仅 vendor 消费 `foray_interfaces` 生成头文件。
 - 组织合规件：`.foray-layer`、`CODEOWNERS`（`@ZQU-Foray/电控组`）、`.github/workflows/ci.yml` 已落地（CI 设计见 Decision-20261026-01）；`docs/ai/architecture.md` v1 已创建（Decision-20261026-02）。
-- CI 的 `firmware-legacy` 要求 `legacy/` 的 Release 镜像与基线逐字节一致（P0–P0.5 有效）；`lint-c` 用 `tool/ci/format.py --check` 全量检查手写 C/C++（生成区与厂商代码除外），提交前本地执行 `python tool/ci/format.py --fix`（clang-format 18.1.8）。
+- CI 的 `firmware-legacy` 要求 `legacy/` 的 Release 镜像与基线逐字节一致（P0–P0.5 有效）；`lint-c` 用 `tool/ci/format.py --check` 全量检查手写 C/C++（生成区与厂商代码除外），提交前本地执行 `python tool/ci/format.py --fix`（clang-format 18.1.8）；`lint-naming` 用 `tool/ci/naming.py --check` 全量检查 C++ 命名（clang-tidy 18.1.8，编译数据库为固件 Debug、Release 与宿主测试；Windows 上 MSYS2 的 libstdc++ 16 与 clang 18 不兼容，本地检查用 Linux/WSL）。
 - 规则与组织仓库规范冲突时，以组织 `foray_docs/repository_structure.md` 为准，并在 [decision.md](decision.md) 登记。

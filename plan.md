@@ -1,6 +1,6 @@
 # 开发计划（foray_mcu 结构重构）
 
-> 当前状态：**P0 已验收（2026-10-26），进入 P0.5 格式与命名统一**（方案已确认，[decision.md](decision.md) Decision-20261025-01 至 -05 均为 Accepted；里程碑合并入 `main` 暂缓）。
+> 当前状态：**P0、P0.5 已验收（2026-10-26），下一步 P1 构建骨架**（方案已确认，[decision.md](decision.md) Decision-20261025-01 至 -05 均为 Accepted；里程碑合并入 `main` 暂缓）。
 > 权威方案见 [docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md](docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md)；本文件只记录执行计划、进度与验收标准。
 > 迁移源 ControllerCode 原样放在 `legacy/`；各阶段的动作、验收与回滚以下文为准，不跨阶段混做。
 
@@ -35,9 +35,9 @@
 
 - [x] 排除 CubeMX 生成区与厂商代码：clang-format 18 的 `.clang-format-ignore` 不支持 `**`、`*` 不跨目录，改由 `tool/ci/format.py` 统一定义范围（CI 与本地共用），记入 Decision-20261026-04（2026-10-26）
 - [x] 一次性格式化手写代码：126 个文件（`legacy/` 的 Application、Libraries、Platform/Interface、PortKit、Port 与 `test/host/`），122 个有变化，块注释内残留的 CR 一并去除，单独提交 `c23eb5e`；CI 的 lint-c 改为全量检查。验证：legacy Debug/Release `.bin` 与基线 SHA 逐字节一致，13 项 ctest 全绿（2026-10-26）
-- [ ] 用 `clang-tidy --fix` 把 C++ 标识符改为 ROS 2 命名，手工补齐模板、宏等；同步更新测试与调试脚本中的符号名（如 `stackHealthArchive`）；C ABI 不改名；单独提交
-- [ ] 把以上两类提交写入 `.git-blame-ignore-revs`（格式化提交 `c23eb5e` 已登记，改名提交待补）；`.clang-tidy` 的规则微调记入 decision.md
-- [ ] 验收：同工具链下 `.bin` SHA 与 P0 复现的基线一致（改名若使 SHA 变化，以函数大小集合一致为准并逐项说明）；宿主测试绿
+- [x] 用 `clang-tidy --fix` 把 C++ 标识符改为 ROS 2 命名，手工补齐模板、宏等；同步更新测试与调试脚本中的符号名（如 `stackHealthArchive`）；C ABI 不改名；单独提交。由新增的 `tool/ci/naming.py` 汇总固件 Debug、Release 与宿主测试三个编译数据库的修正：自动改名 2190 处，手工修正模板依赖访问、未实例化模板里的调用与注释中的旧名字；改名 `2b3fbf8` 与改名后格式化 `0c51793` 分开提交。仓库内的调试脚本不按名字读符号，无需改动（评审报告提到的 `read_benchmark.sh` 等没有随迁移源进入本仓）。过程与复现见 [P0.5 改名记录](docs/ai/decisions/2026-10-26-P0.5-改名/README.md)（2026-10-26）
+- [x] 把以上两类提交写入 `.git-blame-ignore-revs`（`c23eb5e`、`2b3fbf8`、`0c51793`）；`.clang-tidy` 的规则微调记入 decision.md（Decision-20261026-05）；CI 新增 `lint-naming` 全量命名检查
+- [x] 验收（2026-10-26）：同工具链下 legacy Debug/Release `.bin` SHA 与基线逐字节一致；符号"地址+大小+类型"集合一致（改名后的符号表已入档，供 P1 对照）；宿主测试 13/13 绿；命名检查 0 处
 - [ ] 回滚：revert 对应提交
 
 ### P1 构建骨架（零源码改动，2–4 人日）
@@ -116,7 +116,7 @@
 
 ## 当前 Agent State
 
-`EXECUTING`（P0 已于 2026-10-26 验收，里程碑合并入 `main` 按负责人要求暂缓；P0.5 格式化已完成（Release/Debug 与基线逐字节一致），下一步是 ROS 2 命名改名）。
+`EXECUTING`（P0、P0.5 均于 2026-10-26 验收，里程碑合并入 `main` 按负责人要求暂缓；P0.5 的格式化与改名后 legacy Debug/Release 仍与基线逐字节一致，下一步是 P1 构建骨架）。
 状态词表：`REVIEW_PENDING`（等待评审）/ `PLANNING`（方案已批准、编制细节）/ `EXECUTING`（实施中）/ `BLOCKED`（外部阻塞）/ `DONE`（阶段完成）。
 
 ## Before Snapshot
@@ -180,3 +180,4 @@ Q1–Q18 已全部确认（见评审报告 v1.0 §11.1 与 decision.md）。仍�
 | 2026-10-26 | P0 | AI 撰写的文档移入 `docs/ai/`（Decision-20261026-03），全仓 105 条相对链接全部可解析 | P0 任务完成，待验收 |
 | 2026-10-26 | P0 | P0 验收：`git log --follow`、`ctest`、基线 SHA 与符号表、Q4 证据表均满足；`dev` → `main` 里程碑合并暂缓 | ✅ 已验收 |
 | 2026-10-26 | P0.5 | 新增 `tool/ci/format.py`；一次性格式化 126 个手写文件（`c23eb5e`，登记于 `.git-blame-ignore-revs`）；CI lint-c 改为全量检查。legacy Debug/Release 与基线逐字节一致，ctest 13/13 | 格式化完成，改名待做 |
+| 2026-10-26 | P0.5 | 新增 `tool/ci/naming.py` 与 CI `lint-naming`；`.clang-tidy` 微调（Decision-20261026-05）；C++ 标识符按 ROS 2 命名改名（`2b3fbf8`，自动 2190 处 + 手工修正）与改名后格式化（`0c51793`），均登记于 `.git-blame-ignore-revs`。legacy Debug/Release 与基线逐字节一致，符号地址/大小集合一致，ctest 13/13，命名检查 0 处 | P0.5 验收 |

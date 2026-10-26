@@ -11,6 +11,7 @@
 | [decisions/2026-10-25-迁移基线与对照.md](decisions/2026-10-25-迁移基线与对照.md) | 迁移基线数据、SHA、工具链版本、对照判据、P0 复现结果与芯片 Flash 存档记录；符号表在 `decisions/baseline-a2cfd16/` | ✅ P0 已复核 |
 | [../assets/controller_code-架构图.png](../assets/controller_code-架构图.png) | 迁移源 ControllerCode 的既有架构图（人工绘制，不在本目录；PNG 内嵌 5 页：总览 / 附录A 分层明细 / 附录B 运行时 / 附录C 修订说明 / 附录D 待修项） | 📄 已归档 |
 | [assets/controller_code-固件恢复可行性评估.md](assets/controller_code-固件恢复可行性评估.md) | 迁移源基线数据的来源文档（在 ControllerCode a2cfd16 中未入 git，**原样转存，未做内容修改**；含原机器的本机路径；按写作时间与风格判断为 AI 撰写） | 📄 已转存 |
+| [decisions/2026-10-26-P0.5-改名/](decisions/2026-10-26-P0.5-改名/README.md) | P0.5 命名统一的过程、复现命令、改名表、手工修正脚本与验证结果；改名后的符号表（与基线按地址一一对应） | ✅ P0.5 已验收 |
 | [decisions/2026-10-26-丢失功能与恢复依据.md](decisions/2026-10-26-丢失功能与恢复依据.md) | `a2cfd16` 之后丢失的功能（L1–L6，含加热启动与超调优化）、原固件的行为证据与重做验收依据 | 🟡 持续更新 |
 | `decisions/`（其余） | 评审决议、后续关键决策归档（P0 起） | 🟡 待补 |
 
