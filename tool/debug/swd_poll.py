@@ -7,8 +7,12 @@
 - 记录中途连接断开会自动重连，直到达到 --duration。
 - --dump 在记录结束后把指定内存整块保存为二进制文件。
 
-日志格式：以 # 开头的是说明行；数据行为
-    <主机 UNIX 时间 s> | <区域 1 的 32 位字...> | <区域 2 的 32 位字...>
+日志格式：以 # 开头的是说明行（含开始时的主机时间）；数据行为
+    <主机单调时间 s> | <区域 1 的 32 位字...> | <区域 2 的 32 位字...>
+
+主机时间只表示数据到达的先后：OpenOCD 的输出可能成批到达，WSL 等环境的
+系统时钟也可能跳变。需要精确时间时，把目标的周期计数器（如 DWT_CYCCNT，
+0xE0001004）作为一个区域一起读取，以它为准。
 
 用法示例（DM-MC02 + CMSIS-DAP；Windows 上 --openocd 指向 openocd.exe）：
     swd_poll.py --region 0xE0001004:1 --region 0x2400490c:40 \\
@@ -107,7 +111,9 @@ def poll_session(
     period_ms: int,
     iterations: int,
     deadline: float | None,
+    duration: float,
     out,
+    first_message: str | None = None,
 ) -> tuple[int, float | None]:
     reads = " ".join(f"| [read_memory {a} 32 {n}]" for a, n in regions)
     loop = (
@@ -122,9 +128,13 @@ def poll_session(
         line = raw.rstrip("\r\n")
         if not line.startswith("S |"):
             continue
-        now = time.time()
+        now = time.monotonic()
         if first is None:
             first = now
+            if deadline is None:
+                deadline = first + duration
+            if first_message:
+                log(first_message)
         out.write(f"{now:.3f} {line[2:]}\n")
         out.flush()
         written += 1
@@ -183,29 +193,43 @@ def main() -> int:
             time.sleep(args.probe_interval)
         log("目标已断电，等待重新上电……")
 
-    give_up = time.time() + args.max_wait
+    give_up = time.monotonic() + args.max_wait
     started: float | None = None
     with args.out.open("w", encoding="utf-8", newline="\n") as out:
         out.write(f"# swd_poll {time.strftime('%Y-%m-%d %H:%M:%S %z')}\n")
+        out.write("# 第一列为主机单调时间（s），只表示到达先后\n")
         for address, words in args.region:
             out.write(f"# region 0x{address:08x} words={words}\n")
         out.write(f"# rate_hz={args.rate} duration_s={args.duration}\n")
         out.flush()
         while True:
-            if started is None and time.time() > give_up:
+            if started is None and time.monotonic() > give_up:
                 log("等待上电超时")
                 return 1
             deadline = None if started is None else started + args.duration
-            remaining = args.duration if started is None else deadline - time.time()
+            remaining = (
+                args.duration if started is None else deadline - time.monotonic()
+            )
             if remaining <= 0:
                 break
             iterations = int(remaining * args.rate) + 1
+            message = (
+                f"开始记录（{args.duration:.0f} s）"
+                if started is None
+                else "已重新连接"
+            )
             written, first = poll_session(
-                ocd, args.region, period_ms, iterations, deadline, out
+                ocd,
+                args.region,
+                period_ms,
+                iterations,
+                deadline,
+                args.duration,
+                out,
+                message,
             )
             if started is None and first is not None:
                 started = first
-                log(f"开始记录（{args.duration:.0f} s）")
             elif not written:
                 time.sleep(0.2)
     log("记录结束")
