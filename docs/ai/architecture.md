@@ -162,7 +162,7 @@ EXECUTABLE foray_test_<name>  →  被测 target + STATIC foray_platform_mock + 
 
 | 作业 | 检查内容 | 有效期 |
 |---|---|---|
-| `lint-c` | 本次改动的 C/C++ 文件必须符合 `.clang-format`（18.1.8）；排除生成区、厂商代码与 vendor 生成头 | P0.5 统一格式化后改为全量检查 |
+| `lint-c` | `tool/ci/format.py --check`：全部手写 C/C++ 文件必须符合 `.clang-format`（18.1.8）；排除生成区、厂商代码与 vendor 生成头 | 长期（P0.5 起全量，Decision-20261026-04） |
 | `host-tests` | `test/host` 的 13 项 ctest | 长期 |
 | `firmware-legacy` | 构建 `legacy/` 的 Debug 与 Release；**Release 镜像必须与基线 SHA-256 逐字节一致** | P0–P0.5；P1 起改为根工程构建 + 符号名与大小集合对照 |
 
@@ -204,7 +204,7 @@ EXECUTABLE foray_test_<name>  →  被测 target + STATIC foray_platform_mock + 
 | X-10 | **宿主测试的 P0 独立工程**：`test/host/CMakeLists.txt` 不链接被测 target 与 `platform/mock`，而是直接编译 `legacy/` 源码，用影子头替换 `cmsis_os2.h` 与 DJI 映射 | §2.2 `test` 行 | `test/host/README.md` | P1 改由根工程引入，改为链接被测 target |
 | X-11 | **过渡 include 根**：P1 设 `foray_legacy_include`，暴露 `legacy/` 作为 include 根（零源码改动无法去掉旧路径） | 8 | 评审报告 §7.2 P1 | P2 结束时删除 |
 | X-12 | **冻结的迁移源**：`legacy/` 在 P0–P2.5 期间不受目标态目录规则约束（自带 `file(GLOB)` 构建、全局 include），只允许机械操作；由 CI 的基线对照守护 | 8、12 | Decision-20261025-05 | 随 P2/P2.5 搬空后删除 |
-| X-13 | **C/C++ 格式增量检查**：P0.5 之前 lint-c 只查改动文件 | 格式规则 | Decision-20261026-01 | P0.5 后改为全量检查 |
+| X-13 | ~~**C/C++ 格式增量检查**：P0.5 之前 lint-c 只查改动文件~~ | 格式规则 | Decision-20261026-01 | **已关闭**（2026-10-26，P0.5 格式化后改为全量检查，Decision-20261026-04） |
 
 **已知结构债**（违反目标规则，不是例外，按计划偿还，见 [plan.md](../../plan.md) P3a、P3b）：
 
@@ -281,7 +281,7 @@ EXECUTABLE foray_test_<name>  →  被测 target + STATIC foray_platform_mock + 
 
 - 4 空格缩进、LF、UTF-8、文件末尾保留一个换行；Allman 大括号、行宽 120、指针靠右（沿用迁移源 `Libraries/Algorithm/.clang-format`）。
 - clang-format 与 clang-tidy 统一用 18（CI 固定 clang-format 18.1.8）。ROS 2 中属于排版的部分（2 空格缩进、行宽 100 等）不采用。
-- 生成区与厂商代码不格式化。clang-format 18 的 `.clang-format-ignore` 不支持 `**`，`*` 也不跨目录，排除整棵目录树时需按深度展开模式，或沿用 CI 脚本中的排除正则（P0.5 决定）。
+- 生成区与厂商代码不格式化。格式化范围由 `tool/ci/format.py` 统一定义（CI 与本地共用）；不使用 `.clang-format-ignore`，因为 clang-format 18 的该文件不支持 `**`、`*` 也不跨目录（Decision-20261026-04）。
 - 格式化与改名必须各自单独提交，提交号写入 `.git-blame-ignore-revs`；`.clang-format`、`.clang-tidy` 的规则调整记入 decision.md。
 - 时间表：P0.5 一次性格式化手写代码并改名（含 `test/host` 中恢复的测试）；P2 搬迁时文件名改为 snake_case；P3a 改写 port 时直接按新规则命名；命名检查（clang-tidy）在 P0.5 之后加入 CI。
 

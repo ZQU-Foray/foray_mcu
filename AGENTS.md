@@ -56,5 +56,5 @@
 
 - 本仓 `layer: MCU`，**不在 L1–L5 分层内**，位于 L2 下行 HAL 之下；`depends_on_layers: [X2]`，仅 vendor 消费 `foray_interfaces` 生成头文件。
 - 组织合规件：`.foray-layer`、`CODEOWNERS`（`@ZQU-Foray/电控组`）、`.github/workflows/ci.yml` 已落地（CI 设计见 Decision-20261026-01）；`docs/ai/architecture.md` v1 已创建（Decision-20261026-02）。
-- CI 的 `firmware-legacy` 要求 `legacy/` 的 Release 镜像与基线逐字节一致（P0–P0.5 有效）；`lint-c` 只检查本次改动的 C/C++ 文件，改了哪个文件就要把整个文件按 `.clang-format`（18.1.8）格式化。
+- CI 的 `firmware-legacy` 要求 `legacy/` 的 Release 镜像与基线逐字节一致（P0–P0.5 有效）；`lint-c` 用 `tool/ci/format.py --check` 全量检查手写 C/C++（生成区与厂商代码除外），提交前本地执行 `python tool/ci/format.py --fix`（clang-format 18.1.8）。
 - 规则与组织仓库规范冲突时，以组织 `foray_docs/repository_structure.md` 为准，并在 [decision.md](decision.md) 登记。

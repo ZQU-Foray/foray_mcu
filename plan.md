@@ -33,10 +33,10 @@
 
 ### P0.5 格式与命名统一（不改行为，3–5 人日）
 
-- [ ] 排除 CubeMX 生成区与厂商代码：**clang-format 18 的 `.clang-format-ignore` 不支持 `**`，`*` 也不跨目录**（2026-10-26 实测），要么按目录深度展开模式，要么沿用 CI 脚本里的排除正则（`legacy/Platform/STM32H7/DM_MC02/{Core,Drivers,Middlewares,USB_DEVICE}/` 等），二选一并记入 decision.md
-- [ ] 一次性格式化手写代码（`legacy/` 下的 Application、Libraries、Platform/Interface、PortKit、Port，以及 `test/host/` 中从 `fd1edbb` 恢复的测试），顺带把行尾统一为 LF；单独提交；完成后把 CI 的 lint-c 从增量检查改为全量检查（保留排除项）
+- [x] 排除 CubeMX 生成区与厂商代码：clang-format 18 的 `.clang-format-ignore` 不支持 `**`、`*` 不跨目录，改由 `tool/ci/format.py` 统一定义范围（CI 与本地共用），记入 Decision-20261026-04（2026-10-26）
+- [x] 一次性格式化手写代码：126 个文件（`legacy/` 的 Application、Libraries、Platform/Interface、PortKit、Port 与 `test/host/`），122 个有变化，块注释内残留的 CR 一并去除，单独提交 `c23eb5e`；CI 的 lint-c 改为全量检查。验证：legacy Debug/Release `.bin` 与基线 SHA 逐字节一致，13 项 ctest 全绿（2026-10-26）
 - [ ] 用 `clang-tidy --fix` 把 C++ 标识符改为 ROS 2 命名，手工补齐模板、宏等；同步更新测试与调试脚本中的符号名（如 `stackHealthArchive`）；C ABI 不改名；单独提交
-- [ ] 把以上两类提交写入 `.git-blame-ignore-revs`；`.clang-tidy` 的规则微调记入 decision.md
+- [ ] 把以上两类提交写入 `.git-blame-ignore-revs`（格式化提交 `c23eb5e` 已登记，改名提交待补）；`.clang-tidy` 的规则微调记入 decision.md
 - [ ] 验收：同工具链下 `.bin` SHA 与 P0 复现的基线一致（改名若使 SHA 变化，以函数大小集合一致为准并逐项说明）；宿主测试绿
 - [ ] 回滚：revert 对应提交
 
@@ -116,7 +116,7 @@
 
 ## 当前 Agent State
 
-`EXECUTING`（P0 已于 2026-10-26 验收，里程碑合并入 `main` 按负责人要求暂缓；下一步 P0.5：统一格式与命名，`legacy/` 的 Release 镜像须保持与基线逐字节一致）。
+`EXECUTING`（P0 已于 2026-10-26 验收，里程碑合并入 `main` 按负责人要求暂缓；P0.5 格式化已完成（Release/Debug 与基线逐字节一致），下一步是 ROS 2 命名改名）。
 状态词表：`REVIEW_PENDING`（等待评审）/ `PLANNING`（方案已批准、编制细节）/ `EXECUTING`（实施中）/ `BLOCKED`（外部阻塞）/ `DONE`（阶段完成）。
 
 ## Before Snapshot
@@ -179,3 +179,4 @@ Q1–Q18 已全部确认（见评审报告 v1.0 §11.1 与 decision.md）。仍�
 | 2026-10-26 | P0 | 记录原固件加热冷启动曲线（到 50 ℃ 24.1 s、过冲 +0.375 ℃、111 s 进入 ±0.25 ℃），作为 L6 重做的验收下限；第二份陀螺采集验证可重复；新增 `heater_log_decode.py`；`swd_poll.py` 改用单调时钟 | P0 任务完成，待验收 |
 | 2026-10-26 | P0 | AI 撰写的文档移入 `docs/ai/`（Decision-20261026-03），全仓 105 条相对链接全部可解析 | P0 任务完成，待验收 |
 | 2026-10-26 | P0 | P0 验收：`git log --follow`、`ctest`、基线 SHA 与符号表、Q4 证据表均满足；`dev` → `main` 里程碑合并暂缓 | ✅ 已验收 |
+| 2026-10-26 | P0.5 | 新增 `tool/ci/format.py`；一次性格式化 126 个手写文件（`c23eb5e`，登记于 `.git-blame-ignore-revs`）；CI lint-c 改为全量检查。legacy Debug/Release 与基线逐字节一致，ctest 13/13 | 格式化完成，改名待做 |
