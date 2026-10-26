@@ -28,7 +28,7 @@ python3 tool/debug/imu_capture_decode.py axi_after.bin --base 0x24000000 \
     --address 0x24000788 --csv samples.csv --json summary.json
 ```
 
-上例中的地址属于芯片原固件（见 `docs/decisions/2026-10-26-丢失功能与恢复依据.md`）；`a2cfd16` 的地址可从 `docs/decisions/baseline-a2cfd16/Debug.nm.txt` 查到。
+上例中的地址属于芯片原固件（见 `docs/ai/decisions/2026-10-26-丢失功能与恢复依据.md`）；`a2cfd16` 的地址可从 `docs/ai/decisions/baseline-a2cfd16/Debug.nm.txt` 查到。
 
 注意：
 

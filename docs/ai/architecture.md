@@ -1,7 +1,7 @@
 # 架构判据与依赖规则（foray_mcu）
 
 > **状态**：v1（2026-10-26，P0 创建；负责人评审即 PR 合并后生效，Decision-20261026-02）。本文件是"一段代码该放哪一层、能依赖谁"的唯一人读入口，供人工评审与 AI 代理使用。
-> **权威来源**：[评审报告 v1.0](reviews/2026-10-25-foray_mcu-架构评审报告.md) §3.2–§3.3、§5，以及 [decision.md](../decision.md) 中的 Accepted 条目。本文件与它们冲突时以后者为准，并同步修正本文件。
+> **权威来源**：[评审报告 v1.0](reviews/2026-10-25-foray_mcu-架构评审报告.md) §3.2–§3.3、§5，以及 [decision.md](../../decision.md) 中的 Accepted 条目。本文件与它们冲突时以后者为准，并同步修正本文件。
 > **修改流程**：新增或修改规则、例外、白名单，先在 decision.md 登记，再改本文件和对应的 CI 检查（§9）。
 
 ## 0. 怎么用
@@ -206,7 +206,7 @@ EXECUTABLE foray_test_<name>  →  被测 target + STATIC foray_platform_mock + 
 | X-12 | **冻结的迁移源**：`legacy/` 在 P0–P2.5 期间不受目标态目录规则约束（自带 `file(GLOB)` 构建、全局 include），只允许机械操作；由 CI 的基线对照守护 | 8、12 | Decision-20261025-05 | 随 P2/P2.5 搬空后删除 |
 | X-13 | **C/C++ 格式增量检查**：P0.5 之前 lint-c 只查改动文件 | 格式规则 | Decision-20261026-01 | P0.5 后改为全量检查 |
 
-**已知结构债**（违反目标规则，不是例外，按计划偿还，见 [plan.md](../plan.md) P3a、P3b）：
+**已知结构债**（违反目标规则，不是例外，按计划偿还，见 [plan.md](../../plan.md) P3a、P3b）：
 
 - `ImuBodyMapping` 反向依赖 Device：改为 POD 入参，或迁到 `src/driver/imu/`。
 - `Application/Imu` 的时钟读取与设备类型依赖。
@@ -287,6 +287,6 @@ EXECUTABLE foray_test_<name>  →  被测 target + STATIC foray_platform_mock + 
 
 ## 9. 修改本文件
 
-1. 规则、白名单、例外的任何增删改，先在 [decision.md](../decision.md) 登记（Context / Decision / Reason / Alternatives）。
+1. 规则、白名单、例外的任何增删改，先在 [decision.md](../../decision.md) 登记（Context / Decision / Reason / Alternatives）。
 2. 再修改本文件的对应小节，并同步 `.github/workflows/ci.yml` 或 `tool/ci/` 中的检查。
 3. 评审报告是历史记录，不随本文件修改；两者出现差异时，以 decision.md 中较新的 Accepted 条目为准。
