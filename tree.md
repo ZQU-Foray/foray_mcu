@@ -1,7 +1,7 @@
 # 目录结构说明（foray_mcu）
 
 > 状态：**方案已确认，P0 进行中**。本文件描述"目标结构"与"当前实际状态"的差异。
-> 目标结构以 [docs/reviews/2026-10-25-foray_mcu-架构评审报告.md](docs/reviews/2026-10-25-foray_mcu-架构评审报告.md) 为准；"目标位置"按阶段落地，是否已落地以状态图例为准。
+> 目标结构以 [docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md](docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md) 为准；"目标位置"按阶段落地，是否已落地以状态图例为准。
 
 ## 当前实际结构（2026-10-26，P0 进行中）
 
@@ -28,15 +28,16 @@ foray_mcu/
 ├── test/data/heater/         原固件加热冷启动曲线（L6 重做的验收下限）
 ├── tool/debug/               SWD 只读轮询、IMU 采集与加热日志解码（Python）
 └── docs/
-    ├── README.md                docs 索引
-    ├── architecture.md          分层判据、依赖规则、例外登记表（v1）
-    ├── assets/controller_code-架构图.png                    迁移源架构图（PNG 内嵌 5 页）
-    ├── assets/controller_code-固件恢复可行性评估.md          迁移源基线证据（未入 git 的工作区文件转存）
-    ├── reviews/2026-10-25-foray_mcu-架构评审报告.md          v1.0（已确认）
-    ├── reviews/archive/                                      v0.1–v0.4 原文存档
-    ├── decisions/2026-10-25-迁移基线与对照.md               基线数据、SHA、工具链、P0 复核记录、芯片 Flash 存档记录
-    ├── decisions/2026-10-26-丢失功能与恢复依据.md           丢失功能清单（L1–L6）与行为证据
-    └── decisions/baseline-a2cfd16/                          基线符号表与段表（nm -S / size -A）、SHA256SUMS
+    ├── assets/controller_code-架构图.png                    迁移源架构图（人工绘制，PNG 内嵌 5 页）
+    └── ai/                      AI 撰写的文档（Decision-20261026-03）
+        ├── README.md                docs/ai 索引
+        ├── architecture.md          分层判据、依赖规则、例外登记表（v1）
+        ├── assets/controller_code-固件恢复可行性评估.md      迁移源基线证据（未入 git 的工作区文件转存）
+        ├── reviews/2026-10-25-foray_mcu-架构评审报告.md      v1.0（已确认）
+        ├── reviews/archive/                                  v0.1–v0.4 原文存档
+        ├── decisions/2026-10-25-迁移基线与对照.md           基线数据、SHA、工具链、P0 复核记录、芯片 Flash 存档记录
+        ├── decisions/2026-10-26-丢失功能与恢复依据.md       丢失功能清单（L1–L6）与行为证据
+        └── decisions/baseline-a2cfd16/                      基线符号表与段表（nm -S / size -A）、SHA256SUMS
 ```
 
 **事实**：本仓已建 git 并推送到 GitHub，迁移源在 `legacy/`，可在 `legacy/Platform/STM32H7/DM_MC02` 构建（P0 已复现，SHA-256 与基线一致）；还没有根 `CMakeLists.txt`；宿主测试已恢复到 `test/host/`（独立工程，直接编译 `legacy/` 源码）；其余目标结构目录仍是空骨架。
@@ -99,10 +100,13 @@ foray_mcu/
 │   ├── debug/                    SWD 存档读取、数据解码/回放
 │   └── ci/                       架构检查、生成区校验、vendor 哈希
 ├── docs/
-│   ├── architecture.md           分层判据与依赖规则（唯一人读入口；P0 创建）
-│   ├── reviews/                  架构评审报告
-│   ├── decisions/                基线记录、评审决议
-│   └── assets/                   架构图、迁移源证据转存等
+│   ├── <人写的文档>              人工撰写的设计文档、手册（直接放 docs/ 下）
+│   ├── assets/                   人工制作的图表等
+│   └── ai/                       AI 撰写的文档（Decision-20261026-03）
+│       ├── architecture.md       分层判据与依赖规则（唯一人读入口）
+│       ├── reviews/              架构评审报告
+│       ├── decisions/            基线记录、行为证据
+│       └── assets/               AI 转存或生成的证据材料
 ├── .foray-layer                  layer: MCU / depends_on_layers: [X2]
 ├── CODEOWNERS                    @ZQU-Foray/电控组
 └── .github/workflows/ci.yml
@@ -138,9 +142,9 @@ foray_mcu/
 | 宿主测试 | `test/host/`（从 ControllerCode `fd1edbb` 恢复） | ✅ 已恢复（P0 独立工程，13 项全绿；`ImuStream` 待重写） |
 | 组织合规件 | `.foray-layer`、`CODEOWNERS`、`.github/workflows/ci.yml` | ✅ 已落地（P0，CI 第一版，见 Decision-20261026-01） |
 | 链路协议生成头 | `src/third_party/foray_interfaces/generated/lower_link.hpp` | 🟡 待 vendor |
-| 架构评审 | `docs/reviews/`（v1.0；旧版在 `archive/`） | ✅ 已确认 |
-| 迁移基线证据 | `docs/decisions/2026-10-25-迁移基线与对照.md`、`docs/decisions/baseline-a2cfd16/`、`docs/assets/controller_code-固件恢复可行性评估.md` | ✅ P0 已复核（SHA 一致，符号表入档） |
-| 决策与基线 | `docs/decisions/`、`decision.md` | 🟡 待补 |
+| 架构评审 | `docs/ai/reviews/`（v1.0；旧版在 `archive/`） | ✅ 已确认 |
+| 迁移基线证据 | `docs/ai/decisions/2026-10-25-迁移基线与对照.md`、`docs/ai/decisions/baseline-a2cfd16/`、`docs/ai/assets/controller_code-固件恢复可行性评估.md` | ✅ P0 已复核（SHA 一致，符号表入档） |
+| 决策与基线 | `docs/ai/decisions/`、`decision.md` | 🟡 待补 |
 
 ## 迁移源对照（粗粒度）
 

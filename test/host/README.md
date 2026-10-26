@@ -73,5 +73,5 @@ test/host/
 
 - **`Tests/ImuStream`（待重写）**：被测模块 `Application/Imu/ImuStream.hpp`、`Libraries/Protocol/imu/ImuFrame.hpp` 在 `a2cfd16` 中已不存在。原文件可用 `git show fd1edbb:Tests/ImuStream/<文件>` 取回，供重写时参考。
 - **底盘力矩能力检查未覆盖**：`ChassisTask::Init` 在 `a2cfd16` 新增"控制器限幅不得超过电机能力"的检查，现有场景没有覆盖能力不足时的失败路径。
-- **发现（不在 P0 修复）**：`a2cfd16` 中没有任何代码调用 `ChassisTask::SetEnabled(true)`，该版本固件的底盘不会输出力矩。丢失的遥控任务（见 `docs/decisions/2026-10-25-迁移基线与对照.md` §8）可能承担使能职责，P3b 重做时处理。
+- **发现（不在 P0 修复）**：`a2cfd16` 中没有任何代码调用 `ChassisTask::SetEnabled(true)`，该版本固件的底盘不会输出力矩。丢失的遥控任务（见 `docs/ai/decisions/2026-10-25-迁移基线与对照.md` §8）可能承担使能职责，P3b 重做时处理。
 - `unit/motor/VALIDATION.md` 与 `unit/imu_acquisition/README.md` 是迁移源时期的历史记录，其中的路径、命令和资源数据对应旧工程。

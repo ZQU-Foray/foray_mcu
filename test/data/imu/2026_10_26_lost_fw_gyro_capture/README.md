@@ -6,7 +6,7 @@ DM-MC02 上运行的原固件（比 `a2cfd16` 更新、源码已丢失）在恒�
 
 | 项 | 值 |
 |---|---|
-| 固件 | 芯片原固件，Flash 镜像 SHA-256 `e307e4b762ff78b7d61d9ab8d817f3f0ab4e47de7881f7598a0e6f51d301f43d`（见 `docs/decisions/2026-10-25-迁移基线与对照.md` §8） |
+| 固件 | 芯片原固件，Flash 镜像 SHA-256 `e307e4b762ff78b7d61d9ab8d817f3f0ab4e47de7881f7598a0e6f51d301f43d`（见 `docs/ai/decisions/2026-10-25-迁移基线与对照.md` §8） |
 | 结构体 | `ImuDiagnostics` 的 `Capture`，版本 2，16720 字节，定义见 `legacy/Application/Imu/ImuDiagnostics.cpp`；原固件中位于 `0x24000788`（`a2cfd16` Debug 中为 `0x240006b0`） |
 | 读取 | 2026-10-26，OpenOCD 0.12.0 + CMSIS-DAP（Vllink Basic2），整块读出 AXI SRAM 后提取；整块快照 SHA-256 `2bcb24744f43ab149db12682e102700933d81e3614f1e4313cfd898f9a564fb5`（保存在仓库外的存档目录） |
 | 解码 | `tool/debug/imu_capture_decode.py <AXI 快照> --base 0x24000000 --address 0x24000788 --extract capture.bin --csv samples.csv --json summary.json` |

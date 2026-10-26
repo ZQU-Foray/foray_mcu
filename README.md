@@ -2,7 +2,7 @@
 
 > **下位机（MCU）固件** · owner 角色：电控组
 > `layer: MCU` —— **不在 L1–L5 分层内**，位于 L2 下行 HAL **之下**
-> 当前状态：🟡 **结构重构 P0 进行中**（方案已确认；迁移源在 `legacy/`，新结构尚未开始构建）
+> 当前状态：🟡 **结构重构 P0 已验收，进入 P0.5 格式与命名统一**（方案已确认；迁移源在 `legacy/`，新结构尚未开始构建）
 
 ## 1. 本仓是什么
 
@@ -11,7 +11,7 @@ RoboMaster 多兵种、多开发板的 MCU 下位机固件。本仓以 `Controll
 - 迁移源基线：`ControllerCode` `main` @ `a2cfd16`（2026-10-23，19 个提交，git 跟踪 333 个文件，项目自有代码约 2.3 万行）。
 - 目标平台：STM32H723（DM-MC02，主力，先行）、STM32F407（RM C 板）、TI TM4C / AM26x（按需）；`src/` + `platform/` 作为可复用框架，另供 MSPM0 等小项目（大概率裸机）使用。
 - 当前状态：已建 git 并推送到 GitHub，基线 tag `baseline/a2cfd16`；迁移源原样放在 `legacy/`，可在 `legacy/Platform/STM32H7/DM_MC02` 构建（P0 已复现，SHA-256 与基线一致）；宿主测试已从 `fd1edbb` 恢复到 `test/host/`（P0 独立工程，13 项 ctest 全绿，运行方式见 [test/host/README.md](test/host/README.md)）；其余目标结构目录（`app/ config/ platform/ src/ tool/`）仍是空骨架；还没有根 CMakeLists。
-- 结构方案与完整评审材料：**[docs/reviews/2026-10-25-foray_mcu-架构评审报告.md](docs/reviews/2026-10-25-foray_mcu-架构评审报告.md)**。
+- 结构方案与完整评审材料：**[docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md](docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md)**。
 - 方案已确认（[decision.md](decision.md) Decision-20261025-01 至 -05），执行计划与进度见 [plan.md](plan.md)。
 
 ## 2. 目标结构（已确认，按阶段实施）
@@ -42,7 +42,7 @@ cmake -S . -B build/hero-debug -DFORAY_PROFILE=hero_v1 ...   # 其他兵种/机�
 ```
 
 - 唯一入口为 `FORAY_PROFILE`；板卡由 profile 声明；工具链在 `cmake/toolchains/`；本机路径放 `CMakeUserPresets.json`（不入库）。
-- 迁移验收用的基线对照（ControllerCode 可复现构建实测，2026-10-26 在本仓复现一致）：Debug `.bin` **238,320 B**，Release `.bin` **100,664 B**；SHA-256、工具链版本、符号表与对照判据见 [docs/decisions/2026-10-25-迁移基线与对照.md](docs/decisions/2026-10-25-迁移基线与对照.md)（证据来源已转存 [docs/assets/controller_code-固件恢复可行性评估.md](docs/assets/controller_code-固件恢复可行性评估.md)）。
+- 迁移验收用的基线对照（ControllerCode 可复现构建实测，2026-10-26 在本仓复现一致）：Debug `.bin` **238,320 B**，Release `.bin` **100,664 B**；SHA-256、工具链版本、符号表与对照判据见 [docs/ai/decisions/2026-10-25-迁移基线与对照.md](docs/ai/decisions/2026-10-25-迁移基线与对照.md)（证据来源已转存 [docs/ai/assets/controller_code-固件恢复可行性评估.md](docs/ai/assets/controller_code-固件恢复可行性评估.md)）。
 
 ## 4. 依赖
 
@@ -100,5 +100,5 @@ cmake -S . -B build/hero-debug -DFORAY_PROFILE=hero_v1 ...   # 其他兵种/机�
 - [上位机 ↔ 下位机链路协议](https://github.com/ZQU-Foray/foray_interfaces/blob/dev/protocol/lower_link.md)
 - [算法结构](https://github.com/ZQU-Foray/foray_docs/blob/main/algorithm_structure.md) / [仓库结构](https://github.com/ZQU-Foray/foray_docs/blob/main/repository_structure.md)
 - [组织贡献指南](https://github.com/ZQU-Foray/.github/blob/main/CONTRIBUTING.md)
-- 结构评审报告：[docs/reviews/2026-10-25-foray_mcu-架构评审报告.md](docs/reviews/2026-10-25-foray_mcu-架构评审报告.md)
+- 结构评审报告：[docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md](docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md)
 - ControllerCode 既有架构图（PNG 内嵌 5 页，含附录 A–D 评审清单）：[docs/assets/controller_code-架构图.png](docs/assets/controller_code-架构图.png)
