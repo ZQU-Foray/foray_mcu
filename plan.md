@@ -26,7 +26,7 @@
 - [x] 在 GitHub ZQU-Foray 组织下新建 `foray_mcu` 仓库并首次推送：负责人建仓（公开），推送 `main` 与 tag `baseline/a2cfd16`，remote 名 `origin`（2026-10-26）
 - [x] **烧录任何新固件之前**，用 OpenOCD 读出 DM-MC02 的 Flash 存档，作为丢失功能重做时的行为参考：CMSIS-DAP（Vllink Basic2）只读、未停核；RDP 0；有效内容 285,412 B，判断为 Debug 构建，含迁移源中没有的链路协议与遥控任务；镜像存于仓库外（公开仓库不入 git），负责人已另行备份，SHA-256 与说明见基线对照文档 §8（2026-10-26）
 - [x] 在 Windows 上、原结构（`legacy/Platform/STM32H7/DM_MC02`）中复现基线构建（xPack GCC 15.2.1）：Debug `.bin` 238,320 B / Release `.bin` 100,664 B，SHA-256 均与基线一致；`nm -S` 符号表与段表入档 `docs/decisions/baseline-a2cfd16/`（见基线对照文档 §7；2026-10-26）
-- [ ] 录制一段真实 IMU 数据存入 `test/data/`，作为重构与精度调整的回归对照。进展（2026-10-26）：不烧录、只读 SWD，从原固件 RAM 取得其自动完成的静态陀螺采集（2 万样本统计 + 1024 个原始样本，50 ℃），已存入 `test/data/imu/2026_10_26_lost_fw_gyro_capture/`；原固件冷启动加热曲线记录中（`test/data/heater/`）。**缺口**：现有诊断只保存 1024 个陀螺原始样本、无加速度计原始数据，P0 不改代码无法录制姿态解算回归所需的长时间加速度计 + 陀螺序列，待新结构实现 IMU 数据流（P3b）后补录
+- [x] 录制一段真实 IMU 数据存入 `test/data/`，作为重构与精度调整的回归对照（2026-10-26，P0 范围内完成）：不烧录、只读 SWD，从原固件取得两份 50 ℃ 静态陀螺采集（各 2 万样本统计 + 1024 个原始样本，结果高度一致；噪声来自达妙小云台电机）→ `test/data/imu/`；原固件加热冷启动曲线（到 50 ℃ 24.1 s、过冲 0.375 ℃、111 s 进入 ±0.25 ℃）→ `test/data/heater/`。**移交 P3b**：姿态解算回归所需的长时间加速度计 + 陀螺原始序列，现有诊断录不出，待新结构实现 IMU 数据流后补录（见 P3b 任务）
 - [x] 补齐组织合规件：`.foray-layer`（layer: MCU / depends_on_layers: [X2]，沿用迁移源 `chore/align-org-structure`）、`CODEOWNERS`（`* @ZQU-Foray/电控组`）、`.github/workflows/ci.yml`（第一版：lint-c 增量格式检查 + 宿主测试 + legacy 固件构建且 Release SHA 与基线一致；设计见 Decision-20261026-01）。本机已模拟各作业（2026-10-26）；GitHub 上首次运行结果见 PR。待负责人：给电控组本仓 Write 权限
 - [x] 确认迁移基线：负责人确认最新进度找不回，以 `a2cfd16` 为基线，丢失的新电机控制、启动时间优化、上下位机通信、云台逻辑在新结构中重做（2026-10-25）；2026-10-26 负责人补充：加热启动性能与超调优化也已丢失。完整清单与证据见 [丢失功能与恢复依据](docs/decisions/2026-10-26-丢失功能与恢复依据.md)
 - [ ] 验收：`git log --follow` 可用；`ctest` 绿；基线 SHA 与符号表入档；Q4 证据表填毕（已完成）
@@ -116,7 +116,7 @@
 
 ## 当前 Agent State
 
-`EXECUTING`（P0 进行中：git 仓库、历史导入、`legacy/` 布局、忽略规则与格式/命名配置、GitHub 首推、芯片 Flash 存档、基线构建复现已完成；host 测试已恢复（13 项全绿）、组织合规件与 CI 第一版已合并，`docs/architecture.md` v1 已合并；IMU 数据：原固件静态陀螺采集已入库，冷启动加热曲线记录中；P0 剩余：加热曲线整理与 P0 验收，之后进入 P0.5）。
+`EXECUTING`（P0 进行中：git 仓库、历史导入、`legacy/` 布局、忽略规则与格式/命名配置、GitHub 首推、芯片 Flash 存档、基线构建复现已完成；host 测试已恢复（13 项全绿）、组织合规件与 CI 第一版已合并，`docs/architecture.md` v1 已合并；IMU 数据与原固件加热冷启动曲线已入库；P0 各项任务已完成，剩余 P0 验收与里程碑合并（`dev` → `main`），之后进入 P0.5）。
 状态词表：`REVIEW_PENDING`（等待评审）/ `PLANNING`（方案已批准、编制细节）/ `EXECUTING`（实施中）/ `BLOCKED`（外部阻塞）/ `DONE`（阶段完成）。
 
 ## Before Snapshot
@@ -175,3 +175,4 @@ Q1–Q18 已全部确认（见评审报告 v1.0 §11.1 与 decision.md）。仍�
 | 2026-10-26 | P0 | 补齐 `.foray-layer`、`CODEOWNERS`、CI 第一版（lint-c 增量、宿主测试、legacy 固件 Release SHA 闸门）；Linux 上 Release 逐字节复现基线；更正"基线用 Arm 官方工具链"的说法 | 进行中 |
 | 2026-10-26 | P0 | 合并 CI 第一版（PR #2，CI 首次运行 5 个作业全绿），建 `dev` 分支；`docs/architecture.md` v1：判据、规则表（检查方式 + 生效阶段）、白名单、例外登记表 | 进行中 |
 | 2026-10-26 | P0 | 只读 SWD 取得原固件静态陀螺采集并入库；定位原固件加热器状态（算法与 `a2cfd16` 不同）；建立丢失功能清单（新增 L6 加热优化）；新增 `tool/debug/` | 进行中 |
+| 2026-10-26 | P0 | 记录原固件加热冷启动曲线（到 50 ℃ 24.1 s、过冲 +0.375 ℃、111 s 进入 ±0.25 ℃），作为 L6 重做的验收下限；第二份陀螺采集验证可重复；新增 `heater_log_decode.py`；`swd_poll.py` 改用单调时钟 | P0 任务完成，待验收 |

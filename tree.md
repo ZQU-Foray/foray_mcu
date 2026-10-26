@@ -24,8 +24,9 @@ foray_mcu/
 │   ├── bsp/hardware/         7 个 0 字节占位 .hpp（未纳入 git，P1 建 src/hal 时删除）
 │   └── bsp/os/、driver/、lib/、middleware/、msg/、utils/    空
 ├── test/host/                宿主测试（P0 独立 CMake 工程，13 项 ctest；来源 fd1edbb，见 test/host/README.md）
-├── test/data/imu/            真实 IMU 数据（原固件静态陀螺采集）
-├── tool/debug/               SWD 只读轮询与 IMU 采集解码（Python）
+├── test/data/imu/            真实 IMU 数据（原固件静态陀螺采集 ×2）
+├── test/data/heater/         原固件加热冷启动曲线（L6 重做的验收下限）
+├── tool/debug/               SWD 只读轮询、IMU 采集与加热日志解码（Python）
 └── docs/
     ├── README.md                docs 索引
     ├── architecture.md          分层判据、依赖规则、例外登记表（v1）
