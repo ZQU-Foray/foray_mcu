@@ -7,7 +7,7 @@
 | 来源 | 记录结束后整块转储的 AXI SRAM（SHA-256 `b98c853e8e9d834c886bf8bfa8018e40c3e30cf8c845d3238b33dce9debf04ef`，存于仓库外存档目录），结构体位于 `0x24000788` |
 | 解码 | `tool/debug/imu_capture_decode.py <快照> --base 0x24000000 --address 0x24000788 --extract capture.bin --csv samples.csv --json summary.json` |
 | `capture.bin` | SHA-256 `c23718db96a612e38316910284a3e3d1d32be6506168235763c5b0617e655908` |
-| 机器人状态 | 机器人静止；是否接 24 V（小云台电机是否上电）待负责人确认，噪声与第一份一致，推断电机工况相同 |
+| 机器人状态 | 接 24 V（负责人确认），小云台电机上电；机器人静止 |
 | 样本 | 20000 个，1993.8 Hz，序号缺口 0，读取错误 0；温度 49.75 → 50.125 ℃ |
 
 与第一份数据对比（单位 LSB，±2000 dps 量程下 1 LSB = 0.0610 dps）：
