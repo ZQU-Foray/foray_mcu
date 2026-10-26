@@ -1,0 +1,13 @@
+# 本仓在整体架构中的位置
+# 见 foray_docs/algorithm_structure.md §1
+#
+# 下位机（MCU）固件——位于 L2 下行 HAL **之下**，不属于 L1–L5 纵向分层。
+# 算法结构中的 6 层 + 装配根全部是上位机；本仓是硬件侧。
+#
+# 依赖约束：
+#   - 仅消费 foray_interfaces 生成的头文件（generated/lower_link.hpp），
+#     以 vendor 方式引入，非构建期依赖
+#   - 不得依赖任何上位机自研仓的实现
+
+layer: MCU
+depends_on_layers: [X2]

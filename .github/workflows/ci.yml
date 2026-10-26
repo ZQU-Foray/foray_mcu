@@ -1,0 +1,255 @@
+# 复制自组织 CI 模板：ZQU-Foray/.github → workflows/ci-template.yml
+#
+# 本仓的调整（见 decision.md Decision-20261026-01）：
+#   - lint-c 改为增量检查：只检查本次改动的 C/C++ 文件，排除 CubeMX 生成区、厂商代码
+#     与 vendor 生成头。存量手写代码在 P0.5 一次性格式化之后改为全量检查。
+#   - 新增 host-tests：test/host 宿主测试（ctest）。
+#   - 新增 firmware-legacy：用与基线相同版本的 xPack GCC 构建 legacy/ 固件，
+#     Release 镜像必须与基线 SHA-256 逐字节一致；Debug 镜像内含工具链安装路径，
+#     换机器 SHA 必然不同，只要求构建成功。
+#   - 删除 build-ros2：本仓是 MCU 固件，不是 ROS 2 工作空间。
+#
+# 设计原则沿用模板：没有适用文件就跳过；存量不合规代码不让 CI 长期红灯，新代码不放过。
+
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # 与 Decision-20261025-04 一致：clang-format 统一用 18。
+  CLANG_FORMAT_VERSION: "18.1.8"
+  # 与基线复现所用工具链同版本（docs/decisions/2026-10-25-迁移基线与对照.md §7）。
+  XPACK_GCC_VERSION: "15.2.1-1.1"
+  # 来源：xPack 发布页 xpack-arm-none-eabi-gcc-15.2.1-1.1-linux-x64.tar.gz.sha
+  XPACK_GCC_SHA256: "da6a49ad4003944b823c6c93702a8787c922ab34bd7e918ec0eaf6933a9b1ff6"
+
+jobs:
+  # ---- Python 代码检查（模板原样） ----
+  lint-python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 检测是否存在 Python 代码
+        id: detect
+        shell: bash
+        run: |
+          if find . -name '*.py' -not -path './.git/*' | grep -q .; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "未发现 Python 代码，跳过。"
+          fi
+
+      - name: Set up Python
+        if: steps.detect.outputs.found == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        if: steps.detect.outputs.found == 'true'
+        run: |
+          pip install ruff black
+
+      - name: Lint with ruff
+        if: steps.detect.outputs.found == 'true'
+        run: ruff check .
+
+      - name: Format check with black
+        if: steps.detect.outputs.found == 'true'
+        run: black --check --diff .
+
+  # ---- C/C++ 格式检查（增量，本仓调整） ----
+  # 存量手写代码（legacy/ 与从 fd1edbb 恢复的测试）还没按根 .clang-format 统一，
+  # 全量检查会长期红灯。P0.5 一次性格式化之前，只要求本次改动的文件合规：
+  # 改了哪个文件，就把整个文件按 .clang-format 格式化后再提交。
+  lint-c:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 收集本次改动的 C/C++ 文件
+        id: files
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then BASE="$PR_BASE"; else BASE="$PUSH_BEFORE"; fi
+          : > "$RUNNER_TEMP/files.txt"
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            echo "新分支首次推送，没有基准提交，跳过。"
+          elif ! git cat-file -e "$BASE^{commit}" 2>/dev/null && ! git fetch -q origin "$BASE"; then
+            echo "::warning::取不到基准提交 $BASE，跳过格式检查。"
+          else
+            # 排除：CubeMX 生成区与厂商代码（只能重新生成或整体替换）、vendor 的生成头。
+            EXCLUDE='^legacy/Platform/STM32H7/DM_MC02/(Core|Drivers|Middlewares|USB_DEVICE)/|^platform/.*/cubemx/|^src/third_party/'
+            git diff --name-only --diff-filter=ACMR "$BASE"...HEAD \
+              | grep -E '\.(c|h|cpp|hpp)$' | grep -vE "$EXCLUDE" > "$RUNNER_TEMP/files.txt" || true
+          fi
+          echo "count=$(wc -l < "$RUNNER_TEMP/files.txt")" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Python
+        if: steps.files.outputs.count != '0'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 安装 clang-format
+        if: steps.files.outputs.count != '0'
+        run: pip install "clang-format==${CLANG_FORMAT_VERSION}"
+
+      - name: 格式检查（仅本次改动文件）
+        shell: bash
+        run: |
+          mapfile -t FILES < "$RUNNER_TEMP/files.txt"
+          if [ "${#FILES[@]}" -eq 0 ]; then
+            echo "本次改动没有需要检查的 C/C++ 文件，跳过。"
+            exit 0
+          fi
+          clang-format --version
+          printf '检查 %d 个改动文件：\n' "${#FILES[@]}"
+          printf '  %s\n' "${FILES[@]}"
+          if clang-format --dry-run --Werror "${FILES[@]}"; then
+            echo "clang-format 通过"
+          else
+            echo "::error::本次改动的 C/C++ 文件不符合 clang-format。本地执行 clang-format -i <文件>（18.1.8）后重新提交。"
+            exit 1
+          fi
+
+  # ---- Python 测试（模板原样） ----
+  test-python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 检测是否存在 Python 测试
+        id: detect
+        shell: bash
+        run: |
+          if find . \( -name 'test_*.py' -o -name '*_test.py' \) \
+               -not -path './.git/*' | grep -q .; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "未发现 Python 测试，跳过。"
+          fi
+
+      - name: Set up Python
+        if: steps.detect.outputs.found == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        if: steps.detect.outputs.found == 'true'
+        shell: bash
+        run: |
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          fi
+          pip install pytest
+
+      - name: Run tests
+        if: steps.detect.outputs.found == 'true'
+        run: pytest -v
+
+  # ---- 宿主测试（本仓新增） ----
+  host-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Ninja
+        shell: bash
+        run: |
+          command -v ninja >/dev/null || { sudo apt-get update -q && sudo apt-get install -y -q ninja-build; }
+          g++ --version | head -1
+          cmake --version | head -1
+
+      - name: 配置
+        run: cmake -S test/host -B build/host-tests -G Ninja
+
+      - name: 构建
+        run: cmake --build build/host-tests
+
+      - name: 测试
+        run: ctest --test-dir build/host-tests --output-on-failure
+
+  # ---- legacy 固件构建与基线对照（本仓新增） ----
+  # P0–P0.5 期间 legacy/ 只允许机械操作，Release 镜像必须与基线逐字节一致；
+  # P1 起改为由根工程构建，对照判据改为符号名与大小集合（见基线对照文档 §4）。
+  firmware-legacy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 缓存 xPack GCC
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/xpack-arm-none-eabi-gcc-${{ env.XPACK_GCC_VERSION }}
+          key: xpack-arm-none-eabi-gcc-${{ env.XPACK_GCC_VERSION }}-linux-x64
+
+      - name: 下载并校验 xPack GCC
+        if: steps.cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          url="https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v${XPACK_GCC_VERSION}/xpack-arm-none-eabi-gcc-${XPACK_GCC_VERSION}-linux-x64.tar.gz"
+          curl -fsSL -o "$RUNNER_TEMP/gcc.tar.gz" "$url"
+          echo "${XPACK_GCC_SHA256}  $RUNNER_TEMP/gcc.tar.gz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/gcc.tar.gz" -C "$RUNNER_TEMP"
+          rm "$RUNNER_TEMP/gcc.tar.gz"
+
+      - name: 安装 Ninja
+        shell: bash
+        run: command -v ninja >/dev/null || { sudo apt-get update -q && sudo apt-get install -y -q ninja-build; }
+
+      - name: 构建 Debug 与 Release
+        shell: bash
+        run: |
+          gcc_root="$RUNNER_TEMP/xpack-arm-none-eabi-gcc-${XPACK_GCC_VERSION}"
+          "$gcc_root/bin/arm-none-eabi-gcc" --version | head -1
+          src=legacy/Platform/STM32H7/DM_MC02
+          for cfg in Debug Release; do
+            cmake -S "$src" -B "build/legacy/$cfg" -G Ninja \
+              -DCMAKE_BUILD_TYPE="$cfg" \
+              -DCMAKE_TOOLCHAIN_FILE="$PWD/$src/cmake/gcc-arm-none-eabi.cmake" \
+              -DARM_GCC_ROOT="$gcc_root"
+            cmake --build "build/legacy/$cfg"
+          done
+
+      - name: 对照基线（Release 逐字节一致）
+        shell: bash
+        run: |
+          cd build/legacy
+          grep ' Release/mc02_cpp.bin$' "$GITHUB_WORKSPACE/docs/decisions/baseline-a2cfd16/SHA256SUMS" | sha256sum -c -
+          echo "Debug（只供参考，镜像内含工具链安装路径）："
+          sha256sum Debug/mc02_cpp.bin
+
+      - name: 上传构建产物
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-legacy
+          path: |
+            build/legacy/*/mc02_cpp.elf
+            build/legacy/*/mc02_cpp.bin
+            build/legacy/*/mc02_cpp.map
+          if-no-files-found: ignore
+          retention-days: 14
