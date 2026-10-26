@@ -1,0 +1,14 @@
+// 由 config/profiles/profile.hpp.in 按 profile.cmake 生成，不要手改。
+// 供装配、诊断与测试断言使用；app 不直接 include（评审报告 §5.4）。
+#ifndef PROFILE_HPP
+#define PROFILE_HPP
+
+namespace profile
+{
+
+inline constexpr char ID[] = "@PROFILE_ID@";
+inline constexpr char BOARD[] = "@BOARD@";
+
+} // namespace profile
+
+#endif // PROFILE_HPP

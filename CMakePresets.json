@@ -1,0 +1,78 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 22,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "arm-base",
+      "hidden": true,
+      "inherits": "base",
+      "description": "固件：baseline profile（DM-MC02）。Arm GNU 工具链取自 ARM_GCC_ROOT 或 PATH；本机路径写在 CMakeUserPresets.json（不入库）",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/arm-gcc-cortex-m7.cmake",
+      "cacheVariables": {
+        "PROFILE": "baseline"
+      }
+    },
+    {
+      "name": "arm-debug",
+      "inherits": "arm-base",
+      "displayName": "固件 Debug（baseline × DM-MC02）",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "arm-release",
+      "inherits": "arm-base",
+      "displayName": "固件 Release（baseline × DM-MC02）",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "host-tests",
+      "inherits": "base",
+      "displayName": "宿主测试（框架 + platform/mock）",
+      "description": "本机 GCC 或 Clang；Windows 上可在 CMakeUserPresets.json 中指定 MSYS2 的编译器",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/host.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "arm-debug",
+      "configurePreset": "arm-debug"
+    },
+    {
+      "name": "arm-release",
+      "configurePreset": "arm-release"
+    },
+    {
+      "name": "host-tests",
+      "configurePreset": "host-tests"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "host-tests",
+      "configurePreset": "host-tests",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}
