@@ -4,24 +4,24 @@
 namespace
 {
 
-bool IsFinite(float value)
+bool is_finite(float value)
 {
     return std::isfinite(value);
 }
 
-float MoveTowards(float current, float target, float maxDelta)
+float move_towards(float current, float target, float max_delta)
 {
     const float delta = target - current;
 
-    if (std::fabs(delta) <= maxDelta)
+    if (std::fabs(delta) <= max_delta)
     {
         return target;
     }
 
-    return current + ((delta > 0.0f) ? maxDelta : -maxDelta);
+    return current + ((delta > 0.0f) ? max_delta : -max_delta);
 }
 
-bool IsBetween(float value, float first, float second)
+bool is_between(float value, float first, float second)
 {
     return (first <= value && value <= second) || (second <= value && value <= first);
 }
@@ -31,139 +31,139 @@ bool IsBetween(float value, float first, float second)
 namespace alg_slope
 {
 
-bool Slope::Init(const Config &config)
+bool Slope::init(const Config &config)
 {
-    Cfg = Config{};
-    Output = 0.0f;
-    NowReal = 0.0f;
-    Target = 0.0f;
-    Initialized = false;
+    cfg_ = Config{};
+    output_ = 0.0f;
+    now_real_ = 0.0f;
+    target_ = 0.0f;
+    initialized_ = false;
 
-    const bool firstValid = config.First == SlopeFirst::Real || config.First == SlopeFirst::Target;
-    if (!firstValid || !IsFinite(config.IncreaseRate) || !IsFinite(config.DecreaseRate) ||
-        config.IncreaseRate <= 0.0f || config.DecreaseRate <= 0.0f)
+    const bool first_valid = config.first == SlopeFirst::REAL || config.first == SlopeFirst::TARGET;
+    if (!first_valid || !is_finite(config.increase_rate) || !is_finite(config.decrease_rate) ||
+        config.increase_rate <= 0.0f || config.decrease_rate <= 0.0f)
     {
         return false;
     }
 
-    Cfg = config;
-    Initialized = true;
+    cfg_ = config;
+    initialized_ = true;
     return true;
 }
 
-void Slope::Reset()
+void Slope::reset()
 {
-    Output = 0.0f;
-    NowReal = 0.0f;
-    Target = 0.0f;
+    output_ = 0.0f;
+    now_real_ = 0.0f;
+    target_ = 0.0f;
 }
 
-bool Slope::Reset(float output)
+bool Slope::reset(float output)
 {
-    if (!IsFinite(output))
+    if (!is_finite(output))
     {
         return false;
     }
 
-    Output = output;
-    NowReal = output;
-    Target = output;
+    output_ = output;
+    now_real_ = output;
+    target_ = output;
     return true;
 }
 
-bool Slope::SetNowReal(float nowReal)
+bool Slope::set_now_real(float now_real)
 {
-    if (!Initialized || !IsFinite(nowReal))
+    if (!initialized_ || !is_finite(now_real))
     {
         return false;
     }
 
-    NowReal = nowReal;
+    now_real_ = now_real;
     return true;
 }
 
-bool Slope::SetIncreaseRate(float increaseRate)
+bool Slope::set_increase_rate(float increase_rate)
 {
-    if (!Initialized || !IsFinite(increaseRate) || increaseRate <= 0.0f)
+    if (!initialized_ || !is_finite(increase_rate) || increase_rate <= 0.0f)
     {
         return false;
     }
 
-    Cfg.IncreaseRate = increaseRate;
+    cfg_.increase_rate = increase_rate;
     return true;
 }
 
-bool Slope::SetDecreaseRate(float decreaseRate)
+bool Slope::set_decrease_rate(float decrease_rate)
 {
-    if (!Initialized || !IsFinite(decreaseRate) || decreaseRate <= 0.0f)
+    if (!initialized_ || !is_finite(decrease_rate) || decrease_rate <= 0.0f)
     {
         return false;
     }
 
-    Cfg.DecreaseRate = decreaseRate;
+    cfg_.decrease_rate = decrease_rate;
     return true;
 }
 
-bool Slope::CalculateLoop(float target, float dt)
+bool Slope::calculate_loop(float target, float dt)
 {
-    if (!Initialized || !IsFinite(target) || !IsFinite(dt) || dt <= 0.0f)
+    if (!initialized_ || !is_finite(target) || !is_finite(dt) || dt <= 0.0f)
     {
         return false;
     }
 
-    Target = target;
+    target_ = target;
 
-    if (Cfg.First == SlopeFirst::Real && IsBetween(NowReal, Output, Target))
+    if (cfg_.first == SlopeFirst::REAL && is_between(now_real_, output_, target_))
     {
-        Output = NowReal;
+        output_ = now_real_;
     }
 
-    if (Output == Target)
+    if (output_ == target_)
     {
         return true;
     }
 
-    const bool directionReversed = (Output > 0.0f && Target < 0.0f) || (Output < 0.0f && Target > 0.0f);
-    if (directionReversed)
+    const bool direction_reversed = (output_ > 0.0f && target_ < 0.0f) || (output_ < 0.0f && target_ > 0.0f);
+    if (direction_reversed)
     {
-        const float timeToZero = std::fabs(Output) / Cfg.DecreaseRate;
+        const float time_to_zero = std::fabs(output_) / cfg_.decrease_rate;
 
-        if (dt <= timeToZero)
+        if (dt <= time_to_zero)
         {
-            Output = MoveTowards(Output, 0.0f, Cfg.DecreaseRate * dt);
+            output_ = move_towards(output_, 0.0f, cfg_.decrease_rate * dt);
             return true;
         }
 
-        const float remainingTime = dt - timeToZero;
-        Output = MoveTowards(0.0f, Target, Cfg.IncreaseRate * remainingTime);
+        const float remaining_time = dt - time_to_zero;
+        output_ = move_towards(0.0f, target_, cfg_.increase_rate * remaining_time);
         return true;
     }
 
-    const bool magnitudeIncreasing = std::fabs(Target) > std::fabs(Output);
-    const float rate = magnitudeIncreasing ? Cfg.IncreaseRate : Cfg.DecreaseRate;
-    Output = MoveTowards(Output, Target, rate * dt);
+    const bool magnitude_increasing = std::fabs(target_) > std::fabs(output_);
+    const float rate = magnitude_increasing ? cfg_.increase_rate : cfg_.decrease_rate;
+    output_ = move_towards(output_, target_, rate * dt);
 
     return true;
 }
 
-float Slope::GetOut() const
+float Slope::get_out() const
 {
-    return Output;
+    return output_;
 }
 
-float Slope::GetTarget() const
+float Slope::get_target() const
 {
-    return Target;
+    return target_;
 }
 
-const Slope::Config &Slope::GetConfig() const
+const Slope::Config &Slope::get_config() const
 {
-    return Cfg;
+    return cfg_;
 }
 
-bool Slope::IsInitialized() const
+bool Slope::is_initialized() const
 {
-    return Initialized;
+    return initialized_;
 }
 
 } // namespace alg_slope

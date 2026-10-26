@@ -8,20 +8,20 @@ namespace alg_controller
 
 enum class PIDMode : uint8_t
 {
-    Position,
-    Delta
+    POSITION,
+    DELTA
 };
 
 struct PIDImprove
 {
-    uint8_t IntegralLimit : 1;
-    uint8_t DerivOnMeas : 1;
-    uint8_t Trapezoid : 1;
-    uint8_t ChangingRate : 1;
-    uint8_t DerivFilter : 1;
-    uint8_t OutFilter : 1;
-    uint8_t DeadBand : 1;
-    uint8_t Reserved : 1;
+    uint8_t integral_limit : 1;
+    uint8_t deriv_on_meas : 1;
+    uint8_t trapezoid : 1;
+    uint8_t changing_rate : 1;
+    uint8_t deriv_filter : 1;
+    uint8_t out_filter : 1;
+    uint8_t dead_band : 1;
+    uint8_t reserved : 1;
 };
 
 class PID
@@ -29,104 +29,104 @@ class PID
   public:
     struct Config
     {
-        PIDMode Mode = PIDMode::Position;
-        PIDImprove Improve = {};
+        PIDMode mode = PIDMode::POSITION;
+        PIDImprove improve = {};
 
-        float Kp = 0.0f;
-        float Ki = 0.0f;
-        float Kd = 0.0f;
-        float Kf = 0.0f; // 参考前馈增益，单位＝输出量/输入量（速度环 N·m/rpm，角度环 rpm/deg）
-        float DefaultDt = 0.01f;
+        float kp = 0.0f;
+        float ki = 0.0f;
+        float kd = 0.0f;
+        float kf = 0.0f; // 参考前馈增益，单位＝输出量/输入量（速度环 N·m/rpm，角度环 rpm/deg）
+        float default_dt = 0.01f;
 
-        float Maxout = 0.0f;           // 输出总限幅，PI、D 与前馈之和不得超过它
-        float FeedForwardLimit = 0.0f; // 前馈独立限幅，Kf 非零时必须满足 0 < FeedForwardLimit ≤ Maxout
-        float IntegralLimit = 0.0f;
+        float maxout = 0.0f;           // 输出总限幅，PI、D 与前馈之和不得超过它
+        float feed_forward_limit = 0.0f; // 前馈独立限幅，Kf 非零时必须满足 0 < feed_forward_limit ≤ Maxout
+        float integral_limit = 0.0f;
 
-        float DeadZone = 0.0f;
-        float IVarA = 0.0f;
-        float IVarB = 0.0f;
-        float DLpfRc = 0.0f;
-        float OutLpfRc = 0.0f;
+        float dead_zone = 0.0f;
+        float i_var_a = 0.0f;
+        float i_var_b = 0.0f;
+        float d_lpf_rc = 0.0f;
+        float out_lpf_rc = 0.0f;
     };
 
-    bool Init(const Config &config);
+    bool init(const Config &config);
 
-    bool CalculateLoop(float measure, float target, float dt);
+    bool calculate_loop(float measure, float target, float dt);
 
-    void Reset();
+    void reset();
 
-    float GetIntegralError() const;
+    float get_integral_error() const;
 
-    float GetOut() const;
+    float get_out() const;
 
-    const Config &GetConfig() const;
+    const Config &get_config() const;
 
-    bool IsInitialized() const;
+    bool is_initialized() const;
 
-    bool SetParam(float kp, float ki, float kd);
+    bool set_param(float kp, float ki, float kd);
 
-    bool SetKp(float kp);
+    bool set_kp(float kp);
 
-    bool SetKi(float ki);
+    bool set_ki(float ki);
 
-    bool SetKd(float kd);
+    bool set_kd(float kd);
 
-    bool SetKf(float kf);
+    bool set_kf(float kf);
 
-    bool SetIOutMax(float integralLimit);
+    bool set_i_out_max(float integral_limit);
 
-    bool SetOutMax(float maxout);
+    bool set_out_max(float maxout);
 
-    bool SetIVarA(float iVarA);
+    bool set_i_var_a(float i_var_a);
 
-    bool SetIVarB(float iVarB);
+    bool set_i_var_b(float i_var_b);
 
-    bool SetTarget(float target);
+    bool set_target(float target);
 
-    bool SetNow(float measure);
+    bool set_now(float measure);
 
-    bool SetIntegralError(float iout);
+    bool set_integral_error(float iout);
 
   protected:
-    Config Cfg{};
+    Config cfg_{};
 
-    float Target = 0.0f;
-    float Measure = 0.0f;
-    float Err = 0.0f;
+    float target_ = 0.0f;
+    float measure_ = 0.0f;
+    float err_ = 0.0f;
 
-    float Pout = 0.0f;
-    float Iout = 0.0f;
-    float Dout = 0.0f;
-    float ITerm = 0.0f;
+    float pout_ = 0.0f;
+    float iout_ = 0.0f;
+    float dout_ = 0.0f;
+    float i_term_ = 0.0f;
 
-    float Output = 0.0f;
-    bool Initialized = false;
+    float output_ = 0.0f;
+    bool initialized_ = false;
 
   private:
-    float LastMeasure = 0.0f;
-    float LastLastMeasure = 0.0f;
-    float LastErr = 0.0f;
-    float LastLastErr = 0.0f;
-    float LastOutput = 0.0f;
-    float LastFeedForward = 0.0f;
-    float LastDout = 0.0f;
-    bool MeasureHistoryInitialized = false;
+    float last_measure_ = 0.0f;
+    float last_last_measure_ = 0.0f;
+    float last_err_ = 0.0f;
+    float last_last_err_ = 0.0f;
+    float last_output_ = 0.0f;
+    float last_feed_forward_ = 0.0f;
+    float last_dout_ = 0.0f;
+    bool measure_history_initialized_ = false;
 
-    float Dt = 0.0f;
+    float dt_ = 0.0f;
 
-    float FeedForwardTerm(float target) const;
+    float feed_forward_term(float target) const;
 
-    void TrapezoidIntegral();
+    void trapezoid_integral();
 
-    void ChangingRateIntegration();
+    void changing_rate_integration();
 
-    void IntegralLimit();
+    void integral_limit();
 
-    void DerivativeOnMeasurement();
+    void derivative_on_measurement();
 
-    void DerivativeFilter();
+    void derivative_filter();
 
-    void OutputFilter();
+    void output_filter();
 };
 
 } // namespace alg_controller

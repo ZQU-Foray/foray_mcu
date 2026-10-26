@@ -21,8 +21,8 @@ namespace alg_estimate
  *   参考实现：https://github.com/dlaidig/vqf
  *
  * 采样率：陀螺与加速度计允许不同（本工程 2000 Hz / 1600 Hz），因此两者的周期在
- * `Init` 里分别给出，调用方按记录类型分别调用 `UpdateGyroscope` /
- * `UpdateAccelerometer`。采样周期的小幅抖动
+ * `Init` 里分别给出，调用方按记录类型分别调用 `update_gyroscope` /
+ * `update_accelerometer`。采样周期的小幅抖动
  * 由滤波器时间常数吸收
  *
  * 本类不访问硬件、不读时间、不动态分配。
@@ -37,47 +37,47 @@ class Vqf final
    */
     struct Config final
     {
-        float tauAccSeconds{3.0F};                      // τ_acc：加速度计低通时间常数，越大越信陀螺
-        bool restBiasEstEnabled{true};                  // 静止窗口内更新零偏
-        bool motionBiasEstEnabled{true};                // 运动过程中更新零偏
-        float biasSigmaInitDegPerSec{0.5F};             // 零偏初值标准差（deg/s）
-        float biasForgettingTimeSeconds{100.0F};        // 零偏方差从 0 涨到 (0.1 deg/s)^2 所需时间
-        float biasClipRadPerSec{0.0349065851F};         // 零偏限幅，等价 2.0 deg/s
-        float biasSigmaMotionDegPerSec{0.1F};           // 运动更新的量测噪声（deg/s）
-        float biasVerticalForgettingFactor{1.0e-4F};    // 运动更新中重力方向分量的遗忘因子
-        float biasSigmaRestDegPerSec{0.03F};            // 静止更新的量测噪声（deg/s）
-        float restMinSeconds{1.5F};                     // 方差持续低于阈值多久才算静止
-        float restFilterTauSeconds{0.5F};               // 静止判定用的低通时间常数
-        float restThresholdGyrRadPerSec{0.0349065851F}; // 陀螺方差阈值，等价 2.0 deg/s
-        float restThresholdAccMetersPerSec2{0.5F};      // 加速度计方差阈值
+        float tau_acc_seconds{3.0F};                      // τ_acc：加速度计低通时间常数，越大越信陀螺
+        bool rest_bias_est_enabled{true};                  // 静止窗口内更新零偏
+        bool motion_bias_est_enabled{true};                // 运动过程中更新零偏
+        float bias_sigma_init_deg_per_sec{0.5F};             // 零偏初值标准差（deg/s）
+        float bias_forgetting_time_seconds{100.0F};        // 零偏方差从 0 涨到 (0.1 deg/s)^2 所需时间
+        float bias_clip_rad_per_sec{0.0349065851F};         // 零偏限幅，等价 2.0 deg/s
+        float bias_sigma_motion_deg_per_sec{0.1F};           // 运动更新的量测噪声（deg/s）
+        float bias_vertical_forgetting_factor{1.0e-4F};    // 运动更新中重力方向分量的遗忘因子
+        float bias_sigma_rest_deg_per_sec{0.03F};            // 静止更新的量测噪声（deg/s）
+        float rest_min_seconds{1.5F};                     // 方差持续低于阈值多久才算静止
+        float rest_filter_tau_seconds{0.5F};               // 静止判定用的低通时间常数
+        float rest_threshold_gyr_rad_per_sec{0.0349065851F}; // 陀螺方差阈值，等价 2.0 deg/s
+        float rest_threshold_acc_meters_per_sec2{0.5F};      // 加速度计方差阈值
     };
 
     /** @brief 对外状态快照。 */
     struct State final
     {
         alg_math::Quaternion quaternion{};      // body → earth，earth 重力沿 +z
-        alg_math::Vector3 gyroBiasRadPerSec{};  // 机体系零偏估计
-        float biasUncertaintyRadPerSec{0.0F};   // 零偏估计不确定度
-        alg_math::Vector3 eulerRadians{};       // ZYX：yaw、pitch、roll
-        alg_math::Vector3 eulerDegrees{};       // 同上，单位 degree
-        float lastAccelCorrectionRadians{0.0F}; // 最近一次倾角修正的转角（诊断）
-        bool restDetected{false};               // 最近一次加速度计更新时的静止判定
+        alg_math::Vector3 gyro_bias_rad_per_sec{};  // 机体系零偏估计
+        float bias_uncertainty_rad_per_sec{0.0F};   // 零偏估计不确定度
+        alg_math::Vector3 euler_radians{};       // ZYX：yaw、pitch、roll
+        alg_math::Vector3 euler_degrees{};       // 同上，单位 degree
+        float last_accel_correction_radians{0.0F}; // 最近一次倾角修正的转角（诊断）
+        bool rest_detected{false};               // 最近一次加速度计更新时的静止判定
         bool valid{false};                      // 至少完成一次陀螺更新
-        std::uint32_t updateCount{0U};          // 有效陀螺更新次数
+        std::uint32_t update_count{0U};          // 有效陀螺更新次数
     };
 
     /**
    * @brief 静止判据的可观测量。
-   * 用途：把 `restThresholdGyrRadPerSec` / `restThresholdAccMetersPerSec2` 标定到本机
+   * 用途：把 `rest_threshold_gyr_rad_per_sec` / `rest_threshold_acc_meters_per_sec2` 标定到本机
    * 实际噪声水平。两个比值都按“实测偏离 / 阈值”归一化，**1.0 就是判据边界**：
    * 静止时应远小于 1，运动时应大于 1；若静止时比值已经接近 1，就说明阈值开得太小。
    */
     struct RestObservables final
     {
-        float gyroscopeDeviationRatio{0.0F};     // sqrt(陀螺侧方差)/阈值，≥1 判为运动
-        float accelerometerDeviationRatio{0.0F}; // sqrt(加速度计侧方差)/阈值，≥1 判为运动
-        float accumulatedRestSeconds{0.0F};      // 加速度计侧累计满足静止条件的时长
-        bool restDetected{false};                // 当前静止判定结果
+        float gyroscope_deviation_ratio{0.0F};     // sqrt(陀螺侧方差)/阈值，≥1 判为运动
+        float accelerometer_deviation_ratio{0.0F}; // sqrt(加速度计侧方差)/阈值，≥1 判为运动
+        float accumulated_rest_seconds{0.0F};      // 加速度计侧累计满足静止条件的时长
+        bool rest_detected{false};                // 当前静止判定结果
     };
 
     /**
@@ -92,29 +92,29 @@ class Vqf final
     {
         // 恢复兼容性
         Config config{};
-        double gyroPeriodSeconds{0.0};
-        double accelPeriodSeconds{0.0};
+        double gyro_period_seconds{0.0};
+        double accel_period_seconds{0.0};
         // 姿态
-        alg_math::Quaternion gyroQuaternion{};
-        alg_math::Quaternion accelQuaternion{};
-        alg_math::Vector3 lastAccelLp{};
-        float lastAccelCorrectionRadians{0.0F};
-        alg_filter::ButterworthLowPass<3U>::InternalState accelLowPass{};
+        alg_math::Quaternion gyro_quaternion{};
+        alg_math::Quaternion accel_quaternion{};
+        alg_math::Vector3 last_accel_lp{};
+        float last_accel_correction_radians{0.0F};
+        alg_filter::ButterworthLowPass<3U>::InternalState accel_low_pass{};
         // 零偏估计
-        alg_math::Vector3 gyroBiasRadPerSec{};
-        alg_math::Matrix3 biasCovariance{};
-        alg_filter::ButterworthLowPass<9U>::InternalState motionBiasRotationLowPass{};
-        alg_filter::ButterworthLowPass<2U>::InternalState motionBiasProjectionLowPass{};
+        alg_math::Vector3 gyro_bias_rad_per_sec{};
+        alg_math::Matrix3 bias_covariance{};
+        alg_filter::ButterworthLowPass<9U>::InternalState motion_bias_rotation_low_pass{};
+        alg_filter::ButterworthLowPass<2U>::InternalState motion_bias_projection_low_pass{};
         // 静止判定
-        bool restDetected{false};
-        double restSeconds{0.0};
-        double restSquaredDeviations[2]{};
-        alg_math::Vector3 restLastGyroLp{};
-        alg_math::Vector3 restLastAccelLp{};
-        alg_filter::ButterworthLowPass<3U>::InternalState restGyroLowPass{};
-        alg_filter::ButterworthLowPass<3U>::InternalState restAccelLowPass{};
+        bool rest_detected{false};
+        double rest_seconds{0.0};
+        double rest_squared_deviations[2]{};
+        alg_math::Vector3 rest_last_gyro_lp{};
+        alg_math::Vector3 rest_last_accel_lp{};
+        alg_filter::ButterworthLowPass<3U>::InternalState rest_gyro_low_pass{};
+        alg_filter::ButterworthLowPass<3U>::InternalState rest_accel_low_pass{};
         // 计数
-        std::uint32_t updateCount{0U};
+        std::uint32_t update_count{0U};
         bool valid{false};
     };
 
@@ -124,75 +124,75 @@ class Vqf final
    * @brief 用给定参数与采样周期初始化滤波器并复位状态。
    * @param config 调参。
    * @param gyroPeriodSeconds 陀螺采样周期，单位 s（本工程 2000 Hz → 5e-4）。
-   * @param accelPeriodSeconds 加速度计采样周期，单位 s（本工程 1600 Hz → 6.25e-4）。
+   * @param accel_period_seconds 加速度计采样周期，单位 s（本工程 1600 Hz → 6.25e-4）。
    * @return 参数与周期全部有效时返回 true 并进入就绪；否则保持未就绪并返回 false。
-   * @note 校验项：两个周期有限且为正；`tauAccSeconds` 与 `restFilterTauSeconds` 有限且为正；
-   *       `restMinSeconds`、`biasForgettingTimeSeconds` 有限且为正；其余噪声/限幅/阈值
+   * @note 校验项：两个周期有限且为正；`tau_acc_seconds` 与 `rest_filter_tau_seconds` 有限且为正；
+   *       `rest_min_seconds`、`bias_forgetting_time_seconds` 有限且为正；其余噪声/限幅/阈值
    *       为有限值（阈值允许为 0，表示永判为运动）。
    */
-    [[nodiscard]] bool Init(const Config &config, float gyroPeriodSeconds, float accelPeriodSeconds) noexcept;
+    [[nodiscard]] bool init(const Config &config, float gyro_period_seconds, float accel_period_seconds) noexcept;
 
     /** @brief 复位滤波器状态（保留已设置的参数与周期）。 */
-    void Reset() noexcept;
+    void reset() noexcept;
 
     /**
    * @brief 陀螺更新步：静止判定的陀螺侧、去零偏、四元数积分。
-   * @param gyroRadPerSec 机体系角速度，单位 rad/s。
+   * @param gyro_rad_per_sec 机体系角速度，单位 rad/s。
    * @note 输入非有限时整步被忽略（不做部分更新），避免污染状态。
    */
-    void UpdateGyroscope(const alg_math::Vector3 &gyroRadPerSec) noexcept;
+    void update_gyroscope(const alg_math::Vector3 &gyro_rad_per_sec) noexcept;
 
     /**
    * @brief 加速度计更新步：静止判定的加速度侧、惯性系低通、倾角修正、零偏估计。
-   * @param accelMetersPerSec2 机体系比力，单位 m/s^2。
+   * @param accel_meters_per_sec2 机体系比力，单位 m/s^2。
    * @note 全零样本按"本拍无加速度计数据"处理（本工程正常数据不会全零，
    *       除自由落体极端情形）；输入非有限时整步被忽略。
    */
-    void UpdateAccelerometer(const alg_math::Vector3 &accelMetersPerSec2) noexcept;
+    void update_accelerometer(const alg_math::Vector3 &accel_meters_per_sec2) noexcept;
 
     /**
    * @brief 便利入口：陀螺与加速度计同周期时一次喂入两路。
-   * @note 内部依次执行 `UpdateGyroscope` 与 `UpdateAccelerometer`；两路周期不同时
+   * @note 内部依次执行 `update_gyroscope` 与 `update_accelerometer`；两路周期不同时
    *       必须改用单路入口。
    */
-    void Update(const alg_math::Vector3 &gyroRadPerSec, const alg_math::Vector3 &accelMetersPerSec2) noexcept;
+    void update(const alg_math::Vector3 &gyro_rad_per_sec, const alg_math::Vector3 &accel_meters_per_sec2) noexcept;
 
     /** @brief 读取状态快照（含四元数、零偏、零偏不确定度与 ZYX 欧拉角）。 */
-    [[nodiscard]] State GetState() const noexcept;
+    [[nodiscard]] State get_state() const noexcept;
 
     /**
    * @brief 读取静止判据的可观测量（用于阈值标定与调试）。
    */
-    [[nodiscard]] RestObservables GetRestObservables() const noexcept;
+    [[nodiscard]] RestObservables get_rest_observables() const noexcept;
 
     /**
    * @brief 注入零偏估计，可选同时设定其不确定度。
-   * @param biasRadPerSec 机体系零偏，单位 rad/s。
-   * @param uncertaintyRadPerSec 零偏标准差，单位 rad/s；≤0 或非有限表示只改零偏、不动协方差。
+   * @param bias_rad_per_sec 机体系零偏，单位 rad/s。
+   * @param uncertainty_rad_per_sec 零偏标准差，单位 rad/s；≤0 或非有限表示只改零偏、不动协方差。
    * @note `VQF::setBiasEstimate`。本工程的上电静止零偏标定
    *       （`GyroBiasCalibration`）就是它的典型调用方。
    * @note 协方差按 `P = (σ·180·100/π)²·I` 设置，
    *       即"注入的零偏有 σ 的不确定度"，随后由滤波器继续跟踪残余零偏。
    *       零偏非有限时整次调用被忽略。
    */
-    void SetBiasEstimate(const alg_math::Vector3 &biasRadPerSec, float uncertaintyRadPerSec = -1.0F) noexcept;
+    void set_bias_estimate(const alg_math::Vector3 &bias_rad_per_sec, float uncertainty_rad_per_sec = -1.0F) noexcept;
 
     /** @brief 读取完整内部状态（检查点/离线逐段续算/调试）。 */
-    [[nodiscard]] InternalState GetInternalState() const noexcept;
+    [[nodiscard]] InternalState get_internal_state() const noexcept;
 
     /**
    * @brief 恢复完整内部状态。
-   * @param state 先前由 `GetInternalState` 读出的快照。
+   * @param state 先前由 `get_internal_state` 读出的快照。
    * @return 滤波器已就绪、且快照与当前配置同源时返回 true；否则不改动任何状态并返回 false。
-   * @note 与 `SetBiasEstimate` 的区别：本函数恢复**全部**状态（含低通内部状态与静止判定），
-   *       用于逐位再现后续演进；`SetBiasEstimate` 只动零偏与协方差。
+   * @note 与 `set_bias_estimate` 的区别：本函数恢复**全部**状态（含低通内部状态与静止判定），
+   *       用于逐位再现后续演进；`set_bias_estimate` 只动零偏与协方差。
    */
-    [[nodiscard]] bool SetInternalState(const InternalState &state) noexcept;
+    [[nodiscard]] bool set_internal_state(const InternalState &state) noexcept;
 
     /** @brief 查询六维姿态四元数（body → earth）。 */
-    [[nodiscard]] alg_math::Quaternion GetQuaternion() const noexcept;
+    [[nodiscard]] alg_math::Quaternion get_quaternion() const noexcept;
 
-    [[nodiscard]] bool IsInitialized() const noexcept
+    [[nodiscard]] bool is_initialized() const noexcept
     {
         return initialized_;
     }
@@ -200,43 +200,43 @@ class Vqf final
   private:
     // 周期与零偏估计标定（Init 时算好，运行期不变）
     Config config_{};
-    double gyroPeriod_{0.0};
-    double accelPeriod_{0.0};
-    double biasP0_{0.0};
-    double biasV_{0.0};
-    double biasMotionW_{0.0};
-    double biasVerticalW_{0.0};
-    double biasRestW_{0.0};
-    double restThresholdGyr_{0.0};
-    double restThresholdAcc_{0.0};
-    double restMin_{1.5};
-    double biasClip_{0.0};
-    bool restBiasEstEnabled_{true};
-    bool motionBiasEstEnabled_{true};
+    double gyro_period_{0.0};
+    double accel_period_{0.0};
+    double bias_p0_{0.0};
+    double bias_v_{0.0};
+    double bias_motion_w_{0.0};
+    double bias_vertical_w_{0.0};
+    double bias_rest_w_{0.0};
+    double rest_threshold_gyr_{0.0};
+    double rest_threshold_acc_{0.0};
+    double rest_min_{1.5};
+    double bias_clip_{0.0};
+    bool rest_bias_est_enabled_{true};
+    bool motion_bias_est_enabled_{true};
 
     // 姿态状态
-    alg_math::Quaternion gyroQuat_{};  // 角速度积分四元数
-    alg_math::Quaternion accelQuat_{}; // 倾角修正四元数
-    alg_math::Vector3 lastAccelLp_{};  // 最近一次惯性系下低通后的加速度
-    float lastAccelCorrectionRadians_{0.0F};
-    alg_filter::ButterworthLowPass<3U> accelLowPass_{}; // 惯性系加速度低通（τ_acc / 加速度计周期）
+    alg_math::Quaternion gyro_quat_{};  // 角速度积分四元数
+    alg_math::Quaternion accel_quat_{}; // 倾角修正四元数
+    alg_math::Vector3 last_accel_lp_{};  // 最近一次惯性系下低通后的加速度
+    float last_accel_correction_radians_{0.0F};
+    alg_filter::ButterworthLowPass<3U> accel_low_pass_{}; // 惯性系加速度低通（τ_acc / 加速度计周期）
 
     // 零偏估计状态
-    alg_math::Vector3 gyroBias_{};
-    alg_math::Matrix3 biasCovariance_{};
-    alg_filter::ButterworthLowPass<9U> motionBiasRotationLowPass_{};   // R 低通
-    alg_filter::ButterworthLowPass<2U> motionBiasProjectionLowPass_{}; // R·b 的 x/y 低通
+    alg_math::Vector3 gyro_bias_{};
+    alg_math::Matrix3 bias_covariance_{};
+    alg_filter::ButterworthLowPass<9U> motion_bias_rotation_low_pass_{};   // R 低通
+    alg_filter::ButterworthLowPass<2U> motion_bias_projection_low_pass_{}; // R·b 的 x/y 低通
 
     // 静止判定状态
-    bool restDetected_{false};
-    double restT_{0.0};
-    double restSquaredDeviations_[2]{};
-    alg_math::Vector3 restLastGyroLp_{};
-    alg_math::Vector3 restLastAccelLp_{};
-    alg_filter::ButterworthLowPass<3U> restGyroLowPass_{};  // τ_rest / 陀螺周期
-    alg_filter::ButterworthLowPass<3U> restAccelLowPass_{}; // τ_rest / 加速度计周期
+    bool rest_detected_{false};
+    double rest_t_{0.0};
+    double rest_squared_deviations_[2]{};
+    alg_math::Vector3 rest_last_gyro_lp_{};
+    alg_math::Vector3 rest_last_accel_lp_{};
+    alg_filter::ButterworthLowPass<3U> rest_gyro_low_pass_{};  // τ_rest / 陀螺周期
+    alg_filter::ButterworthLowPass<3U> rest_accel_low_pass_{}; // τ_rest / 加速度计周期
 
-    std::uint32_t updateCount_{0U};
+    std::uint32_t update_count_{0U};
     bool initialized_{false};
     bool valid_{false};
 };

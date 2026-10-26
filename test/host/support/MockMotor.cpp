@@ -3,49 +3,49 @@
 
 namespace mock
 {
-bool Adapter::Init() noexcept
+bool Adapter::init() noexcept
 {
-    ready = initResult;
-    return ready;
+    g_ready = g_init_result;
+    return g_ready;
 }
-void Adapter::Process() noexcept
+void Adapter::process() noexcept
 {
-    ++processes;
-    sent = staged;
+    ++g_processes;
+    g_sent = g_staged;
 }
-bool Adapter::ReadState(std::size_t id, device::MotorState &state) const noexcept
+bool Adapter::read_state(std::size_t id, device::MotorState &state) const noexcept
 {
     state = {};
-    if (!ready || id >= staged.size() || readFailure)
+    if (!g_ready || id >= g_staged.size() || g_read_failure)
     {
         return false;
     }
-    state.feedbackValid = true;
+    state.feedback_valid = true;
     state.online = true;
     return true;
 }
-bool Adapter::SetTorque(std::size_t id, float value) noexcept
+bool Adapter::set_torque(std::size_t id, float value) noexcept
 {
-    ++writes;
-    if (!ready || id >= staged.size() || commandFailure)
+    ++g_writes;
+    if (!g_ready || id >= g_staged.size() || g_command_failure)
     {
         return false;
     }
     if (!std::isfinite(value))
     {
-        staged[id] = 0;
+        g_staged[id] = 0;
         return false;
     }
-    staged[id] = value;
+    g_staged[id] = value;
     return true;
 }
-void Adapter::ClearCommands() noexcept
+void Adapter::clear_commands() noexcept
 {
-    ++clears;
-    staged = {};
+    ++g_clears;
+    g_staged = {};
 }
-float Adapter::MaximumTorqueNewtonMeter() const noexcept
+float Adapter::maximum_torque_newton_meter() const noexcept
 {
-    return ready ? maximumTorque : 0.0F;
+    return g_ready ? g_maximum_torque : 0.0F;
 }
 } // namespace mock

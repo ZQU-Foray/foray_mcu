@@ -12,26 +12,26 @@ namespace device
 class Bmi088Transfer final
 {
   public:
-    void SetNotification(platform::Spi::CompletionNotification notification, void *context) noexcept
+    void set_notification(platform::Spi::CompletionNotification notification, void *context) noexcept
     {
         notification_ = notification;
         context_ = context;
     }
-    static void Complete(void *context) noexcept
+    static void complete(void *context) noexcept
     {
         auto &self = *static_cast<Bmi088Transfer *>(context);
-        self.completedTick_.store(platform::Time::NowTicks(), std::memory_order_release);
+        self.completed_tick_.store(platform::Time::now_ticks(), std::memory_order_release);
         if (self.notification_ != nullptr)
             self.notification_(self.context_);
     }
-    [[nodiscard]] std::uint32_t CompletedTick() const noexcept
+    [[nodiscard]] std::uint32_t completed_tick() const noexcept
     {
-        return completedTick_.load(std::memory_order_acquire);
+        return completed_tick_.load(std::memory_order_acquire);
     }
 
   private:
     static_assert(std::atomic<std::uint32_t>::is_always_lock_free);
-    std::atomic<std::uint32_t> completedTick_{0U};
+    std::atomic<std::uint32_t> completed_tick_{0U};
     platform::Spi::CompletionNotification notification_{nullptr};
     void *context_{nullptr};
 };

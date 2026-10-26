@@ -14,20 +14,20 @@ class Gpio final
 
     enum class Pin : std::uint8_t
     {
-        Power24V1 = GPIO_PORT_PIN_POWER_24V_1,
-        Power24V0 = GPIO_PORT_PIN_POWER_24V_0,
-        Power5V = GPIO_PORT_PIN_POWER_5V,
-        ImuAccelerometerChipSelect = GPIO_PORT_PIN_IMU_ACCELEROMETER_CHIP_SELECT,
-        ImuGyroscopeChipSelect = GPIO_PORT_PIN_IMU_GYROSCOPE_CHIP_SELECT,
-        ImuAccelerometerInterrupt = GPIO_PORT_PIN_IMU_ACCELEROMETER_INTERRUPT,
-        ImuGyroscopeInterrupt = GPIO_PORT_PIN_IMU_GYROSCOPE_INTERRUPT,
-        UserKey = GPIO_PORT_PIN_USER_KEY
+        POWER_24V_1 = GPIO_PORT_PIN_POWER_24V_1,
+        POWER_24V_0 = GPIO_PORT_PIN_POWER_24V_0,
+        POWER_5V = GPIO_PORT_PIN_POWER_5V,
+        IMU_ACCELEROMETER_CHIP_SELECT = GPIO_PORT_PIN_IMU_ACCELEROMETER_CHIP_SELECT,
+        IMU_GYROSCOPE_CHIP_SELECT = GPIO_PORT_PIN_IMU_GYROSCOPE_CHIP_SELECT,
+        IMU_ACCELEROMETER_INTERRUPT = GPIO_PORT_PIN_IMU_ACCELEROMETER_INTERRUPT,
+        IMU_GYROSCOPE_INTERRUPT = GPIO_PORT_PIN_IMU_GYROSCOPE_INTERRUPT,
+        USER_KEY = GPIO_PORT_PIN_USER_KEY
     };
 
     enum class Level : std::uint8_t
     {
-        Low = 0U,
-        High = 1U
+        LOW = 0U,
+        HIGH = 1U
     };
 
     /**
@@ -41,15 +41,15 @@ class Gpio final
    * @param level 用于接收高低电平的输出引用。
    * @return 引脚有效且读取成功时返回 true。
    */
-    [[nodiscard]] static bool Read(Pin pin, Level &level) noexcept
+    [[nodiscard]] static bool read(Pin pin, Level &level) noexcept
     {
-        bool isHigh = false;
-        if (!GpioPort_Read(ToPortPin(pin), &isHigh))
+        bool is_high = false;
+        if (!GpioPort_Read(to_port_pin(pin), &is_high))
         {
             return false;
         }
 
-        level = isHigh ? Level::High : Level::Low;
+        level = is_high ? Level::HIGH : Level::LOW;
         return true;
     }
 
@@ -59,9 +59,9 @@ class Gpio final
    * @param level 需要输出的高低电平。
    * @return 引脚支持写入且操作成功时返回 true。
    */
-    [[nodiscard]] static bool Write(Pin pin, Level level) noexcept
+    [[nodiscard]] static bool write(Pin pin, Level level) noexcept
     {
-        return GpioPort_Write(ToPortPin(pin), level == Level::High);
+        return GpioPort_Write(to_port_pin(pin), level == Level::HIGH);
     }
 
     /**
@@ -69,9 +69,9 @@ class Gpio final
    * @param pin 要写入的逻辑引脚。
    * @return 引脚支持写入且操作成功时返回 true。
    */
-    [[nodiscard]] static bool SetHigh(Pin pin) noexcept
+    [[nodiscard]] static bool set_high(Pin pin) noexcept
     {
-        return Write(pin, Level::High);
+        return write(pin, Level::HIGH);
     }
 
     /**
@@ -79,9 +79,9 @@ class Gpio final
    * @param pin 要写入的逻辑引脚。
    * @return 引脚支持写入且操作成功时返回 true。
    */
-    [[nodiscard]] static bool SetLow(Pin pin) noexcept
+    [[nodiscard]] static bool set_low(Pin pin) noexcept
     {
-        return Write(pin, Level::Low);
+        return write(pin, Level::LOW);
     }
 
     /**
@@ -89,9 +89,9 @@ class Gpio final
    * @param pin 要翻转的逻辑引脚。
    * @return 引脚支持写入且操作成功时返回 true。
    */
-    [[nodiscard]] static bool Toggle(Pin pin) noexcept
+    [[nodiscard]] static bool toggle(Pin pin) noexcept
     {
-        return GpioPort_Toggle(ToPortPin(pin));
+        return GpioPort_Toggle(to_port_pin(pin));
     }
 
     /**
@@ -102,9 +102,9 @@ class Gpio final
    * @return 引脚支持外部中断且注册完成时返回 true。
    */
     [[nodiscard]] static bool
-    SetInterruptCallback(Pin pin, InterruptCallback callback, void *context = nullptr) noexcept
+    set_interrupt_callback(Pin pin, InterruptCallback callback, void *context = nullptr) noexcept
     {
-        return GpioPort_SetInterruptCallback(ToPortPin(pin), callback, context);
+        return GpioPort_SetInterruptCallback(to_port_pin(pin), callback, context);
     }
 
   private:
@@ -113,7 +113,7 @@ class Gpio final
    * @param pin C++ 逻辑引脚。
    * @return 对应的 C ABI 引脚值。
    */
-    [[nodiscard]] static constexpr GpioPort_Pin ToPortPin(Pin pin) noexcept
+    [[nodiscard]] static constexpr GpioPort_Pin to_port_pin(Pin pin) noexcept
     {
         return static_cast<GpioPort_Pin>(pin);
     }

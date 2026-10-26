@@ -6,279 +6,279 @@ namespace application
 
 namespace
 {
-constexpr float ReferenceGravityMps2{9.80665F};
-constexpr std::uint64_t MillisecondsPerSecond{1000U};
+constexpr float REFERENCE_GRAVITY_MPS2{9.80665F};
+constexpr std::uint64_t MILLISECONDS_PER_SECOND{1000U};
 } // namespace
 
-void GyroBiasCalibration::Init(const Config &config) noexcept
+void GyroBiasCalibration::init(const Config &config) noexcept
 {
     config_ = config;
-    Reset();
+    reset();
 }
 
-void GyroBiasCalibration::Reset() noexcept
+void GyroBiasCalibration::reset() noexcept
 {
-    state_ = State::WaitingForTemperature;
+    state_ = State::WAITING_FOR_TEMPERATURE;
     bias_ = alg_math::Vector3{};
     spread_ = alg_math::Vector3{};
-    RestartWindow();
-    restarts_ = 0U; // 必须在 RestartWindow 之后清零，否则复位本身会被计成一次重启
-    samplingTicks_ = 0U;
-    holdTicks_ = 0U;
-    holdMinimum_ = 0.0F;
-    holdMaximum_ = 0.0F;
-    holdActive_ = false;
-    timingAnchored_ = false;
-    lastTick_ = 0U;
-    temperatureCelsius_ = 0.0F;
-    biasValid_ = false;
+    restart_window();
+    restarts_ = 0U; // 必须在 restart_window 之后清零，否则复位本身会被计成一次重启
+    sampling_ticks_ = 0U;
+    hold_ticks_ = 0U;
+    hold_minimum_ = 0.0F;
+    hold_maximum_ = 0.0F;
+    hold_active_ = false;
+    timing_anchored_ = false;
+    last_tick_ = 0U;
+    temperature_celsius_ = 0.0F;
+    bias_valid_ = false;
 }
 
-void GyroBiasCalibration::RestartWindow() noexcept
+void GyroBiasCalibration::restart_window() noexcept
 {
     if (count_ != 0U)
     {
         ++restarts_; // 只统计"已经开始积累后被中断"的情况
     }
-    sumX_ = 0.0;
-    sumY_ = 0.0;
-    sumZ_ = 0.0;
+    sum_x_ = 0.0;
+    sum_y_ = 0.0;
+    sum_z_ = 0.0;
     minimum_ = alg_math::Vector3{};
     maximum_ = alg_math::Vector3{};
     count_ = 0U;
-    windowTicks_ = 0U;
+    window_ticks_ = 0U;
 }
 
-std::uint64_t GyroBiasCalibration::TicksFromMs(std::uint32_t milliseconds) const noexcept
+std::uint64_t GyroBiasCalibration::ticks_from_ms(std::uint32_t milliseconds) const noexcept
 {
     // 不做 32 位饱和：480 MHz 下 20 s 是 9.6e9 tick，远大于 2^32，
     // 饱和成 0xFFFFFFFF 会让"超过时限"的比较永远不成立。
-    return static_cast<std::uint64_t>(milliseconds) * static_cast<std::uint64_t>(config_.tickFrequencyHz) /
-           MillisecondsPerSecond;
+    return static_cast<std::uint64_t>(milliseconds) * static_cast<std::uint64_t>(config_.tick_frequency_hz) /
+           MILLISECONDS_PER_SECOND;
 }
 
-void GyroBiasCalibration::Process(const alg_math::Vector3 &gyroRadPerSec,
-                                  const alg_math::Vector3 &accelMetersPerSec2,
-                                  float temperatureCelsius,
+void GyroBiasCalibration::process(const alg_math::Vector3 &gyro_rad_per_sec,
+                                  const alg_math::Vector3 &accel_meters_per_sec2,
+                                  float temperature_celsius,
                                   std::uint32_t tick) noexcept
 {
-    if (state_ == State::Completed || state_ == State::TimedOut)
+    if (state_ == State::COMPLETED || state_ == State::TIMED_OUT)
     {
         return; // 终态不再改变：标定只做一次
     }
-    if (config_.tickFrequencyHz == 0U)
+    if (config_.tick_frequency_hz == 0U)
     {
         return; // 没有可信时基：既不积累也不判定
     }
 
     // 建立时基：首个样本只记录起点，不产生时间增量。
-    const std::uint32_t deltaTicks = timingAnchored_ ? (tick - lastTick_) : 0U;
-    timingAnchored_ = true;
-    lastTick_ = tick;
-    temperatureCelsius_ = temperatureCelsius;
+    const std::uint32_t delta_ticks = timing_anchored_ ? (tick - last_tick_) : 0U;
+    timing_anchored_ = true;
+    last_tick_ = tick;
+    temperature_celsius_ = temperature_celsius;
 
     // 温度门控：离开容差就清空窗口与稳定保持，并重新开始计时。
-    const bool temperatureReady =
-        std::isfinite(temperatureCelsius) &&
-        std::fabs(temperatureCelsius - config_.targetCelsius) <= config_.temperatureToleranceCelsius;
-    if (!temperatureReady)
+    const bool temperature_ready =
+        std::isfinite(temperature_celsius) &&
+        std::fabs(temperature_celsius - config_.target_celsius) <= config_.temperature_tolerance_celsius;
+    if (!temperature_ready)
     {
-        if (state_ != State::WaitingForTemperature || count_ != 0U)
+        if (state_ != State::WAITING_FOR_TEMPERATURE || count_ != 0U)
         {
-            RestartWindow();
+            restart_window();
         }
-        state_ = State::WaitingForTemperature;
-        holdActive_ = false;
-        holdTicks_ = 0U;
+        state_ = State::WAITING_FOR_TEMPERATURE;
+        hold_active_ = false;
+        hold_ticks_ = 0U;
         return;
     }
 
     // 温度稳定门控：进带后还要保持足够久且极差足够小才允许开窗，
     // 带内极差超限就从当前温度重新开始保持计时。
-    if (!holdActive_)
+    if (!hold_active_)
     {
-        holdActive_ = true;
-        holdTicks_ = 0U;
-        holdMinimum_ = temperatureCelsius;
-        holdMaximum_ = temperatureCelsius;
+        hold_active_ = true;
+        hold_ticks_ = 0U;
+        hold_minimum_ = temperature_celsius;
+        hold_maximum_ = temperature_celsius;
     }
     else
     {
-        if (temperatureCelsius < holdMinimum_)
+        if (temperature_celsius < hold_minimum_)
         {
-            holdMinimum_ = temperatureCelsius;
+            hold_minimum_ = temperature_celsius;
         }
-        if (temperatureCelsius > holdMaximum_)
+        if (temperature_celsius > hold_maximum_)
         {
-            holdMaximum_ = temperatureCelsius;
+            hold_maximum_ = temperature_celsius;
         }
     }
-    holdTicks_ += deltaTicks;
-    if (holdMaximum_ - holdMinimum_ > config_.temperatureStabilityCelsius)
+    hold_ticks_ += delta_ticks;
+    if (hold_maximum_ - hold_minimum_ > config_.temperature_stability_celsius)
     {
-        holdMinimum_ = temperatureCelsius;
-        holdMaximum_ = temperatureCelsius;
-        holdTicks_ = 0U;
+        hold_minimum_ = temperature_celsius;
+        hold_maximum_ = temperature_celsius;
+        hold_ticks_ = 0U;
     }
 
-    if (state_ == State::WaitingForTemperature)
+    if (state_ == State::WAITING_FOR_TEMPERATURE)
     {
-        if (holdTicks_ < TicksFromMs(config_.temperatureSettleMs))
+        if (hold_ticks_ < ticks_from_ms(config_.temperature_settle_ms))
         {
             return; // 温度还没稳定够久：不开窗、不积累样本
         }
-        state_ = State::Sampling;
-        RestartWindow();
+        state_ = State::SAMPLING;
+        restart_window();
     }
 
     // 采样预算跨窗口累计：窗口因运动重启不重置预算；温度出带后暂停增长
     // 但保留已用额度，避免"开机后被搬动几秒"就花掉整轮标定机会。
-    samplingTicks_ += deltaTicks;
-    if (samplingTicks_ >= TicksFromMs(config_.timeoutMs))
+    sampling_ticks_ += delta_ticks;
+    if (sampling_ticks_ >= ticks_from_ms(config_.timeout_ms))
     {
-        state_ = State::TimedOut;
-        biasValid_ = false;
-        RestartWindow();
+        state_ = State::TIMED_OUT;
+        bias_valid_ = false;
+        restart_window();
         return;
     }
 
     // 静止门控：加速度范数必须接近重力。
-    const float accelNorm = alg_math::Norm(accelMetersPerSec2);
-    if (!alg_math::IsFinite(accelMetersPerSec2) ||
-        std::fabs(accelNorm - ReferenceGravityMps2) > config_.maximumAccelNormErrorMps2)
+    const float accel_norm = alg_math::norm(accel_meters_per_sec2);
+    if (!alg_math::is_finite(accel_meters_per_sec2) ||
+        std::fabs(accel_norm - REFERENCE_GRAVITY_MPS2) > config_.maximum_accel_norm_error_mps2)
     {
-        RestartWindow();
+        restart_window();
         return;
     }
 
-    Accumulate(gyroRadPerSec, deltaTicks);
+    accumulate(gyro_rad_per_sec, delta_ticks);
 }
 
-void GyroBiasCalibration::Accumulate(const alg_math::Vector3 &gyroRadPerSec, std::uint32_t deltaTicks) noexcept
+void GyroBiasCalibration::accumulate(const alg_math::Vector3 &gyro_rad_per_sec, std::uint32_t delta_ticks) noexcept
 {
-    if (!alg_math::IsFinite(gyroRadPerSec))
+    if (!alg_math::is_finite(gyro_rad_per_sec))
     {
-        RestartWindow();
+        restart_window();
         return;
     }
 
     if (count_ == 0U)
     {
-        minimum_ = gyroRadPerSec;
-        maximum_ = gyroRadPerSec;
+        minimum_ = gyro_rad_per_sec;
+        maximum_ = gyro_rad_per_sec;
     }
     else
     {
-        if (gyroRadPerSec.x < minimum_.x)
+        if (gyro_rad_per_sec.x < minimum_.x)
         {
-            minimum_.x = gyroRadPerSec.x;
+            minimum_.x = gyro_rad_per_sec.x;
         }
-        if (gyroRadPerSec.y < minimum_.y)
+        if (gyro_rad_per_sec.y < minimum_.y)
         {
-            minimum_.y = gyroRadPerSec.y;
+            minimum_.y = gyro_rad_per_sec.y;
         }
-        if (gyroRadPerSec.z < minimum_.z)
+        if (gyro_rad_per_sec.z < minimum_.z)
         {
-            minimum_.z = gyroRadPerSec.z;
+            minimum_.z = gyro_rad_per_sec.z;
         }
-        if (gyroRadPerSec.x > maximum_.x)
+        if (gyro_rad_per_sec.x > maximum_.x)
         {
-            maximum_.x = gyroRadPerSec.x;
+            maximum_.x = gyro_rad_per_sec.x;
         }
-        if (gyroRadPerSec.y > maximum_.y)
+        if (gyro_rad_per_sec.y > maximum_.y)
         {
-            maximum_.y = gyroRadPerSec.y;
+            maximum_.y = gyro_rad_per_sec.y;
         }
-        if (gyroRadPerSec.z > maximum_.z)
+        if (gyro_rad_per_sec.z > maximum_.z)
         {
-            maximum_.z = gyroRadPerSec.z;
+            maximum_.z = gyro_rad_per_sec.z;
         }
     }
 
-    sumX_ += static_cast<double>(gyroRadPerSec.x);
-    sumY_ += static_cast<double>(gyroRadPerSec.y);
-    sumZ_ += static_cast<double>(gyroRadPerSec.z);
+    sum_x_ += static_cast<double>(gyro_rad_per_sec.x);
+    sum_y_ += static_cast<double>(gyro_rad_per_sec.y);
+    sum_z_ += static_cast<double>(gyro_rad_per_sec.z);
     ++count_;
-    windowTicks_ += deltaTicks;
+    window_ticks_ += delta_ticks;
 
     // 每个样本都检查极差：被碰或振动必须在下一个样本就重启窗口，
     // 否则短促扰动会被记进窗口，只能等到周期检查或收尾时才被剔除。
     const alg_math::Vector3 spread{maximum_.x - minimum_.x, maximum_.y - minimum_.y, maximum_.z - minimum_.z};
-    if (spread.x > config_.maximumSpreadRadPerSec || spread.y > config_.maximumSpreadRadPerSec ||
-        spread.z > config_.maximumSpreadRadPerSec)
+    if (spread.x > config_.maximum_spread_rad_per_sec || spread.y > config_.maximum_spread_rad_per_sec ||
+        spread.z > config_.maximum_spread_rad_per_sec)
     {
-        RestartWindow();
+        restart_window();
         return;
     }
 
     // 周期性检查部分均值：抓缓慢转动，代价是与样本数无关的常数开销。
-    if ((count_ % PartialCheckInterval) == 0U)
+    if ((count_ % PARTIAL_CHECK_INTERVAL) == 0U)
     {
         const double inverse = 1.0 / static_cast<double>(count_);
-        const alg_math::Vector3 mean{static_cast<float>(sumX_ * inverse),
-                                     static_cast<float>(sumY_ * inverse),
-                                     static_cast<float>(sumZ_ * inverse)};
-        if (std::fabs(mean.x) > config_.maximumMeanRateRadPerSec ||
-            std::fabs(mean.y) > config_.maximumMeanRateRadPerSec ||
-            std::fabs(mean.z) > config_.maximumMeanRateRadPerSec)
+        const alg_math::Vector3 mean{static_cast<float>(sum_x_ * inverse),
+                                     static_cast<float>(sum_y_ * inverse),
+                                     static_cast<float>(sum_z_ * inverse)};
+        if (std::fabs(mean.x) > config_.maximum_mean_rate_rad_per_sec ||
+            std::fabs(mean.y) > config_.maximum_mean_rate_rad_per_sec ||
+            std::fabs(mean.z) > config_.maximum_mean_rate_rad_per_sec)
         {
-            RestartWindow();
+            restart_window();
             return;
         }
     }
 
-    if (windowTicks_ >= TicksFromMs(config_.windowMs))
+    if (window_ticks_ >= ticks_from_ms(config_.window_ms))
     {
-        Finalize();
+        finalize();
     }
 }
 
-void GyroBiasCalibration::Finalize() noexcept
+void GyroBiasCalibration::finalize() noexcept
 {
     if (count_ == 0U)
     {
-        RestartWindow();
+        restart_window();
         return;
     }
 
     const double inverse = 1.0 / static_cast<double>(count_);
     const alg_math::Vector3 mean{
-        static_cast<float>(sumX_ * inverse), static_cast<float>(sumY_ * inverse), static_cast<float>(sumZ_ * inverse)};
+        static_cast<float>(sum_x_ * inverse), static_cast<float>(sum_y_ * inverse), static_cast<float>(sum_z_ * inverse)};
     const alg_math::Vector3 spread{maximum_.x - minimum_.x, maximum_.y - minimum_.y, maximum_.z - minimum_.z};
 
     // 均值超限说明窗口内存在慢速转动，不能当作零偏，重新开始。
-    if (!alg_math::IsFinite(mean) || std::fabs(mean.x) > config_.maximumMeanRateRadPerSec ||
-        std::fabs(mean.y) > config_.maximumMeanRateRadPerSec || std::fabs(mean.z) > config_.maximumMeanRateRadPerSec ||
-        spread.x > config_.maximumSpreadRadPerSec || spread.y > config_.maximumSpreadRadPerSec ||
-        spread.z > config_.maximumSpreadRadPerSec)
+    if (!alg_math::is_finite(mean) || std::fabs(mean.x) > config_.maximum_mean_rate_rad_per_sec ||
+        std::fabs(mean.y) > config_.maximum_mean_rate_rad_per_sec || std::fabs(mean.z) > config_.maximum_mean_rate_rad_per_sec ||
+        spread.x > config_.maximum_spread_rad_per_sec || spread.y > config_.maximum_spread_rad_per_sec ||
+        spread.z > config_.maximum_spread_rad_per_sec)
     {
-        RestartWindow();
+        restart_window();
         return;
     }
 
     bias_ = mean;
     spread_ = spread;
-    biasValid_ = true;
-    state_ = State::Completed;
+    bias_valid_ = true;
+    state_ = State::COMPLETED;
 }
 
-GyroBiasCalibration::Snapshot GyroBiasCalibration::GetSnapshot() const noexcept
+GyroBiasCalibration::Snapshot GyroBiasCalibration::get_snapshot() const noexcept
 {
     Snapshot snapshot{};
     snapshot.state = state_;
-    snapshot.biasRadPerSec = bias_;
-    snapshot.spreadRadPerSec = spread_;
+    snapshot.bias_rad_per_sec = bias_;
+    snapshot.spread_rad_per_sec = spread_;
     snapshot.samples = count_;
     snapshot.restarts = restarts_;
     // 时基不可用时不做除零，时长一律报 0。
-    const std::uint32_t frequencyHz = config_.tickFrequencyHz;
-    if (frequencyHz != 0U)
+    const std::uint32_t frequency_hz = config_.tick_frequency_hz;
+    if (frequency_hz != 0U)
     {
-        snapshot.elapsedMs = static_cast<std::uint32_t>(samplingTicks_ * MillisecondsPerSecond / frequencyHz);
-        snapshot.temperatureHoldMs = static_cast<std::uint32_t>(holdTicks_ * MillisecondsPerSecond / frequencyHz);
+        snapshot.elapsed_ms = static_cast<std::uint32_t>(sampling_ticks_ * MILLISECONDS_PER_SECOND / frequency_hz);
+        snapshot.temperature_hold_ms = static_cast<std::uint32_t>(hold_ticks_ * MILLISECONDS_PER_SECOND / frequency_hz);
     }
-    snapshot.temperatureCelsius = temperatureCelsius_;
-    snapshot.biasValid = biasValid_;
+    snapshot.temperature_celsius = temperature_celsius_;
+    snapshot.bias_valid = bias_valid_;
     return snapshot;
 }
 

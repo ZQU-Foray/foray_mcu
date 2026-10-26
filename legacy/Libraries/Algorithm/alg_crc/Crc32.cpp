@@ -6,7 +6,7 @@ namespace alg_crc
 namespace
 {
 
-constexpr uint32_t TableEntry(uint32_t value)
+constexpr uint32_t table_entry(uint32_t value)
 {
     for (uint8_t bit = 0; bit < 8; bit++)
     {
@@ -15,19 +15,19 @@ constexpr uint32_t TableEntry(uint32_t value)
     return value;
 }
 
-constexpr auto table = []
+constexpr auto TABLE = []
 {
     std::array<uint32_t, 256> table{};
     for (uint16_t i = 0; i < 256; i++)
     {
-        table[i] = TableEntry(static_cast<uint32_t>(i));
+        table[i] = table_entry(static_cast<uint32_t>(i));
     }
     return table;
 }();
 
 } // namespace
 
-uint32_t Crc32Calc(const uint8_t *data, size_t len)
+uint32_t crc32_calc(const uint8_t *data, size_t len)
 {
     uint32_t crc = 0xFFFFFFFFU; // init = 0xFFFFFFFF
     if (data == nullptr && len != 0U)
@@ -37,7 +37,7 @@ uint32_t Crc32Calc(const uint8_t *data, size_t len)
 
     while (len--)
     {
-        crc = table[(crc ^ *data++) & 0xFFU] ^ (crc >> 8);
+        crc = TABLE[(crc ^ *data++) & 0xFFU] ^ (crc >> 8);
     }
     return crc ^ 0xFFFFFFFFU; // xorout = 0xFFFFFFFF
 }

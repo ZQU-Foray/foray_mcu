@@ -8,8 +8,8 @@ namespace alg_slope
 
 enum class SlopeFirst : uint8_t
 {
-    Real = 0,
-    Target,
+    REAL = 0,
+    TARGET,
 };
 
 class Slope
@@ -18,42 +18,42 @@ class Slope
     struct Config
     {
         // 增大和减小绝对值时的变化率，单位/秒
-        float IncreaseRate = 0.0f;
-        float DecreaseRate = 0.0f;
+        float increase_rate = 0.0f;
+        float decrease_rate = 0.0f;
 
-        SlopeFirst First = SlopeFirst::Target;
+        SlopeFirst first = SlopeFirst::TARGET;
     };
 
-    bool Init(const Config &config);
+    bool init(const Config &config);
 
-    void Reset();
+    void reset();
 
-    bool Reset(float output);
+    bool reset(float output);
 
-    bool SetNowReal(float nowReal);
+    bool set_now_real(float now_real);
 
-    bool SetIncreaseRate(float increaseRate);
+    bool set_increase_rate(float increase_rate);
 
-    bool SetDecreaseRate(float decreaseRate);
+    bool set_decrease_rate(float decrease_rate);
 
-    bool CalculateLoop(float target, float dt);
+    bool calculate_loop(float target, float dt);
 
-    float GetOut() const;
+    float get_out() const;
 
-    float GetTarget() const;
+    float get_target() const;
 
-    const Config &GetConfig() const;
+    const Config &get_config() const;
 
-    bool IsInitialized() const;
+    bool is_initialized() const;
 
   private:
-    Config Cfg{};
+    Config cfg_{};
 
-    float Output = 0.0f;
-    float NowReal = 0.0f;
-    float Target = 0.0f;
+    float output_ = 0.0f;
+    float now_real_ = 0.0f;
+    float target_ = 0.0f;
 
-    bool Initialized = false;
+    bool initialized_ = false;
 };
 
 } // namespace alg_slope

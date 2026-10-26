@@ -26,47 +26,47 @@ template <std::size_t Rows, std::size_t Columns> struct Matrix final
     std::array<float, Rows * Columns> values{};
 
     /** @brief 访问元素，行列均从零开始。 */
-    [[nodiscard]] float &At(std::size_t row, std::size_t column) noexcept
+    [[nodiscard]] float &at(std::size_t row, std::size_t column) noexcept
     {
         return values[row * Columns + column];
     }
 
-    [[nodiscard]] float At(std::size_t row, std::size_t column) const noexcept
+    [[nodiscard]] float at(std::size_t row, std::size_t column) const noexcept
     {
         return values[row * Columns + column];
     }
 
     /** @brief 行优先数据首地址，供需要连续内存的场合使用。 */
-    [[nodiscard]] float *Data() noexcept
+    [[nodiscard]] float *data() noexcept
     {
         return values.data();
     }
-    [[nodiscard]] const float *Data() const noexcept
+    [[nodiscard]] const float *data() const noexcept
     {
         return values.data();
     }
 
     /** @brief 全零矩阵。 */
-    [[nodiscard]] static Matrix Zero() noexcept
+    [[nodiscard]] static Matrix zero() noexcept
     {
         return Matrix{};
     }
 
     /** @brief 单位矩阵，仅对正方形矩阵可用。 */
-    [[nodiscard]] static Matrix Identity() noexcept
+    [[nodiscard]] static Matrix identity() noexcept
     {
         static_assert(Rows == Columns, "单位矩阵只对正方形矩阵有意义");
         Matrix result{};
         for (std::size_t index = 0U; index < Rows; ++index)
         {
-            result.At(index, index) = 1.0f;
+            result.at(index, index) = 1.0f;
         }
         return result;
     }
 
     /** @brief 矩阵乘法，内维由模板参数推导。 */
     template <std::size_t Inner>
-    [[nodiscard]] static Matrix<Rows, Columns> Multiply(const Matrix<Rows, Inner> &first,
+    [[nodiscard]] static Matrix<Rows, Columns> multiply(const Matrix<Rows, Inner> &first,
                                                         const Matrix<Inner, Columns> &second) noexcept
     {
         Matrix<Rows, Columns> result{};
@@ -77,30 +77,30 @@ template <std::size_t Rows, std::size_t Columns> struct Matrix final
                 float sum = 0.0f;
                 for (std::size_t index = 0U; index < Inner; ++index)
                 {
-                    sum += first.At(row, index) * second.At(index, column);
+                    sum += first.at(row, index) * second.at(index, column);
                 }
-                result.At(row, column) = sum;
+                result.at(row, column) = sum;
             }
         }
         return result;
     }
 
     /** @brief 转置矩阵。 */
-    [[nodiscard]] Matrix<Columns, Rows> Transposed() const noexcept
+    [[nodiscard]] Matrix<Columns, Rows> transposed() const noexcept
     {
         Matrix<Columns, Rows> result{};
         for (std::size_t row = 0U; row < Rows; ++row)
         {
             for (std::size_t column = 0U; column < Columns; ++column)
             {
-                result.At(column, row) = At(row, column);
+                result.at(column, row) = at(row, column);
             }
         }
         return result;
     }
 
     /** @brief 逐元素相加。 */
-    [[nodiscard]] Matrix Added(const Matrix &other) const noexcept
+    [[nodiscard]] Matrix added(const Matrix &other) const noexcept
     {
         Matrix result{};
         for (std::size_t index = 0U; index < values.size(); ++index)
@@ -111,7 +111,7 @@ template <std::size_t Rows, std::size_t Columns> struct Matrix final
     }
 
     /** @brief 逐元素相减。 */
-    [[nodiscard]] Matrix Subtracted(const Matrix &other) const noexcept
+    [[nodiscard]] Matrix subtracted(const Matrix &other) const noexcept
     {
         Matrix result{};
         for (std::size_t index = 0U; index < values.size(); ++index)
@@ -122,7 +122,7 @@ template <std::size_t Rows, std::size_t Columns> struct Matrix final
     }
 
     /** @brief 逐元素乘以标量。 */
-    [[nodiscard]] Matrix Scaled(float factor) const noexcept
+    [[nodiscard]] Matrix scaled(float factor) const noexcept
     {
         Matrix result{};
         for (std::size_t index = 0U; index < values.size(); ++index)
@@ -133,7 +133,7 @@ template <std::size_t Rows, std::size_t Columns> struct Matrix final
     }
 
     /** @brief 对称化 (M + M^T) / 2，仅对正方形矩阵可用；用于协方差矩阵的数值修复。 */
-    [[nodiscard]] Matrix Symmetrized() const noexcept
+    [[nodiscard]] Matrix symmetrized() const noexcept
     {
         static_assert(Rows == Columns, "对称化只对正方形矩阵有意义");
         Matrix result{};
@@ -141,7 +141,7 @@ template <std::size_t Rows, std::size_t Columns> struct Matrix final
         {
             for (std::size_t column = 0U; column < Columns; ++column)
             {
-                result.At(row, column) = 0.5f * (At(row, column) + At(column, row));
+                result.at(row, column) = 0.5f * (at(row, column) + at(column, row));
             }
         }
         return result;
@@ -154,25 +154,25 @@ template <std::size_t Rows, std::size_t Columns> struct Matrix final
      * @return 主元全部非零且结果有限时返回 true。
      * @note 单精度下"接近奇异"的矩阵可能仍然返回成功，调用方需要自行判断结果是否可用。
      */
-    [[nodiscard]] static bool Inverted(const Matrix &input, Matrix &output) noexcept
+    [[nodiscard]] static bool inverted(const Matrix &input, Matrix &output) noexcept
     {
         static_assert(Rows == Columns, "求逆只对正方形矩阵有意义");
         Matrix work = input;
-        output = Matrix::Identity();
+        output = Matrix::identity();
         for (std::size_t column = 0U; column < Rows; ++column)
         {
             std::size_t pivot = column;
-            float pivotMagnitude = std::fabs(work.At(column, column));
+            float pivot_magnitude = std::fabs(work.at(column, column));
             for (std::size_t row = column + 1U; row < Rows; ++row)
             {
-                const float candidate = std::fabs(work.At(row, column));
-                if (candidate > pivotMagnitude)
+                const float candidate = std::fabs(work.at(row, column));
+                if (candidate > pivot_magnitude)
                 {
-                    pivotMagnitude = candidate;
+                    pivot_magnitude = candidate;
                     pivot = row;
                 }
             }
-            if (!std::isfinite(pivotMagnitude) || !(pivotMagnitude > 0.0f))
+            if (!std::isfinite(pivot_magnitude) || !(pivot_magnitude > 0.0f))
             {
                 output = Matrix{};
                 return false;
@@ -181,19 +181,19 @@ template <std::size_t Rows, std::size_t Columns> struct Matrix final
             {
                 for (std::size_t index = 0U; index < Rows; ++index)
                 {
-                    const float temporary = work.At(column, index);
-                    work.At(column, index) = work.At(pivot, index);
-                    work.At(pivot, index) = temporary;
-                    const float outputTemporary = output.At(column, index);
-                    output.At(column, index) = output.At(pivot, index);
-                    output.At(pivot, index) = outputTemporary;
+                    const float temporary = work.at(column, index);
+                    work.at(column, index) = work.at(pivot, index);
+                    work.at(pivot, index) = temporary;
+                    const float output_temporary = output.at(column, index);
+                    output.at(column, index) = output.at(pivot, index);
+                    output.at(pivot, index) = output_temporary;
                 }
             }
-            const float inversePivot = 1.0f / work.At(column, column);
+            const float inverse_pivot = 1.0f / work.at(column, column);
             for (std::size_t index = 0U; index < Rows; ++index)
             {
-                work.At(column, index) *= inversePivot;
-                output.At(column, index) *= inversePivot;
+                work.at(column, index) *= inverse_pivot;
+                output.at(column, index) *= inverse_pivot;
             }
             for (std::size_t row = 0U; row < Rows; ++row)
             {
@@ -201,23 +201,23 @@ template <std::size_t Rows, std::size_t Columns> struct Matrix final
                 {
                     continue;
                 }
-                const float factor = work.At(row, column);
+                const float factor = work.at(row, column);
                 if (factor == 0.0f)
                 {
                     continue;
                 }
                 for (std::size_t index = 0U; index < Rows; ++index)
                 {
-                    work.At(row, index) -= factor * work.At(column, index);
-                    output.At(row, index) -= factor * output.At(column, index);
+                    work.at(row, index) -= factor * work.at(column, index);
+                    output.at(row, index) -= factor * output.at(column, index);
                 }
             }
         }
-        return output.IsFinite();
+        return output.is_finite();
     }
 
     /** @brief 所有元素都是有限值时返回 true。 */
-    [[nodiscard]] bool IsFinite() const noexcept
+    [[nodiscard]] bool is_finite() const noexcept
     {
         for (const float value : values)
         {
@@ -230,7 +230,7 @@ template <std::size_t Rows, std::size_t Columns> struct Matrix final
     }
 
     /** @brief 与另一矩阵逐元素最大绝对差，用于测试与数值比较。 */
-    [[nodiscard]] float MaxAbsDifference(const Matrix &other) const noexcept
+    [[nodiscard]] float max_abs_difference(const Matrix &other) const noexcept
     {
         float maximum = 0.0f;
         for (std::size_t index = 0U; index < values.size(); ++index)

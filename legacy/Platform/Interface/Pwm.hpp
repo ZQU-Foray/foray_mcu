@@ -12,19 +12,19 @@ class Pwm final
   public:
     enum class Channel : std::uint8_t
     {
-        Buzzer = PWM_PORT_CHANNEL_BUZZER,
-        ImuHeater = PWM_PORT_CHANNEL_IMU_HEATER
+        BUZZER = PWM_PORT_CHANNEL_BUZZER,
+        IMU_HEATER = PWM_PORT_CHANNEL_IMU_HEATER
     };
 
     enum class Result : std::uint8_t
     {
-        Completed = PWM_PORT_RESULT_COMPLETED,
-        NotReady = PWM_PORT_RESULT_NOT_READY,
-        InvalidArgument = PWM_PORT_RESULT_INVALID_ARGUMENT,
-        Error = PWM_PORT_RESULT_ERROR
+        COMPLETED = PWM_PORT_RESULT_COMPLETED,
+        NOT_READY = PWM_PORT_RESULT_NOT_READY,
+        INVALID_ARGUMENT = PWM_PORT_RESULT_INVALID_ARGUMENT,
+        ERROR = PWM_PORT_RESULT_ERROR
     };
 
-    static constexpr std::uint16_t MaxDutyPermille{PWM_PORT_DUTY_PERMILLE_MAX};
+    static constexpr std::uint16_t MAX_DUTY_PERMILLE{PWM_PORT_DUTY_PERMILLE_MAX};
 
     /**
    * @brief 禁止创建 Pwm 实例，所有能力均通过静态方法访问。
@@ -36,21 +36,21 @@ class Pwm final
    * @param channel 要查询的逻辑通道。
    * @return 通道已初始化并可用时返回 true。
    */
-    [[nodiscard]] static bool IsReady(Channel channel) noexcept
+    [[nodiscard]] static bool is_ready(Channel channel) noexcept
     {
-        return PwmPort_IsReady(ToPortChannel(channel));
+        return PwmPort_IsReady(to_port_channel(channel));
     }
 
     /**
    * @brief 设置指定 PWM 逻辑通道的频率和占空比。
    * @param channel 目标逻辑通道。
-   * @param frequencyHz 输出频率，单位 Hz，必须大于 0。
-   * @param dutyPermille 占空比千分值，范围为 0 到 1000。
+   * @param frequency_hz 输出频率，单位 Hz，必须大于 0。
+   * @param duty_permille 占空比千分值，范围为 0 到 1000。
    * @return 返回完成、未就绪、参数错误或底层错误。
    */
-    [[nodiscard]] static Result Set(Channel channel, std::uint32_t frequencyHz, std::uint16_t dutyPermille) noexcept
+    [[nodiscard]] static Result set(Channel channel, std::uint32_t frequency_hz, std::uint16_t duty_permille) noexcept
     {
-        return ToResult(PwmPort_Set(ToPortChannel(channel), frequencyHz, dutyPermille));
+        return to_result(PwmPort_Set(to_port_channel(channel), frequency_hz, duty_permille));
     }
 
     /**
@@ -58,9 +58,9 @@ class Pwm final
    * @param channel 目标逻辑通道。
    * @return 返回完成、未就绪或参数错误。
    */
-    [[nodiscard]] static Result Silence(Channel channel) noexcept
+    [[nodiscard]] static Result silence(Channel channel) noexcept
     {
-        return ToResult(PwmPort_Silence(ToPortChannel(channel)));
+        return to_result(PwmPort_Silence(to_port_channel(channel)));
     }
 
   private:
@@ -69,7 +69,7 @@ class Pwm final
    * @param channel C++ 逻辑通道。
    * @return 对应的 C ABI 通道值。
    */
-    [[nodiscard]] static constexpr PwmPort_Channel ToPortChannel(Channel channel) noexcept
+    [[nodiscard]] static constexpr PwmPort_Channel to_port_channel(Channel channel) noexcept
     {
         return static_cast<PwmPort_Channel>(channel);
     }
@@ -79,9 +79,9 @@ class Pwm final
    * @param result C ABI PWM 结果。
    * @return 对应的 C++ 结果，未知值统一转换为 Error。
    */
-    [[nodiscard]] static constexpr Result ToResult(PwmPort_Result result) noexcept
+    [[nodiscard]] static constexpr Result to_result(PwmPort_Result result) noexcept
     {
-        return result <= PWM_PORT_RESULT_ERROR ? static_cast<Result>(result) : Result::Error;
+        return result <= PWM_PORT_RESULT_ERROR ? static_cast<Result>(result) : Result::ERROR;
     }
 };
 

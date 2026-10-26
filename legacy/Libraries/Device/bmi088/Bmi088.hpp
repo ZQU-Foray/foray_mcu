@@ -22,13 +22,13 @@ namespace device
 class Bmi088 final
 {
   public:
-    static constexpr std::uint32_t TemperaturePeriodMs{40U};
+    static constexpr std::uint32_t TEMPERATURE_PERIOD_MS{40U};
 
     enum class State : std::uint8_t
     {
-        Initializing,
-        Ready,
-        Error
+        INITIALIZING,
+        READY,
+        ERROR
     };
 
     Bmi088() noexcept = default;
@@ -36,13 +36,13 @@ class Bmi088 final
     /**
    * @brief 重置三个子设备状态机，本函数不访问硬件。
    */
-    void Init() noexcept;
+    void init() noexcept;
 
     /**
    * @brief 收割全部在途事务，并按初始化状态或 DRDY 事件发放启动许可。
    * @note 仅允许所属任务调用，不得在中断上下文调用。
    */
-    void Process() noexcept;
+    void process() noexcept;
 
     /**
    * @brief 提交累计 DRDY 序号与最近一次中断时间的一致快照。
@@ -50,104 +50,104 @@ class Bmi088 final
    * @param gyroscope 陀螺仪累计事件快照。
    * @note 多个尚未消费的事件会合并为一次最新数据读取，并计入合并统计。
    */
-    void NotifyDataReady(Bmi088DataReady accelerometer, Bmi088DataReady gyroscope) noexcept;
+    void notify_data_ready(Bmi088DataReady accelerometer, Bmi088DataReady gyroscope) noexcept;
 
     // 在 Process 启动前设置；转发给全部共享总线事务。
-    void SetCompletionNotification(platform::Spi::CompletionNotification callback, void *context) noexcept;
-    bool PopGyroscopeSample(Bmi088SampleRecord &record) noexcept
+    void set_completion_notification(platform::Spi::CompletionNotification callback, void *context) noexcept;
+    bool pop_gyroscope_sample(Bmi088SampleRecord &record) noexcept
     {
-        return gyroscopeQueue_.Pop(record);
+        return gyroscope_queue_.pop(record);
     }
-    bool PopAccelerometerSample(Bmi088SampleRecord &record) noexcept
+    bool pop_accelerometer_sample(Bmi088SampleRecord &record) noexcept
     {
-        return accelerometerQueue_.Pop(record);
+        return accelerometer_queue_.pop(record);
     }
     // 两传感器按时间顺序交付。已知更早的 DRDY 仍挂起/在途时，
     // 较新的记录会被保持，直到较早的传输被收割。
     // 不要在同一应用中把本消费者 API 与单传感器 Pop API 混用。
-    bool PopNextSample(Bmi088SampleRecord &record, bool &gyroscope) noexcept;
-    const Bmi088SampleQueue<> &GetGyroscopeQueue() const noexcept
+    bool pop_next_sample(Bmi088SampleRecord &record, bool &gyroscope) noexcept;
+    const Bmi088SampleQueue<> &get_gyroscope_queue() const noexcept
     {
-        return gyroscopeQueue_;
+        return gyroscope_queue_;
     }
-    const Bmi088SampleQueue<> &GetAccelerometerQueue() const noexcept
+    const Bmi088SampleQueue<> &get_accelerometer_queue() const noexcept
     {
-        return accelerometerQueue_;
+        return accelerometer_queue_;
     }
 
     /**
    * @brief 查询加速度计与陀螺仪是否均已就绪。
    * @return 两个核心子设备均完成配置并进入读取状态时返回 true。
    */
-    [[nodiscard]] bool IsReady() const noexcept
+    [[nodiscard]] bool is_ready() const noexcept
     {
-        return accelerometer_.IsReady() && gyroscope_.IsReady();
+        return accelerometer_.is_ready() && gyroscope_.is_ready();
     }
 
     /**
    * @brief 获取模块聚合状态，温度子设备不计入聚合判定。
    * @return 任一核心子设备错误时返回 Error，全部就绪时返回 Ready。
    */
-    [[nodiscard]] State GetState() const noexcept;
+    [[nodiscard]] State get_state() const noexcept;
 
-    [[nodiscard]] const Bmi088Accel &GetAccelerometer() const noexcept
+    [[nodiscard]] const Bmi088Accel &get_accelerometer() const noexcept
     {
         return accelerometer_;
     }
 
-    [[nodiscard]] const Bmi088Gyro &GetGyroscope() const noexcept
+    [[nodiscard]] const Bmi088Gyro &get_gyroscope() const noexcept
     {
         return gyroscope_;
     }
 
-    [[nodiscard]] const Bmi088Temperature &GetTemperature() const noexcept
+    [[nodiscard]] const Bmi088Temperature &get_temperature() const noexcept
     {
         return temperature_;
     }
 
-    [[nodiscard]] std::uint32_t GetAccelerometerDataReadyCount() const noexcept
+    [[nodiscard]] std::uint32_t get_accelerometer_data_ready_count() const noexcept
     {
-        return accelerometerDataReadyCount_;
+        return accelerometer_data_ready_count_;
     }
 
-    [[nodiscard]] std::uint32_t GetGyroscopeDataReadyCount() const noexcept
+    [[nodiscard]] std::uint32_t get_gyroscope_data_ready_count() const noexcept
     {
-        return gyroscopeDataReadyCount_;
+        return gyroscope_data_ready_count_;
     }
 
-    [[nodiscard]] std::uint32_t GetAccelerometerCoalescedEventCount() const noexcept
+    [[nodiscard]] std::uint32_t get_accelerometer_coalesced_event_count() const noexcept
     {
-        return accelerometerCoalescedEventCount_;
+        return accelerometer_coalesced_event_count_;
     }
 
-    [[nodiscard]] std::uint32_t GetGyroscopeCoalescedEventCount() const noexcept
+    [[nodiscard]] std::uint32_t get_gyroscope_coalesced_event_count() const noexcept
     {
-        return gyroscopeCoalescedEventCount_;
+        return gyroscope_coalesced_event_count_;
     }
 
   private:
     template <typename Sensor>
-    void Publish(Sensor &sensor,
-                 std::uint32_t previousReads,
+    void publish(Sensor &sensor,
+                 std::uint32_t previous_reads,
                  Bmi088SampleRecord &inflight,
                  Bmi088DataReady latest,
                  Bmi088SampleQueue<> &queue) noexcept;
-    bool StartAccelerometer() noexcept;
-    bool StartGyroscope() noexcept;
-    Bmi088DataReady accelerometerEvent_{}, gyroscopeEvent_{};
-    Bmi088SampleRecord accelerometerInflight_{}, gyroscopeInflight_{};
-    Bmi088SampleQueue<> accelerometerQueue_{}, gyroscopeQueue_{};
+    bool start_accelerometer() noexcept;
+    bool start_gyroscope() noexcept;
+    Bmi088DataReady accelerometer_event_{}, gyroscope_event_{};
+    Bmi088SampleRecord accelerometer_inflight_{}, gyroscope_inflight_{};
+    Bmi088SampleQueue<> accelerometer_queue_{}, gyroscope_queue_{};
     Bmi088Accel accelerometer_{};
     Bmi088Gyro gyroscope_{};
     Bmi088Temperature temperature_{};
-    bool accelerometerDataReadyPending_{false};
-    bool gyroscopeDataReadyPending_{false};
+    bool accelerometer_data_ready_pending_{false};
+    bool gyroscope_data_ready_pending_{false};
     std::uint32_t turn_{0U};
-    std::uint32_t accelerometerDataReadyCount_{0U};
-    std::uint32_t gyroscopeDataReadyCount_{0U};
-    std::uint32_t accelerometerCoalescedEventCount_{0U};
-    std::uint32_t gyroscopeCoalescedEventCount_{0U};
-    platform::Time::Tick lastTemperatureStartTick_{0U};
+    std::uint32_t accelerometer_data_ready_count_{0U};
+    std::uint32_t gyroscope_data_ready_count_{0U};
+    std::uint32_t accelerometer_coalesced_event_count_{0U};
+    std::uint32_t gyroscope_coalesced_event_count_{0U};
+    platform::Time::Tick last_temperature_start_tick_{0U};
 };
 
 } // namespace device

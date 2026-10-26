@@ -19,15 +19,15 @@ struct Bmi088SampleRecord final
 {
     enum : std::uint16_t
     {
-        LateStart = 1U,
-        NewerEventBeforeCompletion = 2U
+        LATE_START = 1U,
+        NEWER_EVENT_BEFORE_COMPLETION = 2U
     };
     std::uint32_t sequence{0U}; // 驱动成功读取计数
-    std::uint32_t drdySequence{0U};
-    std::uint32_t drdyTick{0U};
-    std::uint32_t startTick{0U};
-    std::uint32_t completedTick{0U};
-    std::uint32_t harvestedTick{0U};
+    std::uint32_t drdy_sequence{0U};
+    std::uint32_t drdy_tick{0U};
+    std::uint32_t start_tick{0U};
+    std::uint32_t completed_tick{0U};
+    std::uint32_t harvested_tick{0U};
     std::int16_t xyz[3]{};
     std::uint16_t flags{0U};
 };
@@ -39,7 +39,7 @@ template <std::size_t Capacity = 32U> class Bmi088SampleQueue final
 {
   public:
     static_assert(Capacity > 0U);
-    bool Push(const Bmi088SampleRecord &record) noexcept
+    bool push(const Bmi088SampleRecord &record) noexcept
     {
         if (size_ == Capacity)
         {
@@ -48,11 +48,11 @@ template <std::size_t Capacity = 32U> class Bmi088SampleQueue final
         }
         records_[(head_ + size_) % Capacity] = record;
         ++size_;
-        if (size_ > highWater_)
-            highWater_ = static_cast<std::uint32_t>(size_);
+        if (size_ > high_water_)
+            high_water_ = static_cast<std::uint32_t>(size_);
         return true;
     }
-    bool Pop(Bmi088SampleRecord &record) noexcept
+    bool pop(Bmi088SampleRecord &record) noexcept
     {
         if (size_ == 0U)
             return false;
@@ -61,31 +61,31 @@ template <std::size_t Capacity = 32U> class Bmi088SampleQueue final
         --size_;
         return true;
     }
-    bool Peek(Bmi088SampleRecord &record) const noexcept
+    bool peek(Bmi088SampleRecord &record) const noexcept
     {
         if (size_ == 0U)
             return false;
         record = records_[head_];
         return true;
     }
-    void Reset() noexcept
+    void reset() noexcept
     {
         head_ = size_ = 0U;
-        overflow_ = highWater_ = 0U;
+        overflow_ = high_water_ = 0U;
     }
-    [[nodiscard]] std::uint32_t OverflowCount() const noexcept
+    [[nodiscard]] std::uint32_t overflow_count() const noexcept
     {
         return overflow_;
     }
-    [[nodiscard]] std::uint32_t HighWater() const noexcept
+    [[nodiscard]] std::uint32_t high_water() const noexcept
     {
-        return highWater_;
+        return high_water_;
     }
 
   private:
     std::array<Bmi088SampleRecord, Capacity> records_{};
     std::size_t head_{0U}, size_{0U};
-    std::uint32_t overflow_{0U}, highWater_{0U};
+    std::uint32_t overflow_{0U}, high_water_{0U};
 };
 } // namespace device
 #endif

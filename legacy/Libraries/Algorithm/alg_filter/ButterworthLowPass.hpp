@@ -35,8 +35,8 @@ template <std::size_t Channels> class ButterworthLowPass final
     /** @brief 配置：时间常数与采样周期，单位均为秒。 */
     struct Config final
     {
-        float timeConstantSeconds{0.0F};
-        float samplePeriodSeconds{0.0F};
+        float time_constant_seconds{0.0F};
+        float sample_period_seconds{0.0F};
     };
 
     /**
@@ -44,25 +44,25 @@ template <std::size_t Channels> class ButterworthLowPass final
    * @param config 时间常数与采样周期。
    * @return 两者有限且为正时返回 true；否则保持未就绪并返回 false。
    */
-    [[nodiscard]] bool Init(const Config &config) noexcept
+    [[nodiscard]] bool init(const Config &config) noexcept
     {
         initialized_ = false;
-        if (!std::isfinite(config.timeConstantSeconds) || !(config.timeConstantSeconds > 0.0F) ||
-            !std::isfinite(config.samplePeriodSeconds) || !(config.samplePeriodSeconds > 0.0F))
+        if (!std::isfinite(config.time_constant_seconds) || !(config.time_constant_seconds > 0.0F) ||
+            !std::isfinite(config.sample_period_seconds) || !(config.sample_period_seconds > 0.0F))
         {
             return false;
         }
 
-        timeConstantSeconds_ = static_cast<double>(config.timeConstantSeconds);
-        samplePeriodSeconds_ = static_cast<double>(config.samplePeriodSeconds);
-        ComputeCoefficients();
-        Reset();
+        time_constant_seconds_ = static_cast<double>(config.time_constant_seconds);
+        sample_period_seconds_ = static_cast<double>(config.sample_period_seconds);
+        compute_coefficients();
+        reset();
         initialized_ = true;
         return true;
     }
 
     /** @brief 复位状态并重新进入初始化平均阶段。 */
-    void Reset() noexcept
+    void reset() noexcept
     {
         for (std::size_t index = 0U; index < 2U * Channels; ++index)
         {
@@ -70,19 +70,19 @@ template <std::size_t Channels> class ButterworthLowPass final
         }
         for (std::size_t index = 0U; index < Channels; ++index)
         {
-            averageSum_[index] = 0.0;
+            average_sum_[index] = 0.0;
         }
-        averageCount_ = 0U;
+        average_count_ = 0U;
         priming_ = true;
     }
 
-    [[nodiscard]] bool IsInitialized() const noexcept
+    [[nodiscard]] bool is_initialized() const noexcept
     {
         return initialized_;
     }
 
     /** @brief 是否仍处于初始化平均阶段（此时输出是时间平均，不是滤波结果）。 */
-    [[nodiscard]] bool IsPriming() const noexcept
+    [[nodiscard]] bool is_priming() const noexcept
     {
         return priming_;
     }
@@ -96,14 +96,14 @@ template <std::size_t Channels> class ButterworthLowPass final
     struct InternalState final
     {
         double state[2U * Channels]{};
-        double averageSum[Channels]{};
-        double coefficientsB[3]{};
-        double coefficientsA[2]{};
-        std::size_t averageCount{0U};
+        double average_sum[Channels]{};
+        double coefficients_b[3]{};
+        double coefficients_a[2]{};
+        std::size_t average_count{0U};
         bool priming{true};
     };
 
-    [[nodiscard]] InternalState GetInternalState() const noexcept
+    [[nodiscard]] InternalState get_internal_state() const noexcept
     {
         InternalState snapshot{};
         for (std::size_t index = 0U; index < 2U * Channels; ++index)
@@ -112,17 +112,17 @@ template <std::size_t Channels> class ButterworthLowPass final
         }
         for (std::size_t index = 0U; index < Channels; ++index)
         {
-            snapshot.averageSum[index] = averageSum_[index];
+            snapshot.average_sum[index] = average_sum_[index];
         }
         for (std::size_t index = 0U; index < 3U; ++index)
         {
-            snapshot.coefficientsB[index] = coefficientsB_[index];
+            snapshot.coefficients_b[index] = coefficients_b_[index];
         }
         for (std::size_t index = 0U; index < 2U; ++index)
         {
-            snapshot.coefficientsA[index] = coefficientsA_[index];
+            snapshot.coefficients_a[index] = coefficients_a_[index];
         }
-        snapshot.averageCount = averageCount_;
+        snapshot.average_count = average_count_;
         snapshot.priming = priming_;
         return snapshot;
     }
@@ -135,24 +135,24 @@ template <std::size_t Channels> class ButterworthLowPass final
    * @note 提供给调用方做"先全部校验、再整体写入"的两阶段恢复，避免部分子状态
    *       已被写入、其余仍为旧值的混合态。
    */
-    [[nodiscard]] bool IsInternalStateCompatible(const InternalState &snapshot) const noexcept
+    [[nodiscard]] bool is_internal_state_compatible(const InternalState &snapshot) const noexcept
     {
         if (!initialized_)
         {
             return false;
         }
-        const auto nearlyEqual = [](double first, double second) noexcept
+        const auto nearly_equal = [](double first, double second) noexcept
         { return std::fabs(first - second) <= 1e-12 * (1.0 + std::fabs(second)); };
         for (std::size_t index = 0U; index < 3U; ++index)
         {
-            if (!nearlyEqual(snapshot.coefficientsB[index], coefficientsB_[index]))
+            if (!nearly_equal(snapshot.coefficients_b[index], coefficients_b_[index]))
             {
                 return false;
             }
         }
         for (std::size_t index = 0U; index < 2U; ++index)
         {
-            if (!nearlyEqual(snapshot.coefficientsA[index], coefficientsA_[index]))
+            if (!nearly_equal(snapshot.coefficients_a[index], coefficients_a_[index]))
             {
                 return false;
             }
@@ -162,13 +162,13 @@ template <std::size_t Channels> class ButterworthLowPass final
 
     /**
    * @brief 恢复内部状态。
-   * @param snapshot 先前由 `GetInternalState` 读出的快照。
-   * @return 校验通过（见 `IsInternalStateCompatible`）时写入并返回 true；
+   * @param snapshot 先前由 `get_internal_state` 读出的快照。
+   * @return 校验通过（见 `is_internal_state_compatible`）时写入并返回 true；
    *         否则不改动任何状态并返回 false。
    */
-    [[nodiscard]] bool SetInternalState(const InternalState &snapshot) noexcept
+    [[nodiscard]] bool set_internal_state(const InternalState &snapshot) noexcept
     {
-        if (!IsInternalStateCompatible(snapshot))
+        if (!is_internal_state_compatible(snapshot))
         {
             return false;
         }
@@ -179,31 +179,31 @@ template <std::size_t Channels> class ButterworthLowPass final
         }
         for (std::size_t index = 0U; index < Channels; ++index)
         {
-            averageSum_[index] = snapshot.averageSum[index];
+            average_sum_[index] = snapshot.average_sum[index];
         }
-        averageCount_ = snapshot.averageCount;
+        average_count_ = snapshot.average_count;
         priming_ = snapshot.priming;
         return true;
     }
 
     /** @brief 输入输出分离滤波。 */
-    void Filter(const float input[Channels], float output[Channels]) noexcept
+    void filter(const float input[Channels], float output[Channels]) noexcept
     {
         if (!initialized_ || input == nullptr || output == nullptr)
         {
             return;
         }
-        FilterCore(input, output);
+        filter_core(input, output);
     }
 
     /** @brief 就地滤波（本工程热路径主入口）。 */
-    void Filter(float values[Channels]) noexcept
+    void filter(float values[Channels]) noexcept
     {
         if (!initialized_ || values == nullptr)
         {
             return;
         }
-        FilterCore(values, values);
+        filter_core(values, values);
     }
 
   private:
@@ -213,20 +213,20 @@ template <std::size_t Channels> class ButterworthLowPass final
    *       实测多一层包装调用会带来约 10% 的低通开销。`always_inline` 让两个公开
    *       入口不引入额外调用层，同时避免把循环体展开成两份。
    */
-    [[gnu::always_inline]] inline void FilterCore(const float input[Channels], float output[Channels]) noexcept
+    [[gnu::always_inline]] inline void filter_core(const float input[Channels], float output[Channels]) noexcept
     {
         if (priming_)
         {
-            Prime(input, output);
+            prime(input, output);
             return;
         }
 
         // 缓存系数 + 状态指针递进：避免每通道重复计算成员偏移与下标。
-        const double b0 = coefficientsB_[0];
-        const double b1 = coefficientsB_[1];
-        const double b2 = coefficientsB_[2];
-        const double a1 = coefficientsA_[0];
-        const double a2 = coefficientsA_[1];
+        const double b0 = coefficients_b_[0];
+        const double b1 = coefficients_b_[1];
+        const double b2 = coefficients_b_[2];
+        const double a1 = coefficients_a_[0];
+        const double a2 = coefficients_a_[1];
         double *state = state_;
         for (std::size_t channel = 0U; channel < Channels; ++channel)
         {
@@ -240,62 +240,62 @@ template <std::size_t Channels> class ButterworthLowPass final
     }
 
     /** @brief 二阶 Butterworth 系数（`b0 b1 b2` / `a1 a2`，`a0 = 1`）。 */
-    void ComputeCoefficients() noexcept
+    void compute_coefficients() noexcept
     {
-        constexpr double Pi{3.14159265358979323846264338327950288};
-        constexpr double Sqrt2{1.41421356237309504880168872420969808};
+        constexpr double PI{3.14159265358979323846264338327950288};
+        constexpr double SQRT2{1.41421356237309504880168872420969808};
 
-        if (timeConstantSeconds_ < samplePeriodSeconds_ / 2.0)
+        if (time_constant_seconds_ < sample_period_seconds_ / 2.0)
         {
-            coefficientsB_[0] = 1.0;
-            coefficientsB_[1] = 0.0;
-            coefficientsB_[2] = 0.0;
-            coefficientsA_[0] = 0.0;
-            coefficientsA_[1] = 0.0;
+            coefficients_b_[0] = 1.0;
+            coefficients_b_[1] = 0.0;
+            coefficients_b_[2] = 0.0;
+            coefficients_a_[0] = 0.0;
+            coefficients_a_[1] = 0.0;
             return;
         }
 
-        const double cutoffHz = (Sqrt2 / (2.0 * Pi)) / timeConstantSeconds_;
-        const double c = std::tan(Pi * cutoffHz * samplePeriodSeconds_);
-        const double denominator = c * c + Sqrt2 * c + 1.0;
+        const double cutoff_hz = (SQRT2 / (2.0 * PI)) / time_constant_seconds_;
+        const double c = std::tan(PI * cutoff_hz * sample_period_seconds_);
+        const double denominator = c * c + SQRT2 * c + 1.0;
         const double b0 = c * c / denominator;
-        coefficientsB_[0] = b0;
-        coefficientsB_[1] = 2.0 * b0;
-        coefficientsB_[2] = b0;
-        coefficientsA_[0] = 2.0 * (c * c - 1.0) / denominator;       // a1
-        coefficientsA_[1] = (1.0 - Sqrt2 * c + c * c) / denominator; // a2
+        coefficients_b_[0] = b0;
+        coefficients_b_[1] = 2.0 * b0;
+        coefficients_b_[2] = b0;
+        coefficients_a_[0] = 2.0 * (c * c - 1.0) / denominator;       // a1
+        coefficients_a_[1] = (1.0 - SQRT2 * c + c * c) / denominator; // a2
     }
 
     /** @brief 初始化平均阶段：累加求均值，达到时间常数后用均值取稳态初值。 */
-    void Prime(const float input[Channels], float output[Channels]) noexcept
+    void prime(const float input[Channels], float output[Channels]) noexcept
     {
-        ++averageCount_;
+        ++average_count_;
         for (std::size_t channel = 0U; channel < Channels; ++channel)
         {
-            averageSum_[channel] += static_cast<double>(input[channel]);
-            const double average = averageSum_[channel] / static_cast<double>(averageCount_);
+            average_sum_[channel] += static_cast<double>(input[channel]);
+            const double average = average_sum_[channel] / static_cast<double>(average_count_);
             output[channel] = static_cast<float>(average);
         }
-        if (static_cast<double>(averageCount_) * samplePeriodSeconds_ >= timeConstantSeconds_)
+        if (static_cast<double>(average_count_) * sample_period_seconds_ >= time_constant_seconds_)
         {
             for (std::size_t channel = 0U; channel < Channels; ++channel)
             {
                 // 稳态初值：在 y = x = x0 处解出滤波器状态，避免进入正常阶段时的跳变。
-                state_[2U * channel] = static_cast<double>(output[channel]) * (1.0 - coefficientsB_[0]);
+                state_[2U * channel] = static_cast<double>(output[channel]) * (1.0 - coefficients_b_[0]);
                 state_[2U * channel + 1U] =
-                    static_cast<double>(output[channel]) * (coefficientsB_[2] - coefficientsA_[1]);
+                    static_cast<double>(output[channel]) * (coefficients_b_[2] - coefficients_a_[1]);
             }
             priming_ = false;
         }
     }
 
-    double coefficientsB_[3]{};
-    double coefficientsA_[2]{};
+    double coefficients_b_[3]{};
+    double coefficients_a_[2]{};
     double state_[2U * Channels]{};
-    double averageSum_[Channels]{};
-    double timeConstantSeconds_{0.0};
-    double samplePeriodSeconds_{0.0};
-    std::size_t averageCount_{0U};
+    double average_sum_[Channels]{};
+    double time_constant_seconds_{0.0};
+    double sample_period_seconds_{0.0};
+    std::size_t average_count_{0U};
     bool initialized_{false};
     bool priming_{true};
 };

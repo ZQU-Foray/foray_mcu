@@ -23,8 +23,8 @@ extern "C"
    * @note 设计口径是在 osKernelInitialize 之后、osKernelStart 之前调用
    *       （MX_FREERTOS_Init 的 USER CODE BEGIN RTOS_THREADS）。
    * @note 幂等：重复调用不会重复创建线程。若在 osKernelStart 之后才首次调用，
-   *       仍可正常工作，但 TaskManager 会把创建时机记为 PostKernel，应作为
-   *       接线缺陷处理（见 TaskManager::GetDiagnostics）。
+   *       仍可正常工作，但 TaskManager 会把创建时机记为 POST_KERNEL，应作为
+   *       接线缺陷处理（见 TaskManager::get_diagnostics）。
    */
     bool Application_InitRtos(void);
 
@@ -36,7 +36,7 @@ extern "C"
    *       不执行任何周期工作。
    * @note 容错：若启动路径未接入 Application_InitRtos，本入口会在首次调用时补做
    *       线程创建，避免漏接一行导致整机静默不启动；此时 TaskManager 会把创建
-   *       时机记为 PostKernel，应作为接线缺陷处理。
+   *       时机记为 POST_KERNEL，应作为接线缺陷处理。
    */
     bool Application_Start(void);
 

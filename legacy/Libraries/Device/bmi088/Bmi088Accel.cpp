@@ -6,98 +6,98 @@ namespace device
 namespace
 {
 
-constexpr std::uint8_t ReadFlag{0x80U};
+constexpr std::uint8_t READ_FLAG{0x80U};
 
-constexpr std::uint8_t ChipIdRegister{0x00U};
-constexpr std::uint8_t DataRegister{0x12U};
-constexpr std::uint8_t ConfRegister{0x40U};
-constexpr std::uint8_t RangeRegister{0x41U};
-constexpr std::uint8_t Interrupt1IoControlRegister{0x53U};
-constexpr std::uint8_t InterruptMapDataRegister{0x58U};
-constexpr std::uint8_t PowerConfRegister{0x7CU};
-constexpr std::uint8_t PowerCtrlRegister{0x7DU};
+constexpr std::uint8_t CHIP_ID_REGISTER{0x00U};
+constexpr std::uint8_t DATA_REGISTER{0x12U};
+constexpr std::uint8_t CONF_REGISTER{0x40U};
+constexpr std::uint8_t RANGE_REGISTER{0x41U};
+constexpr std::uint8_t INTERRUPT1_IO_CONTROL_REGISTER{0x53U};
+constexpr std::uint8_t INTERRUPT_MAP_DATA_REGISTER{0x58U};
+constexpr std::uint8_t POWER_CONF_REGISTER{0x7CU};
+constexpr std::uint8_t POWER_CTRL_REGISTER{0x7DU};
 
-constexpr std::uint8_t PowerActiveMode{0x00U};
-constexpr std::uint8_t PowerOnAccel{0x04U};
+constexpr std::uint8_t POWER_ACTIVE_MODE{0x00U};
+constexpr std::uint8_t POWER_ON_ACCEL{0x04U};
 // INT1_IO_CTRL(0x53)：bit4 int1_in、bit3 int1_out（输出使能）、bit2 int1_od、
 // bit1 int1_lvl（1＝高有效）。MCU 侧 EXTI 是上升沿触发，所以必须同时置位
 // int1_out 与 int1_lvl：0x0A。旧值 0x08 只置了输出使能而把引脚配成低有效，
 // DRDY 只在脉冲回到高电平时才被上升沿采到，DRDY→读取的延迟被拉长。
-constexpr std::uint8_t Interrupt1OutputActiveHigh{0x0AU};
-constexpr std::uint8_t MapDataReadyToInterrupt1{0x04U};
+constexpr std::uint8_t INTERRUPT1_OUTPUT_ACTIVE_HIGH{0x0AU};
+constexpr std::uint8_t MAP_DATA_READY_TO_INTERRUPT1{0x04U};
 
-constexpr std::uint32_t PowerConfSettleMs{1U};
-constexpr std::uint32_t PowerCtrlSettleMs{50U};
-constexpr std::uint32_t ConfigSettleMs{1U};
-constexpr std::uint32_t ConfVerifySettleMs{5U};
+constexpr std::uint32_t POWER_CONF_SETTLE_MS{1U};
+constexpr std::uint32_t POWER_CTRL_SETTLE_MS{50U};
+constexpr std::uint32_t CONFIG_SETTLE_MS{1U};
+constexpr std::uint32_t CONF_VERIFY_SETTLE_MS{5U};
 
 } // namespace
 
-void Bmi088Accel::Init() noexcept
+void Bmi088Accel::init() noexcept
 {
-    state_ = State::Initializing;
-    step_ = Step::CheckChipId;
-    stepTick_ = platform::Time::NowTicks();
-    stepWaitMs_ = PowerUpSettleMs;
-    transferActive_ = false;
-    sampleValid_ = false;
+    state_ = State::INITIALIZING;
+    step_ = Step::CHECK_CHIP_ID;
+    step_tick_ = platform::Time::now_ticks();
+    step_wait_ms_ = POWER_UP_SETTLE_MS;
+    transfer_active_ = false;
+    sample_valid_ = false;
     sample_ = Sample{};
-    readCount_ = 0U;
-    errorCount_ = 0U;
-    chipIdAttempts_ = 0U;
-    configurationVerifyAttempts_ = 0U;
-    transmitBuffer_.fill(0U);
+    read_count_ = 0U;
+    error_count_ = 0U;
+    chip_id_attempts_ = 0U;
+    configuration_verify_attempts_ = 0U;
+    transmit_buffer_.fill(0U);
 }
 
-void Bmi088Accel::Harvest() noexcept
+void Bmi088Accel::harvest() noexcept
 {
-    if (state_ != State::Initializing && state_ != State::Ready)
+    if (state_ != State::INITIALIZING && state_ != State::READY)
     {
         return;
     }
 
-    if (!transferActive_)
+    if (!transfer_active_)
     {
         return;
     }
 
-    switch (platform::Spi::GetAsyncResult(platform::Spi::Device::ImuAccelerometer))
+    switch (platform::Spi::get_async_result(platform::Spi::Device::IMU_ACCELEROMETER))
     {
-    case platform::Spi::Result::Busy:
-    case platform::Spi::Result::Started:
+    case platform::Spi::Result::BUSY:
+    case platform::Spi::Result::STARTED:
         return;
 
-    case platform::Spi::Result::Completed:
-        transferActive_ = false;
-        CompleteStep();
+    case platform::Spi::Result::COMPLETED:
+        transfer_active_ = false;
+        complete_step();
         return;
 
     default:
-        transferActive_ = false;
-        Fail();
+        transfer_active_ = false;
+        fail();
         return;
     }
 }
 
-bool Bmi088Accel::TryStart() noexcept
+bool Bmi088Accel::try_start() noexcept
 {
-    if (state_ != State::Initializing && state_ != State::Ready)
+    if (state_ != State::INITIALIZING && state_ != State::READY)
     {
         return false;
     }
 
-    if (transferActive_ || !WaitElapsed())
+    if (transfer_active_ || !wait_elapsed())
     {
         return false;
     }
 
-    BeginStep();
-    return transferActive_;
+    begin_step();
+    return transfer_active_;
 }
 
-bool Bmi088Accel::TryGetSample(Sample &sample) const noexcept
+bool Bmi088Accel::try_get_sample(Sample &sample) const noexcept
 {
-    if (!sampleValid_)
+    if (!sample_valid_)
     {
         return false;
     }
@@ -106,220 +106,220 @@ bool Bmi088Accel::TryGetSample(Sample &sample) const noexcept
     return true;
 }
 
-bool Bmi088Accel::WaitElapsed() const noexcept
+bool Bmi088Accel::wait_elapsed() const noexcept
 {
-    return stepWaitMs_ == 0U || platform::Time::HasElapsedMs(stepTick_, stepWaitMs_);
+    return step_wait_ms_ == 0U || platform::Time::has_elapsed_ms(step_tick_, step_wait_ms_);
 }
 
-void Bmi088Accel::BeginStep() noexcept
+void Bmi088Accel::begin_step() noexcept
 {
     std::size_t length = 0U;
 
-    transmitBuffer_.fill(0U);
+    transmit_buffer_.fill(0U);
     switch (step_)
     {
-    case Step::CheckChipId:
-        transmitBuffer_[0] = static_cast<std::uint8_t>(ReadFlag | ChipIdRegister);
+    case Step::CHECK_CHIP_ID:
+        transmit_buffer_[0] = static_cast<std::uint8_t>(READ_FLAG | CHIP_ID_REGISTER);
         length = 3U;
         break;
 
-    case Step::WritePowerConf:
-        transmitBuffer_[0] = PowerConfRegister;
-        transmitBuffer_[1] = PowerActiveMode;
+    case Step::WRITE_POWER_CONF:
+        transmit_buffer_[0] = POWER_CONF_REGISTER;
+        transmit_buffer_[1] = POWER_ACTIVE_MODE;
         length = 2U;
         break;
 
-    case Step::WritePowerCtrl:
-        transmitBuffer_[0] = PowerCtrlRegister;
-        transmitBuffer_[1] = PowerOnAccel;
+    case Step::WRITE_POWER_CTRL:
+        transmit_buffer_[0] = POWER_CTRL_REGISTER;
+        transmit_buffer_[1] = POWER_ON_ACCEL;
         length = 2U;
         break;
 
-    case Step::WriteRange:
-        transmitBuffer_[0] = RangeRegister;
-        transmitBuffer_[1] = RangeRegisterValue;
+    case Step::WRITE_RANGE:
+        transmit_buffer_[0] = RANGE_REGISTER;
+        transmit_buffer_[1] = RANGE_REGISTER_VALUE;
         length = 2U;
         break;
 
-    case Step::WriteConf:
-        transmitBuffer_[0] = ConfRegister;
-        transmitBuffer_[1] = ConfRegisterValue;
+    case Step::WRITE_CONF:
+        transmit_buffer_[0] = CONF_REGISTER;
+        transmit_buffer_[1] = CONF_REGISTER_VALUE;
         length = 2U;
         break;
 
-    case Step::WriteInterruptIo:
-        transmitBuffer_[0] = Interrupt1IoControlRegister;
-        transmitBuffer_[1] = Interrupt1OutputActiveHigh;
+    case Step::WRITE_INTERRUPT_IO:
+        transmit_buffer_[0] = INTERRUPT1_IO_CONTROL_REGISTER;
+        transmit_buffer_[1] = INTERRUPT1_OUTPUT_ACTIVE_HIGH;
         length = 2U;
         break;
 
-    case Step::WriteInterruptMap:
-        transmitBuffer_[0] = InterruptMapDataRegister;
-        transmitBuffer_[1] = MapDataReadyToInterrupt1;
+    case Step::WRITE_INTERRUPT_MAP:
+        transmit_buffer_[0] = INTERRUPT_MAP_DATA_REGISTER;
+        transmit_buffer_[1] = MAP_DATA_READY_TO_INTERRUPT1;
         length = 2U;
         break;
 
-    case Step::VerifyCoreConfiguration:
-        transmitBuffer_[0] = static_cast<std::uint8_t>(ReadFlag | ConfRegister);
+    case Step::VERIFY_CORE_CONFIGURATION:
+        transmit_buffer_[0] = static_cast<std::uint8_t>(READ_FLAG | CONF_REGISTER);
         length = 4U;
         break;
 
-    case Step::VerifyInterruptIo:
-        transmitBuffer_[0] = static_cast<std::uint8_t>(ReadFlag | Interrupt1IoControlRegister);
+    case Step::VERIFY_INTERRUPT_IO:
+        transmit_buffer_[0] = static_cast<std::uint8_t>(READ_FLAG | INTERRUPT1_IO_CONTROL_REGISTER);
         length = 3U;
         break;
 
-    case Step::VerifyInterruptMap:
-        transmitBuffer_[0] = static_cast<std::uint8_t>(ReadFlag | InterruptMapDataRegister);
+    case Step::VERIFY_INTERRUPT_MAP:
+        transmit_buffer_[0] = static_cast<std::uint8_t>(READ_FLAG | INTERRUPT_MAP_DATA_REGISTER);
         length = 3U;
         break;
 
-    case Step::ReadData:
-        transmitBuffer_[0] = static_cast<std::uint8_t>(ReadFlag | DataRegister);
+    case Step::READ_DATA:
+        transmit_buffer_[0] = static_cast<std::uint8_t>(READ_FLAG | DATA_REGISTER);
         length = 8U;
         break;
     }
 
-    const platform::Spi::Result result = platform::Spi::StartTransferAsync(platform::Spi::Device::ImuAccelerometer,
-                                                                           transmitBuffer_.data(),
-                                                                           receiveBuffer_.data(),
+    const platform::Spi::Result result = platform::Spi::start_transfer_async(platform::Spi::Device::IMU_ACCELEROMETER,
+                                                                           transmit_buffer_.data(),
+                                                                           receive_buffer_.data(),
                                                                            length,
-                                                                           Bmi088Transfer::Complete,
+                                                                           Bmi088Transfer::complete,
                                                                            &completion_);
     switch (result)
     {
-    case platform::Spi::Result::Started:
-        transferActive_ = true;
+    case platform::Spi::Result::STARTED:
+        transfer_active_ = true;
         return;
 
-    case platform::Spi::Result::Busy:
+    case platform::Spi::Result::BUSY:
         return;
 
     default:
-        Fail();
+        fail();
         return;
     }
 }
 
-void Bmi088Accel::CompleteStep() noexcept
+void Bmi088Accel::complete_step() noexcept
 {
     switch (step_)
     {
-    case Step::CheckChipId:
-        if (receiveBuffer_[2] != ExpectedChipId)
+    case Step::CHECK_CHIP_ID:
+        if (receive_buffer_[2] != EXPECTED_CHIP_ID)
         {
-            ++chipIdAttempts_;
-            if (chipIdAttempts_ < ChipIdMaxAttempts)
+            ++chip_id_attempts_;
+            if (chip_id_attempts_ < CHIP_ID_MAX_ATTEMPTS)
             {
-                Advance(Step::CheckChipId, ChipIdRetryWaitMs);
+                advance(Step::CHECK_CHIP_ID, CHIP_ID_RETRY_WAIT_MS);
                 return;
             }
-            Fail();
+            fail();
             return;
         }
-        chipIdAttempts_ = 0U;
-        Advance(Step::WritePowerConf, 0U);
+        chip_id_attempts_ = 0U;
+        advance(Step::WRITE_POWER_CONF, 0U);
         return;
 
-    case Step::WritePowerConf:
-        Advance(Step::WritePowerCtrl, PowerConfSettleMs);
+    case Step::WRITE_POWER_CONF:
+        advance(Step::WRITE_POWER_CTRL, POWER_CONF_SETTLE_MS);
         return;
 
-    case Step::WritePowerCtrl:
-        Advance(Step::WriteRange, PowerCtrlSettleMs);
+    case Step::WRITE_POWER_CTRL:
+        advance(Step::WRITE_RANGE, POWER_CTRL_SETTLE_MS);
         return;
 
-    case Step::WriteRange:
-        Advance(Step::WriteConf, ConfigSettleMs);
+    case Step::WRITE_RANGE:
+        advance(Step::WRITE_CONF, CONFIG_SETTLE_MS);
         return;
 
-    case Step::WriteConf:
-        Advance(Step::WriteInterruptIo, ConfigSettleMs);
+    case Step::WRITE_CONF:
+        advance(Step::WRITE_INTERRUPT_IO, CONFIG_SETTLE_MS);
         return;
 
-    case Step::WriteInterruptIo:
-        Advance(Step::WriteInterruptMap, ConfigSettleMs);
+    case Step::WRITE_INTERRUPT_IO:
+        advance(Step::WRITE_INTERRUPT_MAP, CONFIG_SETTLE_MS);
         return;
 
-    case Step::WriteInterruptMap:
-        Advance(Step::VerifyCoreConfiguration, ConfVerifySettleMs);
+    case Step::WRITE_INTERRUPT_MAP:
+        advance(Step::VERIFY_CORE_CONFIGURATION, CONF_VERIFY_SETTLE_MS);
         return;
 
-    case Step::VerifyCoreConfiguration:
-        if (receiveBuffer_[2] != ConfRegisterValue || receiveBuffer_[3] != RangeRegisterValue)
+    case Step::VERIFY_CORE_CONFIGURATION:
+        if (receive_buffer_[2] != CONF_REGISTER_VALUE || receive_buffer_[3] != RANGE_REGISTER_VALUE)
         {
-            ++configurationVerifyAttempts_;
-            if (configurationVerifyAttempts_ < ConfigurationVerifyMaxAttempts)
+            ++configuration_verify_attempts_;
+            if (configuration_verify_attempts_ < CONFIGURATION_VERIFY_MAX_ATTEMPTS)
             {
-                Advance(Step::VerifyCoreConfiguration, ConfigurationVerifyRetryWaitMs);
+                advance(Step::VERIFY_CORE_CONFIGURATION, CONFIGURATION_VERIFY_RETRY_WAIT_MS);
                 return;
             }
-            Fail();
-            return;
-        }
-
-        Advance(Step::VerifyInterruptIo, 0U);
-        return;
-
-    case Step::VerifyInterruptIo:
-        if (receiveBuffer_[2] != Interrupt1OutputActiveHigh)
-        {
-            ++configurationVerifyAttempts_;
-            if (configurationVerifyAttempts_ < ConfigurationVerifyMaxAttempts)
-            {
-                Advance(Step::VerifyInterruptIo, ConfigurationVerifyRetryWaitMs);
-                return;
-            }
-            Fail();
-            return;
-        }
-        Advance(Step::VerifyInterruptMap, 0U);
-        return;
-
-    case Step::VerifyInterruptMap:
-        if (receiveBuffer_[2] != MapDataReadyToInterrupt1)
-        {
-            ++configurationVerifyAttempts_;
-            if (configurationVerifyAttempts_ < ConfigurationVerifyMaxAttempts)
-            {
-                Advance(Step::VerifyInterruptMap, ConfigurationVerifyRetryWaitMs);
-                return;
-            }
-            Fail();
+            fail();
             return;
         }
 
-        configurationVerifyAttempts_ = 0U;
-        state_ = State::Ready;
-        sampleValid_ = false;
-        Advance(Step::ReadData, 0U);
+        advance(Step::VERIFY_INTERRUPT_IO, 0U);
         return;
 
-    case Step::ReadData:
-        sample_.xAxis = static_cast<std::int16_t>(static_cast<std::uint16_t>(receiveBuffer_[2]) |
-                                                  (static_cast<std::uint16_t>(receiveBuffer_[3]) << 8U));
-        sample_.yAxis = static_cast<std::int16_t>(static_cast<std::uint16_t>(receiveBuffer_[4]) |
-                                                  (static_cast<std::uint16_t>(receiveBuffer_[5]) << 8U));
-        sample_.zAxis = static_cast<std::int16_t>(static_cast<std::uint16_t>(receiveBuffer_[6]) |
-                                                  (static_cast<std::uint16_t>(receiveBuffer_[7]) << 8U));
-        sampleValid_ = true;
-        ++readCount_;
+    case Step::VERIFY_INTERRUPT_IO:
+        if (receive_buffer_[2] != INTERRUPT1_OUTPUT_ACTIVE_HIGH)
+        {
+            ++configuration_verify_attempts_;
+            if (configuration_verify_attempts_ < CONFIGURATION_VERIFY_MAX_ATTEMPTS)
+            {
+                advance(Step::VERIFY_INTERRUPT_IO, CONFIGURATION_VERIFY_RETRY_WAIT_MS);
+                return;
+            }
+            fail();
+            return;
+        }
+        advance(Step::VERIFY_INTERRUPT_MAP, 0U);
+        return;
+
+    case Step::VERIFY_INTERRUPT_MAP:
+        if (receive_buffer_[2] != MAP_DATA_READY_TO_INTERRUPT1)
+        {
+            ++configuration_verify_attempts_;
+            if (configuration_verify_attempts_ < CONFIGURATION_VERIFY_MAX_ATTEMPTS)
+            {
+                advance(Step::VERIFY_INTERRUPT_MAP, CONFIGURATION_VERIFY_RETRY_WAIT_MS);
+                return;
+            }
+            fail();
+            return;
+        }
+
+        configuration_verify_attempts_ = 0U;
+        state_ = State::READY;
+        sample_valid_ = false;
+        advance(Step::READ_DATA, 0U);
+        return;
+
+    case Step::READ_DATA:
+        sample_.x_axis = static_cast<std::int16_t>(static_cast<std::uint16_t>(receive_buffer_[2]) |
+                                                  (static_cast<std::uint16_t>(receive_buffer_[3]) << 8U));
+        sample_.y_axis = static_cast<std::int16_t>(static_cast<std::uint16_t>(receive_buffer_[4]) |
+                                                  (static_cast<std::uint16_t>(receive_buffer_[5]) << 8U));
+        sample_.z_axis = static_cast<std::int16_t>(static_cast<std::uint16_t>(receive_buffer_[6]) |
+                                                  (static_cast<std::uint16_t>(receive_buffer_[7]) << 8U));
+        sample_valid_ = true;
+        ++read_count_;
         return;
     }
 }
 
-void Bmi088Accel::Advance(Step nextStep, std::uint32_t waitMs) noexcept
+void Bmi088Accel::advance(Step next_step, std::uint32_t wait_ms) noexcept
 {
-    step_ = nextStep;
-    stepWaitMs_ = waitMs;
-    stepTick_ = platform::Time::NowTicks();
+    step_ = next_step;
+    step_wait_ms_ = wait_ms;
+    step_tick_ = platform::Time::now_ticks();
 }
 
-void Bmi088Accel::Fail() noexcept
+void Bmi088Accel::fail() noexcept
 {
-    ++errorCount_;
-    state_ = State::Error;
-    transferActive_ = false;
+    ++error_count_;
+    state_ = State::ERROR;
+    transfer_active_ = false;
 }
 
 } // namespace device

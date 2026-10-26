@@ -29,25 +29,25 @@ namespace application::chassis
  *       写者设定（遥控/决策任务）。
  * @note 模式切换（含切回原模式）即复位全部 PID 并清零目标，积分不跨模式泄漏；
  *       电机离线、控制器禁用或 dt 非法时输出恒 0 并复位。
- * @note 限幅链：角度环与转速目标钳 `maxWheelSpeedRpm`（输出轴 rpm）；转速环输出
- *       钳 `speedLoop.Maxout`（电调/热限幅，N·m）；最终力矩统一钳
- *       `maxTorqueNewtonMeter`（策略总限幅，N·m）。两级限幅都不得超过电机实际
- *       能力（由任务层用 `MotorGroup::MaximumTorqueNewtonMeter()` 校验）。
- * @note `angleLoop.Maxout` 会被 `maxWheelSpeedRpm` 覆盖（外环输出限幅即内环目标上限）。
+ * @note 限幅链：角度环与转速目标钳 `max_wheel_speed_rpm`（输出轴 rpm）；转速环输出
+ *       钳 `speed_loop.Maxout`（电调/热限幅，N·m）；最终力矩统一钳
+ *       `max_torque_newton_meter`（策略总限幅，N·m）。两级限幅都不得超过电机实际
+ *       能力（由任务层用 `MotorGroup::maximum_torque_newton_meter()` 校验）。
+ * @note `angle_loop.Maxout` 会被 `max_wheel_speed_rpm` 覆盖（外环输出限幅即内环目标上限）。
  */
 class ChassisController final
 {
   public:
-    static constexpr std::size_t MotorCount{4U};
+    static constexpr std::size_t MOTOR_COUNT{4U};
 
     using WheelControlMode = component::AxisControlMode;
 
     struct Config final
     {
-        alg_controller::PID::Config speedLoop; // 输出轴 rpm → N·m
-        alg_controller::PID::Config angleLoop; // 输出轴 deg → rpm
-        float maxTorqueNewtonMeter{0.0F};      // 输出轴力矩总限幅
-        float maxWheelSpeedRpm{0.0F};          // 输出轴转速目标限幅
+        alg_controller::PID::Config speed_loop; // 输出轴 rpm → N·m
+        alg_controller::PID::Config angle_loop; // 输出轴 deg → rpm
+        float max_torque_newton_meter{0.0F};      // 输出轴力矩总限幅
+        float max_wheel_speed_rpm{0.0F};          // 输出轴转速目标限幅
     };
 
     ChassisController() noexcept = default;
@@ -56,67 +56,67 @@ class ChassisController final
    * @brief 校验配置并初始化全部 PID。
    * @return 配置全部有效时返回 true。
    */
-    [[nodiscard]] bool Init(const Config &config) noexcept;
+    [[nodiscard]] bool init(const Config &config) noexcept;
 
     /**
    * @brief 复位全部 PID 状态并清零目标，保留配置与模式。
    */
-    void Reset() noexcept;
+    void reset() noexcept;
 
-    void SetEnabled(bool enabled) noexcept;
+    void set_enabled(bool enabled) noexcept;
 
     /**
    * @brief 切换控制模式（含切回原模式）：复位全部 PID 并清零目标。
    */
-    void SetMode(WheelControlMode mode) noexcept;
+    void set_mode(WheelControlMode mode) noexcept;
 
     /**
    * @brief 设定单轮目标，语义随模式：Torque→N·m，Speed→输出轴 rpm，
    *        Angle→输出轴角度 deg。
    */
-    void SetWheelTarget(std::size_t wheel, float value) noexcept;
+    void set_wheel_target(std::size_t wheel, float value) noexcept;
 
     /**
    * @brief 命令下发失败时的统一处理：复位环并清空目标（底盘策略）。
-   * @note 与 `Reset()` 的区别：语义上属于"失败响应"，由任务层在 `SetTorque` 失败时
+   * @note 与 `Reset()` 的区别：语义上属于"失败响应"，由任务层在 `set_torque` 失败时
    *       调用；目标的清空意味着上层必须重新下发。
    */
-    void OnCommandFailure() noexcept;
+    void on_command_failure() noexcept;
 
-    [[nodiscard]] bool IsReady() const noexcept;
+    [[nodiscard]] bool is_ready() const noexcept;
 
-    [[nodiscard]] bool IsEnabled() const noexcept;
+    [[nodiscard]] bool is_enabled() const noexcept;
 
-    [[nodiscard]] WheelControlMode Mode() const noexcept;
+    [[nodiscard]] WheelControlMode mode() const noexcept;
 
-    [[nodiscard]] float WheelTarget(std::size_t wheel) const noexcept;
+    [[nodiscard]] float wheel_target(std::size_t wheel) const noexcept;
 
     /**
    * @brief 最近一次 Update 的控制器级状态（未就绪/未使能/步长非法/运行中）。
    */
-    [[nodiscard]] component::ControllerStatus GetStatus() const noexcept;
+    [[nodiscard]] component::ControllerStatus get_status() const noexcept;
 
     /**
    * @brief 最近一次 Update 的单轮状态，回答"这一轮输出为什么是 0（或为何是开环）"。
    * @return 下标合法返回 true 并写出状态。
    */
-    [[nodiscard]] bool GetAxisStatus(std::size_t wheel, component::AxisStatus &status) const noexcept;
+    [[nodiscard]] bool get_axis_status(std::size_t wheel, component::AxisStatus &status) const noexcept;
 
     /** @brief 累计 PID 拒绝计算（数值溢出）次数。 */
-    [[nodiscard]] std::uint32_t GetLoopFaultCount() const noexcept;
+    [[nodiscard]] std::uint32_t get_loop_fault_count() const noexcept;
 
     /**
    * @brief 推进一个控制周期，输出各电机输出轴力矩指令（N·m）。
    * @param snapshots 各电机遥测快照（下标即轮序，对应逻辑编号 0~3）。
    * @param dt 本周期时长（秒）。
-   * @param outTorqueNewtonMeter 输出力矩指令，恒为有限值。
+   * @param out_torque_newton_meter 输出力矩指令，恒为有限值。
    */
-    void Update(const device::MotorState (&snapshots)[MotorCount],
+    void update(const device::MotorState (&snapshots)[MOTOR_COUNT],
                 float dt,
-                float (&outTorqueNewtonMeter)[MotorCount]) noexcept;
+                float (&out_torque_newton_meter)[MOTOR_COUNT]) noexcept;
 
   private:
-    component::AxisController<MotorCount> axes_{};
+    component::AxisController<MOTOR_COUNT> axes_{};
 };
 
 } // namespace application::chassis

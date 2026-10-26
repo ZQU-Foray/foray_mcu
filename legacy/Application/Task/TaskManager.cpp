@@ -15,8 +15,8 @@ namespace application::task
 namespace
 {
 
-constexpr std::uint32_t ImuTaskStackSizeBytes{3072U};
-constexpr std::uint32_t TaskStackSizeBytes{4096U};
+constexpr std::uint32_t IMU_TASK_STACK_SIZE_BYTES{3072U};
+constexpr std::uint32_t TASK_STACK_SIZE_BYTES{4096U};
 
 /**
  * @brief 应用任务表条目：把"入口、属性、句柄落在哪里"绑定在一起。
@@ -30,217 +30,217 @@ struct TaskSpec final
     osThreadId_t *handle;
 };
 
-osThreadId_t imuTaskHandle{nullptr};
-osThreadId_t chassisTaskHandle{nullptr};
-osThreadId_t gimbalTaskHandle{nullptr};
+osThreadId_t g_imu_task_handle{nullptr};
+osThreadId_t g_chassis_task_handle{nullptr};
+osThreadId_t g_gimbal_task_handle{nullptr};
 
-const osThreadAttr_t imuTaskAttributes{
-    "imuTask", 0U, nullptr, 0U, nullptr, ImuTaskStackSizeBytes, osPriorityHigh, 0U, 0U};
-const osThreadAttr_t chassisTaskAttributes{
-    "chassisTask", 0U, nullptr, 0U, nullptr, TaskStackSizeBytes, osPriorityAboveNormal, 0U, 0U};
-const osThreadAttr_t gimbalTaskAttributes{
-    "gimbalTask", 0U, nullptr, 0U, nullptr, TaskStackSizeBytes, osPriorityNormal, 0U, 0U};
+const osThreadAttr_t IMU_TASK_ATTRIBUTES{
+    "imuTask", 0U, nullptr, 0U, nullptr, IMU_TASK_STACK_SIZE_BYTES, osPriorityHigh, 0U, 0U};
+const osThreadAttr_t CHASSIS_TASK_ATTRIBUTES{
+    "chassisTask", 0U, nullptr, 0U, nullptr, TASK_STACK_SIZE_BYTES, osPriorityAboveNormal, 0U, 0U};
+const osThreadAttr_t GIMBAL_TASK_ATTRIBUTES{
+    "gimbalTask", 0U, nullptr, 0U, nullptr, TASK_STACK_SIZE_BYTES, osPriorityNormal, 0U, 0U};
 
-constexpr std::size_t TaskCount{3U};
-const TaskSpec taskSpecs[TaskCount]{
-    {"imuTask", &ImuTask::Run, &imuTaskAttributes, &imuTaskHandle},
-    {"chassisTask", &ChassisTask::Run, &chassisTaskAttributes, &chassisTaskHandle},
-    {"gimbalTask", &GimbalTask::Run, &gimbalTaskAttributes, &gimbalTaskHandle},
+constexpr std::size_t TASK_COUNT{3U};
+const TaskSpec TASK_SPECS[TASK_COUNT]{
+    {"imuTask", &ImuTask::run, &IMU_TASK_ATTRIBUTES, &g_imu_task_handle},
+    {"chassisTask", &ChassisTask::run, &CHASSIS_TASK_ATTRIBUTES, &g_chassis_task_handle},
+    {"gimbalTask", &GimbalTask::run, &GIMBAL_TASK_ATTRIBUTES, &g_gimbal_task_handle},
 };
 
 static_assert(static_cast<int>(osPriorityHigh) > static_cast<int>(osPriorityAboveNormal) &&
                   static_cast<int>(osPriorityAboveNormal) > static_cast<int>(osPriorityNormal),
               "任务优先级次序必须保持 IMU > 底盘 > 云台");
 
-TaskManager::State managerState{TaskManager::State::Uninitialized};
-TaskManager::RtosInitTiming rtosInitTiming{TaskManager::RtosInitTiming::None};
-TaskManager::FailureStage failureStage{TaskManager::FailureStage::None};
-std::uint32_t createdTaskCount{0U};
-std::uint32_t startRefusedCount{0U};
+TaskManager::State g_manager_state{TaskManager::State::UNINITIALIZED};
+TaskManager::RtosInitTiming g_rtos_init_timing{TaskManager::RtosInitTiming::NONE};
+TaskManager::FailureStage g_failure_stage{TaskManager::FailureStage::NONE};
+std::uint32_t g_created_task_count{0U};
+std::uint32_t g_start_refused_count{0U};
 
 // 栈余量巡检：1 Hz 限频，快照写入外部链接的 volatile 存档，调试器与验收脚本
 // 可直接按符号读取（与 AttitudeEstimator 的存档同一模式）。
-constexpr std::uint32_t StackHealthSamplePeriodMs{1000U};
-// 告警阈值：剩余不足 256 B 时置位 lowMarginTaskIndex，提示余量已进危险区。
-constexpr std::uint32_t StackHealthWarningFreeWords{64U};
-std::uint32_t stackHealthSampleCount{0U};
-platform::Time::Tick lastStackHealthTick{0U};
-bool stackHealthAnchored{false};
+constexpr std::uint32_t STACK_HEALTH_SAMPLE_PERIOD_MS{1000U};
+// 告警阈值：剩余不足 256 B 时置位 low_margin_task_index，提示余量已进危险区。
+constexpr std::uint32_t STACK_HEALTH_WARNING_FREE_WORDS{64U};
+std::uint32_t g_stack_health_sample_count{0U};
+platform::Time::Tick g_last_stack_health_tick{0U};
+bool g_stack_health_anchored{false};
 
 /** @brief 记录失败环节并进入不可自动恢复的 Error 状态。 */
-void EnterError(TaskManager::FailureStage stage) noexcept
+void enter_error(TaskManager::FailureStage stage) noexcept
 {
-    failureStage = stage;
-    managerState = TaskManager::State::Error;
+    g_failure_stage = stage;
+    g_manager_state = TaskManager::State::ERROR;
 }
 
 } // namespace
 
-volatile TaskManager::StackHealth stackHealthArchive{};
+volatile TaskManager::StackHealth g_stack_health_archive{};
 
-bool TaskManager::Init() noexcept
+bool TaskManager::init() noexcept
 {
-    if (managerState == State::PreKernelReady || managerState == State::RtosReady || managerState == State::Running)
+    if (g_manager_state == State::PRE_KERNEL_READY || g_manager_state == State::RTOS_READY || g_manager_state == State::RUNNING)
     {
         return true;
     }
-    if (managerState == State::Error)
+    if (g_manager_state == State::ERROR)
     {
         return false;
     }
 
     // 三个任务都以 DWT 时基为 dt 来源：时基不可用时任务会在每拍判 dt 非法并静默
     // 输出零力矩，必须在启动路径上直接拦住。
-    if (!platform::Time::IsReady())
+    if (!platform::Time::is_ready())
     {
-        EnterError(FailureStage::Platform);
+        enter_error(FailureStage::PLATFORM);
         return false;
     }
 
     // 按任务表依次初始化各任务的非 RTOS 部分。
-    if (!ImuTask::Init())
+    if (!ImuTask::init())
     {
-        EnterError(FailureStage::ImuTask);
+        enter_error(FailureStage::IMU_TASK);
         return false;
     }
-    if (!ChassisTask::Init())
+    if (!ChassisTask::init())
     {
-        EnterError(FailureStage::ChassisTask);
+        enter_error(FailureStage::CHASSIS_TASK);
         return false;
     }
-    if (!GimbalTask::Init())
+    if (!GimbalTask::init())
     {
-        EnterError(FailureStage::GimbalTask);
+        enter_error(FailureStage::GIMBAL_TASK);
         return false;
     }
 
-    managerState = State::PreKernelReady;
+    g_manager_state = State::PRE_KERNEL_READY;
     return true;
 }
 
-bool TaskManager::InitRtos() noexcept
+bool TaskManager::init_rtos() noexcept
 {
-    if (managerState == State::RtosReady || managerState == State::Running)
+    if (g_manager_state == State::RTOS_READY || g_manager_state == State::RUNNING)
     {
         return true;
     }
-    if (!Init())
+    if (!init())
     {
         return false;
     }
 
-    // 记录创建时机：PreKernel 是设计口径，PostKernel 说明启动路径少接了一个入口。
-    rtosInitTiming = (osKernelGetState() == osKernelRunning) ? RtosInitTiming::PostKernel : RtosInitTiming::PreKernel;
+    // 记录创建时机：PRE_KERNEL 是设计口径，POST_KERNEL 说明启动路径少接了一个入口。
+    g_rtos_init_timing = (osKernelGetState() == osKernelRunning) ? RtosInitTiming::POST_KERNEL : RtosInitTiming::PRE_KERNEL;
 
-    for (std::size_t index = 0U; index < TaskCount; ++index)
+    for (std::size_t index = 0U; index < TASK_COUNT; ++index)
     {
-        *taskSpecs[index].handle = osThreadNew(taskSpecs[index].entry, nullptr, taskSpecs[index].attributes);
-        if (*taskSpecs[index].handle == nullptr)
+        *TASK_SPECS[index].handle = osThreadNew(TASK_SPECS[index].entry, nullptr, TASK_SPECS[index].attributes);
+        if (*TASK_SPECS[index].handle == nullptr)
         {
             // 已创建的线程不在此处回收：进入 Error 后由上层在启动日志中看到失败环节，
             // 且不再推进到 Running，任务表不会以"部分就绪"的形态运行。
-            EnterError(FailureStage::ThreadCreation);
+            enter_error(FailureStage::THREAD_CREATION);
             return false;
         }
-        ++createdTaskCount;
+        ++g_created_task_count;
     }
 
-    managerState = State::RtosReady;
+    g_manager_state = State::RTOS_READY;
     return true;
 }
 
-bool TaskManager::Start() noexcept
+bool TaskManager::start() noexcept
 {
-    if (managerState == State::Running)
+    if (g_manager_state == State::RUNNING)
     {
         return true;
     }
-    if (managerState != State::RtosReady || osKernelGetState() != osKernelRunning)
+    if (g_manager_state != State::RTOS_READY || osKernelGetState() != osKernelRunning)
     {
-        ++startRefusedCount;
+        ++g_start_refused_count;
         return false;
     }
 
-    managerState = State::Running;
+    g_manager_state = State::RUNNING;
     return true;
 }
 
-TaskManager::State TaskManager::GetState() noexcept
+TaskManager::State TaskManager::get_state() noexcept
 {
-    return managerState;
+    return g_manager_state;
 }
 
-TaskManager::Diagnostics TaskManager::GetDiagnostics() noexcept
+TaskManager::Diagnostics TaskManager::get_diagnostics() noexcept
 {
     Diagnostics diagnostics{};
-    diagnostics.state = managerState;
-    diagnostics.rtosInitTiming = rtosInitTiming;
-    diagnostics.failure = failureStage;
-    diagnostics.expectedTaskCount = static_cast<std::uint32_t>(TaskCount);
-    diagnostics.createdTaskCount = createdTaskCount;
-    diagnostics.startRefusedCount = startRefusedCount;
+    diagnostics.state = g_manager_state;
+    diagnostics.rtos_init_timing = g_rtos_init_timing;
+    diagnostics.failure = g_failure_stage;
+    diagnostics.expected_task_count = static_cast<std::uint32_t>(TASK_COUNT);
+    diagnostics.created_task_count = g_created_task_count;
+    diagnostics.start_refused_count = g_start_refused_count;
     return diagnostics;
 }
 
-void TaskManager::SampleStackHealth() noexcept
+void TaskManager::sample_stack_health() noexcept
 {
     // 任务表就绪前没有句柄可查，也不算一次采样。
-    if (managerState != State::Running || createdTaskCount == 0U)
+    if (g_manager_state != State::RUNNING || g_created_task_count == 0U)
     {
         return;
     }
 
-    const platform::Time::Tick now = platform::Time::NowTicks();
-    if (stackHealthAnchored && !platform::Time::HasElapsedMs(lastStackHealthTick, StackHealthSamplePeriodMs))
+    const platform::Time::Tick now = platform::Time::now_ticks();
+    if (g_stack_health_anchored && !platform::Time::has_elapsed_ms(g_last_stack_health_tick, STACK_HEALTH_SAMPLE_PERIOD_MS))
     {
         return; // 限频：调用方可以每拍调用
     }
-    stackHealthAnchored = true;
-    lastStackHealthTick = now;
+    g_stack_health_anchored = true;
+    g_last_stack_health_tick = now;
 
     StackHealth health{};
-    health.minimumFreeWords = UINT32_MAX;
-    health.lowMarginTaskIndex = MarginOkIndex;
-    for (std::size_t index = 0U; index < TaskCount && index < MaximumSampledTasks; ++index)
+    health.minimum_free_words = UINT32_MAX;
+    health.low_margin_task_index = MARGIN_OK_INDEX;
+    for (std::size_t index = 0U; index < TASK_COUNT && index < MAXIMUM_SAMPLED_TASKS; ++index)
     {
-        const osThreadId_t handle = *taskSpecs[index].handle;
+        const osThreadId_t handle = *TASK_SPECS[index].handle;
         if (handle == nullptr)
         {
             continue;
         }
-        const UBaseType_t freeWords = uxTaskGetStackHighWaterMark(reinterpret_cast<TaskHandle_t>(handle));
-        health.freeWords[index] = static_cast<std::uint32_t>(freeWords);
-        ++health.sampledTaskCount;
-        if (health.freeWords[index] < health.minimumFreeWords)
+        const UBaseType_t free_words = uxTaskGetStackHighWaterMark(reinterpret_cast<TaskHandle_t>(handle));
+        health.free_words[index] = static_cast<std::uint32_t>(free_words);
+        ++health.sampled_task_count;
+        if (health.free_words[index] < health.minimum_free_words)
         {
-            health.minimumFreeWords = health.freeWords[index];
-            health.lowMarginTaskIndex = static_cast<std::uint32_t>(index);
+            health.minimum_free_words = health.free_words[index];
+            health.low_margin_task_index = static_cast<std::uint32_t>(index);
         }
     }
-    if (health.sampledTaskCount == 0U)
+    if (health.sampled_task_count == 0U)
     {
         return; // 没有可查句柄：不发布误导性的全零快照
     }
-    if (health.minimumFreeWords >= StackHealthWarningFreeWords)
+    if (health.minimum_free_words >= STACK_HEALTH_WARNING_FREE_WORDS)
     {
-        health.lowMarginTaskIndex = MarginOkIndex;
+        health.low_margin_task_index = MARGIN_OK_INDEX;
     }
-    health.sampleCount = ++stackHealthSampleCount;
+    health.sample_count = ++g_stack_health_sample_count;
 
     // 整字拷贝发布：读侧（调试器）可能随时读取，不追求原子性，只保证布局与快照一致。
     static_assert((sizeof(StackHealth) % sizeof(std::uint32_t)) == 0U, "栈余量快照必须可按 32 位整字拷贝");
     const std::uint32_t *source = reinterpret_cast<const std::uint32_t *>(&health);
-    volatile std::uint32_t *target = reinterpret_cast<volatile std::uint32_t *>(&stackHealthArchive);
+    volatile std::uint32_t *target = reinterpret_cast<volatile std::uint32_t *>(&g_stack_health_archive);
     for (std::size_t index = 0U; index < sizeof(health) / sizeof(std::uint32_t); ++index)
     {
         target[index] = source[index];
     }
 }
 
-TaskManager::StackHealth TaskManager::GetStackHealth() noexcept
+TaskManager::StackHealth TaskManager::get_stack_health() noexcept
 {
     StackHealth health{};
-    const volatile std::uint32_t *source = reinterpret_cast<const volatile std::uint32_t *>(&stackHealthArchive);
+    const volatile std::uint32_t *source = reinterpret_cast<const volatile std::uint32_t *>(&g_stack_health_archive);
     std::uint32_t *target = reinterpret_cast<std::uint32_t *>(&health);
     for (std::size_t index = 0U; index < sizeof(health) / sizeof(std::uint32_t); ++index)
     {

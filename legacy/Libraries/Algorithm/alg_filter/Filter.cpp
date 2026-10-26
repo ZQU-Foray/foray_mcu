@@ -6,34 +6,34 @@ namespace alg_filter
 {
 namespace
 {
-constexpr float pi = 3.14159265358979f;
-constexpr float twoPi = 6.28318530718f;
-constexpr float sqrt2 = 1.41421356237f;
+constexpr float PI = 3.14159265358979f;
+constexpr float TWO_PI = 6.28318530718f;
+constexpr float SQRT2 = 1.41421356237f;
 
-bool IsValidCutoff(float cutoffFreq, float dt)
+bool is_valid_cutoff(float cutoff_freq, float dt)
 {
-    return std::isfinite(cutoffFreq) && std::isfinite(dt) && cutoffFreq > 0.0f && dt > 0.0f && cutoffFreq * dt < 0.5f;
+    return std::isfinite(cutoff_freq) && std::isfinite(dt) && cutoff_freq > 0.0f && dt > 0.0f && cutoff_freq * dt < 0.5f;
 }
 } // namespace
 
-bool ButterworthFilter::Init(const Config &config)
+bool ButterworthFilter::init(const Config &config)
 {
-    Cfg = Config{};
-    for (float &param : Param)
+    cfg_ = Config{};
+    for (float &param : param_)
     {
         param = 0.0f;
     }
-    Initialized = false;
-    Reset();
+    initialized_ = false;
+    reset();
 
-    if (!IsValidCutoff(config.CutoffFreq, config.Dt))
+    if (!is_valid_cutoff(config.cutoff_freq, config.dt))
     {
         return false;
     }
 
-    const float k = std::tan(pi * config.CutoffFreq * config.Dt);
+    const float k = std::tan(PI * config.cutoff_freq * config.dt);
     const float k2 = k * k;
-    const float denominator = 1.0f + sqrt2 * k + k2;
+    const float denominator = 1.0f + SQRT2 * k + k2;
     if (!std::isfinite(k) || !std::isfinite(denominator) || denominator <= 0.0f)
     {
         return false;
@@ -44,7 +44,7 @@ bool ButterworthFilter::Init(const Config &config)
     param[1] = 2.0f * param[0];
     param[2] = param[0];
     param[3] = 2.0f * (k2 - 1.0f) / denominator;
-    param[4] = (1.0f - sqrt2 * k + k2) / denominator;
+    param[4] = (1.0f - SQRT2 * k + k2) / denominator;
 
     for (uint8_t i = 0; i < 5; i++)
     {
@@ -52,294 +52,294 @@ bool ButterworthFilter::Init(const Config &config)
         {
             return false;
         }
-        Param[i] = param[i];
+        param_[i] = param[i];
     }
 
-    Cfg = config;
-    Initialized = true;
+    cfg_ = config;
+    initialized_ = true;
     return true;
 }
 
-float ButterworthFilter::Calc(float input)
+float ButterworthFilter::calc(float input)
 {
-    if (!Initialized || !std::isfinite(input))
+    if (!initialized_ || !std::isfinite(input))
     {
-        return State[2];
+        return state_[2];
     }
 
     const float output =
-        Param[0] * input + Param[1] * State[0] + Param[2] * State[1] - Param[3] * State[2] - Param[4] * State[3];
+        param_[0] * input + param_[1] * state_[0] + param_[2] * state_[1] - param_[3] * state_[2] - param_[4] * state_[3];
     if (!std::isfinite(output))
     {
-        return State[2];
+        return state_[2];
     }
 
-    State[3] = State[2];
-    State[2] = output;
-    State[1] = State[0];
-    State[0] = input;
+    state_[3] = state_[2];
+    state_[2] = output;
+    state_[1] = state_[0];
+    state_[0] = input;
     return output;
 }
 
-void ButterworthFilter::Reset()
+void ButterworthFilter::reset()
 {
-    for (float &state : State)
+    for (float &state : state_)
     {
         state = 0.0f;
     }
 }
 
-bool ButterworthFilter::IsInitialized() const
+bool ButterworthFilter::is_initialized() const
 {
-    return Initialized;
+    return initialized_;
 }
 
-bool LowPassFilter::Init(const Config &config)
+bool LowPassFilter::init(const Config &config)
 {
-    Cfg = Config{};
-    Alpha = 0.0f;
-    Initialized = false;
-    Reset();
+    cfg_ = Config{};
+    alpha_ = 0.0f;
+    initialized_ = false;
+    reset();
 
-    if (!IsValidCutoff(config.CutoffFreq, config.Dt))
+    if (!is_valid_cutoff(config.cutoff_freq, config.dt))
     {
         return false;
     }
 
-    const float alpha = config.Dt / (1.0f / (twoPi * config.CutoffFreq) + config.Dt);
+    const float alpha = config.dt / (1.0f / (TWO_PI * config.cutoff_freq) + config.dt);
     if (!std::isfinite(alpha) || alpha <= 0.0f || alpha >= 1.0f)
     {
         return false;
     }
 
-    Cfg = config;
-    Alpha = alpha;
-    Initialized = true;
+    cfg_ = config;
+    alpha_ = alpha;
+    initialized_ = true;
     return true;
 }
 
-float LowPassFilter::Calc(float input)
+float LowPassFilter::calc(float input)
 {
-    if (!Initialized || !std::isfinite(input))
+    if (!initialized_ || !std::isfinite(input))
     {
-        return Output;
+        return output_;
     }
 
-    const float output = Alpha * input + (1.0f - Alpha) * Output;
+    const float output = alpha_ * input + (1.0f - alpha_) * output_;
     if (std::isfinite(output))
     {
-        Output = output;
+        output_ = output;
     }
-    return Output;
+    return output_;
 }
 
-void LowPassFilter::Reset()
+void LowPassFilter::reset()
 {
-    Output = 0.0f;
+    output_ = 0.0f;
 }
 
-bool LowPassFilter::IsInitialized() const
+bool LowPassFilter::is_initialized() const
 {
-    return Initialized;
+    return initialized_;
 }
 
-bool HighPassFilter::Init(const Config &config)
+bool HighPassFilter::init(const Config &config)
 {
-    Cfg = Config{};
-    Alpha = 0.0f;
-    Initialized = false;
-    Reset();
+    cfg_ = Config{};
+    alpha_ = 0.0f;
+    initialized_ = false;
+    reset();
 
-    if (!IsValidCutoff(config.CutoffFreq, config.Dt))
+    if (!is_valid_cutoff(config.cutoff_freq, config.dt))
     {
         return false;
     }
 
-    const float alpha = 1.0f / (1.0f + twoPi * config.CutoffFreq * config.Dt);
+    const float alpha = 1.0f / (1.0f + TWO_PI * config.cutoff_freq * config.dt);
     if (!std::isfinite(alpha) || alpha <= 0.0f || alpha >= 1.0f)
     {
         return false;
     }
 
-    Cfg = config;
-    Alpha = alpha;
-    Initialized = true;
+    cfg_ = config;
+    alpha_ = alpha;
+    initialized_ = true;
     return true;
 }
 
-float HighPassFilter::Calc(float input)
+float HighPassFilter::calc(float input)
 {
-    if (!Initialized || !std::isfinite(input))
+    if (!initialized_ || !std::isfinite(input))
     {
-        return Output;
+        return output_;
     }
 
-    const float output = Alpha * (Output + input - LastInput);
+    const float output = alpha_ * (output_ + input - last_input_);
     if (!std::isfinite(output))
     {
-        return Output;
+        return output_;
     }
 
-    LastInput = input;
-    Output = output;
-    return Output;
+    last_input_ = input;
+    output_ = output;
+    return output_;
 }
 
-void HighPassFilter::Reset()
+void HighPassFilter::reset()
 {
-    LastInput = 0.0f;
-    Output = 0.0f;
+    last_input_ = 0.0f;
+    output_ = 0.0f;
 }
 
-bool HighPassFilter::IsInitialized() const
+bool HighPassFilter::is_initialized() const
 {
-    return Initialized;
+    return initialized_;
 }
 
-bool BandPassFilter::Init(const Config &config)
+bool BandPassFilter::init(const Config &config)
 {
-    Cfg = Config{};
-    HpAlpha = 0.0f;
-    LpAlpha = 0.0f;
-    Initialized = false;
-    Reset();
+    cfg_ = Config{};
+    hp_alpha_ = 0.0f;
+    lp_alpha_ = 0.0f;
+    initialized_ = false;
+    reset();
 
-    if (!IsValidCutoff(config.LowCutoff, config.Dt) || !IsValidCutoff(config.HighCutoff, config.Dt) ||
-        config.HighCutoff <= config.LowCutoff)
+    if (!is_valid_cutoff(config.low_cutoff, config.dt) || !is_valid_cutoff(config.high_cutoff, config.dt) ||
+        config.high_cutoff <= config.low_cutoff)
     {
         return false;
     }
 
-    const float hpAlpha = 1.0f / (1.0f + twoPi * config.LowCutoff * config.Dt);
-    const float lpAlpha = config.Dt / (1.0f / (twoPi * config.HighCutoff) + config.Dt);
-    if (!std::isfinite(hpAlpha) || !std::isfinite(lpAlpha) || hpAlpha <= 0.0f || hpAlpha >= 1.0f || lpAlpha <= 0.0f ||
-        lpAlpha >= 1.0f)
+    const float hp_alpha = 1.0f / (1.0f + TWO_PI * config.low_cutoff * config.dt);
+    const float lp_alpha = config.dt / (1.0f / (TWO_PI * config.high_cutoff) + config.dt);
+    if (!std::isfinite(hp_alpha) || !std::isfinite(lp_alpha) || hp_alpha <= 0.0f || hp_alpha >= 1.0f || lp_alpha <= 0.0f ||
+        lp_alpha >= 1.0f)
     {
         return false;
     }
 
-    Cfg = config;
-    HpAlpha = hpAlpha;
-    LpAlpha = lpAlpha;
-    Initialized = true;
+    cfg_ = config;
+    hp_alpha_ = hp_alpha;
+    lp_alpha_ = lp_alpha;
+    initialized_ = true;
     return true;
 }
 
-float BandPassFilter::Calc(float input)
+float BandPassFilter::calc(float input)
 {
-    if (!Initialized || !std::isfinite(input))
+    if (!initialized_ || !std::isfinite(input))
     {
-        return LpOutput;
+        return lp_output_;
     }
 
-    const float hpOutput = HpAlpha * (HpOutput + input - HpLastInput);
-    const float lpOutput = LpAlpha * hpOutput + (1.0f - LpAlpha) * LpOutput;
-    if (!std::isfinite(hpOutput) || !std::isfinite(lpOutput))
+    const float hp_output = hp_alpha_ * (hp_output_ + input - hp_last_input_);
+    const float lp_output = lp_alpha_ * hp_output + (1.0f - lp_alpha_) * lp_output_;
+    if (!std::isfinite(hp_output) || !std::isfinite(lp_output))
     {
-        return LpOutput;
+        return lp_output_;
     }
 
-    HpLastInput = input;
-    HpOutput = hpOutput;
-    LpOutput = lpOutput;
-    return LpOutput;
+    hp_last_input_ = input;
+    hp_output_ = hp_output;
+    lp_output_ = lp_output;
+    return lp_output_;
 }
 
-void BandPassFilter::Reset()
+void BandPassFilter::reset()
 {
-    HpLastInput = 0.0f;
-    HpOutput = 0.0f;
-    LpOutput = 0.0f;
+    hp_last_input_ = 0.0f;
+    hp_output_ = 0.0f;
+    lp_output_ = 0.0f;
 }
 
-bool BandPassFilter::IsInitialized() const
+bool BandPassFilter::is_initialized() const
 {
-    return Initialized;
+    return initialized_;
 }
 
-bool MovingAvgFilter::Init(const Config &config)
+bool MovingAvgFilter::init(const Config &config)
 {
-    Cfg = Config{};
-    Initialized = false;
-    Reset();
+    cfg_ = Config{};
+    initialized_ = false;
+    reset();
 
-    if (config.WindowSize == 0 || config.WindowSize > maxWindow)
+    if (config.window_size == 0 || config.window_size > MAX_WINDOW)
     {
         return false;
     }
 
-    Cfg = config;
-    Initialized = true;
+    cfg_ = config;
+    initialized_ = true;
     return true;
 }
 
-float MovingAvgFilter::Calc(float input)
+float MovingAvgFilter::calc(float input)
 {
-    if (!Initialized || !std::isfinite(input))
+    if (!initialized_ || !std::isfinite(input))
     {
-        return (Count == 0) ? 0.0f : Sum / static_cast<float>(Count);
+        return (count_ == 0) ? 0.0f : sum_ / static_cast<float>(count_);
     }
 
-    const float sum = Sum + input - Buf[Index];
+    const float sum = sum_ + input - buf_[index_];
     if (!std::isfinite(sum))
     {
-        return (Count == 0) ? 0.0f : Sum / static_cast<float>(Count);
+        return (count_ == 0) ? 0.0f : sum_ / static_cast<float>(count_);
     }
 
-    Sum = sum;
-    Buf[Index] = input;
-    Index = (Index + 1U) % Cfg.WindowSize;
-    if (Count < Cfg.WindowSize)
+    sum_ = sum;
+    buf_[index_] = input;
+    index_ = (index_ + 1U) % cfg_.window_size;
+    if (count_ < cfg_.window_size)
     {
-        Count++;
+        count_++;
     }
-    return Sum / static_cast<float>(Count);
+    return sum_ / static_cast<float>(count_);
 }
 
-void MovingAvgFilter::Reset()
+void MovingAvgFilter::reset()
 {
-    for (float &value : Buf)
+    for (float &value : buf_)
     {
         value = 0.0f;
     }
-    Sum = 0.0f;
-    Count = 0;
-    Index = 0;
+    sum_ = 0.0f;
+    count_ = 0;
+    index_ = 0;
 }
 
-bool MovingAvgFilter::IsInitialized() const
+bool MovingAvgFilter::is_initialized() const
 {
-    return Initialized;
+    return initialized_;
 }
 
-float AverageFilter::Calc(float input)
+float AverageFilter::calc(float input)
 {
     if (!std::isfinite(input))
     {
-        return (Count == 0) ? 0.0f : Sum / static_cast<float>(Count);
+        return (count_ == 0) ? 0.0f : sum_ / static_cast<float>(count_);
     }
 
-    if (Count == std::numeric_limits<uint32_t>::max())
+    if (count_ == std::numeric_limits<uint32_t>::max())
     {
-        Sum *= 0.5f;
-        Count /= 2U;
+        sum_ *= 0.5f;
+        count_ /= 2U;
     }
 
-    const float sum = Sum + input;
+    const float sum = sum_ + input;
     if (!std::isfinite(sum))
     {
-        return (Count == 0) ? 0.0f : Sum / static_cast<float>(Count);
+        return (count_ == 0) ? 0.0f : sum_ / static_cast<float>(count_);
     }
 
-    Sum = sum;
-    Count++;
-    return Sum / static_cast<float>(Count);
+    sum_ = sum;
+    count_++;
+    return sum_ / static_cast<float>(count_);
 }
 
-void AverageFilter::Reset()
+void AverageFilter::reset()
 {
-    Sum = 0.0f;
-    Count = 0;
+    sum_ = 0.0f;
+    count_ = 0;
 }
 
 } // namespace alg_filter

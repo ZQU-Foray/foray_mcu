@@ -12,39 +12,39 @@ namespace platform
 class Can final
 {
   public:
-    static constexpr std::size_t MaxDataLength = CAN_PORT_MAX_DATA_LENGTH;
+    static constexpr std::size_t MAX_DATA_LENGTH = CAN_PORT_MAX_DATA_LENGTH;
 
     enum class Channel : std::uint8_t
     {
-        Channel1 = CAN_PORT_CHANNEL_1,
-        Channel2 = CAN_PORT_CHANNEL_2,
-        Channel3 = CAN_PORT_CHANNEL_3
+        CHANNEL_1 = CAN_PORT_CHANNEL_1,
+        CHANNEL_2 = CAN_PORT_CHANNEL_2,
+        CHANNEL_3 = CAN_PORT_CHANNEL_3
     };
 
     enum class IdentifierType : std::uint8_t
     {
-        Standard = CAN_PORT_IDENTIFIER_STANDARD,
-        Extended = CAN_PORT_IDENTIFIER_EXTENDED
+        STANDARD = CAN_PORT_IDENTIFIER_STANDARD,
+        EXTENDED = CAN_PORT_IDENTIFIER_EXTENDED
     };
 
     enum class SendResult : std::uint8_t
     {
-        Queued = CAN_PORT_SEND_QUEUED,
-        QueueFull = CAN_PORT_SEND_QUEUE_FULL,
-        NotReady = CAN_PORT_SEND_NOT_READY,
-        BusOff = CAN_PORT_SEND_BUS_OFF,
-        InvalidArgument = CAN_PORT_SEND_INVALID_ARGUMENT,
-        Error = CAN_PORT_SEND_ERROR
+        QUEUED = CAN_PORT_SEND_QUEUED,
+        QUEUE_FULL = CAN_PORT_SEND_QUEUE_FULL,
+        NOT_READY = CAN_PORT_SEND_NOT_READY,
+        BUS_OFF = CAN_PORT_SEND_BUS_OFF,
+        INVALID_ARGUMENT = CAN_PORT_SEND_INVALID_ARGUMENT,
+        ERROR = CAN_PORT_SEND_ERROR
     };
 
     enum class ReceiveResult : std::uint8_t
     {
-        Received = CAN_PORT_RECEIVE_RECEIVED,
-        Empty = CAN_PORT_RECEIVE_EMPTY,
-        NotReady = CAN_PORT_RECEIVE_NOT_READY,
-        BusOff = CAN_PORT_RECEIVE_BUS_OFF,
-        InvalidArgument = CAN_PORT_RECEIVE_INVALID_ARGUMENT,
-        Error = CAN_PORT_RECEIVE_ERROR
+        RECEIVED = CAN_PORT_RECEIVE_RECEIVED,
+        EMPTY = CAN_PORT_RECEIVE_EMPTY,
+        NOT_READY = CAN_PORT_RECEIVE_NOT_READY,
+        BUS_OFF = CAN_PORT_RECEIVE_BUS_OFF,
+        INVALID_ARGUMENT = CAN_PORT_RECEIVE_INVALID_ARGUMENT,
+        ERROR = CAN_PORT_RECEIVE_ERROR
     };
 
     using ReceiveNotification = CanPort_ReceiveNotification;
@@ -52,16 +52,16 @@ class Can final
     struct Frame final
     {
         std::uint32_t identifier{0U};
-        IdentifierType identifierType{IdentifierType::Standard};
+        IdentifierType identifier_type{IdentifierType::STANDARD};
         std::uint8_t length{0U};
-        std::array<std::uint8_t, MaxDataLength> data{};
+        std::array<std::uint8_t, MAX_DATA_LENGTH> data{};
     };
 
     struct Statistics final
     {
-        std::uint32_t rxDroppedCount{0U};
-        std::uint32_t rxHardwareLossEventCount{0U};
-        std::uint32_t busOffCount{0U};
+        std::uint32_t rx_dropped_count{0U};
+        std::uint32_t rx_hardware_loss_event_count{0U};
+        std::uint32_t bus_off_count{0U};
     };
 
     /**
@@ -74,28 +74,28 @@ class Can final
    * @param channel 要查询的逻辑通道。
    * @return 通道有效、底层控制器已启动且未处于 Bus-Off 时返回 true。
    */
-    [[nodiscard]] static bool IsReady(Channel channel) noexcept
+    [[nodiscard]] static bool is_ready(Channel channel) noexcept
     {
-        return CanPort_IsReady(ToPortChannel(channel));
+        return CanPort_IsReady(to_port_channel(channel));
     }
 
     /**
    * @brief 配置指定通道允许接收的标准帧标识符范围。
    * @param channel 要配置的逻辑通道。
    * @param enabled 为 true 时启用范围过滤，为 false 时禁用标准帧接收。
-   * @param firstIdentifier 允许接收的最小标准标识符。
-   * @param lastIdentifier 允许接收的最大标准标识符。
+   * @param first_identifier 允许接收的最小标准标识符。
+   * @param last_identifier 允许接收的最大标准标识符。
    * @return 参数有效且底层过滤器配置成功时返回 true。
    * @note 应由单一控制任务串行调用，标识符范围必须位于 0x000 至 0x7FF。
    * @note MAY 能力：Port 可能返回
    * false（未实现），此时接收全部标准帧，业务须自行软件过滤。
    */
-    [[nodiscard]] static bool ConfigureStandardReceiveFilter(Channel channel,
+    [[nodiscard]] static bool configure_standard_receive_filter(Channel channel,
                                                              bool enabled,
-                                                             std::uint32_t firstIdentifier,
-                                                             std::uint32_t lastIdentifier) noexcept
+                                                             std::uint32_t first_identifier,
+                                                             std::uint32_t last_identifier) noexcept
     {
-        return CanPort_ConfigureStandardReceiveFilter(ToPortChannel(channel), enabled, firstIdentifier, lastIdentifier);
+        return CanPort_ConfigureStandardReceiveFilter(to_port_channel(channel), enabled, first_identifier, last_identifier);
     }
 
     /**
@@ -105,14 +105,14 @@ class Can final
    * 可取消通知。
    * @param context 调用通知函数时原样传回的用户上下文。
    * @return 通道有效且通知设置成功时返回 true。
-   * @note 通知在中断上下文执行，只应用于轻量唤醒，帧数据仍需通过 TryReceive
+   * @note 通知在中断上下文执行，只应用于轻量唤醒，帧数据仍需通过 try_receive
    * 读取。
-   * @note MAY 能力：Port 可能返回 false（未注册），业务应回退轮询 TryReceive。
+   * @note MAY 能力：Port 可能返回 false（未注册），业务应回退轮询 try_receive。
    */
     [[nodiscard]] static bool
-    SetReceiveNotification(Channel channel, ReceiveNotification notification, void *context) noexcept
+    set_receive_notification(Channel channel, ReceiveNotification notification, void *context) noexcept
     {
-        return CanPort_SetReceiveNotification(ToPortChannel(channel), notification, context);
+        return CanPort_SetReceiveNotification(to_port_channel(channel), notification, context);
     }
 
     /**
@@ -122,11 +122,11 @@ class Can final
    * @return 返回排队成功、队列已满、通道未就绪、Bus-Off 或参数错误等结果。
    * @note 本函数非阻塞；返回 SendResult::Queued 仅表示帧已进入硬件发送队列。
    */
-    [[nodiscard]] static SendResult TrySend(Channel channel, const Frame &frame) noexcept
+    [[nodiscard]] static SendResult try_send(Channel channel, const Frame &frame) noexcept
     {
-        return ToSendResult(CanPort_TrySend(ToPortChannel(channel),
+        return to_send_result(CanPort_TrySend(to_port_channel(channel),
                                             frame.identifier,
-                                            static_cast<CanPort_IdentifierType>(frame.identifierType),
+                                            static_cast<CanPort_IdentifierType>(frame.identifier_type),
                                             frame.length,
                                             frame.data.data()));
     }
@@ -138,23 +138,23 @@ class Can final
    * @return 返回读取成功、队列为空、通道未就绪、Bus-Off 或参数错误等结果。
    * @note 每个通道只允许一个任务作为软件队列消费者。
    */
-    [[nodiscard]] static ReceiveResult TryReceive(Channel channel, Frame &frame) noexcept
+    [[nodiscard]] static ReceiveResult try_receive(Channel channel, Frame &frame) noexcept
     {
-        CanPort_IdentifierType identifierType = CAN_PORT_IDENTIFIER_STANDARD;
+        CanPort_IdentifierType identifier_type = CAN_PORT_IDENTIFIER_STANDARD;
         std::uint32_t identifier = 0U;
         std::uint8_t length = 0U;
 
-        const ReceiveResult result = ToReceiveResult(CanPort_TryReceive(ToPortChannel(channel),
+        const ReceiveResult result = to_receive_result(CanPort_TryReceive(to_port_channel(channel),
                                                                         &identifier,
-                                                                        &identifierType,
+                                                                        &identifier_type,
                                                                         &length,
                                                                         frame.data.data(),
                                                                         static_cast<std::uint8_t>(frame.data.size())));
 
-        if (result == ReceiveResult::Received)
+        if (result == ReceiveResult::RECEIVED)
         {
             frame.identifier = identifier;
-            frame.identifierType = static_cast<IdentifierType>(identifierType);
+            frame.identifier_type = static_cast<IdentifierType>(identifier_type);
             frame.length = length;
         }
 
@@ -168,17 +168,17 @@ class Can final
    * @return 参数有效并成功取得统计时返回 true。
    * @note MAY 能力：Port 可能返回 false（未实现），业务应按全 0 统计处理。
    */
-    [[nodiscard]] static bool GetStatistics(Channel channel, Statistics &statistics) noexcept
+    [[nodiscard]] static bool get_statistics(Channel channel, Statistics &statistics) noexcept
     {
-        CanPort_Statistics portStatistics{};
-        if (!CanPort_GetStatistics(ToPortChannel(channel), &portStatistics))
+        CanPort_Statistics port_statistics{};
+        if (!CanPort_GetStatistics(to_port_channel(channel), &port_statistics))
         {
             return false;
         }
 
-        statistics.rxDroppedCount = portStatistics.rx_dropped_count;
-        statistics.rxHardwareLossEventCount = portStatistics.rx_hardware_loss_event_count;
-        statistics.busOffCount = portStatistics.bus_off_count;
+        statistics.rx_dropped_count = port_statistics.rx_dropped_count;
+        statistics.rx_hardware_loss_event_count = port_statistics.rx_hardware_loss_event_count;
+        statistics.bus_off_count = port_statistics.bus_off_count;
         return true;
     }
 
@@ -188,7 +188,7 @@ class Can final
    * @param channel C++ 逻辑通道。
    * @return 对应的 C ABI 通道值。
    */
-    [[nodiscard]] static constexpr CanPort_Channel ToPortChannel(Channel channel) noexcept
+    [[nodiscard]] static constexpr CanPort_Channel to_port_channel(Channel channel) noexcept
     {
         return static_cast<CanPort_Channel>(channel);
     }
@@ -198,9 +198,9 @@ class Can final
    * @param result C ABI 发送结果。
    * @return 对应的 C++ 发送结果，未知值统一转换为 SendResult::Error。
    */
-    [[nodiscard]] static constexpr SendResult ToSendResult(CanPort_SendResult result) noexcept
+    [[nodiscard]] static constexpr SendResult to_send_result(CanPort_SendResult result) noexcept
     {
-        return result <= CAN_PORT_SEND_ERROR ? static_cast<SendResult>(result) : SendResult::Error;
+        return result <= CAN_PORT_SEND_ERROR ? static_cast<SendResult>(result) : SendResult::ERROR;
     }
 
     /**
@@ -208,9 +208,9 @@ class Can final
    * @param result C ABI 接收结果。
    * @return 对应的 C++ 接收结果，未知值统一转换为 ReceiveResult::Error。
    */
-    [[nodiscard]] static constexpr ReceiveResult ToReceiveResult(CanPort_ReceiveResult result) noexcept
+    [[nodiscard]] static constexpr ReceiveResult to_receive_result(CanPort_ReceiveResult result) noexcept
     {
-        return result <= CAN_PORT_RECEIVE_ERROR ? static_cast<ReceiveResult>(result) : ReceiveResult::Error;
+        return result <= CAN_PORT_RECEIVE_ERROR ? static_cast<ReceiveResult>(result) : ReceiveResult::ERROR;
     }
 };
 

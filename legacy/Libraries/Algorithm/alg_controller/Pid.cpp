@@ -5,26 +5,26 @@
 namespace
 {
 
-bool IsFinite(float value)
+bool is_finite(float value)
 {
     return std::isfinite(value);
 }
 
-bool IsValidConfig(const alg_controller::PID::Config &config)
+bool is_valid_config(const alg_controller::PID::Config &config)
 {
-    const bool modeValid =
-        config.Mode == alg_controller::PIDMode::Position || config.Mode == alg_controller::PIDMode::Delta;
-    const bool paramFinite = IsFinite(config.Kp) && IsFinite(config.Ki) && IsFinite(config.Kd) && IsFinite(config.Kf) &&
-                             IsFinite(config.DefaultDt) && IsFinite(config.Maxout) &&
-                             IsFinite(config.FeedForwardLimit) && IsFinite(config.IntegralLimit) &&
-                             IsFinite(config.DeadZone) && IsFinite(config.IVarA) && IsFinite(config.IVarB) &&
-                             IsFinite(config.DLpfRc) && IsFinite(config.OutLpfRc);
-    const bool feedForwardValid = config.FeedForwardLimit >= 0.0f && config.FeedForwardLimit <= config.Maxout &&
-                                  (config.Kf == 0.0f || config.FeedForwardLimit > 0.0f);
+    const bool mode_valid =
+        config.mode == alg_controller::PIDMode::POSITION || config.mode == alg_controller::PIDMode::DELTA;
+    const bool param_finite = is_finite(config.kp) && is_finite(config.ki) && is_finite(config.kd) && is_finite(config.kf) &&
+                             is_finite(config.default_dt) && is_finite(config.maxout) &&
+                             is_finite(config.feed_forward_limit) && is_finite(config.integral_limit) &&
+                             is_finite(config.dead_zone) && is_finite(config.i_var_a) && is_finite(config.i_var_b) &&
+                             is_finite(config.d_lpf_rc) && is_finite(config.out_lpf_rc);
+    const bool feed_forward_valid = config.feed_forward_limit >= 0.0f && config.feed_forward_limit <= config.maxout &&
+                                  (config.kf == 0.0f || config.feed_forward_limit > 0.0f);
 
-    return modeValid && paramFinite && feedForwardValid && config.DefaultDt > 0.0f && config.DefaultDt < 1.0f &&
-           config.Maxout >= 0.0f && config.IntegralLimit >= 0.0f && config.DeadZone >= 0.0f && config.IVarA >= 0.0f &&
-           config.IVarB >= 0.0f && config.DLpfRc >= 0.0f && config.OutLpfRc >= 0.0f;
+    return mode_valid && param_finite && feed_forward_valid && config.default_dt > 0.0f && config.default_dt < 1.0f &&
+           config.maxout >= 0.0f && config.integral_limit >= 0.0f && config.dead_zone >= 0.0f && config.i_var_a >= 0.0f &&
+           config.i_var_b >= 0.0f && config.d_lpf_rc >= 0.0f && config.out_lpf_rc >= 0.0f;
 }
 
 } // namespace
@@ -32,148 +32,148 @@ bool IsValidConfig(const alg_controller::PID::Config &config)
 namespace alg_controller
 {
 
-bool PID::Init(const Config &config)
+bool PID::init(const Config &config)
 {
-    Cfg = Config{};
-    Initialized = false;
-    Reset();
+    cfg_ = Config{};
+    initialized_ = false;
+    reset();
 
-    if (!IsValidConfig(config))
+    if (!is_valid_config(config))
     {
         return false;
     }
 
-    Cfg = config;
-    Initialized = true;
+    cfg_ = config;
+    initialized_ = true;
     return true;
 }
 
-void PID::Reset()
+void PID::reset()
 {
-    Target = 0.0f;
-    Measure = 0.0f;
-    LastMeasure = 0.0f;
-    LastLastMeasure = 0.0f;
-    Err = 0.0f;
-    LastErr = 0.0f;
-    LastLastErr = 0.0f;
-    Pout = 0.0f;
-    Iout = 0.0f;
-    Dout = 0.0f;
-    ITerm = 0.0f;
-    Output = 0.0f;
-    LastOutput = 0.0f;
-    LastFeedForward = 0.0f;
-    LastDout = 0.0f;
-    MeasureHistoryInitialized = false;
-    Dt = 0.0f;
+    target_ = 0.0f;
+    measure_ = 0.0f;
+    last_measure_ = 0.0f;
+    last_last_measure_ = 0.0f;
+    err_ = 0.0f;
+    last_err_ = 0.0f;
+    last_last_err_ = 0.0f;
+    pout_ = 0.0f;
+    iout_ = 0.0f;
+    dout_ = 0.0f;
+    i_term_ = 0.0f;
+    output_ = 0.0f;
+    last_output_ = 0.0f;
+    last_feed_forward_ = 0.0f;
+    last_dout_ = 0.0f;
+    measure_history_initialized_ = false;
+    dt_ = 0.0f;
 }
 
-bool PID::CalculateLoop(float measure, float target, float dt)
+bool PID::calculate_loop(float measure, float target, float dt)
 {
-    if (!Initialized || !IsFinite(measure) || !IsFinite(target))
+    if (!initialized_ || !is_finite(measure) || !is_finite(target))
     {
         return false;
     }
 
     const PID backup = *this;
-    Dt = (IsFinite(dt) && dt > 0.0f && dt < 1.0f) ? dt : Cfg.DefaultDt;
-    Measure = measure;
-    Target = target;
-    Err = target - measure;
-    const float feedForward = FeedForwardTerm(Target);
-    if (!MeasureHistoryInitialized)
+    dt_ = (is_finite(dt) && dt > 0.0f && dt < 1.0f) ? dt : cfg_.default_dt;
+    measure_ = measure;
+    target_ = target;
+    err_ = target - measure;
+    const float feed_forward = feed_forward_term(target_);
+    if (!measure_history_initialized_)
     {
-        LastMeasure = Measure;
-        LastLastMeasure = Measure;
-        MeasureHistoryInitialized = true;
+        last_measure_ = measure_;
+        last_last_measure_ = measure_;
+        measure_history_initialized_ = true;
     }
 
-    if (Cfg.Improve.DeadBand && std::fabs(Err) < Cfg.DeadZone)
+    if (cfg_.improve.dead_band && std::fabs(err_) < cfg_.dead_zone)
     {
-        Output = (Cfg.Mode == PIDMode::Delta) ? LastOutput - LastFeedForward + feedForward : feedForward;
-        ITerm = 0.0f;
-        LastLastErr = LastErr;
-        LastLastMeasure = LastMeasure;
-        LastMeasure = Measure;
-        LastOutput = Output;
-        LastFeedForward = feedForward;
-        LastDout = Dout;
-        LastErr = Err;
+        output_ = (cfg_.mode == PIDMode::DELTA) ? last_output_ - last_feed_forward_ + feed_forward : feed_forward;
+        i_term_ = 0.0f;
+        last_last_err_ = last_err_;
+        last_last_measure_ = last_measure_;
+        last_measure_ = measure_;
+        last_output_ = output_;
+        last_feed_forward_ = feed_forward;
+        last_dout_ = dout_;
+        last_err_ = err_;
         return true;
     }
 
-    switch (Cfg.Mode)
+    switch (cfg_.mode)
     {
-    case PIDMode::Position:
-        Pout = Cfg.Kp * Err;
-        ITerm = Cfg.Ki * Err * Dt;
+    case PIDMode::POSITION:
+        pout_ = cfg_.kp * err_;
+        i_term_ = cfg_.ki * err_ * dt_;
 
-        if (Cfg.Improve.Trapezoid)
+        if (cfg_.improve.trapezoid)
         {
-            TrapezoidIntegral();
+            trapezoid_integral();
         }
-        if (Cfg.Improve.ChangingRate)
+        if (cfg_.improve.changing_rate)
         {
-            ChangingRateIntegration();
+            changing_rate_integration();
         }
-        if (Cfg.Improve.DerivOnMeas)
+        if (cfg_.improve.deriv_on_meas)
         {
-            DerivativeOnMeasurement();
+            derivative_on_measurement();
         }
         else
         {
-            Dout = Cfg.Kd * (Err - LastErr) / Dt;
+            dout_ = cfg_.kd * (err_ - last_err_) / dt_;
         }
-        if (Cfg.Improve.DerivFilter)
+        if (cfg_.improve.deriv_filter)
         {
-            DerivativeFilter();
+            derivative_filter();
         }
-        if (Cfg.Improve.IntegralLimit)
+        if (cfg_.improve.integral_limit)
         {
-            IntegralLimit();
-        }
-
-        Iout += ITerm;
-        if (!Cfg.Improve.IntegralLimit)
-        {
-            Iout = alg_math::Limit(Iout, -Cfg.IntegralLimit, Cfg.IntegralLimit);
+            integral_limit();
         }
 
-        Output = Pout + Iout + Dout + feedForward;
-        if (Cfg.Improve.OutFilter)
+        iout_ += i_term_;
+        if (!cfg_.improve.integral_limit)
         {
-            OutputFilter();
+            iout_ = alg_math::limit(iout_, -cfg_.integral_limit, cfg_.integral_limit);
+        }
+
+        output_ = pout_ + iout_ + dout_ + feed_forward;
+        if (cfg_.improve.out_filter)
+        {
+            output_filter();
         }
         break;
 
-    case PIDMode::Delta:
-        Pout = Cfg.Kp * (Err - LastErr);
-        ITerm = Cfg.Ki * Err * Dt;
+    case PIDMode::DELTA:
+        pout_ = cfg_.kp * (err_ - last_err_);
+        i_term_ = cfg_.ki * err_ * dt_;
 
-        if (Cfg.Improve.ChangingRate)
+        if (cfg_.improve.changing_rate)
         {
-            ChangingRateIntegration();
+            changing_rate_integration();
         }
-        Iout = ITerm;
+        iout_ = i_term_;
 
-        if (Cfg.Improve.DerivOnMeas)
+        if (cfg_.improve.deriv_on_meas)
         {
-            Dout = Cfg.Kd * (2.0f * LastMeasure - Measure - LastLastMeasure) / Dt;
+            dout_ = cfg_.kd * (2.0f * last_measure_ - measure_ - last_last_measure_) / dt_;
         }
         else
         {
-            Dout = Cfg.Kd * (Err - 2.0f * LastErr + LastLastErr) / Dt;
+            dout_ = cfg_.kd * (err_ - 2.0f * last_err_ + last_last_err_) / dt_;
         }
-        if (Cfg.Improve.DerivFilter)
+        if (cfg_.improve.deriv_filter)
         {
-            DerivativeFilter();
+            derivative_filter();
         }
 
-        Output = LastOutput + Pout + Iout + Dout + feedForward - LastFeedForward;
-        if (Cfg.Improve.OutFilter)
+        output_ = last_output_ + pout_ + iout_ + dout_ + feed_forward - last_feed_forward_;
+        if (cfg_.improve.out_filter)
         {
-            OutputFilter();
+            output_filter();
         }
         break;
 
@@ -182,226 +182,226 @@ bool PID::CalculateLoop(float measure, float target, float dt)
         return false;
     }
 
-    Output = alg_math::Limit(Output, -Cfg.Maxout, Cfg.Maxout);
-    if (!IsFinite(Err) || !IsFinite(Pout) || !IsFinite(Iout) || !IsFinite(Dout) || !IsFinite(ITerm) ||
-        !IsFinite(Output))
+    output_ = alg_math::limit(output_, -cfg_.maxout, cfg_.maxout);
+    if (!is_finite(err_) || !is_finite(pout_) || !is_finite(iout_) || !is_finite(dout_) || !is_finite(i_term_) ||
+        !is_finite(output_))
     {
         *this = backup;
         return false;
     }
 
-    LastLastErr = LastErr;
-    LastLastMeasure = LastMeasure;
-    LastMeasure = Measure;
-    LastOutput = Output;
-    LastFeedForward = feedForward;
-    LastDout = Dout;
-    LastErr = Err;
+    last_last_err_ = last_err_;
+    last_last_measure_ = last_measure_;
+    last_measure_ = measure_;
+    last_output_ = output_;
+    last_feed_forward_ = feed_forward;
+    last_dout_ = dout_;
+    last_err_ = err_;
     return true;
 }
 
-float PID::GetIntegralError() const
+float PID::get_integral_error() const
 {
-    return Iout;
+    return iout_;
 }
 
-float PID::GetOut() const
+float PID::get_out() const
 {
-    return Output;
+    return output_;
 }
 
-const PID::Config &PID::GetConfig() const
+const PID::Config &PID::get_config() const
 {
-    return Cfg;
+    return cfg_;
 }
 
-bool PID::IsInitialized() const
+bool PID::is_initialized() const
 {
-    return Initialized;
+    return initialized_;
 }
 
-bool PID::SetParam(float kp, float ki, float kd)
+bool PID::set_param(float kp, float ki, float kd)
 {
-    if (!Initialized || !IsFinite(kp) || !IsFinite(ki) || !IsFinite(kd))
+    if (!initialized_ || !is_finite(kp) || !is_finite(ki) || !is_finite(kd))
     {
         return false;
     }
-    Cfg.Kp = kp;
-    Cfg.Ki = ki;
-    Cfg.Kd = kd;
+    cfg_.kp = kp;
+    cfg_.ki = ki;
+    cfg_.kd = kd;
     return true;
 }
 
-bool PID::SetKp(float kp)
+bool PID::set_kp(float kp)
 {
-    return SetParam(kp, Cfg.Ki, Cfg.Kd);
+    return set_param(kp, cfg_.ki, cfg_.kd);
 }
 
-bool PID::SetKi(float ki)
+bool PID::set_ki(float ki)
 {
-    return SetParam(Cfg.Kp, ki, Cfg.Kd);
+    return set_param(cfg_.kp, ki, cfg_.kd);
 }
 
-bool PID::SetKd(float kd)
+bool PID::set_kd(float kd)
 {
-    return SetParam(Cfg.Kp, Cfg.Ki, kd);
+    return set_param(cfg_.kp, cfg_.ki, kd);
 }
 
-bool PID::SetKf(float kf)
+bool PID::set_kf(float kf)
 {
-    if (!Initialized || !IsFinite(kf))
+    if (!initialized_ || !is_finite(kf))
     {
         return false;
     }
-    Cfg.Kf = kf;
+    cfg_.kf = kf;
     return true;
 }
 
-bool PID::SetIOutMax(float integralLimit)
+bool PID::set_i_out_max(float integral_limit)
 {
-    if (!Initialized || !IsFinite(integralLimit) || integralLimit < 0.0f)
+    if (!initialized_ || !is_finite(integral_limit) || integral_limit < 0.0f)
     {
         return false;
     }
-    Cfg.IntegralLimit = integralLimit;
-    Iout = alg_math::Limit(Iout, -integralLimit, integralLimit);
+    cfg_.integral_limit = integral_limit;
+    iout_ = alg_math::limit(iout_, -integral_limit, integral_limit);
     return true;
 }
 
-bool PID::SetOutMax(float maxout)
+bool PID::set_out_max(float maxout)
 {
-    if (!Initialized || !IsFinite(maxout) || maxout < 0.0f)
+    if (!initialized_ || !is_finite(maxout) || maxout < 0.0f)
     {
         return false;
     }
-    Cfg.Maxout = maxout;
-    Output = alg_math::Limit(Output, -maxout, maxout);
-    LastOutput = alg_math::Limit(LastOutput, -maxout, maxout);
+    cfg_.maxout = maxout;
+    output_ = alg_math::limit(output_, -maxout, maxout);
+    last_output_ = alg_math::limit(last_output_, -maxout, maxout);
     return true;
 }
 
-bool PID::SetIVarA(float iVarA)
+bool PID::set_i_var_a(float i_var_a)
 {
-    if (!Initialized || !IsFinite(iVarA) || iVarA < 0.0f)
+    if (!initialized_ || !is_finite(i_var_a) || i_var_a < 0.0f)
     {
         return false;
     }
-    Cfg.IVarA = iVarA;
+    cfg_.i_var_a = i_var_a;
     return true;
 }
 
-bool PID::SetIVarB(float iVarB)
+bool PID::set_i_var_b(float i_var_b)
 {
-    if (!Initialized || !IsFinite(iVarB) || iVarB < 0.0f)
+    if (!initialized_ || !is_finite(i_var_b) || i_var_b < 0.0f)
     {
         return false;
     }
-    Cfg.IVarB = iVarB;
+    cfg_.i_var_b = i_var_b;
     return true;
 }
 
-bool PID::SetTarget(float target)
+bool PID::set_target(float target)
 {
-    if (!Initialized || !IsFinite(target))
+    if (!initialized_ || !is_finite(target))
     {
         return false;
     }
-    Target = target;
+    target_ = target;
     return true;
 }
 
-bool PID::SetNow(float measure)
+bool PID::set_now(float measure)
 {
-    if (!Initialized || !IsFinite(measure))
+    if (!initialized_ || !is_finite(measure))
     {
         return false;
     }
-    Measure = measure;
-    LastMeasure = measure;
-    LastLastMeasure = measure;
-    MeasureHistoryInitialized = true;
+    measure_ = measure;
+    last_measure_ = measure;
+    last_last_measure_ = measure;
+    measure_history_initialized_ = true;
     return true;
 }
 
-bool PID::SetIntegralError(float iout)
+bool PID::set_integral_error(float iout)
 {
-    if (!Initialized || !IsFinite(iout))
+    if (!initialized_ || !is_finite(iout))
     {
         return false;
     }
-    Iout = alg_math::Limit(iout, -Cfg.IntegralLimit, Cfg.IntegralLimit);
+    iout_ = alg_math::limit(iout, -cfg_.integral_limit, cfg_.integral_limit);
     return true;
 }
 
-float PID::FeedForwardTerm(float target) const
+float PID::feed_forward_term(float target) const
 {
-    return alg_math::Limit(Cfg.Kf * target, -Cfg.FeedForwardLimit, Cfg.FeedForwardLimit);
+    return alg_math::limit(cfg_.kf * target, -cfg_.feed_forward_limit, cfg_.feed_forward_limit);
 }
 
-void PID::TrapezoidIntegral()
+void PID::trapezoid_integral()
 {
-    ITerm = Cfg.Ki * ((Err + LastErr) * 0.5f) * Dt;
+    i_term_ = cfg_.ki * ((err_ + last_err_) * 0.5f) * dt_;
 }
 
-void PID::ChangingRateIntegration()
+void PID::changing_rate_integration()
 {
-    if (Err * Iout <= 0.0f)
+    if (err_ * iout_ <= 0.0f)
     {
         return;
     }
 
-    const float absErr = std::fabs(Err);
-    if (absErr <= Cfg.IVarB)
+    const float abs_err = std::fabs(err_);
+    if (abs_err <= cfg_.i_var_b)
     {
         return;
     }
-    if (Cfg.IVarA > 0.0f && absErr <= Cfg.IVarA + Cfg.IVarB)
+    if (cfg_.i_var_a > 0.0f && abs_err <= cfg_.i_var_a + cfg_.i_var_b)
     {
-        ITerm *= (Cfg.IVarA - absErr + Cfg.IVarB) / Cfg.IVarA;
+        i_term_ *= (cfg_.i_var_a - abs_err + cfg_.i_var_b) / cfg_.i_var_a;
     }
     else
     {
-        ITerm = 0.0f;
+        i_term_ = 0.0f;
     }
 }
 
-void PID::IntegralLimit()
+void PID::integral_limit()
 {
-    const float tempIout = Iout + ITerm;
-    const float tempOutput = Pout + tempIout + Dout + FeedForwardTerm(Target);
+    const float temp_iout = iout_ + i_term_;
+    const float temp_output = pout_ + temp_iout + dout_ + feed_forward_term(target_);
 
-    if (std::fabs(tempOutput) > Cfg.Maxout && Err * tempIout > 0.0f)
+    if (std::fabs(temp_output) > cfg_.maxout && err_ * temp_iout > 0.0f)
     {
-        ITerm = 0.0f;
+        i_term_ = 0.0f;
     }
 
-    if (tempIout > Cfg.IntegralLimit)
+    if (temp_iout > cfg_.integral_limit)
     {
-        ITerm = 0.0f;
-        Iout = Cfg.IntegralLimit;
+        i_term_ = 0.0f;
+        iout_ = cfg_.integral_limit;
     }
-    else if (tempIout < -Cfg.IntegralLimit)
+    else if (temp_iout < -cfg_.integral_limit)
     {
-        ITerm = 0.0f;
-        Iout = -Cfg.IntegralLimit;
+        i_term_ = 0.0f;
+        iout_ = -cfg_.integral_limit;
     }
 }
 
-void PID::DerivativeOnMeasurement()
+void PID::derivative_on_measurement()
 {
-    Dout = Cfg.Kd * (LastMeasure - Measure) / Dt;
+    dout_ = cfg_.kd * (last_measure_ - measure_) / dt_;
 }
 
-void PID::DerivativeFilter()
+void PID::derivative_filter()
 {
-    const float alpha = Dt / (Cfg.DLpfRc + Dt);
-    Dout = alpha * Dout + (1.0f - alpha) * LastDout;
+    const float alpha = dt_ / (cfg_.d_lpf_rc + dt_);
+    dout_ = alpha * dout_ + (1.0f - alpha) * last_dout_;
 }
 
-void PID::OutputFilter()
+void PID::output_filter()
 {
-    const float alpha = Dt / (Cfg.OutLpfRc + Dt);
-    Output = alpha * Output + (1.0f - alpha) * LastOutput;
+    const float alpha = dt_ / (cfg_.out_lpf_rc + dt_);
+    output_ = alpha * output_ + (1.0f - alpha) * last_output_;
 }
 
 } // namespace alg_controller

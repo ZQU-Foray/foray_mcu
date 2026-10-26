@@ -11,14 +11,14 @@ namespace
 {
 
 // 虚拟品牌型号：不占用正式型号枚举值，仅在本测试内有效。
-constexpr device::MotorModel kFictionalModel{static_cast<device::MotorModel>(254U)};
+constexpr device::MotorModel K_FICTIONAL_MODEL{static_cast<device::MotorModel>(254U)};
 
-unsigned inits{0};
-unsigned processes{0};
-unsigned clears{0};
-unsigned writes{0};
-std::array<float, 2> lastCommands{};
-bool initResult{true};
+unsigned g_inits{0};
+unsigned g_processes{0};
+unsigned g_clears{0};
+unsigned g_writes{0};
+std::array<float, 2> g_last_commands{};
+bool g_init_result{true};
 
 class FictionalAdapter final
 {
@@ -29,43 +29,43 @@ class FictionalAdapter final
         std::array<device::MotorConnection, 2> connections{};
         std::size_t count{0U};
     };
-    static constexpr std::size_t MaximumMotors{2U};
+    static constexpr std::size_t MAXIMUM_MOTORS{2U};
 
     explicit FictionalAdapter(const Config &config) noexcept : config_{config} {}
-    [[nodiscard]] bool Init() noexcept
+    [[nodiscard]] bool init() noexcept
     {
-        ++inits;
-        return initResult;
+        ++g_inits;
+        return g_init_result;
     }
-    void Process() noexcept
+    void process() noexcept
     {
-        ++processes;
+        ++g_processes;
     }
-    [[nodiscard]] bool ReadState(std::size_t id, device::MotorState &state) const noexcept
+    [[nodiscard]] bool read_state(std::size_t id, device::MotorState &state) const noexcept
     {
         state = {};
         if (id >= config_.count)
         {
             return false;
         }
-        state.feedbackValid = true;
+        state.feedback_valid = true;
         state.online = true;
         return true;
     }
-    [[nodiscard]] bool SetTorque(std::size_t id, float value) noexcept
+    [[nodiscard]] bool set_torque(std::size_t id, float value) noexcept
     {
         if (id >= config_.count || !std::isfinite(value))
         {
             return false;
         }
-        ++writes;
-        lastCommands[id] = value;
+        ++g_writes;
+        g_last_commands[id] = value;
         return true;
     }
-    void ClearCommands() noexcept
+    void clear_commands() noexcept
     {
-        ++clears;
-        lastCommands = {};
+        ++g_clears;
+        g_last_commands = {};
     }
 
   private:
@@ -76,12 +76,12 @@ class FictionalAdapter final
 
 namespace device
 {
-template <> struct MotorAdapterFor<kFictionalModel>
+template <> struct MotorAdapterFor<K_FICTIONAL_MODEL>
 {
     using Adapter = FictionalAdapter;
-    static constexpr std::size_t MaximumMotors{FictionalAdapter::MaximumMotors};
+    static constexpr std::size_t MAXIMUM_MOTORS{FictionalAdapter::MAXIMUM_MOTORS};
     template <std::size_t N>
-    [[nodiscard]] static FictionalAdapter::Config MakeConfig(platform::Can::Channel channel,
+    [[nodiscard]] static FictionalAdapter::Config make_config(platform::Can::Channel channel,
                                                              const std::array<MotorConnection, N> &connections) noexcept
     {
         FictionalAdapter::Config config{};
@@ -96,36 +96,36 @@ template <> struct MotorAdapterFor<kFictionalModel>
 };
 } // namespace device
 
-using Fiction = device::MotorGroup<kFictionalModel, 2>;
-static_assert(Fiction::Count() == 2U);
+using Fiction = device::MotorGroup<K_FICTIONAL_MODEL, 2>;
+static_assert(Fiction::count() == 2U);
 
 int main()
 {
     // 型号映射：适配器收到品牌装配参数（连接与数量）。
-    Fiction fiction{platform::Can::Channel::Channel1, {{{3U, 1}, {5U, -1}}}};
+    Fiction fiction{platform::Can::Channel::CHANNEL_1, {{{3U, 1}, {5U, -1}}}};
 
     // 通道占用检查位于通用电机组：与非 DJI 适配器同样生效。
-    initResult = false;
-    Fiction failing{platform::Can::Channel::Channel2, {{{1U, 1}, {2U, 1}}}};
-    assert(!failing.Init()); // 适配器 Init 失败
-    assert(inits == 1U);
-    initResult = true;
-    Fiction owner{platform::Can::Channel::Channel2, {{{1U, 1}, {2U, 1}}}};
-    assert(owner.Init() && owner.Init()); // 成功后幂等
-    assert(inits == 3U);
-    Fiction conflict{platform::Can::Channel::Channel2, {{{1U, 1}, {2U, 1}}}};
-    assert(!conflict.Init()); // 同通道第二组拒绝（失败实例不占用通道）
+    g_init_result = false;
+    Fiction failing{platform::Can::Channel::CHANNEL_2, {{{1U, 1}, {2U, 1}}}};
+    assert(!failing.init()); // 适配器 Init 失败
+    assert(g_inits == 1U);
+    g_init_result = true;
+    Fiction owner{platform::Can::Channel::CHANNEL_2, {{{1U, 1}, {2U, 1}}}};
+    assert(owner.init() && owner.init()); // 成功后幂等
+    assert(g_inits == 3U);
+    Fiction conflict{platform::Can::Channel::CHANNEL_2, {{{1U, 1}, {2U, 1}}}};
+    assert(!conflict.init()); // 同通道第二组拒绝（失败实例不占用通道）
 
     // 控制契约直通适配器：暂存、发送节拍、清零。
-    assert(fiction.Init());
-    assert(fiction.SetTorque(0U, 0.5F) && fiction.SetTorque(1U, -0.25F));
-    assert(lastCommands[0] == 0.5F && lastCommands[1] == -0.25F);
-    fiction.Process();
-    assert(processes == 1U);
+    assert(fiction.init());
+    assert(fiction.set_torque(0U, 0.5F) && fiction.set_torque(1U, -0.25F));
+    assert(g_last_commands[0] == 0.5F && g_last_commands[1] == -0.25F);
+    fiction.process();
+    assert(g_processes == 1U);
     device::MotorState state{};
-    assert(fiction.ReadState(0U, state) && state.online);
-    assert(!fiction.ReadState(2U, state)); // 越界编号
-    fiction.ClearCommands();
-    assert(clears == 1U && lastCommands == (std::array<float, 2>{}));
+    assert(fiction.read_state(0U, state) && state.online);
+    assert(!fiction.read_state(2U, state)); // 越界编号
+    fiction.clear_commands();
+    assert(g_clears == 1U && g_last_commands == (std::array<float, 2>{}));
     return 0;
 }

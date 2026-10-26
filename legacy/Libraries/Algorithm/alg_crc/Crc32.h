@@ -13,7 +13,7 @@ namespace alg_crc
  * @param len  数据长度（字节）
  * @return 32 位 CRC 校验值；data 为空且 len 非零时返回 0
  */
-uint32_t Crc32Calc(const uint8_t *data, size_t len);
+uint32_t crc32_calc(const uint8_t *data, size_t len);
 
 } // namespace alg_crc
 

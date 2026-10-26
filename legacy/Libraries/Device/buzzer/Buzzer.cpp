@@ -3,52 +3,52 @@
 namespace device
 {
 
-bool Buzzer::IsReady() const noexcept
+bool Buzzer::is_ready() const noexcept
 {
-    return platform::Pwm::IsReady(platform::Pwm::Channel::Buzzer);
+    return platform::Pwm::is_ready(platform::Pwm::Channel::BUZZER);
 }
 
-Buzzer::Result Buzzer::Play(std::uint32_t frequencyHz, std::uint8_t volume) noexcept
+Buzzer::Result Buzzer::play(std::uint32_t frequency_hz, std::uint8_t volume) noexcept
 {
     if (volume == 0U)
     {
-        return Stop();
+        return stop();
     }
 
-    if (frequencyHz < MinFrequencyHz || frequencyHz > MaxFrequencyHz)
+    if (frequency_hz < MIN_FREQUENCY_HZ || frequency_hz > MAX_FREQUENCY_HZ)
     {
-        lastResult_ = Result::InvalidArgument;
-        return lastResult_;
+        last_result_ = Result::INVALID_ARGUMENT;
+        return last_result_;
     }
 
-    lastResult_ = platform::Pwm::Set(platform::Pwm::Channel::Buzzer, frequencyHz, VolumeToDutyPermille(volume));
-    if (lastResult_ == Result::Completed)
+    last_result_ = platform::Pwm::set(platform::Pwm::Channel::BUZZER, frequency_hz, volume_to_duty_permille(volume));
+    if (last_result_ == Result::COMPLETED)
     {
-        state_ = State::Playing;
-        frequencyHz_ = frequencyHz;
+        state_ = State::PLAYING;
+        frequency_hz_ = frequency_hz;
         volume_ = volume;
     }
 
-    return lastResult_;
+    return last_result_;
 }
 
-Buzzer::Result Buzzer::Stop() noexcept
+Buzzer::Result Buzzer::stop() noexcept
 {
-    lastResult_ = platform::Pwm::Silence(platform::Pwm::Channel::Buzzer);
-    if (lastResult_ == Result::Completed)
+    last_result_ = platform::Pwm::silence(platform::Pwm::Channel::BUZZER);
+    if (last_result_ == Result::COMPLETED)
     {
-        state_ = State::Stopped;
-        frequencyHz_ = 0U;
+        state_ = State::STOPPED;
+        frequency_hz_ = 0U;
         volume_ = 0U;
     }
 
-    return lastResult_;
+    return last_result_;
 }
 
-std::uint16_t Buzzer::VolumeToDutyPermille(std::uint8_t volume) noexcept
+std::uint16_t Buzzer::volume_to_duty_permille(std::uint8_t volume) noexcept
 {
-    return static_cast<std::uint16_t>((static_cast<std::uint32_t>(volume) * MaxDutyPermille + MaxVolume / 2U) /
-                                      MaxVolume);
+    return static_cast<std::uint16_t>((static_cast<std::uint32_t>(volume) * MAX_DUTY_PERMILLE + MAX_VOLUME / 2U) /
+                                      MAX_VOLUME);
 }
 
 } // namespace device

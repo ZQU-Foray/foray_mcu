@@ -4,12 +4,12 @@
 namespace alg_estimate
 {
 
-float GyroRawToRadiansPerSecond(std::int16_t raw) noexcept
+float gyro_raw_to_radians_per_second(std::int16_t raw) noexcept
 {
-    return device::Bmi088Gyro::ToDps(raw) * alg_math::degToRad;
+    return device::Bmi088Gyro::to_dps(raw) * alg_math::DEG_TO_RAD;
 }
 
-void MapSensorVectorToBody(const AxisMapping &mapping, const float (&sensor)[3], float (&body)[3]) noexcept
+void map_sensor_vector_to_body(const AxisMapping &mapping, const float (&sensor)[3], float (&body)[3]) noexcept
 {
     // 先复制，允许 body 与 sensor 为同一数组。
     const float source[3]{sensor[0], sensor[1], sensor[2]};
@@ -19,20 +19,20 @@ void MapSensorVectorToBody(const AxisMapping &mapping, const float (&sensor)[3],
     }
 }
 
-void GyroRecordToBody(const device::Bmi088SampleRecord &record, float (&body)[3], const AxisMapping &mapping) noexcept
+void gyro_record_to_body(const device::Bmi088SampleRecord &record, float (&body)[3], const AxisMapping &mapping) noexcept
 {
-    const float sensor[3]{GyroRawToRadiansPerSecond(record.xyz[0]),
-                          GyroRawToRadiansPerSecond(record.xyz[1]),
-                          GyroRawToRadiansPerSecond(record.xyz[2])};
-    MapSensorVectorToBody(mapping, sensor, body);
+    const float sensor[3]{gyro_raw_to_radians_per_second(record.xyz[0]),
+                          gyro_raw_to_radians_per_second(record.xyz[1]),
+                          gyro_raw_to_radians_per_second(record.xyz[2])};
+    map_sensor_vector_to_body(mapping, sensor, body);
 }
 
-void AccelRecordToBody(const device::Bmi088SampleRecord &record, float (&body)[3], const AxisMapping &mapping) noexcept
+void accel_record_to_body(const device::Bmi088SampleRecord &record, float (&body)[3], const AxisMapping &mapping) noexcept
 {
-    const float sensor[3]{device::Bmi088Accel::ToMps2(record.xyz[0]),
-                          device::Bmi088Accel::ToMps2(record.xyz[1]),
-                          device::Bmi088Accel::ToMps2(record.xyz[2])};
-    MapSensorVectorToBody(mapping, sensor, body);
+    const float sensor[3]{device::Bmi088Accel::to_mps2(record.xyz[0]),
+                          device::Bmi088Accel::to_mps2(record.xyz[1]),
+                          device::Bmi088Accel::to_mps2(record.xyz[2])};
+    map_sensor_vector_to_body(mapping, sensor, body);
 }
 
 } // namespace alg_estimate

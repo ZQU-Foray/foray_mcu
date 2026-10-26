@@ -10,7 +10,7 @@ namespace application
 class ImuDiagnostics final
 {
   public:
-    static void Observe(const device::Bmi088 &imu, const device::Bmi088SampleRecord &record, bool gyroscope) noexcept;
+    static void observe(const device::Bmi088 &imu, const device::Bmi088SampleRecord &record, bool gyroscope) noexcept;
 };
 } // namespace application
 #endif

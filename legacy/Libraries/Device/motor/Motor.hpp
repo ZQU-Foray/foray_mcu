@@ -12,11 +12,11 @@ namespace device
 // 位置以首次反馈归零；离线期间的运动不做推断。
 struct MotorState final
 {
-    float angleDegrees{0.0F};
-    float speedRpm{0.0F};
-    bool feedbackValid{false};
+    float angle_degrees{0.0F};
+    float speed_rpm{0.0F};
+    bool feedback_valid{false};
     bool online{false};
-    platform::Time::Tick lastUpdateTick{0U};
+    platform::Time::Tick last_update_tick{0U};
 };
 
 // 型号选择只用于装配；控制器不依赖本枚举。
@@ -24,11 +24,11 @@ enum class MotorModel : std::uint8_t
 {
     M2006,
     M3508,
-    GM6020Current
+    GM6020_CURRENT
 };
 struct MotorConnection final
 {
-    std::uint8_t deviceId{0U};
+    std::uint8_t device_id{0U};
     int direction{1};
 };
 
