@@ -24,7 +24,9 @@ foray_mcu/
 │   ├── bsp/hardware/         7 个 0 字节占位 .hpp（未纳入 git，P1 建 src/hal 时删除）
 │   └── bsp/os/、driver/、lib/、middleware/、msg/、utils/    空
 ├── test/host/                宿主测试（P0 独立 CMake 工程，13 项 ctest；来源 fd1edbb，见 test/host/README.md）
-├── tool/                     空
+├── test/data/imu/            真实 IMU 数据（原固件静态陀螺采集 ×2）
+├── test/data/heater/         原固件加热冷启动曲线（L6 重做的验收下限）
+├── tool/debug/               SWD 只读轮询、IMU 采集与加热日志解码（Python）
 └── docs/
     ├── README.md                docs 索引
     ├── architecture.md          分层判据、依赖规则、例外登记表（v1）
@@ -33,6 +35,7 @@ foray_mcu/
     ├── reviews/2026-10-25-foray_mcu-架构评审报告.md          v1.0（已确认）
     ├── reviews/archive/                                      v0.1–v0.4 原文存档
     ├── decisions/2026-10-25-迁移基线与对照.md               基线数据、SHA、工具链、P0 复核记录、芯片 Flash 存档记录
+    ├── decisions/2026-10-26-丢失功能与恢复依据.md           丢失功能清单（L1–L6）与行为证据
     └── decisions/baseline-a2cfd16/                          基线符号表与段表（nm -S / size -A）、SHA256SUMS
 ```
 
