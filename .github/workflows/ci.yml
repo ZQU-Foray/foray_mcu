@@ -65,7 +65,10 @@ jobs:
 
       - name: Lint with ruff
         if: steps.detect.outputs.found == 'true'
-        run: ruff check .
+        # 本仓调整：以 GitHub 注释格式输出，错误直接标在 PR 的文件行上
+        run: |
+          ruff --version
+          ruff check --output-format=github .
 
       - name: Format check with black
         if: steps.detect.outputs.found == 'true'
