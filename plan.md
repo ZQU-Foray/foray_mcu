@@ -23,9 +23,9 @@
 - [ ] 从 ControllerCode `fd1edbb` 恢复 host 测试到 `test/host/`：电机、协议、底盘测试适配后恢复；`Tests/ImuStream` 的被测模块（`ImuStream.hpp`、`ImuFrame.hpp`）在 `a2cfd16` 中已不存在，列为待重写
 - [x] 确立根 `.clang-format`（沿用历史 `Libraries/Algorithm/.clang-format`，缩进 4，追加 LF 与文件末尾换行）与 `.clang-tidy`（ROS 2 命名），已用 clang-format/clang-tidy 18.1.8 校验（2026-10-25，`2026319`）
 - [x] **重写** `.gitignore`（只忽略构建产物、IDE 目录与本机配置），删除 `legacy/.gitignore`；新增 `.gitattributes`（`* -text`）（2026-10-25，`3e2e536`）
-- [ ] 在 GitHub ZQU-Foray 组织下新建 `foray_mcu` 仓库并首次推送（负责人操作或授权后执行）
-- [ ] **烧录任何新固件之前**，用 ST-Link/OpenOCD 读出 DM-MC02 的 Flash 存档（RDP 为 0 时可读），作为丢失功能重做时的行为参考
-- [ ] 在 Windows 上、原结构（`legacy/Platform/STM32H7/DM_MC02`）中复现基线构建（xPack GCC 15.2.1）：Debug `.bin` 238,320 B / Release `.bin` 100,664 B，SHA-256 一致；同时导出 `nm -S` 符号表作为后续阶段的对照基准（见 `docs/decisions/2026-10-25-迁移基线与对照.md`）
+- [x] 在 GitHub ZQU-Foray 组织下新建 `foray_mcu` 仓库并首次推送：负责人建仓（公开），推送 `main` 与 tag `baseline/a2cfd16`，remote 名 `origin`（2026-10-26）
+- [x] **烧录任何新固件之前**，用 OpenOCD 读出 DM-MC02 的 Flash 存档，作为丢失功能重做时的行为参考：CMSIS-DAP（Vllink Basic2）只读、未停核；RDP 0；有效内容 285,412 B，判断为 Debug 构建，含迁移源中没有的链路协议与遥控任务；镜像存于仓库外（公开仓库不入 git），负责人已另行备份，SHA-256 与说明见基线对照文档 §8（2026-10-26）
+- [x] 在 Windows 上、原结构（`legacy/Platform/STM32H7/DM_MC02`）中复现基线构建（xPack GCC 15.2.1）：Debug `.bin` 238,320 B / Release `.bin` 100,664 B，SHA-256 均与基线一致；`nm -S` 符号表与段表入档 `docs/decisions/baseline-a2cfd16/`（见基线对照文档 §7；2026-10-26）
 - [ ] 录制一段真实 IMU 数据存入 `test/data/`，作为重构与精度调整的回归对照
 - [ ] 补齐组织合规件：`.foray-layer`（layer: MCU / depends_on_layers: [X2]）、`CODEOWNERS`、`.github/workflows/ci.yml`（第一版：构建 + 宿主测试 + 格式检查；格式检查需用 `.clang-format-ignore` 排除生成区与厂商代码）
 - [x] 确认迁移基线：负责人确认最新进度找不回，以 `a2cfd16` 为基线，丢失的新电机控制、启动时间优化、上下位机通信、云台逻辑在新结构中重做（2026-10-25）
@@ -113,7 +113,7 @@
 
 ## 当前 Agent State
 
-`EXECUTING`（P0 进行中：git 仓库、历史导入、`legacy/` 布局、忽略规则与格式/命名配置已完成；下一步是在 Windows 上复现基线构建，并读出芯片 Flash 存档）。
+`EXECUTING`（P0 进行中：git 仓库、历史导入、`legacy/` 布局、忽略规则与格式/命名配置、GitHub 首推、芯片 Flash 存档、基线构建复现已完成；下一步是从 `fd1edbb` 恢复 host 测试，再补组织合规件与 `docs/architecture.md`；IMU 数据录制需负责人接板配合）。
 状态词表：`REVIEW_PENDING`（等待评审）/ `PLANNING`（方案已批准、编制细节）/ `EXECUTING`（实施中）/ `BLOCKED`（外部阻塞）/ `DONE`（阶段完成）。
 
 ## Before Snapshot
@@ -121,6 +121,7 @@
 - 迁移源：ControllerCode，`main` @ `a2cfd16`，19 个提交，git 跟踪 333 文件，项目自有代码约 2.3 万行（本机 clone 路径因机器而异）。
 - 目标仓（P0 开始前）：本仓无 `.git`、无 CMakeLists、无源码，只有五件套、评审报告与归档证据。
 - 本次变更（P0 第一部分，2026-10-25）：建 git 仓库并导入迁移源历史；迁移源整体移入 `legacy/`（纯重命名）；重写 `.gitignore`、新增 `.gitattributes`；新增 `.clang-format`、`.clang-tidy`；提交五件套与评审材料（评审报告定稿 v1.0）。无源码内容改动、无构建、无生成区改动。
+- 本次变更（P0 第二部分，2026-10-26）：推送到 GitHub `ZQU-Foray/foray_mcu`；只读存档芯片 Flash（仓库外）；在 Windows 上复现基线构建并入档符号表。只新增/修改文档与符号表文本，无源码改动、无生成区改动、未烧录。
 - 风险级别：**L1（仓库结构与配置，可整体回滚）**。
 - 分支：`main`；基线 tag：`baseline/a2cfd16`；本次提交见 `git log baseline/a2cfd16..main`。
 
@@ -128,10 +129,9 @@
 
 Q1–Q18 已全部确认（见评审报告 v1.0 §11.1 与 decision.md）。仍待落实的事项：
 
-1. GitHub 仓库 `ZQU-Foray/foray_mcu` 的创建与首次推送（负责人有完整权限，Actions 可用）。
-2. Windows 上 clang-format / clang-tidy 18 的安装方式（建议 LLVM 18 官方安装包或 `pip install clang-format==18.1.8`），保证与 CI 同版本。
-3. `src/bsp/hardware/` 下 7 个 0 字节占位文件未纳入 git，P1 建 `src/hal` 时删除。
-4. 组织规范文件格式需组织负责人确认（`foray_docs/repository_structure.md`、`algorithm_structure.md` 已可从 GitHub 读取）。
+1. Windows 上 clang-format / clang-tidy 18 的安装方式（建议 LLVM 18 官方安装包或 `pip install clang-format==18.1.8`），保证与 CI 同版本。
+2. `src/bsp/hardware/` 下 7 个 0 字节占位文件未纳入 git，P1 建 `src/hal` 时删除。
+3. 组织规范文件格式需组织负责人确认（`foray_docs/repository_structure.md`、`algorithm_structure.md` 已可从 GitHub 读取）。
 
 ## Vector Backend Status
 
@@ -140,7 +140,7 @@ Q1–Q18 已全部确认（见评审报告 v1.0 §11.1 与 decision.md）。仍�
 - Environment: 仓库内 Markdown（无外部向量后端）
 - Index: `README.md` / `plan.md` / `tree.md` / `decision.md` / `docs/reviews/` / `docs/decisions/`
 - Initialization: 2026-10-25
-- Commit: `main` 分支；基线 tag `baseline/a2cfd16`（迁移源历史 + 本仓提交）
+- Commit: `main` 分支（`origin` = GitHub `ZQU-Foray/foray_mcu`）；基线 tag `baseline/a2cfd16`（迁移源历史 + 本仓提交）
 
 ## Acceptance Criteria
 
@@ -161,3 +161,4 @@ Q1–Q18 已全部确认（见评审报告 v1.0 §11.1 与 decision.md）。仍�
 | 2026-10-25 | R0 | 评审报告 v0.4：契约语言统一为 C++（§5.11、Q17），P3a 工时调整为 11–20 人日，总计 37–70 人日；同步五件套 | 待负责人确认 |
 | 2026-10-25 | R0 | 负责人确认 Q1–Q18；评审报告定稿 v1.0（新增命名与格式、P0.5、`legacy/` 布局）；decision.md 新增 -04、-05 | 已确认 |
 | 2026-10-25 | P0 | 建 git 仓库并导入迁移源历史（tag `baseline/a2cfd16`）；迁移源整体移入 `legacy/`；重写 `.gitignore`、新增 `.gitattributes`；确立 `.clang-format` 与 `.clang-tidy`；提交五件套与评审材料 | 进行中 |
+| 2026-10-26 | P0 | 推送到 GitHub（`main` + tag）；只读存档芯片 Flash（RDP 0，两遍一致，含丢失的链路协议与遥控任务）；Windows + xPack GCC 15.2.1 复现基线构建，Debug/Release SHA-256 均一致，符号表入档 | 进行中 |

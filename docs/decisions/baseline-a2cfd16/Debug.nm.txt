@@ -1,0 +1,1447 @@
+20015ff4 00000001 B __lock___malloc_recursive_mutex
+20015ff5 00000001 B __lock___sfp_recursive_mutex
+20012088 00000001 b application::(anonymous namespace)::yawAnchored
+20012089 00000001 b application::(anonymous namespace)::gyroAnchored
+240051fc 00000001 d application::(anonymous namespace)::linkTimedOut
+2001209c 00000001 b application::(anonymous namespace)::accelAvailable
+20013238 00000001 b application::(anonymous namespace)::hasAcceptedFrame
+2001207d 00000001 b application::(anonymous namespace)::calibrationInjected
+200120e4 00000001 b application::(anonymous namespace)::temperatureQualified
+2001207c 00000001 b application::(anonymous namespace)::ready
+200131e4 00000001 b application::task::(anonymous namespace)::initialized
+20012a34 00000001 b application::task::(anonymous namespace)::initialized
+20012e18 00000001 b application::task::(anonymous namespace)::initialized
+200132b2 00000001 b application::task::(anonymous namespace)::failureStage
+200132b0 00000001 b application::task::(anonymous namespace)::managerState
+200132b1 00000001 b application::task::(anonymous namespace)::rtosInitTiming
+200132c4 00000001 b application::task::(anonymous namespace)::stackHealthAnchored
+24000099 00000001 d CDCCmdEpAdd
+24000097 00000001 d CDCInEpAdd
+24000098 00000001 d CDCOutEpAdd
+20000020 00000001 b cfgidx.0
+20014bc8 00000001 b pwm_port_initialized
+20014bd6 00000001 b spi_port_initialized
+20014bd4 00000001 b spi2_busy
+20014bd5 00000001 b spi6_busy
+20014be0 00000001 b time_port_ready
+20010d68 00000001 b ucMaxSysCallPriority
+2400000c 00000001 D uwTickFreq
+08000300 00000002 W __aeabi_idiv0
+08000300 00000002 W __aeabi_ldiv0
+08030566 00000002 T __retarget_lock_acquire_recursive
+08030564 00000002 T __retarget_lock_init_recursive
+08030568 00000002 T __retarget_lock_release_recursive
+0801b72c 00000002 W ADC_IRQHandler
+0801b72c 00000002 W ADC3_IRQHandler
+0801b72c 00000002 W BDMA_Channel1_IRQHandler
+0801b72c 00000002 W BDMA_Channel2_IRQHandler
+0801b72c 00000002 W BDMA_Channel3_IRQHandler
+0801b72c 00000002 W BDMA_Channel4_IRQHandler
+0801b72c 00000002 W BDMA_Channel5_IRQHandler
+0801b72c 00000002 W BDMA_Channel6_IRQHandler
+0801b72c 00000002 W BDMA_Channel7_IRQHandler
+0801b72c 00000002 W CEC_IRQHandler
+0801b72c 00000002 W COMP1_IRQHandler
+0801b72c 00000002 W CORDIC_IRQHandler
+0801b72c 00000002 W CRS_IRQHandler
+0801b72c 00000002 W DCMI_PSSI_IRQHandler
+0801b72c 00000002 T Default_Handler
+0801b72c 00000002 W DFSDM1_FLT0_IRQHandler
+0801b72c 00000002 W DFSDM1_FLT1_IRQHandler
+0801b72c 00000002 W DFSDM1_FLT2_IRQHandler
+0801b72c 00000002 W DFSDM1_FLT3_IRQHandler
+0801b72c 00000002 W DMA2_Stream6_IRQHandler
+0801b72c 00000002 W DMA2_Stream7_IRQHandler
+0801b72c 00000002 W DMA2D_IRQHandler
+0801b72c 00000002 W DMAMUX1_OVR_IRQHandler
+0801b72c 00000002 W DMAMUX2_OVR_IRQHandler
+0801b72c 00000002 W DTS_IRQHandler
+0801b72c 00000002 W ECC_IRQHandler
+0801b72c 00000002 W ETH_IRQHandler
+0801b72c 00000002 W ETH_WKUP_IRQHandler
+0801b72c 00000002 W EXTI0_IRQHandler
+0801b72c 00000002 W EXTI1_IRQHandler
+0801b72c 00000002 W EXTI2_IRQHandler
+0801b72c 00000002 W EXTI3_IRQHandler
+0801b72c 00000002 W EXTI4_IRQHandler
+0801b72c 00000002 W EXTI9_5_IRQHandler
+0801b72c 00000002 W FDCAN_CAL_IRQHandler
+0801b72c 00000002 W FLASH_IRQHandler
+0801b72c 00000002 W FMAC_IRQHandler
+0801b72c 00000002 W FMC_IRQHandler
+0801b72c 00000002 W FPU_IRQHandler
+0801b72c 00000002 W HSEM1_IRQHandler
+0801b72c 00000002 W I2C1_ER_IRQHandler
+0801b72c 00000002 W I2C1_EV_IRQHandler
+0801b72c 00000002 W I2C2_ER_IRQHandler
+0801b72c 00000002 W I2C2_EV_IRQHandler
+0801b72c 00000002 W I2C3_ER_IRQHandler
+0801b72c 00000002 W I2C3_EV_IRQHandler
+0801b72c 00000002 W I2C4_ER_IRQHandler
+0801b72c 00000002 W I2C4_EV_IRQHandler
+0801b72c 00000002 W I2C5_ER_IRQHandler
+0801b72c 00000002 W I2C5_EV_IRQHandler
+0801b72c 00000002 W LPTIM1_IRQHandler
+0801b72c 00000002 W LPTIM2_IRQHandler
+0801b72c 00000002 W LPTIM3_IRQHandler
+0801b72c 00000002 W LPTIM4_IRQHandler
+0801b72c 00000002 W LPTIM5_IRQHandler
+0801b72c 00000002 W LPUART1_IRQHandler
+0801b72c 00000002 W LTDC_ER_IRQHandler
+0801b72c 00000002 W LTDC_IRQHandler
+0801b72c 00000002 W MDIOS_IRQHandler
+0801b72c 00000002 W MDIOS_WKUP_IRQHandler
+0801b72c 00000002 W OCTOSPI1_IRQHandler
+0801b72c 00000002 W OTG_HS_EP1_IN_IRQHandler
+0801b72c 00000002 W OTG_HS_EP1_OUT_IRQHandler
+0801b72c 00000002 W OTG_HS_WKUP_IRQHandler
+0801b72c 00000002 W PVD_AVD_IRQHandler
+0801b72c 00000002 W RCC_IRQHandler
+0801b72c 00000002 W RNG_IRQHandler
+0801b72c 00000002 W RTC_Alarm_IRQHandler
+0801b72c 00000002 W RTC_WKUP_IRQHandler
+0801b72c 00000002 W SAI1_IRQHandler
+0801b72c 00000002 W SAI4_IRQHandler
+0801b72c 00000002 W SDMMC1_IRQHandler
+0801b72c 00000002 W SDMMC2_IRQHandler
+0801b72c 00000002 W SPDIF_RX_IRQHandler
+0801b72c 00000002 W SPI1_IRQHandler
+0801b72c 00000002 W SPI3_IRQHandler
+0801b72c 00000002 W SPI4_IRQHandler
+0801b72c 00000002 W SPI5_IRQHandler
+0801b72c 00000002 W SWPMI1_IRQHandler
+0801b72c 00000002 W TAMP_STAMP_IRQHandler
+0801b72c 00000002 W TIM1_BRK_IRQHandler
+0801b72c 00000002 W TIM1_CC_IRQHandler
+0801b72c 00000002 W TIM1_TRG_COM_IRQHandler
+0801b72c 00000002 W TIM15_IRQHandler
+0801b72c 00000002 W TIM16_IRQHandler
+0801b72c 00000002 W TIM17_IRQHandler
+0801b72c 00000002 W TIM2_IRQHandler
+0801b72c 00000002 W TIM23_IRQHandler
+0801b72c 00000002 W TIM24_IRQHandler
+0801b72c 00000002 W TIM3_IRQHandler
+0801b72c 00000002 W TIM6_DAC_IRQHandler
+0801b72c 00000002 W TIM7_IRQHandler
+0801b72c 00000002 W TIM8_BRK_TIM12_IRQHandler
+0801b72c 00000002 W TIM8_CC_IRQHandler
+0801b72c 00000002 W TIM8_TRG_COM_TIM14_IRQHandler
+0801b72c 00000002 W TIM8_UP_TIM13_IRQHandler
+0801b72c 00000002 W UART4_IRQHandler
+0801b72c 00000002 W UART8_IRQHandler
+0801b72c 00000002 W UART9_IRQHandler
+0801b72c 00000002 W USART6_IRQHandler
+0801b72c 00000002 W WAKEUP_PIN_IRQHandler
+0801b72c 00000002 W WWDG_IRQHandler
+20014bd8 00000003 b spi_port_async_results
+08035024 00000004 r __fini_array_start
+20015ffc 00000004 B __malloc_free_list
+20015ff8 00000004 B __malloc_sbrk_start
+20012078 00000004 b __sbrk_heap_end
+20015fec 00000004 B __stdio_exit_handler
+080304e8 00000004 T _getpid_r
+24005278 00000004 D _impure_ptr
+200132a0 00000004 b application::(anonymous namespace)::remoteReady
+2001208c 00000004 b application::(anonymous namespace)::lastGyroTick
+20012098 00000004 b application::(anonymous namespace)::lastAccelTick
+20013284 00000004 b application::(anonymous namespace)::snapshotFlags
+20012084 00000004 b application::(anonymous namespace)::lastYawDegrees
+20012090 00000004 b application::(anonymous namespace)::lastGyroSequence
+20013240 00000004 b application::(anonymous namespace)::snapshotSequence
+200120e0 00000004 b application::(anonymous namespace)::temperatureSince
+20012094 00000004 b application::(anonymous namespace)::lastAccelSequence
+20013288 00000004 b application::(anonymous namespace)::snapshotConnected
+200120dc 00000004 b application::(anonymous namespace)::gyroCaptureRequest
+2001323c 00000004 b application::(anonymous namespace)::lastAcceptedFrameTick
+200120e8 00000004 b application::(anonymous namespace)::gyroThermalProfileRequest
+2001328c 00000004 b application::(anonymous namespace)::snapshotAcceptedFrameCount
+20013294 00000004 b application::(anonymous namespace)::snapshotDiscardedByteCount
+20013290 00000004 b application::(anonymous namespace)::snapshotRejectedFrameCount
+2001329c 00000004 b application::(anonymous namespace)::snapshotUartErrorEventCount
+20013298 00000004 b application::(anonymous namespace)::snapshotUartDroppedByteCount
+20012080 00000004 b application::(anonymous namespace)::yawTurns
+20012a38 00000004 b application::task::(anonymous namespace)::taskHandle
+200132a4 00000004 b application::task::(anonymous namespace)::imuTaskHandle
+200132b4 00000004 b application::task::(anonymous namespace)::createdTaskCount
+200132ac 00000004 b application::task::(anonymous namespace)::gimbalTaskHandle
+200132a8 00000004 b application::task::(anonymous namespace)::chassisTaskHandle
+200132b8 00000004 b application::task::(anonymous namespace)::startRefusedCount
+200132c0 00000004 b application::task::(anonymous namespace)::lastStackHealthTick
+200132bc 00000004 b application::task::(anonymous namespace)::stackHealthSampleCount
+20012a40 00000004 b application::task::(anonymous namespace)::bmi088HeaterDiagnosticCommand
+20012a3c 00000004 b application::task::(anonymous namespace)::bmi088HeaterDiagnosticTargetBits
+0802e688 00000004 T atan2f
+20000000 00000004 b completed.1
+2001104c 00000004 B defaultTaskHandle
+20015ff0 00000004 B errno
+0801b702 00000004 t FillZerobss
+20011318 00000004 b HAL_RCC_FDCAN_CLK_ENABLED
+20000690 00000004 b KernelState
+20000064 00000004 B pxCurrentTCB
+2000058c 00000004 b pxCurrentTimerList
+200004f0 00000004 b pxDelayedTaskList
+20010d54 00000004 b pxEnd
+200004f4 00000004 b pxOverflowDelayedTaskList
+20000590 00000004 b pxOverflowTimerList
+24000000 00000004 D SystemCoreClock
+24000004 00000004 D SystemD2Clock
+20014bdc 00000004 b time_tick_frequency_hz
+20010d6c 00000004 b ulMaxPRIGROUPValue
+240000d4 00000004 D USBD_LangIDDesc
+2000001c 00000004 B uwTick
+24000008 00000004 D uwTickPrio
+2400009c 00000004 d uxCriticalNesting
+20000538 00000004 b uxCurrentNumberOfTasks
+20000520 00000004 b uxDeletedTasksWaitingCleanUp
+20000560 00000004 b uxSchedulerSuspended
+20000554 00000004 b uxTaskNumber
+20000540 00000004 b uxTopReadyPriority
+08034ba8 00000004 R uxTopUsedPriority
+20010d58 00000004 b xFreeBytesRemaining
+2000055c 00000004 b xIdleTaskHandle
+2000059c 00000004 b xLastTime.2
+20010d5c 00000004 b xMinimumEverFreeBytesRemaining
+20000558 00000004 b xNextTaskUnblockTime
+20010d60 00000004 b xNumberOfSuccessfulAllocations
+20010d64 00000004 b xNumberOfSuccessfulFrees
+20000550 00000004 b xNumOfOverflows
+20000548 00000004 b xPendedTicks
+20000544 00000004 b xSchedulerRunning
+2000053c 00000004 b xTickCount
+20000594 00000004 b xTimerQueue
+20000598 00000004 b xTimerTaskHandle
+2000054c 00000004 b xYieldPending
+0802e70c 00000006 T __ieee754_sqrt
+0802e714 00000006 T __ieee754_sqrtf
+08034c28 00000006 V alg_estimate::Bmi088SensorToBody
+0801b6ee 00000006 t CopyDataInit
+240000f4 00000007 d cdcLineCoding
+08035010 00000008 R __exidx_start
+080303e2 00000008 T __sclose
+0801b164 00000008 T BusFault_Handler
+08034ba0 00000008 r denominator.0
+08034b68 00000008 r flagBitshiftOffset.0
+0801b154 00000008 T HardFault_Handler
+0801b15c 00000008 T MemManage_Handler
+0801b14c 00000008 T NMI_Handler
+08034b98 00000008 r numerator.1
+20014bcc 00000008 b pwm_port_counter_frequency_hz
+08017b90 00000008 t pxCurrentTCBConst
+080178c0 00000008 t pxCurrentTCBConst2
+0801b16c 00000008 T UsageFault_Handler
+20010d4c 00000008 b xStart
+08020e30 0000000a t _GLOBAL__sub_I__ZN11application4task10GimbalTask16ControllerConfigEv
+080207bc 0000000a t _GLOBAL__sub_I__ZN11application4task11ChassisTask16ControllerConfigEv
+24000010 0000000a d USBD_CDC_DeviceQualifierDesc
+08030510 0000000c T __errno
+08035018 0000000c r __init_array_start
+0803075c 0000000c T __malloc_lock
+08030768 0000000c T __malloc_unlock
+080302bc 0000000c T __sfp_lock_acquire
+080302c8 0000000c T __sfp_lock_release
+2400526c 0000000c D __sglue
+080310cc 0000000c T _fini
+080310c0 0000000c T _init
+200120a0 0000000c b application::(anonymous namespace)::accelBody
+20012a28 0000000c b application::task::(anonymous namespace)::gyroscopeInterrupts
+20012a1c 0000000c b application::task::(anonymous namespace)::accelerometerInterrupts
+20012a44 0000000c V device::detail::motorChannelOwners
+08034ccc 0000000c r can_port_handles
+08034f94 0000000c r CSWTCH.6
+08034f88 0000000c r CSWTCH.7
+0801b174 0000000c T DebugMon_Handler
+08018b94 0000000c T Error_Handler
+0801b706 0000000c t LoopFillZerobss
+0802e700 0000000c T nanf
+0801b5c0 0000000e T _getpid
+0801bacc 0000000e W platform::Time::TickFrequencyHz()
+0801b844 0000000e W platform::Time::IsReady()
+0801cede 0000000e W platform::Time::NowTicks()
+080301a8 0000000e T abort
+0801b9c0 0000000e T Application_InitRtos
+080187c0 0000000e t CDC_DeInit_HS
+0802e6dc 0000000e T fabsf
+0801b6f4 0000000e t LoopCopyDataInit
+080171d0 0000000e T osThreadExit
+0801cece 00000010 W std::numeric_limits<unsigned long>::max()
+08034fb0 00000010 r atanhi
+08034fa0 00000010 r atanlo
+08034b58 00000010 R D1CorePrescTable
+08034b70 00000010 r DLCtoBytes
+08035000 00000010 r init_jk
+080303ea 00000010 T memset
+0802e6f0 00000010 T nan
+0803044c 00000010 T raise
+0802e538 00000012 T fabs
+0800e532 00000012 W HAL_FDCAN_ErrorCallback
+0800e520 00000012 W HAL_FDCAN_HighPriorityMessageCallback
+0800e4ea 00000012 W HAL_FDCAN_RxBufferNewMessageCallback
+0800e50e 00000012 W HAL_FDCAN_TimeoutOccurredCallback
+0800e4fc 00000012 W HAL_FDCAN_TimestampWraparoundCallback
+0800e4b0 00000012 W HAL_FDCAN_TxFifoEmptyCallback
+0800edc2 00000012 W HAL_OSPI_AbortCpltCallback
+0800ede6 00000012 W HAL_OSPI_CmdCpltCallback
+0800edb0 00000012 W HAL_OSPI_ErrorCallback
+0800edd4 00000012 W HAL_OSPI_FifoThresholdCallback
+0800edf8 00000012 W HAL_OSPI_RxCpltCallback
+0800ee1c 00000012 W HAL_OSPI_StatusMatchCallback
+0800ee2e 00000012 W HAL_OSPI_TimeOutCallback
+0800ee0a 00000012 W HAL_OSPI_TxCpltCallback
+08010678 00000012 W HAL_SPI_RxCpltCallback
+080106ae 00000012 W HAL_SPI_SuspendCallback
+0801068a 00000012 W HAL_SPI_TxHalfCpltCallback
+0801069c 00000012 W HAL_SPI_TxRxHalfCpltCallback
+08001112 00000012 W HAL_TIM_IC_CaptureCallback
+08001100 00000012 W HAL_TIM_OC_DelayElapsedCallback
+08001124 00000012 W HAL_TIM_PWM_PulseFinishedCallback
+08001136 00000012 W HAL_TIM_TriggerCallback
+08001b8c 00000012 W HAL_TIMEx_Break2Callback
+08001b7a 00000012 W HAL_TIMEx_BreakCallback
+08001b68 00000012 W HAL_TIMEx_CommutCallback
+080111d8 00000012 W HAL_UART_RxCpltCallback
+080111ea 00000012 W HAL_UART_RxHalfCpltCallback
+0801271e 00000012 W HAL_UARTEx_RxFifoFullCallback
+08012730 00000012 W HAL_UARTEx_TxFifoEmptyCallback
+0801270c 00000012 W HAL_UARTEx_WakeupCallback
+08016f54 00000012 t SVC_Setup
+240000c0 00000012 D USBD_HS_DeviceDesc
+08018494 00000012 T USBD_static_free
+0801b6aa 00000014 T _isatty
+0802aa48 00000014 W std::array<unsigned char, 8u>::data() const
+0802b3e4 00000014 W std::array<short, 4u>::data() const
+08027f70 00000014 W std::__size_to_integer(unsigned int)
+0801b3f0 00000014 T BDMA_Channel0_IRQHandler
+0801b180 00000014 T DMA1_Stream0_IRQHandler
+0801b194 00000014 T DMA1_Stream1_IRQHandler
+0801b1a8 00000014 T DMA1_Stream2_IRQHandler
+0801b1bc 00000014 T DMA1_Stream3_IRQHandler
+0801b1d0 00000014 T DMA1_Stream4_IRQHandler
+0801b1e4 00000014 T DMA1_Stream5_IRQHandler
+0801b1f8 00000014 T DMA1_Stream6_IRQHandler
+0801b2ec 00000014 T DMA1_Stream7_IRQHandler
+0801b328 00000014 T DMA2_Stream0_IRQHandler
+0801b33c 00000014 T DMA2_Stream1_IRQHandler
+0801b350 00000014 T DMA2_Stream2_IRQHandler
+0801b364 00000014 T DMA2_Stream3_IRQHandler
+0801b378 00000014 T DMA2_Stream4_IRQHandler
+0801b38c 00000014 T DMA2_Stream5_IRQHandler
+0801b20c 00000014 T FDCAN1_IT0_IRQHandler
+0801b234 00000014 T FDCAN1_IT1_IRQHandler
+0801b220 00000014 T FDCAN2_IT0_IRQHandler
+0801b248 00000014 T FDCAN2_IT1_IRQHandler
+0801b42c 00000014 T FDCAN3_IT0_IRQHandler
+0801b440 00000014 T FDCAN3_IT1_IRQHandler
+0800e474 00000014 W HAL_FDCAN_ClockCalibrationCallback
+0800e49c 00000014 W HAL_FDCAN_RxFifo1Callback
+0800e582 00000014 W HAL_FDCAN_TT_GlobalTimeCallback
+0800e544 00000014 W HAL_FDCAN_TT_ScheduleSyncCallback
+0800e558 00000014 W HAL_FDCAN_TT_TimeMarkCallback
+0800e4d6 00000014 W HAL_FDCAN_TxBufferAbortCallback
+0800e4c2 00000014 W HAL_FDCAN_TxBufferCompleteCallback
+0800e488 00000014 W HAL_FDCAN_TxEventFifoCallback
+0800bbe4 00000014 W HAL_GetTick
+0801b3dc 00000014 T MDMA_IRQHandler
+0801b404 00000014 T OCTOSPI2_IRQHandler
+0801b3a0 00000014 T OTG_HS_IRQHandler
+0801b284 00000014 T SPI2_IRQHandler
+0801b3c8 00000014 T SPI6_IRQHandler
+0801b25c 00000014 T TIM1_UP_IRQHandler
+0801b270 00000014 T TIM4_IRQHandler
+0801b300 00000014 T TIM5_IRQHandler
+0801b314 00000014 T UART5_IRQHandler
+0801b3b4 00000014 T UART7_IRQHandler
+0801b298 00000014 T USART1_IRQHandler
+0801b418 00000014 T USART10_IRQHandler
+0801b2ac 00000014 T USART2_IRQHandler
+0801b2c0 00000014 T USART3_IRQHandler
+240000fc 00000014 D USBD_Interface_fops_HS
+0801312c 00000014 T USBD_LL_DevConnected
+08012ae4 00000014 T USBD_RunTestMode
+08018d24 00000014 T vApplicationStackOverflowHook
+20000564 00000014 b xActiveTimerList1
+20000578 00000014 b xActiveTimerList2
+200004c8 00000014 b xDelayedTaskList1
+200004dc 00000014 b xDelayedTaskList2
+200004f8 00000014 b xPendingReadyList
+20000524 00000014 b xSuspendedTaskList
+2000050c 00000014 b xTasksWaitingTermination
+0801b676 00000016 T _close
+0801b5ee 00000016 T _exit
+0801b752 00000016 W platform::Can::ToPortChannel(platform::Can::Channel)
+0802915a 00000016 W platform::Pwm::ToPortChannel(platform::Pwm::Channel)
+0801b82e 00000016 W platform::Spi::ToPortDevice(platform::Spi::Device)
+0801b7f4 00000016 W platform::Gpio::ToPortPin(platform::Gpio::Pin)
+0801b876 00000016 W platform::Uart::ToPortEndpoint(platform::Uart::Endpoint)
+0801bab6 00000016 W application::GyroBiasCalibration::GetBiasRadPerSec() const
+08027352 00000016 W device::Bmi088Gyro::GetReadCount() const
+0801cfc8 00000016 W device::Bmi088Gyro::GetErrorCount() const
+0802733c 00000016 W device::Bmi088Gyro::HasPendingTransfer() const
+080272c8 00000016 W device::Bmi088Accel::GetReadCount() const
+0801cfb2 00000016 W device::Bmi088Accel::GetErrorCount() const
+080272b2 00000016 W device::Bmi088Accel::HasPendingTransfer() const
+0801cfde 00000016 W device::Bmi088Temperature::GetReadCount() const
+080273aa 00000016 W device::Bmi088Temperature::HasPendingTransfer() const
+080290bc 00000016 W device::Bmi088Temperature::GetState() const
+0801d03e 00000016 W device::Bmi088::GetAccelerometerQueue() const
+08020e3a 00000016 W protocol::SbusParser::GetStatistics() const
+08029a9c 00000016 W protocol::DjiEsc::GetStatistics() const
+08022d74 00000016 W std::numeric_limits<float>::infinity()
+0800aa2e 00000016 T HAL_DMA_GetError
+0800e56c 00000016 W HAL_FDCAN_TT_StopWatchCallback
+0800bae2 00000016 T HAL_NVIC_SetPriorityGrouping
+080030f4 00000016 W HAL_PCDEx_LPM_Callback
+08012952 00000016 T HAL_UARTEx_GetRxEventType
+080171ba 00000016 T osThreadGetId
+08017c20 00000016 t vPortEnableVFP
+0801b6be 00000018 T _lseek
+0801f6a8 00000018 T application::chassis::ChassisController::OnCommandFailure()
+0801ba9e 00000018 W application::GyroBiasCalibration::IsBiasValid() const
+0801dd68 00000018 W device::Bmi088SampleQueue<32u>::OverflowCount() const
+0801dd80 00000018 W device::Bmi088SampleQueue<32u>::HighWater() const
+0801d06c 00000018 W device::Bmi088::GetGyroscope() const
+0801d084 00000018 W device::Bmi088::GetTemperature() const
+0801d054 00000018 W device::Bmi088::GetAccelerometer() const
+0801d026 00000018 W device::Bmi088::GetGyroscopeQueue() const
+0801d09c 00000018 W device::Bmi088::GetGyroscopeDataReadyCount() const
+0801d0cc 00000018 W device::Bmi088::GetGyroscopeCoalescedEventCount() const
+0801d0b4 00000018 W device::Bmi088::GetAccelerometerCoalescedEventCount() const
+08029c3a 00000018 W device::DjiMotor::MaximumDeviceCount() const
+0802b368 00000018 W std::array<short, 4u>::begin() const
+0802b86c 00000018 W std::array<unsigned char, 25u>::begin()
+080299d8 00000018 W std::array<unsigned char, 4u>::begin()
+080290a4 00000018 W std::array<unsigned char, 7u>::begin()
+080288bc 00000018 W std::array<unsigned char, 8u>::begin()
+0802aac0 00000018 W std::array<device::DjiMotor::MotorState, 8u>::begin()
+08000510 00000018 T ExitRun0Mode
+0801b2d4 00000018 T EXTI15_10_IRQHandler
+20000004 00000018 b object.0
+08030224 00000018 t stdio_exit_handler
+08034b80 00000018 R UARTPrescTable
+0801319e 00000018 T USBD_CoreFindEP
+08013186 00000018 T USBD_CoreFindIF
+08012acc 00000018 T USBD_Start
+0801847c 00000018 T USBD_static_malloc
+080149aa 00000018 T vListInitialiseItem
+08015fb0 00000018 T vTaskMissedYield
+0802050c 0000001a W device::MotorGroup<(device::MotorModel)0, 4u>::ClearCommands()
+08020546 0000001a W device::MotorGroup<(device::MotorModel)0, 4u>::Process()
+08020c24 0000001a W device::MotorGroup<(device::MotorModel)2, 2u>::ClearCommands()
+08020c5e 0000001a W device::MotorGroup<(device::MotorModel)2, 2u>::Process()
+0802b080 0000001a T device::DjiMotorAdapter::ClearCommands()
+0802b380 0000001a W std::array<short, 4u>::end() const
+0801dd98 0000001a W std::operator&(std::memory_order, std::__memory_order_modifier)
+0800aa14 0000001a T HAL_DMA_GetState
+0800e596 0000001a T HAL_FDCAN_GetState
+080106c0 0000001a T HAL_SPI_GetState
+0800bcb4 0000001a t LL_ADC_GetCommonPathInternalCh
+0801b712 0000001a t LoopForever
+0802cabe 0000001a t SpiPort_GetCacheMaintenanceLength
+08018d70 0000001a T StartDefaultTask
+080046be 0000001a T USB_GetMode
+240000d8 0000001a D USBD_StringSerial
+0800b9cc 0000001c t __NVIC_GetPriorityGrouping
+240048a0 0000001c d application::task::(anonymous namespace)::bmi088HeaterDiagnosticReport
+24005200 0000001c D application::task::stackHealthArchive
+08021d20 0000001c t (anonymous namespace)::IsFinite(float)
+0801e35a 0000001c W component::AxisController<2u>::Reset()
+0801fa28 0000001c W component::AxisController<4u>::Reset()
+0802263a 0000001c T alg_controller::PID::GetIntegralError() const
+08022656 0000001c T alg_controller::PID::GetOut() const
+08027300 0000001c W device::Bmi088Gyro::GetCompletionTick() const
+08027276 0000001c W device::Bmi088Accel::GetCompletionTick() const
+0802aa5c 0000001c W std::__atomic_base<unsigned long>::__atomic_base(unsigned long)
+0802aa5c 0000001c W std::__atomic_base<unsigned long>::__atomic_base(unsigned long)
+0802aad8 0000001c W std::array<device::DjiMotor::MotorState, 8u>::end()
+080003d8 0000001c t frame_dummy
+0800bb2c 0000001c T HAL_NVIC_EnableIRQ
+0800ee40 0000001c T HAL_OSPI_SetTimeout
+08018118 0000001c T HAL_PCD_ConnectCallback
+08018134 0000001c T HAL_PCD_DisconnectCallback
+080180b4 0000001c T HAL_PCD_ResumeCallback
+08017ffa 0000001c T HAL_PCD_SOFCallback
+0800b968 0000001c T HAL_PWREx_EnableUSBVoltageDetector
+0803056a 0000001c T memcpy
+08017cee 0000001c T PortKit_Queue_Used
+08010766 0000001c t SPI_DMAHalfTransmitCplt
+08010782 0000001c t SPI_DMAHalfTransmitReceiveCplt
+080125c4 0000001c t UART_DMAAbortOnError
+080156c4 0000001c T vTaskSuspendAll
+080161d8 0000001c T xTaskGetCurrentTaskHandle
+080158dc 0000001c T xTaskGetTickCount
+0801b68c 0000001e T _fstat
+080273fa 0000001e t device::(anonymous namespace)::Before(unsigned long, unsigned long)
+08022f54 0000001e W double alg_math::Square<double>(double)
+08029be0 0000001e W platform::Can::ToSendResult(unsigned char)
+08029bfe 0000001e W platform::Can::ToReceiveResult(unsigned char)
+08029170 0000001e W platform::Pwm::ToResult(unsigned char)
+08020f2c 0000001e W platform::Uart::ToReceiveResult(unsigned char)
+0801e65e 0000001e W component::AxisController<2u>::GetMode() const
+0801e640 0000001e W component::AxisController<2u>::IsEnabled() const
+0801fa88 0000001e W component::AxisController<4u>::GetMode() const
+0801fa6a 0000001e W component::AxisController<4u>::IsEnabled() const
+08029c1c 0000001e W std::atomic<unsigned long>::atomic(unsigned long)
+08029c1c 0000001e W std::atomic<unsigned long>::atomic(unsigned long)
+0801c364 0000001e W std::fabs(float)
+0802d3c4 0000001e T HAL_SPI_ErrorCallback
+08017efa 0000001e T PortKit_Critical_Exit
+08017d0a 0000001e T PortKit_Queue_Free
+08012fa2 0000001e T USBD_LL_SetSpeed
+0803045c 00000020 T _close_r
+080310a0 00000020 T _isatty_r
+0801b5ce 00000020 T _kill
+08030fa0 00000020 T _sbrk_r
+0802800c 00000020 W platform::Spi::ToResult(unsigned char)
+0802731c 00000020 W device::Bmi088Gyro::IsReady() const
+08020526 00000020 W device::MotorGroup<(device::MotorModel)0, 4u>::MaximumTorqueNewtonMeter() const
+08020c3e 00000020 W device::MotorGroup<(device::MotorModel)2, 2u>::MaximumTorqueNewtonMeter() const
+08027292 00000020 W device::Bmi088Accel::IsReady() const
+0802738a 00000020 W device::Bmi088Temperature::IsEnabled() const
+08026a80 00000020 W std::asin(float)
+0801c382 00000020 W std::sqrt(float)
+0800308c 00000020 T HAL_PCDEx_SetRxFiFo
+240000a0 00000020 D HS_Desc
+08017eda 00000020 T PortKit_Critical_Enter
+0802c39c 00000020 t PwmPort_GetTimerChannel
+0802cad8 00000020 t SpiPort_IsDataCacheEnabled
+08016f34 00000020 T SysTick_Handler
+0802d5c8 00000020 t UartPort_IsDataCacheEnabled
+08003360 00000020 T USB_DisableGlobalInt
+08003340 00000020 T USB_EnableGlobalInt
+08014834 00000020 T USBD_CDC_GetDeviceQualifierDescriptor
+08030362 00000022 T __sread
+080272de 00000022 W device::Bmi088Gyro::SetCompletionNotification(void (*)(void*), void*)
+08027254 00000022 W device::Bmi088Accel::SetCompletionNotification(void (*)(void*), void*)
+080271b2 00000022 W device::Bmi088Transfer::SetNotification(void (*)(void*), void*)
+08027368 00000022 W device::Bmi088Temperature::SetCompletionNotification(void (*)(void*), void*)
+08029762 00000022 T device::Bmi088Temperature::Enable()
+08029a3c 00000022 W protocol::DjiEsc::GetCommandSpec(protocol::DjiEsc::CommandKind) const
+080188f0 00000022 t CDC_TransmitCplt_HS
+0800ddc8 00000022 T HAL_FDCAN_GetTxFifoFreeLevel
+08014006 00000022 T USBD_CtlContinueRx
+08013fa2 00000022 T USBD_CtlContinueSendData
+08013e6e 00000022 T USBD_CtlError
+0803079e 00000024 T __sfputs_r
+0803107c 00000024 T _fstat_r
+080304c4 00000024 T _kill_r
+0803047c 00000024 T _lseek_r
+080304a0 00000024 T _read_r
+080304ec 00000024 T _write_r
+20013214 00000024 b application::(anonymous namespace)::latestFrame
+0801bbe8 00000024 t application::(anonymous namespace)::HasUncertainTiming(device::Bmi088SampleRecord const&)
+08034c30 00000024 r application::task::(anonymous namespace)::imuTaskAttributes
+08034c78 00000024 r application::task::(anonymous namespace)::gimbalTaskAttributes
+08034c54 00000024 r application::task::(anonymous namespace)::chassisTaskAttributes
+0802ae7a 00000024 T device::DjiMotorAdapter::Process()
+0801b72e 00000024 W platform::Can::IsReady(platform::Can::Channel)
+080290d2 00000024 W platform::Pwm::IsReady(platform::Pwm::Channel)
+0801b80a 00000024 W platform::Spi::IsReady(platform::Spi::Device)
+0801b852 00000024 W platform::Uart::IsReady(platform::Uart::Endpoint)
+0802b09a 00000024 t protocol::(anonymous namespace)::ReadBigEndian16(unsigned char const*)
+08020560 00000024 W device::MotorGroup<(device::MotorModel)0, 4u>::ReadState(unsigned int, device::MotorState&) const
+08020c78 00000024 W device::MotorGroup<(device::MotorModel)2, 2u>::ReadState(unsigned int, device::MotorState&) const
+0802baf4 00000024 t CanPort_StopChannel
+08034c04 00000024 R defaultTask_attributes
+08030304 00000024 T fiprintf
+08030304 00000024 T fprintf
+0800bbc0 00000024 W HAL_IncTick
+080180f4 00000024 T HAL_PCD_ISOINIncompleteCallback
+080180d0 00000024 T HAL_PCD_ISOOUTIncompleteCallback
+08017f6c 00000024 T HAL_PCD_SetupStageCallback
+08018b70 00000024 T HAL_TIM_PeriodElapsedCallback
+0800c044 00000024 t LL_ADC_DisableDeepPowerDown
+0800c126 00000024 t LL_ADC_INJ_IsConversionOngoing
+0800c0de 00000024 t LL_ADC_IsEnabled
+0800d0ec 00000024 t LL_ADC_IsEnabled
+0800c102 00000024 t LL_ADC_REG_IsConversionOngoing
+0800d110 00000024 t LL_ADC_REG_IsConversionOngoing
+0800bc6c 00000024 t LL_ADC_SetCommonClock
+0800bc90 00000024 t LL_ADC_SetCommonPathInternalCh
+0802d560 00000024 T TimePort_FrequencyHz
+0802d53c 00000024 T TimePort_NowTicks
+080045a2 00000024 T USB_ReadInterrupts
+08018574 00000024 T USBD_HS_DeviceDescriptor
+08018598 00000024 T USBD_HS_LangIDStrDescriptor
+08018620 00000024 T USBD_HS_SerialStrDescriptor
+080303bc 00000026 T __sseek
+0801e30c 00000026 T application::module::GimbalModule::OnCommandFailure()
+0801e61a 00000026 W component::AxisController<2u>::OnCommandFailure()
+0801fa44 00000026 W component::AxisController<4u>::OnCommandFailure()
+0800c068 00000026 t LL_ADC_IsDeepPowerDownEnabled
+0800c0b8 00000026 t LL_ADC_IsInternalRegulatorEnabled
+08017e36 00000026 T PortKit_Queue_Reset
+08016a7c 00000026 t prvTimerTask
+080178a0 00000026 T SVC_Handler
+0801404e 00000026 T USBD_CtlReceiveStatus
+08014028 00000026 T USBD_CtlSendStatus
+08018454 00000026 T USBD_LL_GetRxDataSize
+080003b0 00000028 t __do_global_dtors_aux
+080219c8 00000028 t application::task::(anonymous namespace)::EnterError(application::task::TaskManager::FailureStage)
+0801f20c 00000028 t application::task::(anonymous namespace)::TransferCompletedCallback(void*)
+0801e332 00000028 T application::module::GimbalModule::Update(component::AxisMeasurement const (&) [2], float, float (&) [2])
+08028fd0 00000028 T device::Bmi088Gyro::Fail()
+08020584 00000028 W device::MotorGroup<(device::MotorModel)0, 4u>::SetTorque(unsigned int, float)
+08020c9c 00000028 W device::MotorGroup<(device::MotorModel)2, 2u>::SetTorque(unsigned int, float)
+080287e6 00000028 T device::Bmi088Accel::Fail()
+0802994c 00000028 T device::Bmi088Temperature::Fail()
+08022d4c 00000028 W alg_math::RadToDeg(float)
+08026aa0 00000028 W std::atan2(float, float)
+0800c090 00000028 t LL_ADC_EnableInternalRegulator
+2400521c 00000028 d spi2_async_state
+24005244 00000028 d spi6_async_state
+0802c874 00000028 t SpiPort_Deselect
+0802c84c 00000028 t SpiPort_Select
+08034d60 00000028 r uart_port_mappings
+080185f8 00000028 T USBD_HS_ManufacturerStrDescriptor
+08030774 0000002a t __sfputc_r
+0801c3f0 0000002a W alg_math::Norm(alg_math::Vector3 const&)
+0800bdac 0000002a t LL_ADC_GetOffsetChannel
+080178c8 0000002a t prvPortStartFirstTask
+08020e04 0000002c t __static_initialization_and_destruction_0()
+200131e8 0000002c b application::(anonymous namespace)::parser
+08028fa4 0000002c T device::Bmi088Gyro::Advance(device::Bmi088Gyro::Step, unsigned long)
+080287ba 0000002c T device::Bmi088Accel::Advance(device::Bmi088Accel::Step, unsigned long)
+0802912e 0000002c W platform::Pwm::Silence(platform::Pwm::Channel)
+08027fe0 0000002c W platform::Spi::GetAsyncResult(platform::Spi::Device)
+0801f168 0000002c W platform::Gpio::SetInterruptCallback(platform::Gpio::Pin, void (*)(void*), void*)
+0802199c 0000002c W platform::Uart::ReceiveResult platform::Uart::TryRead<64u>(platform::Uart::Endpoint, std::array<unsigned char, 64u>&, unsigned int&)
+0802b9d8 0000002c t CanPort_ActivateNotifications
+08005664 0000002c T HAL_RCC_GetPCLK1Freq
+08005690 0000002c T HAL_RCC_GetPCLK2Freq
+080076bc 0000002c T HAL_RCCEx_GetD3PCLK1Freq
+0800bc40 0000002c T HAL_SYSCFG_AnalogSwitchConfig
+08014fac 0000002c t prvIsQueueEmpty
+08015eb4 0000002c T vTaskInternalSetTimeOutState
+08008500 0000002e T HAL_GPIO_ReadPin
+08002a16 0000002e T HAL_PCD_EP_GetRxCount
+08012ff6 0000002e T USBD_LL_Resume
+080002d0 00000030 T __aeabi_uldivmod
+080302d4 00000030 T __sinit
+200120ac 00000030 b application::(anonymous namespace)::statisticsArchive
+0801c41a 00000030 T application::GyroBiasCalibration::Init(application::GyroBiasCalibration::Config const&)
+08034c9c 00000030 r application::task::(anonymous namespace)::taskSpecs
+08022b18 00000030 T alg_estimate::GyroRawToRadiansPerSecond(short)
+08022a58 00000030 W device::Bmi088Gyro::ToDps(short)
+08022a28 00000030 W device::Bmi088Accel::ToMps2(short)
+080207c8 00000030 W device::DjiMotor::Profile::Gm6020Current()
+08020194 00000030 W device::DjiMotor::Profile::C610()
+0802b0be 00000030 t protocol::(anonymous namespace)::WriteBigEndian16(unsigned char*, short)
+0802991c 00000030 T device::Bmi088Temperature::TryGetSample(device::Bmi088Temperature::Sample&) const
+0802a964 00000030 T device::DjiMotor::DeviceIdValid(unsigned char) const
+08024c80 00000030 W double const& std::max<double>(double const&, double const&)
+0801ebd8 00000030 W float const& std::max<float>(float const&, float const&)
+080257a8 00000030 W double const& std::min<double>(double const&, double const&)
+08018790 00000030 t CDC_Init_HS
+0800852e 00000030 T HAL_GPIO_WritePin
+0800bdd6 00000030 t LL_ADC_SetDataRightShift
+08015fc8 00000030 t prvIdleTask
+0802c81c 00000030 t SpiPort_Release
+08003790 00000030 T USB_SetDevSpeed
+080173c8 00000030 W vApplicationGetIdleTaskMemory
+0801cff4 00000032 W device::Bmi088Temperature::ToCelsius(short)
+0802cdc6 00000032 t SpiPort_DmaAbortAfterError
+080045f8 00000032 T USB_ReadDevAllInEpInterrupt
+080045c6 00000032 T USB_ReadDevAllOutEpInterrupt
+08014854 00000032 T USBD_CDC_RegisterInterface
+08013f34 00000032 t USBD_GetLen
+08020788 00000034 t __static_initialization_and_destruction_0()
+08020cc4 00000034 W device::DjiMotorAdapter::Config device::MotorAdapterFor<(device::MotorModel)2>::MakeConfig<2u>(platform::Can::Channel, std::array<device::MotorConnection, 2u> const&)
+08028a76 00000034 T device::Bmi088Gyro::WaitElapsed() const
+0802825e 00000034 T device::Bmi088Accel::WaitElapsed() const
+0801ed36 00000034 W std::atomic<component::AxisControlMode>::load(std::memory_order) const
+080288d4 00000034 W __gnu_cxx::__enable_if<std::__is_byte<unsigned char>::__value&&(std::__are_same<unsigned char, unsigned char>::__value||std::__memcpyable_integer<unsigned char>::__width), void>::__type std::__fill_a1<unsigned char, unsigned char>(unsigned char*, unsigned char*, unsigned char const&)
+08027418 00000034 t device::Bmi088::PopNextSample(device::Bmi088SampleRecord&, bool&)::{lambda(unsigned long)#1}::operator()(unsigned long) const
+080188bc 00000034 t CDC_Receive_HS
+0800855e 00000034 T HAL_GPIO_EXTI_IRQHandler
+0800baf8 00000034 T HAL_NVIC_SetPriority
+08017fc6 00000034 T HAL_PCD_DataInStageCallback
+08017392 00000034 T osDelay
+080161a4 00000034 t prvResetNextTaskUnblockTime
+0802c368 00000034 t PwmPort_GetTimer
+0802c4fc 00000034 T PwmPort_IsReady
+080107e4 00000034 t SPI_DMAAbortOnError
+08010958 00000034 t SPI_GetPacketSize
+0802c89c 00000034 t SpiPort_MapStatus
+08012b30 00000034 T USBD_ClrClassConfig
+080173f8 00000034 W vApplicationGetTimerTaskMemory
+0802015c 00000036 W platform::Time::DeltaSeconds(unsigned long&)
+08028a40 00000036 T device::Bmi088Gyro::TryGetSample(device::Bmi088Gyro::Sample&) const
+08028228 00000036 T device::Bmi088Accel::TryGetSample(device::Bmi088Accel::Sample&) const
+0801ed00 00000036 W std::atomic<float>::store(float, std::memory_order)
+0801eb58 00000036 W std::atomic<component::AxisControlMode>::store(component::AxisControlMode, std::memory_order)
+08017f90 00000036 T HAL_PCD_DataOutStageCallback
+08017cb8 00000036 T PortKit_Queue_Init
+080160d4 00000036 t prvTaskCheckFreeStackSpace
+08013226 00000036 T USBD_GetNextDesc
+08018200 00000036 T USBD_LL_Start
+08012fc0 00000036 T USBD_LL_Suspend
+0800b9e8 00000038 t __NVIC_EnableIRQ
+08030384 00000038 T __swrite
+0801b63e 00000038 W _write
+080205ac 00000038 W device::DjiMotorAdapter::Config device::MotorAdapterFor<(device::MotorModel)0>::MakeConfig<4u>(platform::Can::Channel, std::array<device::MotorConnection, 4u> const&)
+080290f6 00000038 W platform::Pwm::Set(platform::Pwm::Channel, unsigned long, unsigned short)
+0802b6f0 00000038 T protocol::SbusParser::IsSupportedEndByte(unsigned char)
+0802c224 00000038 T HAL_GPIO_EXTI_Callback
+08018d38 00000038 T MX_FREERTOS_Init
+0802c7a0 00000038 t SpiPort_GetAsyncStateFromHandle
+08001970 00000038 t TIM_ITRx_SetConfig
+0802d504 00000038 T TimePort_IsReady
+2400001c 00000038 D USBD_CDC
+080148c8 00000038 T USBD_CDC_SetRxBuffer
+08012af8 00000038 T USBD_SetClassConfig
+0801610c 00000038 T uxTaskGetStackHighWaterMark
+08030328 0000003a T _fwalk_sglue
+0801b604 0000003a W _read
+08027c8e 0000003a W device::Bmi088SampleQueue<32u>::Reset()
+0801b7ba 0000003a W platform::Gpio::Write(platform::Gpio::Pin, platform::Gpio::Level)
+0802b3f8 0000003a T protocol::SbusParser::Reset()
+0802b0ee 0000003a T protocol::DjiEsc::DjiEsc(protocol::DjiEsc::Dialect const&)
+0802b0ee 0000003a T protocol::DjiEsc::DjiEsc(protocol::DjiEsc::Dialect const&)
+080273c0 0000003a W device::Bmi088::IsReady() const
+0801ed6a 0000003a W std::atomic<float>::load(std::memory_order) const
+0801b9ce 0000003a T Application_Start
+0800dd8e 0000003a T HAL_FDCAN_GetRxFifoFillLevel
+08017ea0 0000003a T PortKit_Notifier_Fire
+0800462a 0000003a T USB_ReadDevOutEPInterrupt
+0801f1d0 0000003c t application::task::(anonymous namespace)::GyroscopeDataReadyCallback(void*)
+0801f194 0000003c t application::task::(anonymous namespace)::AccelerometerDataReadyCallback(void*)
+0802292e 0000003c T alg_controller::PID::DerivativeOnMeasurement()
+08020450 0000003c W device::MotorGroup<(device::MotorModel)0, 4u>::MotorGroup(platform::Can::Channel, std::array<device::MotorConnection, 4u> const&)
+08020450 0000003c W device::MotorGroup<(device::MotorModel)0, 4u>::MotorGroup(platform::Can::Channel, std::array<device::MotorConnection, 4u> const&)
+08020b68 0000003c W device::MotorGroup<(device::MotorModel)2, 2u>::MotorGroup(platform::Can::Channel, std::array<device::MotorConnection, 2u> const&)
+08020b68 0000003c W device::MotorGroup<(device::MotorModel)2, 2u>::MotorGroup(platform::Can::Channel, std::array<device::MotorConnection, 2u> const&)
+08029a60 0000003c W protocol::DjiEsc::RotorAngleDegrees(unsigned short)
+0802bdc0 0000003c T CanPort_IsReady
+0801b454 0000003c T HAL_MspInit
+0801b6d8 0000003c W Reset_Handler
+0802cc54 0000003c t SpiPort_IsDmaSettled
+0801325c 0000003c t SWAPBYTE
+08013f66 0000003c T USBD_CtlSendData
+08018644 0000003c T USBD_HS_ConfigStrDescriptor
+08018680 0000003c T USBD_HS_InterfaceStrDescriptor
+080185bc 0000003c T USBD_HS_ProductStrDescriptor
+080161f4 0000003c T xTaskGetSchedulerState
+080019a8 0000003e T TIM_ETR_SetConfig
+080182fe 0000003e T USBD_LL_ClearStallEP
+08018282 0000003e T USBD_LL_CloseEP
+08018392 0000003e T USBD_LL_SetUSBAddress
+080182c0 0000003e T USBD_LL_StallEP
+0801496c 0000003e T vListInitialise
+20013244 00000040 b application::(anonymous namespace)::snapshotChannels
+0802ac1c 00000040 T device::DjiMotorAdapter::DjiMotorAdapter(device::DjiMotorAdapter::Config const&)
+0802ac1c 00000040 T device::DjiMotorAdapter::DjiMotorAdapter(device::DjiMotorAdapter::Config const&)
+080201c4 00000040 W device::DjiMotorAdapter::MaximumTorqueNewtonMeter() const
+0802e3c8 00000040 T std::__glibcxx_assert_fail(char const*, int, char const*, char const*)
+0803023c 00000040 t cleanup_stdio
+0803027c 00000040 t global_stdio_init.part.0
+20014b88 00000040 b gpio_port_interrupt_notifiers
+08034cd8 00000040 r gpio_port_mappings
+0802c1e4 00000040 T GpioPort_SetInterruptCallback
+0800be48 00000040 t LL_ADC_SetOffsetSaturation
+0800be88 00000040 t LL_ADC_SetOffsetSign
+0800be08 00000040 t LL_ADC_SetOffsetSignedSaturation
+08018f78 00000040 T MX_BDMA_Init
+080195f8 00000040 T MX_MDMA_Init
+08034fc0 00000040 r PIo2
+08016b84 00000040 t prvSampleTimeNow
+24008440 00000040 b uart10_receive_dma_buffer
+24008400 00000040 b uart5_receive_dma_buffer
+08004522 00000040 T USB_DevConnect
+08004562 00000040 T USB_DevDisconnect
+08013024 00000040 T USBD_LL_SOF
+20000024 00000040 B xQueueRegistry
+08029680 00000042 T device::Bmi088Heater::DisableOutput(device::Bmi088Heater::State)
+0802a194 00000042 T device::DjiMotor::ClearAllCommands()
+08026042 00000042 T alg_math::ScaledIdentity(double)
+080169d8 00000042 t prvReloadTimer
+0802cd84 00000042 t SpiPort_CompleteErrorIfSettled
+08014886 00000042 T USBD_CDC_SetTxBuffer
+08013fc4 00000042 T USBD_CtlPrepareRx
+08018412 00000042 T USBD_LL_PrepareReceive
+080183d0 00000042 T USBD_LL_Transmit
+24000054 00000043 d USBD_CDC_CfgDesc
+0802272c 00000044 T alg_controller::PID::TrapezoidIntegral()
+080276f4 00000044 T device::Bmi088::SetCompletionNotification(void (*)(void*), void*)
+0801badc 00000044 W platform::Time::TicksToSeconds(unsigned long)
+0801eb14 00000044 W component::AxisController<2u>::ClearTargets()
+08020058 00000044 W component::AxisController<4u>::ClearTargets()
+0801ba08 00000044 W std::isfinite(float)
+08017000 00000044 T osKernelGetState
+08017e5c 00000044 T PortKit_Notifier_Set
+08016b40 00000044 t prvGetNextExpireTime
+08030620 00000044 t sbrk_aligned
+0802c7d8 00000044 t SpiPort_TryAcquire
+0802cce0 00000044 t SpiPort_TryFinalizeSuccessfulTransfer
+0802d584 00000044 t UartPort_GetEndpoint
+08013db6 00000044 t USBD_ClrFeature
+08017bdc 00000044 W vPortSetupTimerInterrupt
+08017b98 00000044 T xPortSysTickHandler
+08027c48 00000046 W device::Bmi088SampleQueue<32u>::Peek(device::Bmi088SampleRecord&) const
+0802d324 00000046 T HAL_SPI_TxCpltCallback
+08014cb2 00000046 t prvInitialiseNewQueue
+0801079e 00000046 t SPI_DMAError
+080106da 00000046 t SPI_DMATransmitCplt
+08010720 00000046 t SPI_DMATransmitReceiveCplt
+0802c9d0 00000046 t SpiPort_IsDmaHandleReady
+0802d99e 00000046 t UartPort_Enqueue
+08013140 00000046 T USBD_LL_DevDisconnected
+080149c2 00000046 T vListInsertEnd
+0803051c 00000048 T __libc_init_array
+0800b984 00000048 t __NVIC_SetPriorityGrouping
+08030fc0 00000048 T __swhatbuf_r
+0801bb20 00000048 t application::(anonymous namespace)::PublishArchive(application::AttitudeEstimator::Output const&)
+08029190 00000048 t device::(anonymous namespace)::PreheatThresholdFor(float)
+0802971a 00000048 T device::Bmi088Temperature::Init()
+080226e4 00000048 T alg_controller::PID::FeedForwardTerm(float) const
+08022ad0 00000048 W std::array<signed char, 3u>::operator[](unsigned int) const
+0802b540 00000048 W std::array<unsigned char, 25u>::operator[](unsigned int) const
+08022a88 00000048 W std::array<unsigned char, 3u>::operator[](unsigned int) const
+08020dbc 00000048 W std::array<device::MotorConnection, 2u>::operator[](unsigned int) const
+08020740 00000048 W std::array<device::MotorConnection, 4u>::operator[](unsigned int) const
+08027ea0 00000048 W std::array<device::Bmi088SampleRecord, 32u>::operator[](unsigned int) const
+0802a7b0 00000048 W std::array<device::DjiMotor::MotorState, 8u>::operator[](unsigned int) const
+0802b39c 00000048 W std::array<short, 4u>::operator[](unsigned int) const
+0802b824 00000048 W std::array<unsigned char, 25u>::operator[](unsigned int)
+08029784 00000048 W std::array<unsigned char, 4u>::operator[](unsigned int)
+0802905c 00000048 W std::array<unsigned char, 7u>::operator[](unsigned int)
+08028874 00000048 W std::array<unsigned char, 8u>::operator[](unsigned int)
+0802ab88 00000048 W std::array<unsigned long, 6u>::operator[](unsigned int)
+0801ec70 00000048 W std::array<alg_controller::PID, 2u>::operator[](unsigned int)
+0801ffc0 00000048 W std::array<alg_controller::PID, 4u>::operator[](unsigned int)
+08027e58 00000048 W std::array<device::Bmi088SampleRecord, 32u>::operator[](unsigned int)
+0802aa78 00000048 W std::array<device::DjiMotor::MotorState, 8u>::operator[](unsigned int)
+0801eb90 00000048 W std::array<component::AxisStatus, 2u>::operator[](unsigned int)
+0801ff10 00000048 W std::array<component::AxisStatus, 4u>::operator[](unsigned int)
+080205e4 00000048 W std::array<void const*, 3u>::operator[](unsigned int)
+0802ab40 00000048 W std::array<short, 4u>::operator[](unsigned int)
+0801ecb8 00000048 W std::array<std::atomic<float>, 2u>::operator[](unsigned int)
+0802009c 00000048 W std::array<std::atomic<float>, 4u>::operator[](unsigned int)
+0802190c 00000048 W std::array<std::atomic<unsigned long>, 16u>::operator[](unsigned int)
+08021954 00000048 W std::array<unsigned short, 16u>::operator[](unsigned int)
+0802bb68 00000048 t CanPort_IsIdentifierValid
+0802bbb0 00000048 t CanPort_IsReceivedHeaderValid
+0800bbf8 00000048 W HAL_Delay
+080027f0 00000048 T HAL_PCD_SetAddress
+080030ac 00000048 T HAL_PCDEx_ActivateLPM
+08034d18 00000048 r spi_port_mappings
+0802d2dc 00000048 T SpiPort_GetAsyncResult
+0802ca76 00000048 t SpiPort_ResetAsyncState
+080019e6 00000048 T TIM_CCxChannelCmd
+080046d8 00000048 T USB_ActivateSetup
+080037c0 00000048 T USB_GetDevSpeed
+080044d8 0000004a T USB_SetDevAddress
+2400527c 0000004c D _impure_data
+0802a148 0000004c T device::DjiMotor::SetTorque(unsigned char, float)
+080299f0 0000004c W protocol::DjiEsc::ControlRatio(short, protocol::DjiEsc::CommandSpec const&)
+0802aaf4 0000004c W std::array<device::DjiMotor::Snapshot, 8u>::operator[](unsigned int) const
+0802abd0 0000004c W std::array<device::DjiMotor::Snapshot, 8u>::operator[](unsigned int)
+0801e67c 0000004c W component::AxisController<2u>::Update(component::AxisMeasurement const (&) [2], float, float (&) [2])::{lambda()#1}::operator()() const
+0801faa6 0000004c W component::AxisController<4u>::Update(component::AxisMeasurement const (&) [4], float, float (&) [4])::{lambda()#1}::operator()() const
+0800b4ce 0000004c T HAL_MDMA_Abort_IT
+08018068 0000004c T HAL_PCD_SuspendCallback
+2001202c 0000004c B htim1
+20011740 0000004c B htim12
+2001165c 0000004c B htim3
+200116a8 0000004c B htim4
+200116f4 0000004c B htim5
+08016fb4 0000004c T osKernelInitialize
+08014ebc 0000004c t prvCopyDataFromQueue
+08016e14 0000004c t prvSwitchTimerLists
+08018236 0000004c T USBD_LL_OpenEP
+08015c2c 0000004c T vTaskPlaceOnEventList
+0801c3a2 0000004e W alg_math::Dot(alg_math::Vector3 const&, alg_math::Vector3 const&)
+0801eac4 0000004e W component::AxisController<2u>::ResetLoops()
+08020008 0000004e W component::AxisController<4u>::ResetLoops()
+08016f66 0000004e t IRQ_Context
+08030e2c 00000050 T _fflush_r
+080303fa 00000050 T _raise_r
+08021b5c 00000050 T application::task::TaskManager::Start()
+0801c58c 00000050 T application::GyroBiasCalibration::TicksFromMs(unsigned long) const
+0802aea0 00000050 W std::array<device::DjiMotorAdapter::Mapping, 8u>::operator[](unsigned int) const
+0802a9f8 00000050 W std::array<protocol::DjiEsc::CommandSpec, 2u>::operator[](unsigned int) const
+080206f0 00000050 W std::array<device::DjiMotorAdapter::Mapping, 8u>::operator[](unsigned int)
+08029d40 00000050 W std::array<protocol::DjiEsc::CommandSpec, 2u>::operator[](unsigned int)
+0802bb18 00000050 t CanPort_GetSendState
+08018016 00000050 T HAL_PCD_ResetCallback
+0802cc90 00000050 t SpiPort_IsErrorSettled
+0802ce4c 00000050 t SpiPort_RecoverDmaAfterError
+0802d28c 00000050 T SpiPort_StartTransferAsync
+0802e68c 00000050 T sqrtf
+20000640 00000050 b xStaticTimerQueue.0
+0801eda4 00000052 W float alg_math::Limit<float>(float, float, float)
+0801ba4c 00000052 W alg_math::IsFinite(alg_math::Vector3 const&)
+0801b768 00000052 W platform::Gpio::Read(platform::Gpio::Pin, platform::Gpio::Level&)
+08013d64 00000052 t USBD_SetFeature
+08014a78 00000052 T uxListRemove
+0800ba20 00000054 t __NVIC_SetPriority
+08016ee0 00000054 t __NVIC_SetPriority
+0801f234 00000054 T application::task::ImuTask::Init()
+08029ab2 00000054 W platform::Can::TrySend(platform::Can::Channel, platform::Can::Frame const&)
+0802c138 00000054 T GpioPort_Read
+0800d80a 00000054 T HAL_FDCAN_Start
+08017f18 00000054 T HAL_PCD_MspInit
+0800bf72 00000054 t LL_ADC_SetChannelSamplingTime
+0800bec8 00000054 t LL_ADC_SetOffsetState
+08017044 00000054 T osKernelStart
+0802cdf8 00000054 t SpiPort_AbortBusyDmaAfterError
+080184a6 00000054 T USBD_Get_USB_Status
+08017ad0 00000054 T vPortExitCritical
+080289ea 00000056 T device::Bmi088Gyro::TryStart()
+080281d2 00000056 T device::Bmi088Accel::TryStart()
+08029f4c 00000056 T device::DjiMotor::Process()
+0800bf1c 00000056 t LL_ADC_REG_SetSequencerRanks
+080125e0 00000056 t UART_EndTransmit_IT
+0801833c 00000056 T USBD_LL_IsStallEP
+0801d1ea 00000058 t application::(anonymous namespace)::ResetThermalBlock(application::(anonymous namespace)::ThermalProfileBlock volatile&, device::Bmi088SampleRecord const&, float, unsigned long)
+080296c2 00000058 T device::Bmi088Heater::SetDuty(unsigned short)
+0802e408 00000058 T acos
+0802e630 00000058 T asinf
+0802b884 00000058 t CanPort_GetChannel
+080186bc 00000058 t Get_SerialNum
+0802c18c 00000058 T GpioPort_Write
+0800d7b2 00000058 T HAL_FDCAN_ConfigGlobalFilter
+08017848 00000058 t prvTaskExitError
+0802e460 00000058 T sqrt
+0802e02c 00000058 t UsbCdcPort_Enqueue
+08024ab4 0000005a t alg_estimate::Vqf::GetRestObservables() const::{lambda(double, double)#1}::operator()(double, double) const
+0802d36a 0000005a T HAL_SPI_TxRxCpltCallback
+08003736 0000005a T USB_FlushRxFifo
+08004664 0000005a T USB_ReadDevInEPInterrupt
+0802574c 0000005c W double alg_math::Limit<double>(double, double, double)
+08029b84 0000005c W platform::Can::GetStatistics(platform::Can::Channel, platform::Can::Statistics&)
+08027f84 0000005c W platform::Spi::StartTransferAsync(platform::Spi::Device, unsigned char const*, unsigned char*, unsigned int, void (*)(void*), void*)
+0802b30c 0000005c T protocol::DjiEsc::Saturate(long, protocol::DjiEsc::CommandKind) const
+0802c0dc 0000005c T HAL_FDCAN_ErrorStatusCallback
+2001131c 0000005c B hospi2
+20000694 0000005c b Idle_TCB.3
+08016078 0000005c t prvCheckTasksWaitingTermination
+200008f0 0000005c b Timer_TCB.1
+0801d0e4 0000005e t application::(anonymous namespace)::ResetMoments(application::(anonymous namespace)::ProfileMoments volatile&)
+08022bce 0000005e T alg_estimate::GyroRecordToBody(device::Bmi088SampleRecord const&, float (&) [3], alg_estimate::AxisMapping const&)
+08022c2c 0000005e T alg_estimate::AccelRecordToBody(device::Bmi088SampleRecord const&, float (&) [3], alg_estimate::AxisMapping const&)
+080229c8 0000005e T alg_controller::PID::OutputFilter()
+0802296a 0000005e T alg_controller::PID::DerivativeFilter()
+08005604 00000060 T HAL_RCC_GetHCLKFreq
+08016144 00000060 t prvDeleteTCB
+08016a1c 00000060 t prvProcessExpiredTimer
+0802ca16 00000060 t SpiPort_IsAsyncStateReady
+0802cd24 00000060 t SpiPort_TransmitDmaComplete
+0802e5d0 00000060 T tan
+08012a00 00000060 T USBD_Init
+08017a70 00000060 T vPortEnterCritical
+0802a994 00000062 T device::DjiMotor::GroupEnabled(protocol::DjiEsc::Group) const
+0802b974 00000062 t CanPort_ConfigureFilter
+08002c2a 00000062 T HAL_PCD_EP_Abort
+0802d6c8 00000062 t UartPort_IsReceiveActive
+080036d4 00000062 T USB_FlushTxFifo
+0802a00c 00000064 T device::DjiMotor::SetRawCommand(unsigned char, short)
+0802b7c0 00000064 W std::array<unsigned char, 25u>::fill(unsigned char const&)
+08029974 00000064 W std::array<unsigned char, 4u>::fill(unsigned char const&)
+08028ff8 00000064 W std::array<unsigned char, 7u>::fill(unsigned char const&)
+0802880e 00000064 W std::array<unsigned char, 8u>::fill(unsigned char const&)
+0802bff0 00000064 T CanPort_GetStatistics
+0802de88 00000064 t UsbCdcPort_ConfigurePins
+08013064 00000064 T USBD_LL_IsoINIncomplete
+080130c8 00000064 T USBD_LL_IsoOUTIncomplete
+080292ec 00000066 T device::Bmi088Heater::SetEnabled(bool)
+08027be2 00000066 W device::Bmi088SampleQueue<32u>::Pop(device::Bmi088SampleRecord&)
+0802714c 00000066 T alg_math::IsFinite(alg_math::Quaternion const&)
+08017b30 00000066 T PendSV_Handler
+08029354 00000068 T device::Bmi088Heater::SetTargetCelsius(float)
+08020e50 00000068 W platform::Uart::TryRead(platform::Uart::Endpoint, unsigned char*, unsigned int, unsigned int&)
+0801ec08 00000068 W component::AxisController<2u>::FeedForwardInLinearRange(alg_controller::PID::Config const&, float)
+0801ff58 00000068 W component::AxisController<4u>::FeedForwardInLinearRange(alg_controller::PID::Config const&, float)
+08024a4c 00000068 T alg_estimate::Vqf::GetQuaternion() const
+080177e0 00000068 T pxPortInitialiseStack
+0802da8c 00000068 T UartPort_IsReady
+08013cfc 00000068 t USBD_GetStatus
+08015074 00000068 T vQueueWaitForMessageRestricted
+08029fa2 0000006a T device::DjiMotor::EnableMotor(unsigned char)
+08026ac8 0000006a T alg_math::Norm(alg_math::Quaternion const&)
+08001db6 0000006a T HAL_PCD_Start
+0801b554 0000006c T _sbrk
+0802897e 0000006c T device::Bmi088Gyro::Harvest()
+08028166 0000006c T device::Bmi088Accel::Harvest()
+20011378 0000006c B hmdma_octospi2_fifo_th
+0800bd40 0000006c t LL_ADC_SetOffset
+080301b8 0000006c t std
+0802e084 0000006c T UsbCdcPort_Init
+08014900 0000006c T USBD_CDC_ReceivePacket
+08013c90 0000006c t USBD_GetConfig
+08012a60 0000006c T USBD_RegisterClass
+08015580 0000006c T vTaskDelay
+0800ba74 0000006e t NVIC_EncodePriority
+0800f8bc 0000006e t OSPI_WaitFlagStateUntilTimeout
+0802c25c 0000006e T Port_Init
+080047d8 0000006e t USB_CoreReset
+08025202 00000070 W alg_filter::ButterworthLowPass<2u>::Reset()
+20011050 00000070 B hadc1
+0801a0a0 00000070 T HAL_TIM_PWM_MspInit
+08012742 00000070 T HAL_UARTEx_DisableFifoMode
+0800bcd0 00000070 t LL_ADC_SetChannelPreselection
+08012554 00000070 t UART_DMAError
+0802d658 00000070 t UartPort_CompleteReceiveBuffer
+0802d5e8 00000070 t UartPort_PrepareReceiveBuffer
+080145fe 00000070 t USBD_CDC_DataOut
+080146e4 00000070 t USBD_CDC_GetFSCfgDesc
+08014754 00000070 t USBD_CDC_GetHSCfgDesc
+080147c4 00000070 t USBD_CDC_GetOtherSpeedCfgDesc
+080131b6 00000070 T USBD_GetEpDesc
+08014a08 00000070 T vListInsert
+08031008 00000072 T __smakebuf_r
+0802511e 00000072 W alg_filter::ButterworthLowPass<3u>::Reset()
+08025190 00000072 W alg_filter::ButterworthLowPass<9u>::Reset()
+08022672 00000072 T alg_controller::PID::SetIntegralError(float)
+08021f6c 00000074 T alg_controller::PID::Init(alg_controller::PID::Config const&)
+08020eb8 00000074 W platform::Uart::GetStatistics(platform::Uart::Endpoint, platform::Uart::Statistics&)
+08002a44 00000074 T HAL_PCD_EP_Transmit
+0800b8f4 00000074 T HAL_PWREx_ConfigSupply
+0802cbe0 00000074 t SpiPort_CompleteReceiveBuffer
+0802cb6c 00000074 t SpiPort_PrepareReceiveBuffer
+0802caf8 00000074 t SpiPort_PrepareTransmitBuffer
+0801466e 00000074 t USBD_CDC_EP0_RxReady
+08013dfa 00000074 T USBD_ParseSetupRequest
+08028908 00000076 T device::Bmi088Gyro::Init()
+080280f0 00000076 T device::Bmi088Accel::Init()
+0802a4ca 00000076 T device::DjiMotor::UpdateLinkAging()
+080029a0 00000076 T HAL_PCD_EP_Receive
+24000638 00000078 d application::(anonymous namespace)::outputArchive
+0801edf6 00000078 W component::AxisController<2u>::ClampAngleTarget(unsigned int, float) const
+080200e4 00000078 W component::AxisController<4u>::ClampAngleTarget(unsigned int, float) const
+0800bb48 00000078 T HAL_Init
+200110c0 00000078 B hdma_adc1
+200114f4 00000078 B hdma_spi2_rx
+2001156c 00000078 B hdma_spi2_tx
+200115e4 00000078 B hdma_spi6_tx
+20011b04 00000078 B hdma_uart5_rx
+20011b7c 00000078 B hdma_uart7_rx
+20011bf4 00000078 B hdma_uart7_tx
+20011c6c 00000078 B hdma_usart1_rx
+20011ce4 00000078 B hdma_usart1_tx
+20011f3c 00000078 B hdma_usart10_rx
+20011fb4 00000078 B hdma_usart10_tx
+20011d5c 00000078 B hdma_usart2_rx
+20011dd4 00000078 B hdma_usart2_tx
+20011e4c 00000078 B hdma_usart3_rx
+20011ec4 00000078 B hdma_usart3_tx
+080184fc 00000078 T MX_USB_DEVICE_Init
+0800f844 00000078 t OSPI_DMAAbortCplt
+08030e7c 0000007a T __swbuf_r
+080043b0 0000007a T USB_WritePacket
+0801c2e8 0000007c T application::AttitudeEstimator::Process(device::Bmi088SampleRecord const&, bool, float)
+0801282e 0000007c T HAL_UARTEx_SetRxFifoThreshold
+080127b2 0000007c T HAL_UARTEx_SetTxFifoThreshold
+08018714 0000007c t IntToUnicode
+0800bfc8 0000007c t LL_ADC_SetChannelSingleDiff
+0802d210 0000007c T SpiPort_IsReady
+0802deec 0000007c t UsbCdcPort_IsDmaAccessible
+08029b06 0000007e W platform::Can::TryReceive(platform::Can::Channel, platform::Can::Frame&)
+0801bb68 00000080 t application::(anonymous namespace)::ResetArchives()
+08020954 00000080 T application::task::GimbalTask::Init()
+0802048c 00000080 W device::MotorGroup<(device::MotorModel)0, 4u>::Init()
+08020ba4 00000080 W device::MotorGroup<(device::MotorModel)2, 2u>::Init()
+080271d4 00000080 W device::Bmi088Transfer::CompletedTick() const
+0802e4b8 00000080 T cos
+08034e00 00000080 r npio2_hw
+08016e60 00000080 t prvCheckForValidListAndQueue
+08015ff8 00000080 t prvInitialiseTaskLists
+0802e550 00000080 T sin
+08012060 00000080 t UART_EndTxTransfer
+08017c38 00000080 T vPortValidateInterruptPriority
+080056bc 00000084 T HAL_RCC_GetClockConfig
+08017d28 00000084 T PortKit_Queue_Push
+08016bc4 00000084 t prvInsertTimerInActiveList
+080018ec 00000084 t TIM_TI2_ConfigInputStage
+0802d3e4 00000084 t TimePort_EnsureCounterRunning
+0802db78 00000084 T UartPort_GetStatistics
+0802daf4 00000084 T UartPort_TryRead
+08022b48 00000086 T alg_estimate::MapSensorVectorToBody(alg_estimate::AxisMapping const&, float const (&) [3], float (&) [3])
+08027ee8 00000088 W device::Bmi088SampleQueue<32u>::Push(device::Bmi088SampleRecord const&)
+0802c054 00000088 T HAL_FDCAN_RxFifo0Callback
+200113e4 00000088 B hspi2
+2001146c 00000088 B hspi6
+08013ab4 00000088 t USBD_SetAddress
+08017dac 0000008a T PortKit_Queue_Pop
+08024b0e 0000008c T alg_estimate::Vqf::GetRestObservables() const
+0801ddb4 0000008c W std::atomic<bool>::load(std::memory_order) const
+08003000 0000008c T HAL_PCDEx_SetTxFiFo
+0802dbfc 0000008c T HAL_UART_TxCpltCallback
+08002f74 0000008c t PCD_EP_OutSetupPacket_int
+0802e33c 0000008c T UsbCdcPort_HandleTransmitComplete
+08015c78 0000008c T vTaskPlaceOnEventListRestricted
+0802d910 0000008e t UartPort_ResetState
+0801a110 00000090 T HAL_TIM_Base_MspInit
+0800290c 00000094 T HAL_PCD_EP_Close
+200118b4 00000094 B huart1
+20011a70 00000094 B huart10
+20011948 00000094 B huart2
+200119dc 00000094 B huart3
+2001178c 00000094 B huart5
+20011820 00000094 B huart7
+080151a6 00000094 T xTaskCreate
+08016944 00000094 T xTimerCreateTimerTask
+0801c4f6 00000096 T application::GyroBiasCalibration::RestartWindow()
+08018ad8 00000096 T PeriphCommonClock_Config
+08030588 00000098 T _free_r
+0801d244 00000098 t application::(anonymous namespace)::FreezeThermalProfile(device::Bmi088 const&)
+0801c12c 00000098 t application::(anonymous namespace)::ProcessAccelerometer(device::Bmi088SampleRecord const&)
+08020204 00000098 T application::task::ChassisTask::ControllerConfig()
+0802b728 00000098 T protocol::SbusParser::RecoverAfterRejectedFrame()
+0802b8dc 00000098 t CanPort_ResetChannelState
+0800b394 00000098 T HAL_MDMA_Init
+0801a304 00000098 T MX_UART7_Init
+0801a39c 00000098 T MX_USART1_UART_Init
+0801a574 00000098 T MX_USART10_UART_Init
+08012968 00000098 t UARTEx_SetNbDataToProcess
+08003380 00000098 T USB_SetCurrentMode
+08021fe0 0000009a T alg_controller::PID::Reset()
+08021870 0000009c T application::RemoteReceiver::IsReady()
+08019eb4 0000009c T MX_TIM4_Init
+08019f50 0000009c T MX_TIM5_Init
+08016aa4 0000009c t prvProcessTimerOrBlockTask
+0802d468 0000009c T TimePort_Init
+08014fd8 0000009c T vQueueAddToRegistry
+0800dcf0 0000009e T HAL_FDCAN_GetProtocolStatus
+0802c2ca 0000009e t PwmPort_GetApb1TimerClockFrequencyHz
+24004800 000000a0 d application::task::(anonymous namespace)::bmi088Heater
+0802987c 000000a0 T device::Bmi088Temperature::TryStart()
+0801098c 000000a0 T HAL_UART_Init
+20011138 000000a0 B hfdcan1
+200111d8 000000a0 B hfdcan2
+20011278 000000a0 B hfdcan3
+08000310 000000a0 T memchr
+0801a264 000000a0 T MX_UART5_Init
+0801a434 000000a0 T MX_USART2_UART_Init
+0801a4d4 000000a0 T MX_USART3_UART_Init
+200005a0 000000a0 b ucStaticTimerQueueStorage.1
+0800b42c 000000a2 T HAL_MDMA_ConfigPostRequestMask
+080219f0 000000a4 T application::task::TaskManager::Init()
+08014f08 000000a4 t prvUnlockQueue
+08001848 000000a4 t TIM_TI1_ConfigInputStage
+08013e90 000000a4 T USBD_GetString
+08012efc 000000a6 T USBD_LL_Reset
+08030ef8 000000a8 T __swsetup_r
+0801d142 000000a8 t application::(anonymous namespace)::AddMoments(application::(anonymous namespace)::ProfileMoments volatile&, device::Bmi088SampleRecord const&)
+080128aa 000000a8 T HAL_UARTEx_ReceiveToIdle_DMA
+0802d9e4 000000a8 T UartPort_Init
+08012b64 000000aa T USBD_LL_SetupStage
+0801c44a 000000ac T application::GyroBiasCalibration::Reset()
+0802029c 000000ac T application::task::ChassisTask::Init()
+08002b7e 000000ac T HAL_PCD_EP_ClrStall
+080171e0 000000ac T osThreadFlagsSet
+0802e0f0 000000ac T UsbCdcPort_HandleConfigured
+080297cc 000000ae T device::Bmi088Temperature::Harvest()
+08000528 000000ae T HAL_TIM_Base_Init
+080006e0 000000ae T HAL_TIM_PWM_Init
+0800442a 000000ae T USB_ReadPacket
+0802e850 000000b0 T __kernel_sin
+24000588 000000b0 d application::(anonymous namespace)::calibration
+080199c8 000000b0 T MX_SPI2_Init
+08019a78 000000b0 T MX_SPI6_Init
+08017730 000000b0 t prvInsertBlockIntoFreeList
+08018150 000000b0 T USBD_LL_Init
+0802afcc 000000b4 T device::DjiMotorAdapter::SetTorque(unsigned int, float)
+08027800 000000b4 T device::Bmi088::StartGyroscope()
+08019fec 000000b4 T MX_TIM12_Init
+08019e00 000000b4 T MX_TIM3_Init
+080175c4 000000b4 T vPortFree
+0800d94a 000000b6 T HAL_FDCAN_AddMessageToTxFifoQ
+08017678 000000b8 t prvHeapInit
+08004720 000000b8 T USB_EP0_OutStart
+08022770 000000c0 T alg_controller::PID::ChangingRateIntegration()
+08022c8a 000000c0 W alg_math::Normalize(alg_math::Vector3&)
+08019638 000000c0 T MX_OCTOSPI2_Init
+08014bf0 000000c2 T xQueueGenericCreateStatic
+0802df68 000000c4 T __wrap_HAL_PCD_EP_Transmit
+0801f6c0 000000c4 T application::chassis::ChassisController::Update(device::MotorState const (&) [4], float, float (&) [4])
+0802802c 000000c4 W device::Bmi088Transfer::Complete(void*)
+08020cf8 000000c4 W device::DjiMotorAdapter::Config device::dji::MakeConfig<2u>(device::DjiMotor::Profile const&, float, platform::Can::Channel, std::array<device::MotorConnection, 2u> const&)
+0802062c 000000c4 W device::DjiMotorAdapter::Config device::dji::MakeConfig<4u>(device::DjiMotor::Profile const&, float, platform::Can::Channel, std::array<device::MotorConnection, 4u> const&)
+0801b490 000000c4 T HAL_InitTick
+0801a1a0 000000c4 T HAL_TIM_MspPostInit
+0801ceec 000000c6 W platform::Time::HasElapsedMs(unsigned long, unsigned long)
+08002ab8 000000c6 T HAL_PCD_EP_SetStall
+08021a94 000000c8 T application::task::TaskManager::InitRtos()
+08027738 000000c8 T device::Bmi088::StartAccelerometer()
+08027d90 000000c8 W void device::Bmi088::Publish<device::Bmi088Gyro>(device::Bmi088Gyro&, unsigned long, device::Bmi088SampleRecord&, device::Bmi088DataReady, device::Bmi088SampleQueue<32u>&)
+08027cc8 000000c8 W void device::Bmi088::Publish<device::Bmi088Accel>(device::Bmi088Accel&, unsigned long, device::Bmi088SampleRecord&, device::Bmi088DataReady, device::Bmi088SampleQueue<32u>&)
+080190e8 000000c8 T MX_FDCAN1_Init
+080016b8 000000c8 t TIM_OC5_SetConfig
+08001780 000000c8 t TIM_OC6_SetConfig
+0802e19c 000000c8 T UsbCdcPort_HandleDisconnected
+0802c6d4 000000ca T PwmPort_Silence
+080042e6 000000ca T USB_EPClearStall
+080150dc 000000ca T xTaskCreateStatic
+0802bcf4 000000cc T CanPort_Init
+080191b0 000000cc T MX_FDCAN2_Init
+0801927c 000000cc T MX_FDCAN3_Init
+080120e0 000000cc t UART_EndRxTransfer
+08027b12 000000d0 T device::Bmi088::NotifyDataReady(device::Bmi088DataReady, device::Bmi088DataReady)
+0802d140 000000d0 T SpiPort_Init
+080015e8 000000d0 t TIM_OC4_SetConfig
+08015ee0 000000d0 T xTaskCheckForTimeOut
+0802504c 000000d2 W alg_filter::ButterworthLowPass<2u>::Init(alg_filter::ButterworthLowPass<2u>::Config const&)
+08024ea8 000000d2 W alg_filter::ButterworthLowPass<3u>::Init(alg_filter::ButterworthLowPass<3u>::Config const&)
+08024f7a 000000d2 W alg_filter::ButterworthLowPass<9u>::Init(alg_filter::ButterworthLowPass<9u>::Config const&)
+0802b23a 000000d2 T protocol::DjiEsc::DecodeFeedback(unsigned long, bool, unsigned char, unsigned char const*, protocol::DjiEsc::Feedback&)
+08002838 000000d4 T HAL_PCD_EP_Open
+08012638 000000d4 T HAL_RS485Ex_Init
+0802a070 000000d8 T device::DjiMotor::SetCurrentAmpere(unsigned char, float)
+0802e264 000000d8 T UsbCdcPort_HandleReceive
+0801337a 000000d8 T USBD_StdItfReq
+080155ec 000000d8 T vTaskStartScheduler
+08011e3a 000000da T UART_WaitOnFlagUntilTimeout
+0800420c 000000da T USB_EPSetStall
+08026b32 000000dc T alg_math::Normalize(alg_math::Quaternion&)
+0802aef0 000000dc T device::DjiMotorAdapter::ReadState(unsigned int, device::MotorState&) const
+0800dedc 000000dc T HAL_FDCAN_DeactivateNotification
+08016868 000000dc t prvAddCurrentTaskToDelayedList
+080189fc 000000dc T SystemClock_Config
+08027616 000000de T device::Bmi088::Init()
+08024ba0 000000e0 T alg_estimate::Vqf::SetBiasEstimate(alg_math::Vector3 const&, float)
+08013298 000000e2 T USBD_StdDevReq
+0800b124 000000e8 t DMA_CalcDMAMUXRequestGenBaseAndMask
+08018914 000000e8 T main
+080309ec 000000ea T _printf_common
+0800d6c8 000000ea T HAL_FDCAN_ConfigFilter
+0802bdfc 000000ec T CanPort_TrySend
+080187d0 000000ec t CDC_Control_HS
+0800d85e 000000ec T HAL_FDCAN_Stop
+08029c52 000000ee T device::DjiMotor::DjiMotor(platform::Can::Channel, device::DjiMotor::Profile const&)
+08029c52 000000ee T device::DjiMotor::DjiMotor(platform::Can::Channel, device::DjiMotor::Profile const&)
+0802ba04 000000f0 t CanPort_StartChannel
+0800ddec 000000f0 T HAL_FDCAN_ActivateNotification
+0800310c 000000f0 T USB_CoreInit
+0800aefc 000000f4 t DMA_CheckFifoParam
+08018e84 000000f4 T HAL_ADC_MspInit
+0802fc80 000000f4 T scalbn
+0801548c 000000f4 T vTaskDelete
+08030664 000000f8 T _malloc_r
+08018d8c 000000f8 T MX_ADC1_Init
+0802bbf8 000000fc t CanPort_DrainReceiveFifo
+0800e8b8 000000fc t FDCAN_CopyMessageToRAM
+0802dc88 000000fc T HAL_UARTEx_RxEventCallback
+08022830 000000fe T alg_controller::PID::IntegralLimit()
+08014500 000000fe t USBD_CDC_DataIn
+08030d2c 00000100 T __sflush_r
+0802c8d0 00000100 t SpiPort_Prepare
+24008480 00000100 b uart10_transmit_dma_buffer
+0802dd84 00000104 T HAL_UART_ErrorCallback
+08014264 00000104 t USBD_CDC_DeInit
+08015b28 00000104 T vTaskSwitchContext
+0801728c 00000106 T osThreadFlagsWait
+08020348 00000108 T application::task::ChassisTask::Run(void*)
+0802bee8 00000108 T CanPort_TryReceive
+080005d8 00000108 T HAL_TIM_Base_Start_IT
+08034e80 00000108 r two_over_pi
+0802b432 0000010c T protocol::SbusParser::Input(unsigned char const*, unsigned int, protocol::SbusParser::Frame&)
+08003808 0000010c T USB_ActivateEndpoint
+08016230 0000010c T xTaskGenericNotifyWait
+0802a6a0 0000010e T device::DjiMotor::Publish()
+0802fd78 00000110 T floor
+0802ce9c 00000110 t SpiPort_FinalizeAsync
+0802b128 00000112 T protocol::DjiEsc::Encode(protocol::DjiEsc::CommandKind, protocol::DjiEsc::Group, std::array<short, 4u> const&, protocol::DjiEsc::ControlFrame&)
+080291d8 00000114 T device::Bmi088Heater::Init()
+080013c0 00000114 T TIM_OC2_SetConfig
+080014d4 00000114 t TIM_OC3_SetConfig
+08002c8c 00000118 t PCD_WriteEmptyTxFifo
+080003f4 0000011c T SystemInit
+0801523a 00000120 t prvInitialiseNewTask
+08017098 00000122 T osThreadNew
+0801c1c4 00000124 T application::AttitudeEstimator::Init()
+0800129c 00000124 t TIM_OC1_SetConfig
+08014acc 00000124 T xQueueGenericReset
+0801ee70 0000012c W application::task::ImuDataReadyMailbox::Publish(unsigned long)
+080009c8 0000012c T HAL_TIM_PWM_Stop
+0800b7c4 0000012e t MDMA_Init
+0802e720 00000130 T __kernel_cos
+08018fb8 00000130 T MX_DMA_Init
+0801535c 00000130 t prvAddNewTaskToReadyList
+08025618 00000134 W alg_filter::ButterworthLowPass<2u>::Filter(float*)
+080253b0 00000134 W alg_filter::ButterworthLowPass<3u>::Filter(float*)
+080254e4 00000134 W alg_filter::ButterworthLowPass<9u>::Filter(float*)
+0801b88c 00000134 T Application_Init
+0800aff0 00000134 t DMA_CalcDMAMUXChannelBaseAndMask
+20015eb4 00000138 B __sf
+08001a30 00000138 T HAL_TIMEx_MasterConfigSynchronization
+08025272 0000013e W alg_filter::ButterworthLowPass<3u>::Filter(float const*, float*)
+0802c3bc 00000140 T PwmPort_Init
+08010818 00000140 t SPI_CloseTransfer
+08025f00 00000142 W alg_filter::ButterworthLowPass<2u>::Prime(float const*, float*)
+0802a388 00000142 T device::DjiMotor::ReceiveFrames()
+08011ba4 00000142 T UART_AdvFeatureConfig
+0802f2c0 00000144 T __ieee754_atan2f
+080031fc 00000144 T USB_SetTurnaroundTime
+08025c6c 0000014a W alg_filter::ButterworthLowPass<3u>::Prime(float const*, float*)
+08025db6 0000014a W alg_filter::ButterworthLowPass<9u>::Prime(float const*, float*)
+08011f14 0000014c T UART_Start_Receive_DMA
+08001148 00000154 T TIM_Base_SetConfig
+08011ce6 00000154 T UART_CheckIdleState
+08013b3c 00000154 t USBD_SetConfig
+080207f8 0000015c T application::task::GimbalTask::ControllerConfig()
+080123f8 0000015c t UART_DMARxHalfCplt
+0802a540 00000160 T device::DjiMotor::TransmitCommands()
+0800ad98 00000164 t DMA_CalcBaseAndBitshift
+08007ed4 00000164 t RCCEx_PLL2_Config
+08008038 00000164 t RCCEx_PLL3_Config
+0802b588 00000168 T protocol::SbusParser::DecodeFrame(std::array<unsigned char, 25u> const&, protocol::SbusParser::Frame&)
+0802a7f8 0000016c T device::DjiMotor::FillSnapshot(unsigned int, device::DjiMotor::Snapshot&) const
+08021bac 00000174 T application::task::TaskManager::SampleStackHealth()
+08026fd8 00000174 T alg_math::ToEulerZyxRadians(alg_math::Quaternion const&)
+0800f92c 00000174 t OSPIM_GetConfig
+08012d86 00000176 T USBD_LL_DataInStage
+0800e9b4 00000178 T HAL_OSPI_Init
+08012c0e 00000178 T USBD_LL_DataOutStage
+080178f4 0000017c T xPortStartScheduler
+08023440 00000180 T alg_estimate::Vqf::Reset()
+08025ae8 00000184 W alg_filter::ButterworthLowPass<2u>::ComputeCoefficients()
+080257d8 00000184 W alg_filter::ButterworthLowPass<3u>::ComputeCoefficients()
+08025960 00000184 W alg_filter::ButterworthLowPass<9u>::ComputeCoefficients()
+08018ba0 00000184 T MX_GPIO_Init
+0801cd46 00000188 T application::GyroBiasCalibration::GetSnapshot() const
+0800b20c 00000188 T HAL_DMAEx_ConfigMuxSync
+080209d4 00000194 T application::task::GimbalTask::Run(void*)
+0802cfac 00000194 t SpiPort_StartAsync
+0801f510 00000198 T application::chassis::ChassisController::Init(application::chassis::ChassisController::Config const&)
+0801742c 00000198 T pvPortMalloc
+08014368 00000198 t USBD_CDC_Setup
+08026c0e 000001a0 T alg_math::Multiply(alg_math::Quaternion const&, alg_math::Quaternion const&)
+0801cba4 000001a2 T application::GyroBiasCalibration::Finalize()
+0802c530 000001a4 T PwmPort_Set
+080214dc 000001ac T application::RemoteReceiver::Init()
+0802a1d8 000001b0 T device::DjiMotor::GetSnapshot(unsigned char, device::DjiMotor::Snapshot&) const
+08015d04 000001b0 T xTaskRemoveFromEventList
+0802f404 000001b8 T atanf
+08003914 000001b8 T USB_DeactivateEndpoint
+08029d90 000001bc T device::DjiMotor::Init()
+08014cf8 000001c4 T xQueueReceive
+08022d8a 000001ca t alg_estimate::(anonymous namespace)::SetRotationMatrix(alg_math::Quaternion const&, alg_math::Matrix3&)
+0802744c 000001ca T device::Bmi088::PopNextSample(device::Bmi088SampleRecord&, bool&)
+0801ef9c 000001cc W application::task::ImuDataReadyMailbox::Snapshot() const
+08016c48 000001cc t prvProcessReceivedCommands
+08002da4 000001d0 t PCD_EP_OutXfrComplete_int
+0800d134 000001d8 T HAL_ADCEx_MultiModeConfigChannel
+0800cf10 000001dc T ADC_ConfigureBoostMode
+0801bf4c 000001e0 t application::(anonymous namespace)::ProcessGyroscope(device::Bmi088SampleRecord const&, float)
+0802d72c 000001e4 t UartPort_StartReceive
+08021688 000001e8 T application::RemoteReceiver::Process()
+08000f10 000001f0 T HAL_TIM_ConfigClockSource
+08014074 000001f0 t USBD_CDC_Init
+08024cb0 000001f8 T alg_estimate::Vqf::GetState() const
+08004014 000001f8 T USB_EPStopXfer
+080156e0 000001fc T xTaskResumeAll
+200006f0 00000200 b Idle_Stack.2
+24008200 00000200 b spi2_receive_dma_buffer
+24008000 00000200 b spi2_transmit_dma_buffer
+38000000 00000200 b spi6_transmit_dma_buffer
+24006c00 00000200 b usb_cdc_port_transmit_buffer
+240059e4 00000200 B USBD_StrDesc
+08000af4 0000020e T HAL_TIM_IRQHandler
+08000d02 0000020e T HAL_TIM_PWM_ConfigChannel
+0802f0ac 00000214 T __ieee754_asinf
+08001b9e 00000218 T HAL_PCD_Init
+0802ac5c 0000021e T device::DjiMotorAdapter::Init()
+08028aac 00000220 T device::Bmi088Gyro::BeginStep()
+240057c4 00000220 b mem.0
+080307c4 00000228 T _vfiprintf_r
+080307c4 00000228 T _vfprintf_r
+08026dae 0000022a T alg_math::Rotate(alg_math::Quaternion const&, alg_math::Vector3 const&)
+08021d3c 0000022e t (anonymous namespace)::IsValidConfig(alg_controller::PID::Config const&)
+080158f8 00000230 T xTaskIncrementTick
+08000790 00000238 T HAL_TIM_PWM_Start
+0801d5ac 00000244 t application::(anonymous namespace)::ObserveChannel(device::Bmi088 const&, device::Bmi088SampleRecord const&, bool)
+0800faa0 00000248 T HAL_SPI_Init
+080121ac 0000024c t UART_DMAReceiveCplt
+080262d6 00000252 T alg_math::MultiplyTransposedFirst(alg_math::Matrix3 const&, alg_math::Matrix3 const&)
+08026528 00000252 T alg_math::MultiplyTransposedSecond(alg_math::Matrix3 const&, alg_math::Matrix3 const&)
+08026084 00000252 T alg_math::Multiply(alg_math::Matrix3 const&, alg_math::Matrix3 const&)
+08030ad8 00000254 T _printf_i
+08028294 00000254 T device::Bmi088Accel::BeginStep()
+0802e900 00000258 T __kernel_tan
+0801633c 0000025c T xTaskGenericNotify
+080278b4 0000025e T device::Bmi088::Process()
+0800eb2c 00000284 T HAL_OSPI_IRQHandler
+0800fce8 00000284 T HAL_SPI_Transmit_DMA
+0801f288 00000288 T application::task::ImuTask::Run(void*)
+20014be4 00000288 b uart_port_states
+08005368 0000029c T HAL_RCC_GetSysClockFreq
+0802eb58 000002a4 T __ieee754_acos
+0801e376 000002a4 W component::AxisController<2u>::Init(component::AxisController<2u>::Config const&)
+0801f784 000002a4 W component::AxisController<4u>::Init(component::AxisController<4u>::Config const&)
+08007c30 000002a4 T HAL_RCCEx_GetPLL1ClockFreq
+080076e8 000002a4 T HAL_RCCEx_GetPLL2ClockFreq
+0800798c 000002a4 T HAL_RCCEx_GetPLL3ClockFreq
+0800b51c 000002a8 T HAL_MDMA_IRQHandler
+0802ee00 000002ac T __ieee754_rem_pio2
+08019348 000002b0 T HAL_FDCAN_MspInit
+08003418 000002bc T USB_DevInit
+080293bc 000002c4 T device::Bmi088Heater::Process(device::Bmi088Temperature const&)
+0801c5dc 000002c8 T application::GyroBiasCalibration::Process(alg_math::Vector3 const&, alg_math::Vector3 const&, float, unsigned long)
+08000000 000002cc R g_pfnVectors
+0801d2dc 000002ce t application::(anonymous namespace)::ObserveThermalProfile(device::Bmi088 const&, device::Bmi088SampleRecord const&, bool, float)
+08006a30 000002ce T HAL_RCCEx_GetPeriphCLKConfig
+080196f8 000002d0 T HAL_OSPI_MspInit
+08016598 000002d0 T xTaskGenericNotifyFromISR
+080284e8 000002d2 T device::Bmi088Accel::CompleteStep()
+08028ccc 000002d8 T device::Bmi088Gyro::CompleteStep()
+08019b28 000002d8 T HAL_SPI_MspInit
+20010d70 000002dc B hUsbDeviceHS
+0800da00 000002f0 T HAL_FDCAN_GetRxMessage
+0801c8a4 00000300 T application::GyroBiasCalibration::Accumulate(alg_math::Vector3 const&, unsigned long)
+08026780 00000300 T alg_math::Inverted(alg_math::Matrix3 const&, alg_math::Matrix3&)
+080235c0 00000308 T alg_estimate::Vqf::UpdateGyroscope(alg_math::Vector3 const&)
+0800e5b0 00000308 t FDCAN_CalculateRamBlockAddresses
+0802fe88 00000320 T __udivmoddi4
+08013794 00000320 t USBD_GetDescriptor
+24004ed8 00000324 d application::task::(anonymous namespace)::gimbalModule
+0801bc0c 00000340 t application::(anonymous namespace)::PublishOutput(device::Bmi088SampleRecord const&)
+08013452 00000342 T USBD_StdEPReq
+0800aa44 00000354 t DMA_SetConfig
+0800819c 00000364 T HAL_GPIO_Init
+08004ffc 0000036c T HAL_RCC_ClockConfig
+0800ff6c 00000370 T HAL_SPI_TransmitReceive_DMA
+080102dc 0000039c T HAL_SPI_IRQHandler
+0800d30c 000003bc T HAL_FDCAN_Init
+20012e1c 000003c8 b application::task::(anonymous namespace)::motors
+20012a50 000003c8 b application::task::(anonymous namespace)::motors
+0801e6c8 000003fc W component::AxisController<2u>::Update(component::AxisMeasurement const (&) [2], float, float (&) [2])
+2000094c 00000400 b Timer_Stack.0
+0800c14c 00000410 T HAL_ADC_Init
+0801faf2 0000041c W component::AxisController<4u>::Update(component::AxisMeasurement const (&) [4], float, float (&) [4])
+20000068 00000460 b pxReadyTasksLists
+24000110 00000478 d application::(anonymous namespace)::estimator
+08009754 0000048a T HAL_DMA_Abort_IT
+0800dfb8 000004bc T HAL_FDCAN_IRQHandler
+08022f78 000004c8 T alg_estimate::Vqf::Init(alg_estimate::Vqf::Config const&, float, float)
+0801de40 000004cc T application::module::GimbalModule::Init(application::module::GimbalModule::Config const&, float)
+08008c44 000004d4 T HAL_DMA_Start_IT
+240052e0 000004e4 B hpcd_USB_OTG_HS
+08003acc 00000548 T USB_EPStartXfer
+0801d7f0 00000578 T application::ImuDiagnostics::Observe(device::Bmi088 const&, device::Bmi088SampleRecord const&, bool)
+08020f4c 00000590 t application::(anonymous namespace)::PublishSnapshot(platform::Uart::Statistics const&)
+0802207a 000005c0 T alg_controller::PID::CalculateLoop(float, float, float)
+20016000 00000600 B _end
+240048bc 0000061c d application::task::(anonymous namespace)::chassisController
+08009118 0000063c T HAL_DMA_Abort
+08008594 000006b0 T HAL_DMA_Init
+0802f5c0 000006bc T __kernel_rem_pio2
+08010a2c 000007ac T HAL_UART_IRQHandler
+08004848 000007b4 W HAL_RCC_OscConfig
+24005be4 00000800 B UserRxBufferHS
+240063e4 00000800 B UserTxBufferHS
+200120ec 00000930 b application::task::(anonymous namespace)::bmi088
+080111fc 000009a8 T UART_SetConfig
+0800c55c 000009b4 T HAL_ADC_ConfigChannel
+08006d00 000009bc T HAL_RCCEx_GetPeriphCLKFreq
+08001e20 000009d0 T HAL_PCD_IRQHandler
+0800ee5c 000009e8 T HAL_OSPIM_Config
+0801a60c 00000b40 T HAL_UART_MspInit
+08009be0 00000e34 T HAL_DMA_IRQHandler
+20014e6c 00001048 b usb_cdc_port_state
+080238c8 00001182 T alg_estimate::Vqf::UpdateAccelerometer(alg_math::Vector3 const&)
+24006e00 00001200 b usb_cdc_port_transmit_bounce
+08005740 000012f0 T HAL_RCCEx_PeriphCLKConfig
+200132c8 000018c0 b can_port_states
+240006b0 00004150 d application::(anonymous namespace)::gyroCapture
+24008580 0000cad0 b application::(anonymous namespace)::gyroThermalProfile
+20000d4c 00010000 b ucHeap
+24050000 e3fb02cc R _estack

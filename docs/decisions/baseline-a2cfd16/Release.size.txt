@@ -1,0 +1,30 @@
+mc02_cpp.elf  :
+section               size        addr
+.isr_vector            716   134217728
+.text                94048   134218448
+.rodata               1440   134312496
+.ARM.extab               0   134313936
+.ARM                     8   134313936
+.preinit_array           0   134313944
+.init_array             12   134313944
+.fini_array              4   134313956
+.data                 4432   603979776
+.tdata                   0   603984208
+.tbss                    0   536870912
+.usb_dma_buffer      11552   603984224
+.dma_buffer           1408   603995776
+.bss                 90052   536870912
+.bdma_buffer           512   939524096
+._user_heap_stack     1540   536960964
+.ARM.attributes         46           0
+.comment                57           0
+.debug_line           1776           0
+.debug_line_str        402           0
+.debug_info           1896           0
+.debug_abbrev          426           0
+.debug_aranges          96           0
+.debug_str            2260           0
+.debug_frame           144           0
+.debug_loclists       2671           0
+.debug_rnglists        156           0
+Total               215654

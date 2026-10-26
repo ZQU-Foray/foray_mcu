@@ -10,7 +10,7 @@ RoboMaster 多兵种、多开发板的 MCU 下位机固件。本仓以 `Controll
 
 - 迁移源基线：`ControllerCode` `main` @ `a2cfd16`（2026-10-23，19 个提交，git 跟踪 333 个文件，项目自有代码约 2.3 万行）。
 - 目标平台：STM32H723（DM-MC02，主力，先行）、STM32F407（RM C 板）、TI TM4C / AM26x（按需）；`src/` + `platform/` 作为可复用框架，另供 MSPM0 等小项目（大概率裸机）使用。
-- 当前状态：已建 git，基线 tag `baseline/a2cfd16`；迁移源原样放在 `legacy/`，可在 `legacy/Platform/STM32H7/DM_MC02` 按原方式构建；目标结构目录（`app/ config/ platform/ src/ test/ tool/`）仍是空骨架；还没有根 CMakeLists 和测试。
+- 当前状态：已建 git 并推送到 GitHub，基线 tag `baseline/a2cfd16`；迁移源原样放在 `legacy/`，可在 `legacy/Platform/STM32H7/DM_MC02` 构建（P0 已复现，SHA-256 与基线一致）；目标结构目录（`app/ config/ platform/ src/ test/ tool/`）仍是空骨架；还没有根 CMakeLists 和测试。
 - 结构方案与完整评审材料：**[docs/reviews/2026-10-25-foray_mcu-架构评审报告.md](docs/reviews/2026-10-25-foray_mcu-架构评审报告.md)**。
 - 方案已确认（[decision.md](decision.md) Decision-20261025-01 至 -05），执行计划与进度见 [plan.md](plan.md)。
 
@@ -42,7 +42,7 @@ cmake -S . -B build/hero-debug -DFORAY_PROFILE=hero_v1 ...   # 其他兵种/机�
 ```
 
 - 唯一入口为 `FORAY_PROFILE`；板卡由 profile 声明；工具链在 `cmake/toolchains/`；本机路径放 `CMakeUserPresets.json`（不入库）。
-- 迁移验收用的基线对照（ControllerCode 可复现构建实测）：Debug `.bin` **238,320 B**，Release `.bin` **100,664 B**；SHA-256、工具链版本与对照判据见 [docs/decisions/2026-10-25-迁移基线与对照.md](docs/decisions/2026-10-25-迁移基线与对照.md)（证据来源已转存 [docs/assets/controller_code-固件恢复可行性评估.md](docs/assets/controller_code-固件恢复可行性评估.md)）。
+- 迁移验收用的基线对照（ControllerCode 可复现构建实测，2026-10-26 在本仓复现一致）：Debug `.bin` **238,320 B**，Release `.bin` **100,664 B**；SHA-256、工具链版本、符号表与对照判据见 [docs/decisions/2026-10-25-迁移基线与对照.md](docs/decisions/2026-10-25-迁移基线与对照.md)（证据来源已转存 [docs/assets/controller_code-固件恢复可行性评估.md](docs/assets/controller_code-固件恢复可行性评估.md)）。
 
 ## 4. 依赖
 

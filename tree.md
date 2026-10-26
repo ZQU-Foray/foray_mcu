@@ -3,11 +3,11 @@
 > 状态：**方案已确认，P0 进行中**。本文件描述"目标结构"与"当前实际状态"的差异。
 > 目标结构以 [docs/reviews/2026-10-25-foray_mcu-架构评审报告.md](docs/reviews/2026-10-25-foray_mcu-架构评审报告.md) 为准；"目标位置"按阶段落地，是否已落地以状态图例为准。
 
-## 当前实际结构（2026-10-25，P0 进行中）
+## 当前实际结构（2026-10-26，P0 进行中）
 
 ```text
 foray_mcu/
-├── .git/                     main 分支；tag baseline/a2cfd16；legacy remote（ControllerCode 历史）
+├── .git/                     main 分支；tag baseline/a2cfd16；origin = GitHub ZQU-Foray/foray_mcu；legacy remote（ControllerCode 历史）
 ├── .gitignore / .gitattributes / .clang-format / .clang-tidy   仓库规则、格式与命名配置
 ├── README.md / AGENTS.md / plan.md / tree.md / decision.md   五件套
 ├── legacy/                   迁移源 ControllerCode a2cfd16 原样副本（P0–P2.5 只做机械搬出）
@@ -29,10 +29,11 @@ foray_mcu/
     ├── assets/controller_code-固件恢复可行性评估.md          迁移源基线证据（未入 git 的工作区文件转存）
     ├── reviews/2026-10-25-foray_mcu-架构评审报告.md          v1.0（已确认）
     ├── reviews/archive/                                      v0.1–v0.4 原文存档
-    └── decisions/2026-10-25-迁移基线与对照.md               基线数据、SHA、工具链、P0 复核记录
+    ├── decisions/2026-10-25-迁移基线与对照.md               基线数据、SHA、工具链、P0 复核记录、芯片 Flash 存档记录
+    └── decisions/baseline-a2cfd16/                          基线符号表与段表（nm -S / size -A，Debug 与 Release）
 ```
 
-**事实**：本仓已建 git，迁移源在 `legacy/`，可在 `legacy/Platform/STM32H7/DM_MC02` 按原方式构建；还没有根 `CMakeLists.txt` 和测试；目标结构目录仍是空骨架。
+**事实**：本仓已建 git 并推送到 GitHub，迁移源在 `legacy/`，可在 `legacy/Platform/STM32H7/DM_MC02` 构建（P0 已复现，SHA-256 与基线一致）；还没有根 `CMakeLists.txt` 和测试；目标结构目录仍是空骨架。
 
 ## 目标结构（已确认，按阶段实施）
 
@@ -131,7 +132,7 @@ foray_mcu/
 | 宿主测试 | `test/host/`（从 ControllerCode `fd1edbb` 恢复） | 🟡 待恢复 |
 | 链路协议生成头 | `src/third_party/foray_interfaces/generated/lower_link.hpp` | 🟡 待 vendor |
 | 架构评审 | `docs/reviews/`（v1.0；旧版在 `archive/`） | ✅ 已确认 |
-| 迁移基线证据 | `docs/decisions/2026-10-25-迁移基线与对照.md`、`docs/assets/controller_code-固件恢复可行性评估.md` | 📄 已交付（P0 复核） |
+| 迁移基线证据 | `docs/decisions/2026-10-25-迁移基线与对照.md`、`docs/decisions/baseline-a2cfd16/`、`docs/assets/controller_code-固件恢复可行性评估.md` | ✅ P0 已复核（SHA 一致，符号表入档） |
 | 决策与基线 | `docs/decisions/`、`decision.md` | 🟡 待补 |
 
 ## 迁移源对照（粗粒度）
