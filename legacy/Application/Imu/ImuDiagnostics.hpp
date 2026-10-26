@@ -9,8 +9,8 @@ namespace application
 // 不写传感器、不做滤波、零速率钳位或零偏补偿。
 class ImuDiagnostics final
 {
-public:
-  static void Observe(const device::Bmi088 &imu, const device::Bmi088SampleRecord &record, bool gyroscope) noexcept;
+  public:
+    static void Observe(const device::Bmi088 &imu, const device::Bmi088SampleRecord &record, bool gyroscope) noexcept;
 };
 } // namespace application
 #endif

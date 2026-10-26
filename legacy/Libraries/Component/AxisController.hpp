@@ -19,18 +19,18 @@ namespace component
  */
 enum class AxisControlMode : std::uint8_t
 {
-  Torque = 0U,
-  Speed,
-  Angle
+    Torque = 0U,
+    Speed,
+    Angle
 };
 
 /** @brief 控制器级状态：回答"本拍这个控制器整体在做什么"。 */
 enum class ControllerStatus : std::uint8_t
 {
-  NotReady = 0U, // 未完成 Init
-  Disabled,      // 未使能
-  InvalidDt,     // 本拍步长非法（非有限、≤0 或 ≥1 s）
-  Active         // 已使能且步长合法，各轴状态见 AxisStatus
+    NotReady = 0U, // 未完成 Init
+    Disabled,      // 未使能
+    InvalidDt,     // 本拍步长非法（非有限、≤0 或 ≥1 s）
+    Active         // 已使能且步长合法，各轴状态见 AxisStatus
 };
 
 /**
@@ -40,12 +40,12 @@ enum class ControllerStatus : std::uint8_t
  */
 enum class AxisStatus : std::uint8_t
 {
-  TorqueOpenLoop = 0U, // Torque 模式：目标钳位后直通（非故障）
-  ClosedLoop,          // 闭环正常输出
-  Disabled,            // 控制器级未就绪/未使能/步长非法
-  FeedbackInvalid,     // 反馈无效、离线或量测非有限
-  TargetInvalid,       // 目标非有限
-  LoopFault            // PID 拒绝计算（内部数值溢出，状态已自动回溯）
+    TorqueOpenLoop = 0U, // Torque 模式：目标钳位后直通（非故障）
+    ClosedLoop,          // 闭环正常输出
+    Disabled,            // 控制器级未就绪/未使能/步长非法
+    FeedbackInvalid,     // 反馈无效、离线或量测非有限
+    TargetInvalid,       // 目标非有限
+    LoopFault            // PID 拒绝计算（内部数值溢出，状态已自动回溯）
 };
 
 /**
@@ -54,8 +54,8 @@ enum class AxisStatus : std::uint8_t
  */
 enum class TargetClamp : std::uint8_t
 {
-  None = 0U,    // 目标直通（无机械限位的执行器，例如车轮）
-  AbsoluteRange // 钳到 [minTarget, maxTarget]（有机械限位的执行器，例如云台）
+    None = 0U,    // 目标直通（无机械限位的执行器，例如车轮）
+    AbsoluteRange // 钳到 [minTarget, maxTarget]（有机械限位的执行器，例如云台）
 };
 
 /**
@@ -65,8 +65,8 @@ enum class TargetClamp : std::uint8_t
  */
 enum class FailurePolicy : std::uint8_t
 {
-  ClearTargets = 0U, // 复位环并清空目标（底盘）
-  HoldTargets        // 仅复位环，保留目标（云台）
+    ClearTargets = 0U, // 复位环并清空目标（底盘）
+    HoldTargets        // 仅复位环，保留目标（云台）
 };
 
 /**
@@ -77,10 +77,10 @@ enum class FailurePolicy : std::uint8_t
  */
 struct AxisMeasurement final
 {
-  float angleDegrees{0.0F}; // 输出轴累计角度
-  float speedRpm{0.0F};     // 输出轴转速
-  bool feedbackValid{false};
-  bool online{false};
+    float angleDegrees{0.0F}; // 输出轴累计角度
+    float speedRpm{0.0F};     // 输出轴转速
+    bool feedbackValid{false};
+    bool online{false};
 };
 
 /**
@@ -118,36 +118,36 @@ struct AxisMeasurement final
  */
 template <std::size_t AxisCount> class AxisController final
 {
-  static_assert(AxisCount > 0U, "轴数必须大于零");
-  static_assert(std::atomic<float>::is_always_lock_free, "轴目标需要使用无锁的 float 原子变量");
-  static_assert(std::atomic<AxisControlMode>::is_always_lock_free, "控制模式需要使用无锁的枚举原子变量");
+    static_assert(AxisCount > 0U, "轴数必须大于零");
+    static_assert(std::atomic<float>::is_always_lock_free, "轴目标需要使用无锁的 float 原子变量");
+    static_assert(std::atomic<AxisControlMode>::is_always_lock_free, "控制模式需要使用无锁的枚举原子变量");
 
-public:
-  using Mode = AxisControlMode;
+  public:
+    using Mode = AxisControlMode;
 
-  /** @brief 单轴配置。 */
-  struct AxisConfig final
-  {
-    alg_controller::PID::Config speedLoop; // 输出轴 rpm → N·m（Maxout＝电调/热限幅）
-    alg_controller::PID::Config angleLoop; // 输出轴 deg → rpm（Maxout 被 maxSpeedRpm 覆盖）
-    TargetClamp clamp{TargetClamp::None};  // 角度目标预处理策略
-    float minTarget{0.0F};                 // 仅 clamp == AbsoluteRange 时校验与使用
-    float maxTarget{0.0F};                 // 同上
-  };
+    /** @brief 单轴配置。 */
+    struct AxisConfig final
+    {
+        alg_controller::PID::Config speedLoop; // 输出轴 rpm → N·m（Maxout＝电调/热限幅）
+        alg_controller::PID::Config angleLoop; // 输出轴 deg → rpm（Maxout 被 maxSpeedRpm 覆盖）
+        TargetClamp clamp{TargetClamp::None};  // 角度目标预处理策略
+        float minTarget{0.0F};                 // 仅 clamp == AbsoluteRange 时校验与使用
+        float maxTarget{0.0F};                 // 同上
+    };
 
-  /** @brief 控制器配置。 */
-  struct Config final
-  {
-    AxisConfig axis[AxisCount]{};                             // 每轴一份，互不影响
-    float maxTorqueNewtonMeter{0.0F};                         // 策略总限幅（输出轴 N·m）
-    float maxSpeedRpm{0.0F};                                  // 速度目标与外环输出限幅（输出轴 rpm）
-    Mode initialMode{Mode::Speed};                            // 上电默认模式
-    FailurePolicy failurePolicy{FailurePolicy::ClearTargets}; // 命令失败时的目标策略
-  };
+    /** @brief 控制器配置。 */
+    struct Config final
+    {
+        AxisConfig axis[AxisCount]{};     // 每轴一份，互不影响
+        float maxTorqueNewtonMeter{0.0F}; // 策略总限幅（输出轴 N·m）
+        float maxSpeedRpm{0.0F};          // 速度目标与外环输出限幅（输出轴 rpm）
+        Mode initialMode{Mode::Speed};    // 上电默认模式
+        FailurePolicy failurePolicy{FailurePolicy::ClearTargets}; // 命令失败时的目标策略
+    };
 
-  AxisController() noexcept = default;
+    AxisController() noexcept = default;
 
-  /**
+    /**
    * @brief 校验配置并初始化各轴 PID。
    * @return 配置全部有效时返回 true；否则返回 false 且控制器保持未就绪。
    * @note 校验项：总限幅与速度限幅为有限正数；`clamp == AbsoluteRange` 的轴必须
@@ -157,309 +157,312 @@ public:
    * @note 失败时可能已部分初始化 PID（本组件只在启动期调用，失败即不 ready），
    *       为避免事务式初始化的复杂度不做回滚。
    */
-  [[nodiscard]] bool Init(const Config &config) noexcept
-  {
-    Reset();
-    mode_.store(config.initialMode, std::memory_order_relaxed);
-    ready_ = false;
-    controllerStatus_ = ControllerStatus::NotReady;
-    for (std::size_t axis = 0U; axis < AxisCount; ++axis)
+    [[nodiscard]] bool Init(const Config &config) noexcept
     {
-      axisStatus_[axis] = AxisStatus::Disabled;
-    }
-    loopFaultCount_ = 0U;
+        Reset();
+        mode_.store(config.initialMode, std::memory_order_relaxed);
+        ready_ = false;
+        controllerStatus_ = ControllerStatus::NotReady;
+        for (std::size_t axis = 0U; axis < AxisCount; ++axis)
+        {
+            axisStatus_[axis] = AxisStatus::Disabled;
+        }
+        loopFaultCount_ = 0U;
 
-    if (!std::isfinite(config.maxTorqueNewtonMeter) || !std::isfinite(config.maxSpeedRpm) ||
-        config.maxTorqueNewtonMeter <= 0.0F || config.maxSpeedRpm <= 0.0F)
+        if (!std::isfinite(config.maxTorqueNewtonMeter) || !std::isfinite(config.maxSpeedRpm) ||
+            config.maxTorqueNewtonMeter <= 0.0F || config.maxSpeedRpm <= 0.0F)
+        {
+            return false;
+        }
+
+        for (std::size_t axis = 0U; axis < AxisCount; ++axis)
+        {
+            const AxisConfig &axisConfig = config.axis[axis];
+            if (axisConfig.clamp == TargetClamp::AbsoluteRange &&
+                (!std::isfinite(axisConfig.minTarget) || !std::isfinite(axisConfig.maxTarget) ||
+                 axisConfig.minTarget >= axisConfig.maxTarget))
+            {
+                return false;
+            }
+            const float angleTargetMagnitude =
+                axisConfig.clamp == TargetClamp::AbsoluteRange
+                    ? std::max(std::fabs(axisConfig.minTarget), std::fabs(axisConfig.maxTarget))
+                    : 0.0F;
+            if (!FeedForwardInLinearRange(axisConfig.speedLoop, config.maxSpeedRpm) ||
+                !FeedForwardInLinearRange(axisConfig.angleLoop, angleTargetMagnitude))
+            {
+                return false;
+            }
+        }
+
+        config_ = config;
+        for (std::size_t axis = 0U; axis < AxisCount; ++axis)
+        {
+            config_.axis[axis].angleLoop.Maxout = config.maxSpeedRpm;
+            if (!speedPids_[axis].Init(config_.axis[axis].speedLoop) ||
+                !anglePids_[axis].Init(config_.axis[axis].angleLoop))
+            {
+                return false;
+            }
+        }
+
+        ready_ = true;
+        return true;
+    }
+
+    /** @brief 复位全部轴 PID 并清空目标（含模式切换）；保留配置、使能与模式。 */
+    void Reset() noexcept
     {
-      return false;
+        ResetLoops();
+        ClearTargets();
     }
 
-    for (std::size_t axis = 0U; axis < AxisCount; ++axis)
+    /** @brief 只复位各轴 PID 状态（含积分），保留目标。 */
+    void ResetLoops() noexcept
     {
-      const AxisConfig &axisConfig = config.axis[axis];
-      if (axisConfig.clamp == TargetClamp::AbsoluteRange &&
-          (!std::isfinite(axisConfig.minTarget) || !std::isfinite(axisConfig.maxTarget) ||
-           axisConfig.minTarget >= axisConfig.maxTarget))
-      {
-        return false;
-      }
-      const float angleTargetMagnitude =
-          axisConfig.clamp == TargetClamp::AbsoluteRange
-              ? std::max(std::fabs(axisConfig.minTarget), std::fabs(axisConfig.maxTarget))
-              : 0.0F;
-      if (!FeedForwardInLinearRange(axisConfig.speedLoop, config.maxSpeedRpm) ||
-          !FeedForwardInLinearRange(axisConfig.angleLoop, angleTargetMagnitude))
-      {
-        return false;
-      }
+        for (std::size_t axis = 0U; axis < AxisCount; ++axis)
+        {
+            speedPids_[axis].Reset();
+            anglePids_[axis].Reset();
+        }
     }
 
-    config_ = config;
-    for (std::size_t axis = 0U; axis < AxisCount; ++axis)
+    /** @brief 只清空各轴目标，保留 PID 状态。 */
+    void ClearTargets() noexcept
     {
-      config_.axis[axis].angleLoop.Maxout = config.maxSpeedRpm;
-      if (!speedPids_[axis].Init(config_.axis[axis].speedLoop) || !anglePids_[axis].Init(config_.axis[axis].angleLoop))
-      {
-        return false;
-      }
+        for (std::size_t axis = 0U; axis < AxisCount; ++axis)
+        {
+            targets_[axis].store(0.0F, std::memory_order_relaxed);
+        }
     }
 
-    ready_ = true;
-    return true;
-  }
-
-  /** @brief 复位全部轴 PID 并清空目标（含模式切换）；保留配置、使能与模式。 */
-  void Reset() noexcept
-  {
-    ResetLoops();
-    ClearTargets();
-  }
-
-  /** @brief 只复位各轴 PID 状态（含积分），保留目标。 */
-  void ResetLoops() noexcept
-  {
-    for (std::size_t axis = 0U; axis < AxisCount; ++axis)
-    {
-      speedPids_[axis].Reset();
-      anglePids_[axis].Reset();
-    }
-  }
-
-  /** @brief 只清空各轴目标，保留 PID 状态。 */
-  void ClearTargets() noexcept
-  {
-    for (std::size_t axis = 0U; axis < AxisCount; ++axis)
-    {
-      targets_[axis].store(0.0F, std::memory_order_relaxed);
-    }
-  }
-
-  /**
+    /**
    * @brief 命令下发失败时的统一处理：按 failurePolicy 复位环与目标。
    * @note `ClearTargets`（底盘）：复位环 + 清目标，上层需重新下发；`HoldTargets`
    *       （云台）：仅复位环，保留目标
    */
-  void OnCommandFailure() noexcept
-  {
-    ResetLoops();
-    if (config_.failurePolicy == FailurePolicy::ClearTargets)
+    void OnCommandFailure() noexcept
     {
-      ClearTargets();
+        ResetLoops();
+        if (config_.failurePolicy == FailurePolicy::ClearTargets)
+        {
+            ClearTargets();
+        }
     }
-  }
 
-  void SetEnabled(bool enabled) noexcept
-  {
-    enabled_.store(enabled, std::memory_order_release);
-  }
-
-  /** @brief 切换控制模式（含切回原模式）：复位全部 PID 并清空目标。 */
-  void SetMode(Mode mode) noexcept
-  {
-    Reset();
-    mode_.store(mode, std::memory_order_release);
-  }
-
-  /** @brief 设定单轴目标（语义随模式：Torque→N·m，Speed→输出轴 rpm，Angle→deg）。 */
-  void SetTarget(std::size_t axis, float value) noexcept
-  {
-    if (axis >= AxisCount)
+    void SetEnabled(bool enabled) noexcept
     {
-      return;
+        enabled_.store(enabled, std::memory_order_release);
     }
-    targets_[axis].store(value, std::memory_order_relaxed);
-  }
 
-  [[nodiscard]] bool IsReady() const noexcept
-  {
-    return ready_;
-  }
-
-  [[nodiscard]] bool IsEnabled() const noexcept
-  {
-    return enabled_.load(std::memory_order_acquire);
-  }
-
-  [[nodiscard]] Mode GetMode() const noexcept
-  {
-    return mode_.load(std::memory_order_acquire);
-  }
-
-  [[nodiscard]] float GetTarget(std::size_t axis) const noexcept
-  {
-    if (axis >= AxisCount)
+    /** @brief 切换控制模式（含切回原模式）：复位全部 PID 并清空目标。 */
+    void SetMode(Mode mode) noexcept
     {
-      return 0.0F;
+        Reset();
+        mode_.store(mode, std::memory_order_release);
     }
-    return targets_[axis].load(std::memory_order_relaxed);
-  }
 
-  /** @brief 最近一次 Update 的控制器级状态。 */
-  [[nodiscard]] ControllerStatus GetStatus() const noexcept
-  {
-    return controllerStatus_;
-  }
+    /** @brief 设定单轴目标（语义随模式：Torque→N·m，Speed→输出轴 rpm，Angle→deg）。 */
+    void SetTarget(std::size_t axis, float value) noexcept
+    {
+        if (axis >= AxisCount)
+        {
+            return;
+        }
+        targets_[axis].store(value, std::memory_order_relaxed);
+    }
 
-  /**
+    [[nodiscard]] bool IsReady() const noexcept
+    {
+        return ready_;
+    }
+
+    [[nodiscard]] bool IsEnabled() const noexcept
+    {
+        return enabled_.load(std::memory_order_acquire);
+    }
+
+    [[nodiscard]] Mode GetMode() const noexcept
+    {
+        return mode_.load(std::memory_order_acquire);
+    }
+
+    [[nodiscard]] float GetTarget(std::size_t axis) const noexcept
+    {
+        if (axis >= AxisCount)
+        {
+            return 0.0F;
+        }
+        return targets_[axis].load(std::memory_order_relaxed);
+    }
+
+    /** @brief 最近一次 Update 的控制器级状态。 */
+    [[nodiscard]] ControllerStatus GetStatus() const noexcept
+    {
+        return controllerStatus_;
+    }
+
+    /**
    * @brief 最近一次 Update 的单轴状态。
    * @return 下标合法返回 true 并写出状态；越界返回 false。
    */
-  [[nodiscard]] bool GetAxisStatus(std::size_t axis, AxisStatus &status) const noexcept
-  {
-    if (axis >= AxisCount)
+    [[nodiscard]] bool GetAxisStatus(std::size_t axis, AxisStatus &status) const noexcept
     {
-      return false;
+        if (axis >= AxisCount)
+        {
+            return false;
+        }
+        status = axisStatus_[axis];
+        return true;
     }
-    status = axisStatus_[axis];
-    return true;
-  }
 
-  /** @brief 累计 PID 拒绝计算（LoopFault）次数，供上层区分瞬时扰动与持续故障。 */
-  [[nodiscard]] std::uint32_t GetLoopFaultCount() const noexcept
-  {
-    return loopFaultCount_;
-  }
+    /** @brief 累计 PID 拒绝计算（LoopFault）次数，供上层区分瞬时扰动与持续故障。 */
+    [[nodiscard]] std::uint32_t GetLoopFaultCount() const noexcept
+    {
+        return loopFaultCount_;
+    }
 
-  /**
+    /**
    * @brief 推进一个控制周期。
    * @param measurements 各轴量测（下标即轴序）。
    * @param dt 本周期时长（秒），须满足 0 < dt < 1。
    * @param outTorqueNewtonMeter 输出力矩指令，恒为有限值。
    */
-  void
-  Update(const AxisMeasurement (&measurements)[AxisCount], float dt, float (&outTorqueNewtonMeter)[AxisCount]) noexcept
-  {
-    const bool dtValid = std::isfinite(dt) && dt > 0.0F && dt < 1.0F;
-    controllerStatus_ = !ready_ ? ControllerStatus::NotReady
+    void Update(const AxisMeasurement (&measurements)[AxisCount],
+                float dt,
+                float (&outTorqueNewtonMeter)[AxisCount]) noexcept
+    {
+        const bool dtValid = std::isfinite(dt) && dt > 0.0F && dt < 1.0F;
+        controllerStatus_ = !ready_
+                                ? ControllerStatus::NotReady
                                 : (!IsEnabled() ? ControllerStatus::Disabled
                                                 : (dtValid ? ControllerStatus::Active : ControllerStatus::InvalidDt));
-    const bool active = (controllerStatus_ == ControllerStatus::Active);
-    const Mode mode = GetMode();
+        const bool active = (controllerStatus_ == ControllerStatus::Active);
+        const Mode mode = GetMode();
 
-    for (std::size_t axis = 0U; axis < AxisCount; ++axis)
-    {
-      outTorqueNewtonMeter[axis] = 0.0F;
-      const auto resetAxis = [&]() noexcept
-      {
-        speedPids_[axis].Reset();
-        anglePids_[axis].Reset();
-      };
-
-      if (!active)
-      {
-        axisStatus_[axis] = AxisStatus::Disabled;
-        resetAxis();
-        continue;
-      }
-
-      const AxisMeasurement &measurement = measurements[axis];
-      if (!measurement.feedbackValid || !measurement.online || !std::isfinite(measurement.angleDegrees) ||
-          !std::isfinite(measurement.speedRpm))
-      {
-        axisStatus_[axis] = AxisStatus::FeedbackInvalid;
-        resetAxis();
-        continue;
-      }
-
-      const float target = targets_[axis].load(std::memory_order_relaxed);
-      if (!std::isfinite(target))
-      {
-        axisStatus_[axis] = AxisStatus::TargetInvalid;
-        resetAxis();
-        continue;
-      }
-
-      if (mode == Mode::Torque)
-      {
-        resetAxis();
-        outTorqueNewtonMeter[axis] =
-            alg_math::Limit(target, -config_.maxTorqueNewtonMeter, config_.maxTorqueNewtonMeter);
-        axisStatus_[axis] = AxisStatus::TorqueOpenLoop;
-        continue;
-      }
-
-      float targetRpm = 0.0F;
-      if (mode == Mode::Speed)
-      {
-        anglePids_[axis].Reset();
-        targetRpm = alg_math::Limit(target, -config_.maxSpeedRpm, config_.maxSpeedRpm);
-      }
-      else
-      {
-        const float targetAngle = ClampAngleTarget(axis, target);
-        if (!anglePids_[axis].CalculateLoop(measurement.angleDegrees, targetAngle, dt))
+        for (std::size_t axis = 0U; axis < AxisCount; ++axis)
         {
-          axisStatus_[axis] = AxisStatus::LoopFault;
-          ++loopFaultCount_;
-          resetAxis();
-          continue;
+            outTorqueNewtonMeter[axis] = 0.0F;
+            const auto resetAxis = [&]() noexcept
+            {
+                speedPids_[axis].Reset();
+                anglePids_[axis].Reset();
+            };
+
+            if (!active)
+            {
+                axisStatus_[axis] = AxisStatus::Disabled;
+                resetAxis();
+                continue;
+            }
+
+            const AxisMeasurement &measurement = measurements[axis];
+            if (!measurement.feedbackValid || !measurement.online || !std::isfinite(measurement.angleDegrees) ||
+                !std::isfinite(measurement.speedRpm))
+            {
+                axisStatus_[axis] = AxisStatus::FeedbackInvalid;
+                resetAxis();
+                continue;
+            }
+
+            const float target = targets_[axis].load(std::memory_order_relaxed);
+            if (!std::isfinite(target))
+            {
+                axisStatus_[axis] = AxisStatus::TargetInvalid;
+                resetAxis();
+                continue;
+            }
+
+            if (mode == Mode::Torque)
+            {
+                resetAxis();
+                outTorqueNewtonMeter[axis] =
+                    alg_math::Limit(target, -config_.maxTorqueNewtonMeter, config_.maxTorqueNewtonMeter);
+                axisStatus_[axis] = AxisStatus::TorqueOpenLoop;
+                continue;
+            }
+
+            float targetRpm = 0.0F;
+            if (mode == Mode::Speed)
+            {
+                anglePids_[axis].Reset();
+                targetRpm = alg_math::Limit(target, -config_.maxSpeedRpm, config_.maxSpeedRpm);
+            }
+            else
+            {
+                const float targetAngle = ClampAngleTarget(axis, target);
+                if (!anglePids_[axis].CalculateLoop(measurement.angleDegrees, targetAngle, dt))
+                {
+                    axisStatus_[axis] = AxisStatus::LoopFault;
+                    ++loopFaultCount_;
+                    resetAxis();
+                    continue;
+                }
+                targetRpm = alg_math::Limit(anglePids_[axis].GetOut(), -config_.maxSpeedRpm, config_.maxSpeedRpm);
+            }
+
+            if (!speedPids_[axis].CalculateLoop(measurement.speedRpm, targetRpm, dt))
+            {
+                axisStatus_[axis] = AxisStatus::LoopFault;
+                ++loopFaultCount_;
+                resetAxis();
+                continue;
+            }
+            outTorqueNewtonMeter[axis] =
+                alg_math::Limit(speedPids_[axis].GetOut(), -config_.maxTorqueNewtonMeter, config_.maxTorqueNewtonMeter);
+            axisStatus_[axis] = AxisStatus::ClosedLoop;
         }
-        targetRpm = alg_math::Limit(anglePids_[axis].GetOut(), -config_.maxSpeedRpm, config_.maxSpeedRpm);
-      }
-
-      if (!speedPids_[axis].CalculateLoop(measurement.speedRpm, targetRpm, dt))
-      {
-        axisStatus_[axis] = AxisStatus::LoopFault;
-        ++loopFaultCount_;
-        resetAxis();
-        continue;
-      }
-      outTorqueNewtonMeter[axis] =
-          alg_math::Limit(speedPids_[axis].GetOut(), -config_.maxTorqueNewtonMeter, config_.maxTorqueNewtonMeter);
-      axisStatus_[axis] = AxisStatus::ClosedLoop;
     }
-  }
 
-  /** @brief 读取单轴 PID 输出，供诊断与等价性测试使用（不改变任何状态）。 */
-  [[nodiscard]] bool GetLoopOutput(std::size_t axis, float &speedLoopOutput, float &angleLoopOutput) const noexcept
-  {
-    if (axis >= AxisCount)
+    /** @brief 读取单轴 PID 输出，供诊断与等价性测试使用（不改变任何状态）。 */
+    [[nodiscard]] bool GetLoopOutput(std::size_t axis, float &speedLoopOutput, float &angleLoopOutput) const noexcept
     {
-      return false;
+        if (axis >= AxisCount)
+        {
+            return false;
+        }
+        speedLoopOutput = speedPids_[axis].GetOut();
+        angleLoopOutput = anglePids_[axis].GetOut();
+        return true;
     }
-    speedLoopOutput = speedPids_[axis].GetOut();
-    angleLoopOutput = anglePids_[axis].GetOut();
-    return true;
-  }
 
-private:
-  /**
+  private:
+    /**
    * @brief 校验前馈增益在整个目标范围内都工作在线性区，避免它退化为恒定偏置。
    * @param loopConfig 待校验环路的 PID 配置。
    * @param targetMagnitude 该环路目标绝对值上限；为 0 表示目标范围无界，此时只允许 Kf 为 0。
    * @return Kf 为 0，或 `|Kf| × targetMagnitude` 不超过前馈独立限幅时返回 true。
    */
-  [[nodiscard]] static bool FeedForwardInLinearRange(const alg_controller::PID::Config &loopConfig,
-                                                     float targetMagnitude) noexcept
-  {
-    if (loopConfig.Kf == 0.0F)
+    [[nodiscard]] static bool FeedForwardInLinearRange(const alg_controller::PID::Config &loopConfig,
+                                                       float targetMagnitude) noexcept
     {
-      return true;
+        if (loopConfig.Kf == 0.0F)
+        {
+            return true;
+        }
+        return targetMagnitude > 0.0F && std::fabs(loopConfig.Kf) * targetMagnitude <= loopConfig.FeedForwardLimit;
     }
-    return targetMagnitude > 0.0F && std::fabs(loopConfig.Kf) * targetMagnitude <= loopConfig.FeedForwardLimit;
-  }
 
-  /** @brief 按该轴策略预处理角度目标（Angle 模式专用）。 */
-  [[nodiscard]] float ClampAngleTarget(std::size_t axis, float target) const noexcept
-  {
-    if (config_.axis[axis].clamp != TargetClamp::AbsoluteRange)
+    /** @brief 按该轴策略预处理角度目标（Angle 模式专用）。 */
+    [[nodiscard]] float ClampAngleTarget(std::size_t axis, float target) const noexcept
     {
-      return target;
+        if (config_.axis[axis].clamp != TargetClamp::AbsoluteRange)
+        {
+            return target;
+        }
+        return alg_math::Limit(target, config_.axis[axis].minTarget, config_.axis[axis].maxTarget);
     }
-    return alg_math::Limit(target, config_.axis[axis].minTarget, config_.axis[axis].maxTarget);
-  }
 
-  bool ready_{false};
-  std::atomic<bool> enabled_{false};
-  std::atomic<Mode> mode_{Mode::Torque};
-  std::array<std::atomic<float>, AxisCount> targets_{};
-  std::array<alg_controller::PID, AxisCount> speedPids_{};
-  std::array<alg_controller::PID, AxisCount> anglePids_{};
-  Config config_{};
-  ControllerStatus controllerStatus_{ControllerStatus::NotReady};
-  std::array<AxisStatus, AxisCount> axisStatus_{};
-  std::uint32_t loopFaultCount_{0U};
+    bool ready_{false};
+    std::atomic<bool> enabled_{false};
+    std::atomic<Mode> mode_{Mode::Torque};
+    std::array<std::atomic<float>, AxisCount> targets_{};
+    std::array<alg_controller::PID, AxisCount> speedPids_{};
+    std::array<alg_controller::PID, AxisCount> anglePids_{};
+    Config config_{};
+    ControllerStatus controllerStatus_{ControllerStatus::NotReady};
+    std::array<AxisStatus, AxisCount> axisStatus_{};
+    std::uint32_t loopFaultCount_{0U};
 };
 
 } // namespace component

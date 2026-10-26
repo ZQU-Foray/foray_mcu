@@ -7,30 +7,30 @@
 
 bool Port_Init(void)
 {
-  if (!TimePort_Init())
-  {
-    return false;
-  }
+    if (!TimePort_Init())
+    {
+        return false;
+    }
 
-  if (!UartPort_Init())
-  {
-    return false;
-  }
+    if (!UartPort_Init())
+    {
+        return false;
+    }
 
-  if (!SpiPort_Init())
-  {
-    return false;
-  }
+    if (!SpiPort_Init())
+    {
+        return false;
+    }
 
-  if (!PwmPort_Init())
-  {
-    return false;
-  }
+    if (!PwmPort_Init())
+    {
+        return false;
+    }
 
-  if (!CanPort_Init())
-  {
-    return false;
-  }
+    if (!CanPort_Init())
+    {
+        return false;
+    }
 
-  return true;
+    return true;
 }

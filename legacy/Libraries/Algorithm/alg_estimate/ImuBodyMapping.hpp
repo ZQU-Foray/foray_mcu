@@ -12,43 +12,43 @@ namespace alg_estimate
 
 struct AxisMapping
 {
-  std::array<std::uint8_t, 3> source{};
-  std::array<std::int8_t, 3> sign{};
+    std::array<std::uint8_t, 3> source{};
+    std::array<std::int8_t, 3> sign{};
 };
 
 [[nodiscard]] constexpr bool IsValidAxisMapping(const AxisMapping &mapping) noexcept
 {
-  std::int32_t inversions = 0;
-  for (std::size_t axis = 0U; axis < 3U; ++axis)
-  {
-    if (mapping.source[axis] > 2U)
+    std::int32_t inversions = 0;
+    for (std::size_t axis = 0U; axis < 3U; ++axis)
     {
-      return false;
+        if (mapping.source[axis] > 2U)
+        {
+            return false;
+        }
+        if (mapping.sign[axis] != 1 && mapping.sign[axis] != -1)
+        {
+            return false;
+        }
+        for (std::size_t other = axis + 1U; other < 3U; ++other)
+        {
+            if (mapping.source[axis] == mapping.source[other])
+            {
+                return false;
+            }
+            if (mapping.source[axis] > mapping.source[other])
+            {
+                ++inversions;
+            }
+        }
     }
-    if (mapping.sign[axis] != 1 && mapping.sign[axis] != -1)
-    {
-      return false;
-    }
-    for (std::size_t other = axis + 1U; other < 3U; ++other)
-    {
-      if (mapping.source[axis] == mapping.source[other])
-      {
-        return false;
-      }
-      if (mapping.source[axis] > mapping.source[other])
-      {
-        ++inversions;
-      }
-    }
-  }
 
-  std::int32_t determinant = static_cast<std::int32_t>(mapping.sign[0]) * static_cast<std::int32_t>(mapping.sign[1]) *
-                             static_cast<std::int32_t>(mapping.sign[2]);
-  if ((inversions % 2) != 0)
-  {
-    determinant = -determinant;
-  }
-  return determinant == 1;
+    std::int32_t determinant = static_cast<std::int32_t>(mapping.sign[0]) * static_cast<std::int32_t>(mapping.sign[1]) *
+                               static_cast<std::int32_t>(mapping.sign[2]);
+    if ((inversions % 2) != 0)
+    {
+        determinant = -determinant;
+    }
+    return determinant == 1;
 }
 
 inline constexpr AxisMapping Bmi088SensorToBody{{0U, 1U, 2U}, {1, 1, 1}};

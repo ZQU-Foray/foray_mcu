@@ -37,72 +37,72 @@ inline std::array<const void *, CAN_PORT_CHANNEL_COUNT> motorChannelOwners{};
  */
 template <MotorModel Model, std::size_t N> class MotorGroup final
 {
-  static_assert(N > 0U, "电机组数量必须为正");
-  using Mapping = MotorAdapterFor<Model>;
-  using Adapter = typename Mapping::Adapter;
-  static_assert(N <= Mapping::MaximumMotors, "电机组数量超过型号能力");
+    static_assert(N > 0U, "电机组数量必须为正");
+    using Mapping = MotorAdapterFor<Model>;
+    using Adapter = typename Mapping::Adapter;
+    static_assert(N <= Mapping::MaximumMotors, "电机组数量超过型号能力");
 
-public:
-  MotorGroup(platform::Can::Channel channel, const std::array<MotorConnection, N> &connections) noexcept
-      : channel_{channel}, adapter_{Mapping::template MakeConfig<N>(channel, connections)}
-  {
-  }
-  MotorGroup(const MotorGroup &) = delete;
-  MotorGroup &operator=(const MotorGroup &) = delete;
-  MotorGroup(MotorGroup &&) = delete;
-  MotorGroup &operator=(MotorGroup &&) = delete;
+  public:
+    MotorGroup(platform::Can::Channel channel, const std::array<MotorConnection, N> &connections) noexcept
+        : channel_{channel}, adapter_{Mapping::template MakeConfig<N>(channel, connections)}
+    {
+    }
+    MotorGroup(const MotorGroup &) = delete;
+    MotorGroup &operator=(const MotorGroup &) = delete;
+    MotorGroup(MotorGroup &&) = delete;
+    MotorGroup &operator=(MotorGroup &&) = delete;
 
-  [[nodiscard]] bool Init() noexcept
-  {
-    const std::size_t channel = static_cast<std::size_t>(channel_);
-    if (channel >= detail::motorChannelOwners.size())
+    [[nodiscard]] bool Init() noexcept
     {
-      return false;
+        const std::size_t channel = static_cast<std::size_t>(channel_);
+        if (channel >= detail::motorChannelOwners.size())
+        {
+            return false;
+        }
+        if (detail::motorChannelOwners[channel] != nullptr && detail::motorChannelOwners[channel] != this)
+        {
+            return false;
+        }
+        if (!adapter_.Init())
+        {
+            return false;
+        }
+        detail::motorChannelOwners[channel] = this;
+        return true;
     }
-    if (detail::motorChannelOwners[channel] != nullptr && detail::motorChannelOwners[channel] != this)
+    [[nodiscard]] static constexpr std::size_t Count() noexcept
     {
-      return false;
+        return N;
     }
-    if (!adapter_.Init())
+    // 沿用“收、老化、发送、发布”，暂存的新指令在下次 Process 发出。
+    void Process() noexcept
     {
-      return false;
+        adapter_.Process();
     }
-    detail::motorChannelOwners[channel] = this;
-    return true;
-  }
-  [[nodiscard]] static constexpr std::size_t Count() noexcept
-  {
-    return N;
-  }
-  // 沿用“收、老化、发送、发布”，暂存的新指令在下次 Process 发出。
-  void Process() noexcept
-  {
-    adapter_.Process();
-  }
-  // 编号从零开始；失败清空状态，无反馈返回有效读取但 feedbackValid=false。
-  [[nodiscard]] bool ReadState(std::size_t id, MotorState &state) const noexcept
-  {
-    return adapter_.ReadState(id, state);
-  }
-  // 原生输出轴 N·m；非有限输入清零有效槽位并返回 false。
-  [[nodiscard]] bool SetTorque(std::size_t id, float value) noexcept
-  {
-    return adapter_.SetTorque(id, value);
-  }
-  // 输出轴最大力矩能力（N·m）：型号档案决定，供应用层裁剪控制器限幅。
-  [[nodiscard]] float MaximumTorqueNewtonMeter() const noexcept
-  {
-    return adapter_.MaximumTorqueNewtonMeter();
-  }
-  // 只清暂存指令；不代表硬件失能，不停止保活。
-  void ClearCommands() noexcept
-  {
-    adapter_.ClearCommands();
-  }
+    // 编号从零开始；失败清空状态，无反馈返回有效读取但 feedbackValid=false。
+    [[nodiscard]] bool ReadState(std::size_t id, MotorState &state) const noexcept
+    {
+        return adapter_.ReadState(id, state);
+    }
+    // 原生输出轴 N·m；非有限输入清零有效槽位并返回 false。
+    [[nodiscard]] bool SetTorque(std::size_t id, float value) noexcept
+    {
+        return adapter_.SetTorque(id, value);
+    }
+    // 输出轴最大力矩能力（N·m）：型号档案决定，供应用层裁剪控制器限幅。
+    [[nodiscard]] float MaximumTorqueNewtonMeter() const noexcept
+    {
+        return adapter_.MaximumTorqueNewtonMeter();
+    }
+    // 只清暂存指令；不代表硬件失能，不停止保活。
+    void ClearCommands() noexcept
+    {
+        adapter_.ClearCommands();
+    }
 
-private:
-  platform::Can::Channel channel_;
-  Adapter adapter_;
+  private:
+    platform::Can::Channel channel_;
+    Adapter adapter_;
 };
 } // namespace device
 #endif

@@ -16,10 +16,10 @@ namespace alg_math
  */
 struct Quaternion final
 {
-  float w = 1.0f;
-  float x = 0.0f;
-  float y = 0.0f;
-  float z = 0.0f;
+    float w = 1.0f;
+    float x = 0.0f;
+    float y = 0.0f;
+    float z = 0.0f;
 };
 
 /** @brief 四元数模长。 */

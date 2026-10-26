@@ -21,59 +21,59 @@ namespace application::task
  */
 class GimbalTask final
 {
-public:
-  using GimbalControlMode = module::GimbalModule::GimbalControlMode;
+  public:
+    using GimbalControlMode = module::GimbalModule::GimbalControlMode;
 
-  GimbalTask() = delete;
+    GimbalTask() = delete;
 
-  /**
+    /**
    * @brief 初始化云台电机会话（含在役声明与保活）与业务模块。
    * @return 通道就绪、配置有效且限幅不超过执行器能力时返回 true。
    * @note 限幅能力由设备层查询后传给模块（`MotorGroup::MaximumTorqueNewtonMeter()`），
    *       模块因此不必依赖设备层类型。
    */
-  [[nodiscard]] static bool Init() noexcept;
+    [[nodiscard]] static bool Init() noexcept;
 
-  /**
+    /**
    * @brief CMSIS-RTOS2 任务入口，由外部创建线程后调用。
    */
-  static void Run(void *argument) noexcept;
+    static void Run(void *argument) noexcept;
 
-  [[nodiscard]] static bool IsReady() noexcept;
+    [[nodiscard]] static bool IsReady() noexcept;
 
-  /**
+    /**
    * @brief 云台闭环参数（每轴一份，yaw/pitch 独立整定），亦供等价性测试引用。
    */
-  [[nodiscard]] static module::GimbalModule::Config ControllerConfig() noexcept;
+    [[nodiscard]] static module::GimbalModule::Config ControllerConfig() noexcept;
 
-  /**
+    /**
    * @brief 切换控制模式（力矩/转速/角度），语义见 `GimbalModule`。
    */
-  static void SetMode(GimbalControlMode mode) noexcept;
+    static void SetMode(GimbalControlMode mode) noexcept;
 
-  /**
+    /**
    * @brief 设定单轴目标：Torque→N·m，Speed→输出轴 rpm，Angle→输出轴 deg。
    */
-  static void SetGimbalTarget(std::uint8_t gimbal, float value) noexcept;
+    static void SetGimbalTarget(std::uint8_t gimbal, float value) noexcept;
 
-  /**
+    /**
    * @brief 读取单轴目标（遥测与验收观测用，不改变任何状态）。
    * @note 云台失败策略是"保持最后目标"，该读数因此也是失败后行为的直接观测量。
    */
-  [[nodiscard]] static float GimbalTarget(std::uint8_t gimbal) noexcept;
+    [[nodiscard]] static float GimbalTarget(std::uint8_t gimbal) noexcept;
 
-  /**
+    /**
    * @brief 闭环总开关：关闭时全部电机力矩指令恒 0（由裁决层或测试入口给出）。
    */
-  static void SetEnabled(bool enabled) noexcept;
+    static void SetEnabled(bool enabled) noexcept;
 
-  /**
+    /**
    * @brief 业务模块只读访问，供诊断、遥测与验收脚本读取状态。
    */
-  [[nodiscard]] static module::GimbalModule &Module() noexcept;
+    [[nodiscard]] static module::GimbalModule &Module() noexcept;
 
-private:
-  static constexpr std::uint32_t PeriodMs{1U};
+  private:
+    static constexpr std::uint32_t PeriodMs{1U};
 };
 
 } // namespace application::task

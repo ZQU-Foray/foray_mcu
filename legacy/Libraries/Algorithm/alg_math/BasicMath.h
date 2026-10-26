@@ -14,12 +14,12 @@ constexpr float degToRad = pi / 180.0f;
 
 constexpr float RadToDeg(float rad)
 {
-  return rad * radToDeg;
+    return rad * radToDeg;
 }
 
 constexpr float DegToRad(float deg)
 {
-  return deg * degToRad;
+    return deg * degToRad;
 }
 
 /**
@@ -32,15 +32,15 @@ constexpr float DegToRad(float deg)
  */
 template <typename Type> Type Limit(Type x, Type min, Type max)
 {
-  if (x < min)
-  {
-    x = min;
-  }
-  else if (x > max)
-  {
-    x = max;
-  }
-  return (x);
+    if (x < min)
+    {
+        x = min;
+    }
+    else if (x > max)
+    {
+        x = max;
+    }
+    return (x);
 }
 
 /**
@@ -51,7 +51,7 @@ template <typename Type> Type Limit(Type x, Type min, Type max)
  */
 template <typename Type> constexpr Type Square(Type x)
 {
-  return x * x;
+    return x * x;
 }
 
 /**
@@ -64,15 +64,15 @@ template <typename Type> constexpr Type Square(Type x)
  */
 template <typename Type> Type LimitInPlace(Type &x, Type min, Type max)
 {
-  if (x < min)
-  {
-    x = min;
-  }
-  else if (x > max)
-  {
-    x = max;
-  }
-  return x;
+    if (x < min)
+    {
+        x = min;
+    }
+    else if (x > max)
+    {
+        x = max;
+    }
+    return x;
 }
 
 /**
@@ -83,7 +83,7 @@ template <typename Type> Type LimitInPlace(Type &x, Type min, Type max)
  */
 template <typename Type> Type Abs(Type x)
 {
-  return ((x > 0) ? x : -x);
+    return ((x > 0) ? x : -x);
 }
 
 /**
@@ -95,19 +95,19 @@ template <typename Type> Type Abs(Type x)
  */
 inline float InvSqrt(float x)
 {
-  if (!std::isfinite(x) || x <= 0.0f)
-  {
-    return 0.0f;
-  }
+    if (!std::isfinite(x) || x <= 0.0f)
+    {
+        return 0.0f;
+    }
 
-  float halfx = 0.5f * x;
-  float y = x;
-  uint32_t i;
-  std::memcpy(&i, &y, sizeof(i));
-  i = 0x5f3759dfu - (i >> 1);
-  std::memcpy(&y, &i, sizeof(y));
-  y = y * (1.5f - (halfx * y * y));
-  return y;
+    float halfx = 0.5f * x;
+    float y = x;
+    uint32_t i;
+    std::memcpy(&i, &y, sizeof(i));
+    i = 0x5f3759dfu - (i >> 1);
+    std::memcpy(&y, &i, sizeof(y));
+    y = y * (1.5f - (halfx * y * y));
+    return y;
 }
 
 } // namespace alg_math

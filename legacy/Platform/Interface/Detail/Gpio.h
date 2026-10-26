@@ -17,46 +17,46 @@ extern "C"
 {
 #endif
 
-  typedef uint8_t GpioPort_Pin;
-  typedef void (*GpioPort_InterruptCallback)(void *context);
+    typedef uint8_t GpioPort_Pin;
+    typedef void (*GpioPort_InterruptCallback)(void *context);
 
-  enum
-  {
-    GPIO_PORT_PIN_POWER_24V_1 = 0U,
-    GPIO_PORT_PIN_POWER_24V_0,
-    GPIO_PORT_PIN_POWER_5V,
-    GPIO_PORT_PIN_IMU_ACCELEROMETER_CHIP_SELECT,
-    GPIO_PORT_PIN_IMU_GYROSCOPE_CHIP_SELECT,
-    GPIO_PORT_PIN_IMU_ACCELEROMETER_INTERRUPT,
-    GPIO_PORT_PIN_IMU_GYROSCOPE_INTERRUPT,
-    GPIO_PORT_PIN_USER_KEY,
-    GPIO_PORT_PIN_COUNT
-  };
+    enum
+    {
+        GPIO_PORT_PIN_POWER_24V_1 = 0U,
+        GPIO_PORT_PIN_POWER_24V_0,
+        GPIO_PORT_PIN_POWER_5V,
+        GPIO_PORT_PIN_IMU_ACCELEROMETER_CHIP_SELECT,
+        GPIO_PORT_PIN_IMU_GYROSCOPE_CHIP_SELECT,
+        GPIO_PORT_PIN_IMU_ACCELEROMETER_INTERRUPT,
+        GPIO_PORT_PIN_IMU_GYROSCOPE_INTERRUPT,
+        GPIO_PORT_PIN_USER_KEY,
+        GPIO_PORT_PIN_COUNT
+    };
 
-  /**
+    /**
  * @brief 读取指定逻辑 GPIO 引脚的当前电平。
  * @param pin 要读取的逻辑引脚。
  * @param is_high 用于接收电平状态的输出指针，true 表示高电平。
  * @return 引脚和输出指针有效且读取成功时返回 true。
  */
-  bool GpioPort_Read(GpioPort_Pin pin, bool *is_high);
+    bool GpioPort_Read(GpioPort_Pin pin, bool *is_high);
 
-  /**
+    /**
  * @brief 设置指定逻辑 GPIO 输出引脚的电平。
  * @param pin 要写入的逻辑引脚。
  * @param is_high 为 true 时输出高电平，为 false 时输出低电平。
  * @return 引脚支持写入且操作成功时返回 true。
  */
-  bool GpioPort_Write(GpioPort_Pin pin, bool is_high);
+    bool GpioPort_Write(GpioPort_Pin pin, bool is_high);
 
-  /**
+    /**
  * @brief 翻转指定逻辑 GPIO 输出引脚的当前电平。
  * @param pin 要翻转的逻辑引脚。
  * @return 引脚支持写入且操作成功时返回 true。
  */
-  bool GpioPort_Toggle(GpioPort_Pin pin);
+    bool GpioPort_Toggle(GpioPort_Pin pin);
 
-  /**
+    /**
  * @brief 注册 GPIO 外部中断通知。
  * @param pin 支持外部中断的逻辑引脚。
  * @param callback ISR 上下文调用的短回调，传入 NULL 表示取消注册。
@@ -64,7 +64,7 @@ extern "C"
  * @return 引脚支持外部中断且注册完成时返回 true。
  * @note 回调运行在 ISR 上下文，只允许执行中断安全操作。
  */
-  bool GpioPort_SetInterruptCallback(GpioPort_Pin pin, GpioPort_InterruptCallback callback, void *context);
+    bool GpioPort_SetInterruptCallback(GpioPort_Pin pin, GpioPort_InterruptCallback callback, void *context);
 
 #ifdef __cplusplus
 }

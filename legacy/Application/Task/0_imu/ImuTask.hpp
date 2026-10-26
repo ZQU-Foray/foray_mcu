@@ -13,19 +13,19 @@ namespace application::task
  */
 class ImuTask final
 {
-public:
-  ImuTask() = delete;
+  public:
+    ImuTask() = delete;
 
-  /**
+    /**
    * @brief 在 RTOS 启动前初始化 BMI088 状态机与恒温器。
    * @return 底层恒温 PWM 就绪时返回 true。
    */
-  [[nodiscard]] static bool Init() noexcept;
+    [[nodiscard]] static bool Init() noexcept;
 
-  /**
+    /**
    * @brief CMSIS-RTOS2 任务入口，由 TaskManager 创建后调用。
    */
-  [[noreturn]] static void Run(void *argument) noexcept;
+    [[noreturn]] static void Run(void *argument) noexcept;
 };
 
 } // namespace application::task
