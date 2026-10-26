@@ -19,13 +19,13 @@ struct Vector3 final
 };
 
 /** @brief 向量点积。 */
-[[nodiscard]] inline float Dot(const Vector3 &first, const Vector3 &second) noexcept
+[[nodiscard]] inline float dot(const Vector3 &first, const Vector3 &second) noexcept
 {
     return first.x * second.x + first.y * second.y + first.z * second.z;
 }
 
 /** @brief 向量叉积，结果方向满足右手定则。 */
-[[nodiscard]] inline Vector3 Cross(const Vector3 &first, const Vector3 &second) noexcept
+[[nodiscard]] inline Vector3 cross(const Vector3 &first, const Vector3 &second) noexcept
 {
     return Vector3{first.y * second.z - first.z * second.y,
                    first.z * second.x - first.x * second.z,
@@ -33,9 +33,9 @@ struct Vector3 final
 }
 
 /** @brief 向量欧几里得范数。 */
-[[nodiscard]] inline float Norm(const Vector3 &value) noexcept
+[[nodiscard]] inline float norm(const Vector3 &value) noexcept
 {
-    return std::sqrt(Dot(value, value));
+    return std::sqrt(dot(value, value));
 }
 
 /**
@@ -44,23 +44,23 @@ struct Vector3 final
  * @return 输入各分量有限且范数大于零时返回 true；否则把向量清零并返回 false。
  * @note 失败时清零而不是保留原值，避免调用方在非有限数据上继续计算。
  */
-[[nodiscard]] inline bool Normalize(Vector3 &value) noexcept
+[[nodiscard]] inline bool normalize(Vector3 &value) noexcept
 {
-    const float norm = Norm(value);
+    const float norm = alg_math::norm(value);
     if (!std::isfinite(norm) || !(norm > 0.0f))
     {
         value = Vector3{};
         return false;
     }
-    const float inverseNorm = 1.0f / norm;
-    value.x *= inverseNorm;
-    value.y *= inverseNorm;
-    value.z *= inverseNorm;
+    const float inverse_norm = 1.0f / norm;
+    value.x *= inverse_norm;
+    value.y *= inverse_norm;
+    value.z *= inverse_norm;
     return true;
 }
 
 /** @brief 三个分量都是有限值时返回 true。 */
-[[nodiscard]] inline bool IsFinite(const Vector3 &value) noexcept
+[[nodiscard]] inline bool is_finite(const Vector3 &value) noexcept
 {
     return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
 }

@@ -11,128 +11,128 @@ namespace application::task
 namespace
 {
 
-constexpr std::size_t MotorCount{chassis::ChassisController::MotorCount};
+constexpr std::size_t MOTOR_COUNT{chassis::ChassisController::MOTOR_COUNT};
 // 任务内选型：品牌映射包含 + 型号，更换品牌/型号仅修改这两行；
 // 协议、原生减速比和 Kt 由品牌映射与设备层提供。
-using ChassisMotors = device::MotorGroup<device::MotorModel::M2006, MotorCount>;
-ChassisMotors motors{platform::Can::Channel::Channel1, {{{1U, 1}, {2U, 1}, {3U, 1}, {4U, 1}}}};
+using ChassisMotors = device::MotorGroup<device::MotorModel::M2006, MOTOR_COUNT>;
+ChassisMotors g_motors{platform::Can::Channel::CHANNEL_1, {{{1U, 1}, {2U, 1}, {3U, 1}, {4U, 1}}}};
 
-chassis::ChassisController chassisController;
-bool initialized{false};
+chassis::ChassisController g_chassis_controller;
+bool g_initialized{false};
 
 } // namespace
 
-chassis::ChassisController::Config ChassisTask::ControllerConfig() noexcept
+chassis::ChassisController::Config ChassisTask::controller_config() noexcept
 {
     chassis::ChassisController::Config config{};
     // 当前 M2006/C610 整定，全部采用输出轴单位。
     // 旧参数 ratio=36、输出轴 Kt=0.18：速度增益 ×36×0.18、
     // 速度输出/积分限幅 ×0.18、角度增益与限幅 ÷36。
-    config.speedLoop.Mode = alg_controller::PIDMode::Position;
-    config.speedLoop.Kp = 0.1296F;
-    config.speedLoop.Ki = 0.648F;
-    config.speedLoop.DefaultDt = 0.001F;
-    config.speedLoop.Maxout = 0.54F;
-    config.speedLoop.IntegralLimit = 0.27F;
-    config.angleLoop.Mode = alg_controller::PIDMode::Position;
-    config.angleLoop.Kp = 4.0F / 36.0F;
-    config.angleLoop.DefaultDt = 0.001F;
-    config.angleLoop.Maxout = 500.0F;
-    config.maxTorqueNewtonMeter = 1.0F;
-    config.maxWheelSpeedRpm = 500.0F;
+    config.speed_loop.mode = alg_controller::PIDMode::POSITION;
+    config.speed_loop.kp = 0.1296F;
+    config.speed_loop.ki = 0.648F;
+    config.speed_loop.default_dt = 0.001F;
+    config.speed_loop.maxout = 0.54F;
+    config.speed_loop.integral_limit = 0.27F;
+    config.angle_loop.mode = alg_controller::PIDMode::POSITION;
+    config.angle_loop.kp = 4.0F / 36.0F;
+    config.angle_loop.default_dt = 0.001F;
+    config.angle_loop.maxout = 500.0F;
+    config.max_torque_newton_meter = 1.0F;
+    config.max_wheel_speed_rpm = 500.0F;
     return config;
 }
 
-bool ChassisTask::Init() noexcept
+bool ChassisTask::init() noexcept
 {
-    if (initialized)
+    if (g_initialized)
     {
         return true;
     }
 
-    if (!motors.Init())
+    if (!g_motors.init())
     {
-        motors.ClearCommands();
+        g_motors.clear_commands();
         return false;
     }
 
     // D4b：限幅不得超过执行器实际能力（M2006/C610 输出轴上限 10 A × 0.18 = 1.8 N·m）。
-    const chassis::ChassisController::Config config = ControllerConfig();
-    if (!(config.maxTorqueNewtonMeter <= motors.MaximumTorqueNewtonMeter()))
+    const chassis::ChassisController::Config config = controller_config();
+    if (!(config.max_torque_newton_meter <= g_motors.maximum_torque_newton_meter()))
     {
-        motors.ClearCommands();
+        g_motors.clear_commands();
         return false;
     }
-    if (!chassisController.Init(config))
+    if (!g_chassis_controller.init(config))
     {
-        motors.ClearCommands();
+        g_motors.clear_commands();
         return false;
     }
 
-    initialized = true;
+    g_initialized = true;
     return true;
 }
 
-bool ChassisTask::IsReady() noexcept
+bool ChassisTask::is_ready() noexcept
 {
-    return initialized;
+    return g_initialized;
 }
 
-void ChassisTask::SetMode(WheelControlMode mode) noexcept
+void ChassisTask::set_mode(WheelControlMode mode) noexcept
 {
-    chassisController.SetMode(mode);
+    g_chassis_controller.set_mode(mode);
 }
 
-void ChassisTask::SetWheelTarget(std::uint8_t wheel, float value) noexcept
+void ChassisTask::set_wheel_target(std::uint8_t wheel, float value) noexcept
 {
-    chassisController.SetWheelTarget(wheel, value);
+    g_chassis_controller.set_wheel_target(wheel, value);
 }
 
-float ChassisTask::WheelTarget(std::uint8_t wheel) noexcept
+float ChassisTask::wheel_target(std::uint8_t wheel) noexcept
 {
-    return chassisController.WheelTarget(wheel);
+    return g_chassis_controller.wheel_target(wheel);
 }
 
-void ChassisTask::SetEnabled(bool enabled) noexcept
+void ChassisTask::set_enabled(bool enabled) noexcept
 {
-    chassisController.SetEnabled(enabled);
+    g_chassis_controller.set_enabled(enabled);
 }
 
-void ChassisTask::Run(void *argument) noexcept
+void ChassisTask::run(void *argument) noexcept
 {
     (void)argument;
-    if (!initialized)
+    if (!g_initialized)
     {
         osThreadExit();
     }
 
-    platform::Time::Tick tick = platform::Time::NowTicks();
-    device::MotorState snapshots[MotorCount]{};
-    float outputs[MotorCount]{};
+    platform::Time::Tick tick = platform::Time::now_ticks();
+    device::MotorState snapshots[MOTOR_COUNT]{};
+    float outputs[MOTOR_COUNT]{};
 
     for (;;)
     {
-        osDelay(PeriodMs);
-        const float dt = platform::Time::DeltaSeconds(tick);
+        osDelay(PERIOD_MS);
+        const float dt = platform::Time::delta_seconds(tick);
 
-        motors.Process();
-        for (std::size_t wheel = 0U; wheel < MotorCount; ++wheel)
+        g_motors.process();
+        for (std::size_t wheel = 0U; wheel < MOTOR_COUNT; ++wheel)
         {
-            if (!motors.ReadState(wheel, snapshots[wheel]))
+            if (!g_motors.read_state(wheel, snapshots[wheel]))
             {
                 snapshots[wheel] = {};
             }
         }
 
-        chassisController.Update(snapshots, dt, outputs);
+        g_chassis_controller.update(snapshots, dt, outputs);
 
-        for (std::size_t wheel = 0U; wheel < MotorCount; ++wheel)
+        for (std::size_t wheel = 0U; wheel < MOTOR_COUNT; ++wheel)
         {
-            if (!motors.SetTorque(wheel, outputs[wheel]))
+            if (!g_motors.set_torque(wheel, outputs[wheel]))
             {
-                motors.ClearCommands();
+                g_motors.clear_commands();
                 // D1：底盘目标立即归零，上层需重新下发。
-                chassisController.OnCommandFailure();
+                g_chassis_controller.on_command_failure();
                 break;
             }
         }

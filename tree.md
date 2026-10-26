@@ -1,9 +1,9 @@
 # 目录结构说明（foray_mcu）
 
-> 状态：**方案已确认，P0 进行中**。本文件描述"目标结构"与"当前实际状态"的差异。
+> 状态：**方案已确认，P0、P0.5 已验收（2026-10-26），下一步 P1**。本文件描述"目标结构"与"当前实际状态"的差异。
 > 目标结构以 [docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md](docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md) 为准；"目标位置"按阶段落地，是否已落地以状态图例为准。
 
-## 当前实际结构（2026-10-26，P0 进行中）
+## 当前实际结构（2026-10-26，P0.5 完成）
 
 ```text
 foray_mcu/
@@ -29,6 +29,7 @@ foray_mcu/
 ├── test/data/heater/         原固件加热冷启动曲线（L6 重做的验收下限）
 ├── tool/debug/               SWD 只读轮询、IMU 采集与加热日志解码（Python）
 ├── tool/ci/format.py         C/C++ 格式检查与格式化入口（CI 与本地共用）
+├── tool/ci/naming.py         C++ 命名检查与修正入口（clang-tidy，CI 与本地共用）
 └── docs/
     ├── assets/controller_code-架构图.png                    迁移源架构图（人工绘制，PNG 内嵌 5 页）
     └── ai/                      AI 撰写的文档（Decision-20261026-03）
@@ -39,6 +40,7 @@ foray_mcu/
         ├── reviews/archive/                                  v0.1–v0.4 原文存档
         ├── decisions/2026-10-25-迁移基线与对照.md           基线数据、SHA、工具链、P0 复核记录、芯片 Flash 存档记录
         ├── decisions/2026-10-26-丢失功能与恢复依据.md       丢失功能清单（L1–L6）与行为证据
+        ├── decisions/2026-10-26-P0.5-改名/                  P0.5 改名过程、改名表、手工修正脚本、改名后符号表
         └── decisions/baseline-a2cfd16/                      基线符号表与段表（nm -S / size -A）、SHA256SUMS
 ```
 

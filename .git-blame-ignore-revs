@@ -3,3 +3,9 @@
 
 # P0.5 一次性格式化手写 C/C++ 代码（style: c23eb5e）
 c23eb5e6b5ec1bbe54e8ef3de30ed6f206322a52
+
+# P0.5 C++ 标识符按 ROS 2 命名统一改名（refactor: 2b3fbf8）
+2b3fbf854d0fddbb684ee88cbc3527ec0fe3c72f
+
+# P0.5 改名后重新格式化（style: 0c51793）
+0c51793c69ba1879e17a4a3ee7c4d4c85cb02be5

@@ -59,6 +59,8 @@ test/host/
 
 ## 来源与适配记录
 
+> P0.5（2026-10-26）把测试与被测代码中的 C++ 标识符按 ROS 2 命名统一改名（如 `SetEnabled` → `set_enabled`，`canStub` → `g_can_stub`）。下表是 P0 时的适配记录，保留当时的名字；新旧名字对照见 [P0.5 改名表](../../docs/ai/decisions/2026-10-26-P0.5-改名/改名表.tsv)。文件名在 P2 搬迁时再改。
+
 全部测试来自 ControllerCode 提交 `fd1edbb` 的 `Tests/`。提交 `21f78d6` 原样放入（blob 哈希与 `fd1edbb` 逐一一致），随后的提交只做以下适配，**未改动 `legacy/` 中任何文件**：
 
 | 文件 | 改动 | 原因 |

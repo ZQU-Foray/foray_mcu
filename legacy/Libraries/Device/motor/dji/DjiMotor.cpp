@@ -6,41 +6,41 @@ namespace device
 namespace
 {
 
-constexpr std::size_t SendResultCount{6U};
+constexpr std::size_t SEND_RESULT_COUNT{6U};
 
 } // namespace
 
 DjiMotor::DjiMotor(platform::Can::Channel channel, const Profile &profile) noexcept
     : channel_{channel}, esc_{profile.dialect}, profile_{profile},
-      commandKind_{profile.dialect.commands[static_cast<std::size_t>(protocol::DjiEsc::CommandKind::Current)]
-                               .groupOneControlIdentifier != 0U
-                       ? protocol::DjiEsc::CommandKind::Current
-                       : protocol::DjiEsc::CommandKind::Voltage}
+      command_kind_{profile.dialect.commands[static_cast<std::size_t>(protocol::DjiEsc::CommandKind::CURRENT)]
+                                .group_one_control_identifier != 0U
+                        ? protocol::DjiEsc::CommandKind::CURRENT
+                        : protocol::DjiEsc::CommandKind::VOLTAGE}
 {
 }
 
-bool DjiMotor::Init() noexcept
+bool DjiMotor::init() noexcept
 {
     motors_ = {};
-    txResultCounts_ = {};
-    portStatistics_ = {};
+    tx_result_counts_ = {};
+    port_statistics_ = {};
     feedback_ = {};
-    publishedSnapshots_ = {};
-    publishedStatistics_ = {};
-    snapshotSequence_.store(0U, std::memory_order_relaxed);
+    published_snapshots_ = {};
+    published_statistics_ = {};
+    snapshot_sequence_.store(0U, std::memory_order_relaxed);
     dirty_ = false;
 
     const protocol::DjiEsc::CommandSpec &current =
-        profile_.dialect.commands[static_cast<std::size_t>(protocol::DjiEsc::CommandKind::Current)];
+        profile_.dialect.commands[static_cast<std::size_t>(protocol::DjiEsc::CommandKind::CURRENT)];
     const protocol::DjiEsc::CommandSpec &voltage =
-        profile_.dialect.commands[static_cast<std::size_t>(protocol::DjiEsc::CommandKind::Voltage)];
-    if (current.groupOneControlIdentifier == 0U && voltage.groupOneControlIdentifier == 0U)
+        profile_.dialect.commands[static_cast<std::size_t>(protocol::DjiEsc::CommandKind::VOLTAGE)];
+    if (current.group_one_control_identifier == 0U && voltage.group_one_control_identifier == 0U)
     {
         ready_ = false;
         return false;
     }
 
-    if (!platform::Can::IsReady(channel_) || !platform::Time::IsReady())
+    if (!platform::Can::is_ready(channel_) || !platform::Time::is_ready())
     {
         ready_ = false;
         return false;
@@ -48,56 +48,56 @@ bool DjiMotor::Init() noexcept
 
     ready_ = true;
     dirty_ = true;
-    Publish();
+    publish();
     return true;
 }
 
-void DjiMotor::Process() noexcept
+void DjiMotor::process() noexcept
 {
     if (!ready_)
     {
         return;
     }
 
-    ReceiveFrames();
-    UpdateLinkAging();
-    TransmitCommands();
-    (void)platform::Can::GetStatistics(channel_, portStatistics_);
+    receive_frames();
+    update_link_aging();
+    transmit_commands();
+    (void)platform::Can::get_statistics(channel_, port_statistics_);
     if (dirty_)
     {
-        Publish();
+        publish();
     }
 }
 
-bool DjiMotor::EnableMotor(std::uint8_t deviceId) noexcept
+bool DjiMotor::enable_motor(std::uint8_t device_id) noexcept
 {
-    if (!ready_ || !DeviceIdValid(deviceId))
+    if (!ready_ || !device_id_valid(device_id))
     {
         return false;
     }
-    motors_[deviceId - 1U].enabled = true;
+    motors_[device_id - 1U].enabled = true;
     dirty_ = true;
     return true;
 }
 
-bool DjiMotor::SetRawCommand(std::uint8_t deviceId, std::int16_t rawCommand) noexcept
+bool DjiMotor::set_raw_command(std::uint8_t device_id, std::int16_t raw_command) noexcept
 {
-    if (!DeviceIdValid(deviceId))
+    if (!device_id_valid(device_id))
     {
         return false;
     }
-    motors_[deviceId - 1U].command = esc_.Saturate(rawCommand, commandKind_);
+    motors_[device_id - 1U].command = esc_.saturate(raw_command, command_kind_);
     return true;
 }
 
-bool DjiMotor::SetCurrentAmpere(std::uint8_t deviceId, float ampere) noexcept
+bool DjiMotor::set_current_ampere(std::uint8_t device_id, float ampere) noexcept
 {
-    if (!DeviceIdValid(deviceId) || profile_.currentFullScaleAmpere <= 0.0F)
+    if (!device_id_valid(device_id) || profile_.current_full_scale_ampere <= 0.0F)
     {
         return false;
     }
 
-    float ratio = ampere / profile_.currentFullScaleAmpere;
+    float ratio = ampere / profile_.current_full_scale_ampere;
     if (ratio > 1.0F)
     {
         ratio = 1.0F;
@@ -106,23 +106,23 @@ bool DjiMotor::SetCurrentAmpere(std::uint8_t deviceId, float ampere) noexcept
     {
         ratio = -1.0F;
     }
-    const std::int16_t fullScaleCounts =
-        static_cast<std::int16_t>(esc_.GetCommandSpec(commandKind_).controlFullScaleCounts);
-    return SetRawCommand(deviceId, static_cast<std::int16_t>(ratio * fullScaleCounts));
+    const std::int16_t full_scale_counts =
+        static_cast<std::int16_t>(esc_.get_command_spec(command_kind_).control_full_scale_counts);
+    return set_raw_command(device_id, static_cast<std::int16_t>(ratio * full_scale_counts));
 }
 
-bool DjiMotor::SetTorque(std::uint8_t deviceId, float newtonMeter) noexcept
+bool DjiMotor::set_torque(std::uint8_t device_id, float newton_meter) noexcept
 {
-    if (profile_.torqueConstantNewtonMeterPerAmpere <= 0.0F)
+    if (profile_.torque_constant_newton_meter_per_ampere <= 0.0F)
     {
         return false;
     }
-    return SetCurrentAmpere(deviceId, newtonMeter / profile_.torqueConstantNewtonMeterPerAmpere);
+    return set_current_ampere(device_id, newton_meter / profile_.torque_constant_newton_meter_per_ampere);
 }
 
-bool DjiMotor::SetTorqueRatio(std::uint8_t deviceId, float ratio) noexcept
+bool DjiMotor::set_torque_ratio(std::uint8_t device_id, float ratio) noexcept
 {
-    if (!DeviceIdValid(deviceId))
+    if (!device_id_valid(device_id))
     {
         return false;
     }
@@ -134,12 +134,12 @@ bool DjiMotor::SetTorqueRatio(std::uint8_t deviceId, float ratio) noexcept
     {
         ratio = -1.0F;
     }
-    const std::int16_t fullScaleCounts =
-        static_cast<std::int16_t>(esc_.GetCommandSpec(commandKind_).controlFullScaleCounts);
-    return SetRawCommand(deviceId, static_cast<std::int16_t>(ratio * fullScaleCounts));
+    const std::int16_t full_scale_counts =
+        static_cast<std::int16_t>(esc_.get_command_spec(command_kind_).control_full_scale_counts);
+    return set_raw_command(device_id, static_cast<std::int16_t>(ratio * full_scale_counts));
 }
 
-void DjiMotor::ClearAllCommands() noexcept
+void DjiMotor::clear_all_commands() noexcept
 {
     for (MotorState &motor : motors_)
     {
@@ -147,117 +147,117 @@ void DjiMotor::ClearAllCommands() noexcept
     }
 }
 
-bool DjiMotor::GetSnapshot(std::uint8_t deviceId, Snapshot &snapshot) const noexcept
+bool DjiMotor::get_snapshot(std::uint8_t device_id, Snapshot &snapshot) const noexcept
 {
-    if (deviceId == 0U || deviceId > MaximumMotors)
+    if (device_id == 0U || device_id > MAXIMUM_MOTORS)
     {
         return false;
     }
 
     Snapshot staged{};
-    std::uint32_t sequenceBefore = 0U;
-    std::uint32_t sequenceAfter = 0U;
+    std::uint32_t sequence_before = 0U;
+    std::uint32_t sequence_after = 0U;
     do
     {
-        sequenceBefore = snapshotSequence_.load(std::memory_order_acquire);
-        if ((sequenceBefore & 1U) != 0U)
+        sequence_before = snapshot_sequence_.load(std::memory_order_acquire);
+        if ((sequence_before & 1U) != 0U)
         {
             continue;
         }
-        staged = publishedSnapshots_[deviceId - 1U];
-        sequenceAfter = snapshotSequence_.load(std::memory_order_acquire);
-    } while (sequenceBefore != sequenceAfter || (sequenceAfter & 1U) != 0U);
+        staged = published_snapshots_[device_id - 1U];
+        sequence_after = snapshot_sequence_.load(std::memory_order_acquire);
+    } while (sequence_before != sequence_after || (sequence_after & 1U) != 0U);
 
     snapshot = staged;
     return true;
 }
 
-bool DjiMotor::GetStatistics(Statistics &statistics) const noexcept
+bool DjiMotor::get_statistics(Statistics &statistics) const noexcept
 {
     Statistics staged{};
-    std::uint32_t sequenceBefore = 0U;
-    std::uint32_t sequenceAfter = 0U;
+    std::uint32_t sequence_before = 0U;
+    std::uint32_t sequence_after = 0U;
     do
     {
-        sequenceBefore = snapshotSequence_.load(std::memory_order_acquire);
-        if ((sequenceBefore & 1U) != 0U)
+        sequence_before = snapshot_sequence_.load(std::memory_order_acquire);
+        if ((sequence_before & 1U) != 0U)
         {
             continue;
         }
-        staged = publishedStatistics_;
-        sequenceAfter = snapshotSequence_.load(std::memory_order_acquire);
-    } while (sequenceBefore != sequenceAfter || (sequenceAfter & 1U) != 0U);
+        staged = published_statistics_;
+        sequence_after = snapshot_sequence_.load(std::memory_order_acquire);
+    } while (sequence_before != sequence_after || (sequence_after & 1U) != 0U);
 
     statistics = staged;
     return true;
 }
 
-void DjiMotor::ReceiveFrames() noexcept
+void DjiMotor::receive_frames() noexcept
 {
     platform::Can::Frame frame{};
     for (;;)
     {
-        const platform::Can::ReceiveResult result = platform::Can::TryReceive(channel_, frame);
-        if (result != platform::Can::ReceiveResult::Received)
+        const platform::Can::ReceiveResult result = platform::Can::try_receive(channel_, frame);
+        if (result != platform::Can::ReceiveResult::RECEIVED)
         {
             return;
         }
 
-        if (esc_.DecodeFeedback(frame.identifier,
-                                frame.identifierType == platform::Can::IdentifierType::Extended,
-                                frame.length,
-                                frame.data.data(),
-                                feedback_) != protocol::DjiEsc::DecodeResult::Accepted)
+        if (esc_.decode_feedback(frame.identifier,
+                                 frame.identifier_type == platform::Can::IdentifierType::EXTENDED,
+                                 frame.length,
+                                 frame.data.data(),
+                                 feedback_) != protocol::DjiEsc::DecodeResult::ACCEPTED)
         {
             continue;
         }
 
-        const std::size_t index = feedback_.deviceId - 1U;
+        const std::size_t index = feedback_.device_id - 1U;
         if (index >= motors_.size())
         {
             continue;
         }
 
         MotorState &motor = motors_[index];
-        if (motor.hasAngle)
+        if (motor.has_angle)
         {
             std::int32_t delta =
-                static_cast<std::int32_t>(feedback_.rotorAngleRaw) - static_cast<std::int32_t>(motor.lastAngleRaw);
-            constexpr std::int32_t counts = protocol::DjiEsc::AngleCountsPerRevolution;
+                static_cast<std::int32_t>(feedback_.rotor_angle_raw) - static_cast<std::int32_t>(motor.last_angle_raw);
+            constexpr std::int32_t COUNTS = protocol::DjiEsc::ANGLE_COUNTS_PER_REVOLUTION;
             // 恰好半圈时保留符号；该速率下方向本身有歧义。
-            if (delta > counts / 2)
+            if (delta > COUNTS / 2)
             {
-                delta -= counts;
+                delta -= COUNTS;
             }
-            else if (delta < -counts / 2)
+            else if (delta < -COUNTS / 2)
             {
-                delta += counts;
+                delta += COUNTS;
             }
-            motor.totalAngleCounts += delta;
+            motor.total_angle_counts += delta;
         }
         else
         {
-            motor.hasAngle = true;
+            motor.has_angle = true;
         }
-        motor.lastAngleRaw = feedback_.rotorAngleRaw;
+        motor.last_angle_raw = feedback_.rotor_angle_raw;
         motor.feedback = feedback_;
-        motor.lastUpdateTick = platform::Time::NowTicks();
-        motor.everReceived = true;
+        motor.last_update_tick = platform::Time::now_ticks();
+        motor.ever_received = true;
         motor.stale = false;
-        ++motor.acceptedFrameCount;
+        ++motor.accepted_frame_count;
         dirty_ = true;
     }
 }
 
-void DjiMotor::UpdateLinkAging() noexcept
+void DjiMotor::update_link_aging() noexcept
 {
     for (MotorState &motor : motors_)
     {
-        if (!motor.everReceived || motor.stale)
+        if (!motor.ever_received || motor.stale)
         {
             continue;
         }
-        if (platform::Time::HasElapsedMs(motor.lastUpdateTick, LinkTimeoutMs))
+        if (platform::Time::has_elapsed_ms(motor.last_update_tick, LINK_TIMEOUT_MS))
         {
             motor.stale = true;
             dirty_ = true;
@@ -265,99 +265,101 @@ void DjiMotor::UpdateLinkAging() noexcept
     }
 }
 
-void DjiMotor::TransmitCommands() noexcept
+void DjiMotor::transmit_commands() noexcept
 {
-    const protocol::DjiEsc::Group groups[]{protocol::DjiEsc::Group::First, protocol::DjiEsc::Group::Second};
+    const protocol::DjiEsc::Group groups[]{protocol::DjiEsc::Group::FIRST, protocol::DjiEsc::Group::SECOND};
     for (const protocol::DjiEsc::Group group : groups)
     {
-        if (!GroupEnabled(group))
+        if (!group_enabled(group))
         {
             continue;
         }
 
-        std::array<std::int16_t, protocol::DjiEsc::DevicesPerFrame> targets{};
+        std::array<std::int16_t, protocol::DjiEsc::DEVICES_PER_FRAME> targets{};
         for (std::size_t slot = 0U; slot < targets.size(); ++slot)
         {
             const std::size_t index =
-                group == protocol::DjiEsc::Group::First ? slot : slot + protocol::DjiEsc::DevicesPerFrame;
+                group == protocol::DjiEsc::Group::FIRST ? slot : slot + protocol::DjiEsc::DEVICES_PER_FRAME;
             targets[slot] = motors_[index].command;
         }
 
         protocol::DjiEsc::ControlFrame command{};
-        if (!esc_.Encode(commandKind_, group, targets, command))
+        if (!esc_.encode(command_kind_, group, targets, command))
         {
             continue;
         }
 
         platform::Can::Frame frame{};
         frame.identifier = command.identifier;
-        frame.identifierType = platform::Can::IdentifierType::Standard;
+        frame.identifier_type = platform::Can::IdentifierType::STANDARD;
         frame.length = static_cast<std::uint8_t>(command.data.size());
         frame.data = command.data;
-        const platform::Can::SendResult result = platform::Can::TrySend(channel_, frame);
-        const std::size_t index = static_cast<std::size_t>(result) < SendResultCount ? static_cast<std::size_t>(result)
-                                                                                     : SendResultCount - 1U;
-        ++txResultCounts_[index];
+        const platform::Can::SendResult result = platform::Can::try_send(channel_, frame);
+        const std::size_t index = static_cast<std::size_t>(result) < SEND_RESULT_COUNT
+                                      ? static_cast<std::size_t>(result)
+                                      : SEND_RESULT_COUNT - 1U;
+        ++tx_result_counts_[index];
         dirty_ = true;
     }
 }
 
-void DjiMotor::Publish() noexcept
+void DjiMotor::publish() noexcept
 {
-    snapshotSequence_.fetch_add(1U, std::memory_order_acq_rel);
+    snapshot_sequence_.fetch_add(1U, std::memory_order_acq_rel);
 
     for (std::size_t index = 0U; index < motors_.size(); ++index)
     {
-        FillSnapshot(index, publishedSnapshots_[index]);
+        fill_snapshot(index, published_snapshots_[index]);
     }
 
-    const protocol::DjiEsc::Statistics &escStatistics = esc_.GetStatistics();
-    publishedStatistics_.txResultCounts = txResultCounts_;
-    publishedStatistics_.acceptedFrameCount = escStatistics.acceptedFrameCount;
-    publishedStatistics_.rejectedFrameCount = escStatistics.rejectedFrameCount;
-    publishedStatistics_.unknownIdentifierCount = escStatistics.unknownIdentifierCount;
-    publishedStatistics_.rxDroppedCount = portStatistics_.rxDroppedCount;
-    publishedStatistics_.rxHardwareLossEventCount = portStatistics_.rxHardwareLossEventCount;
-    publishedStatistics_.busOffCount = portStatistics_.busOffCount;
+    const protocol::DjiEsc::Statistics &esc_statistics = esc_.get_statistics();
+    published_statistics_.tx_result_counts = tx_result_counts_;
+    published_statistics_.accepted_frame_count = esc_statistics.accepted_frame_count;
+    published_statistics_.rejected_frame_count = esc_statistics.rejected_frame_count;
+    published_statistics_.unknown_identifier_count = esc_statistics.unknown_identifier_count;
+    published_statistics_.rx_dropped_count = port_statistics_.rx_dropped_count;
+    published_statistics_.rx_hardware_loss_event_count = port_statistics_.rx_hardware_loss_event_count;
+    published_statistics_.bus_off_count = port_statistics_.bus_off_count;
 
-    snapshotSequence_.fetch_add(1U, std::memory_order_release);
+    snapshot_sequence_.fetch_add(1U, std::memory_order_release);
     dirty_ = false;
 }
 
-void DjiMotor::FillSnapshot(std::size_t index, Snapshot &snapshot) const noexcept
+void DjiMotor::fill_snapshot(std::size_t index, Snapshot &snapshot) const noexcept
 {
     const MotorState &motor = motors_[index];
 
     snapshot = Snapshot{};
-    snapshot.deviceId = static_cast<std::uint8_t>(index + 1U);
+    snapshot.device_id = static_cast<std::uint8_t>(index + 1U);
     snapshot.enabled = motor.enabled;
-    snapshot.everReceived = motor.everReceived;
-    snapshot.online = motor.everReceived && !motor.stale;
-    snapshot.lastUpdateTick = motor.lastUpdateTick;
-    snapshot.acceptedFrameCount = motor.acceptedFrameCount;
-    snapshot.rotorAngleRaw = motor.feedback.rotorAngleRaw;
-    snapshot.rotorAngleDegrees = protocol::DjiEsc::RotorAngleDegrees(motor.feedback.rotorAngleRaw);
-    snapshot.totalAngleCounts = motor.totalAngleCounts;
-    snapshot.totalTurns =
-        motor.totalAngleCounts / static_cast<std::int32_t>(protocol::DjiEsc::AngleCountsPerRevolution);
-    snapshot.totalAngleDegrees = static_cast<float>(motor.totalAngleCounts) * 360.0F /
-                                 static_cast<float>(protocol::DjiEsc::AngleCountsPerRevolution);
-    snapshot.rotorSpeedRpm = motor.feedback.rotorSpeedRaw;
-    snapshot.torqueCurrentRaw = motor.feedback.torqueCurrentRaw;
-    snapshot.torqueCurrentRatio =
-        protocol::DjiEsc::ControlRatio(motor.feedback.torqueCurrentRaw, esc_.GetCommandSpec(commandKind_));
-    snapshot.motorTemperatureCelsius = profile_.hasTemperatureFeedback ? motor.feedback.motorTemperatureCelsius : 0U;
+    snapshot.ever_received = motor.ever_received;
+    snapshot.online = motor.ever_received && !motor.stale;
+    snapshot.last_update_tick = motor.last_update_tick;
+    snapshot.accepted_frame_count = motor.accepted_frame_count;
+    snapshot.rotor_angle_raw = motor.feedback.rotor_angle_raw;
+    snapshot.rotor_angle_degrees = protocol::DjiEsc::rotor_angle_degrees(motor.feedback.rotor_angle_raw);
+    snapshot.total_angle_counts = motor.total_angle_counts;
+    snapshot.total_turns =
+        motor.total_angle_counts / static_cast<std::int32_t>(protocol::DjiEsc::ANGLE_COUNTS_PER_REVOLUTION);
+    snapshot.total_angle_degrees = static_cast<float>(motor.total_angle_counts) * 360.0F /
+                                   static_cast<float>(protocol::DjiEsc::ANGLE_COUNTS_PER_REVOLUTION);
+    snapshot.rotor_speed_rpm = motor.feedback.rotor_speed_raw;
+    snapshot.torque_current_raw = motor.feedback.torque_current_raw;
+    snapshot.torque_current_ratio =
+        protocol::DjiEsc::control_ratio(motor.feedback.torque_current_raw, esc_.get_command_spec(command_kind_));
+    snapshot.motor_temperature_celsius =
+        profile_.has_temperature_feedback ? motor.feedback.motor_temperature_celsius : 0U;
 }
 
-bool DjiMotor::DeviceIdValid(std::uint8_t deviceId) const noexcept
+bool DjiMotor::device_id_valid(std::uint8_t device_id) const noexcept
 {
-    return deviceId >= 1U && deviceId <= MaximumDeviceCount();
+    return device_id >= 1U && device_id <= maximum_device_count();
 }
 
-bool DjiMotor::GroupEnabled(protocol::DjiEsc::Group group) const noexcept
+bool DjiMotor::group_enabled(protocol::DjiEsc::Group group) const noexcept
 {
-    const std::size_t first = group == protocol::DjiEsc::Group::First ? 0U : protocol::DjiEsc::DevicesPerFrame;
-    for (std::size_t index = first; index < first + protocol::DjiEsc::DevicesPerFrame && index < motors_.size();
+    const std::size_t first = group == protocol::DjiEsc::Group::FIRST ? 0U : protocol::DjiEsc::DEVICES_PER_FRAME;
+    for (std::size_t index = first; index < first + protocol::DjiEsc::DEVICES_PER_FRAME && index < motors_.size();
          ++index)
     {
         if (motors_[index].enabled)

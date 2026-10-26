@@ -3,98 +3,98 @@
 namespace application::chassis
 {
 
-bool ChassisController::Init(const Config &config) noexcept
+bool ChassisController::init(const Config &config) noexcept
 {
-    component::AxisController<MotorCount>::Config mapped{};
-    mapped.maxTorqueNewtonMeter = config.maxTorqueNewtonMeter;
-    mapped.maxSpeedRpm = config.maxWheelSpeedRpm;
+    component::AxisController<MOTOR_COUNT>::Config mapped{};
+    mapped.max_torque_newton_meter = config.max_torque_newton_meter;
+    mapped.max_speed_rpm = config.max_wheel_speed_rpm;
     // D2：底盘默认转速模式（目标 0 即停转，比角度闭环更保守）。
-    mapped.initialMode = WheelControlMode::Speed;
+    mapped.initial_mode = WheelControlMode::SPEED;
     // D1：要求底盘运动目标立即归零，失败后必须由上层重新下发。
-    mapped.failurePolicy = component::FailurePolicy::ClearTargets;
-    for (std::size_t wheel = 0U; wheel < MotorCount; ++wheel)
+    mapped.failure_policy = component::FailurePolicy::CLEAR_TARGETS;
+    for (std::size_t wheel = 0U; wheel < MOTOR_COUNT; ++wheel)
     {
-        mapped.axis[wheel].speedLoop = config.speedLoop;
-        mapped.axis[wheel].angleLoop = config.angleLoop;
-        mapped.axis[wheel].clamp = component::TargetClamp::None;
+        mapped.axis[wheel].speed_loop = config.speed_loop;
+        mapped.axis[wheel].angle_loop = config.angle_loop;
+        mapped.axis[wheel].clamp = component::TargetClamp::NONE;
     }
-    return axes_.Init(mapped);
+    return axes_.init(mapped);
 }
 
-void ChassisController::Reset() noexcept
+void ChassisController::reset() noexcept
 {
-    axes_.Reset();
+    axes_.reset();
 }
 
-void ChassisController::SetEnabled(bool enabled) noexcept
+void ChassisController::set_enabled(bool enabled) noexcept
 {
-    axes_.SetEnabled(enabled);
+    axes_.set_enabled(enabled);
 }
 
-void ChassisController::SetMode(WheelControlMode mode) noexcept
+void ChassisController::set_mode(WheelControlMode mode) noexcept
 {
-    axes_.SetMode(mode);
+    axes_.set_mode(mode);
 }
 
-void ChassisController::SetWheelTarget(std::size_t wheel, float value) noexcept
+void ChassisController::set_wheel_target(std::size_t wheel, float value) noexcept
 {
-    axes_.SetTarget(wheel, value);
+    axes_.set_target(wheel, value);
 }
 
-void ChassisController::OnCommandFailure() noexcept
+void ChassisController::on_command_failure() noexcept
 {
-    axes_.OnCommandFailure();
+    axes_.on_command_failure();
 }
 
-bool ChassisController::IsReady() const noexcept
+bool ChassisController::is_ready() const noexcept
 {
-    return axes_.IsReady();
+    return axes_.is_ready();
 }
 
-bool ChassisController::IsEnabled() const noexcept
+bool ChassisController::is_enabled() const noexcept
 {
-    return axes_.IsEnabled();
+    return axes_.is_enabled();
 }
 
-ChassisController::WheelControlMode ChassisController::Mode() const noexcept
+ChassisController::WheelControlMode ChassisController::mode() const noexcept
 {
-    return axes_.GetMode();
+    return axes_.get_mode();
 }
 
-float ChassisController::WheelTarget(std::size_t wheel) const noexcept
+float ChassisController::wheel_target(std::size_t wheel) const noexcept
 {
-    return axes_.GetTarget(wheel);
+    return axes_.get_target(wheel);
 }
 
-component::ControllerStatus ChassisController::GetStatus() const noexcept
+component::ControllerStatus ChassisController::get_status() const noexcept
 {
-    return axes_.GetStatus();
+    return axes_.get_status();
 }
 
-bool ChassisController::GetAxisStatus(std::size_t wheel, component::AxisStatus &status) const noexcept
+bool ChassisController::get_axis_status(std::size_t wheel, component::AxisStatus &status) const noexcept
 {
-    return axes_.GetAxisStatus(wheel, status);
+    return axes_.get_axis_status(wheel, status);
 }
 
-std::uint32_t ChassisController::GetLoopFaultCount() const noexcept
+std::uint32_t ChassisController::get_loop_fault_count() const noexcept
 {
-    return axes_.GetLoopFaultCount();
+    return axes_.get_loop_fault_count();
 }
 
-void ChassisController::Update(const device::MotorState (&snapshots)[MotorCount],
+void ChassisController::update(const device::MotorState (&snapshots)[MOTOR_COUNT],
                                float dt,
-                               float (&outTorqueNewtonMeter)[MotorCount]) noexcept
+                               float (&out_torque_newton_meter)[MOTOR_COUNT]) noexcept
 {
     // 设备快照 → 骨架量测：一次 4 字段拷贝，换取算法层不依赖设备层。
-    component::AxisMeasurement measurements[MotorCount]{};
-    for (std::size_t wheel = 0U; wheel < MotorCount; ++wheel)
+    component::AxisMeasurement measurements[MOTOR_COUNT]{};
+    for (std::size_t wheel = 0U; wheel < MOTOR_COUNT; ++wheel)
     {
-        measurements[wheel].angleDegrees = snapshots[wheel].angleDegrees;
-        measurements[wheel].speedRpm = snapshots[wheel].speedRpm;
-        measurements[wheel].feedbackValid = snapshots[wheel].feedbackValid;
+        measurements[wheel].angle_degrees = snapshots[wheel].angle_degrees;
+        measurements[wheel].speed_rpm = snapshots[wheel].speed_rpm;
+        measurements[wheel].feedback_valid = snapshots[wheel].feedback_valid;
         measurements[wheel].online = snapshots[wheel].online;
     }
-    axes_.Update(measurements, dt, outTorqueNewtonMeter);
+    axes_.update(measurements, dt, out_torque_newton_meter);
 }
 
 } // namespace application::chassis

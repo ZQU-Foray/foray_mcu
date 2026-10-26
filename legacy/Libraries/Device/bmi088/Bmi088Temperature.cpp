@@ -6,104 +6,104 @@ namespace device
 namespace
 {
 
-constexpr std::uint8_t ReadFlag{0x80U};
+constexpr std::uint8_t READ_FLAG{0x80U};
 
-constexpr std::uint8_t DataRegister{0x22U};
+constexpr std::uint8_t DATA_REGISTER{0x22U};
 
 } // namespace
 
-void Bmi088Temperature::Init() noexcept
+void Bmi088Temperature::init() noexcept
 {
-    state_ = State::Disabled;
-    transferActive_ = false;
-    sampleValid_ = false;
+    state_ = State::DISABLED;
+    transfer_active_ = false;
+    sample_valid_ = false;
     sample_ = Sample{};
-    readCount_ = 0U;
-    errorCount_ = 0U;
-    transmitBuffer_.fill(0U);
+    read_count_ = 0U;
+    error_count_ = 0U;
+    transmit_buffer_.fill(0U);
 }
 
-void Bmi088Temperature::Enable() noexcept
+void Bmi088Temperature::enable() noexcept
 {
-    if (state_ != State::Disabled)
+    if (state_ != State::DISABLED)
     {
         return;
     }
 
-    state_ = State::Running;
+    state_ = State::RUNNING;
 }
 
-void Bmi088Temperature::Harvest() noexcept
+void Bmi088Temperature::harvest() noexcept
 {
-    if (state_ != State::Running)
+    if (state_ != State::RUNNING)
     {
         return;
     }
 
-    if (!transferActive_)
+    if (!transfer_active_)
     {
         return;
     }
 
-    switch (platform::Spi::GetAsyncResult(platform::Spi::Device::ImuAccelerometer))
+    switch (platform::Spi::get_async_result(platform::Spi::Device::IMU_ACCELEROMETER))
     {
-    case platform::Spi::Result::Busy:
-    case platform::Spi::Result::Started:
+    case platform::Spi::Result::BUSY:
+    case platform::Spi::Result::STARTED:
         return;
 
-    case platform::Spi::Result::Completed:
-        transferActive_ = false;
+    case platform::Spi::Result::COMPLETED:
+        transfer_active_ = false;
         {
             // 接收布局：[0]地址 [1]保留字节 [2]TEMP_MSB(0x22) [3]TEMP_LSB(0x23)，
             // 原始值为 11 位 (MSB<<3 | LSB>>5)，按符号位扩展。
             const std::uint32_t packed =
-                (static_cast<std::uint32_t>(receiveBuffer_[2]) << 3U) | (receiveBuffer_[3] >> 5U);
+                (static_cast<std::uint32_t>(receive_buffer_[2]) << 3U) | (receive_buffer_[3] >> 5U);
             sample_.raw = static_cast<std::int16_t>(static_cast<std::int32_t>((packed ^ 0x400U) - 0x400U));
         }
-        sampleValid_ = true;
-        ++readCount_;
+        sample_valid_ = true;
+        ++read_count_;
         return;
 
     default:
-        transferActive_ = false;
-        Fail();
+        transfer_active_ = false;
+        fail();
         return;
     }
 }
 
-bool Bmi088Temperature::TryStart() noexcept
+bool Bmi088Temperature::try_start() noexcept
 {
-    if (state_ != State::Running || transferActive_)
+    if (state_ != State::RUNNING || transfer_active_)
     {
         return false;
     }
 
-    transmitBuffer_.fill(0U);
-    transmitBuffer_[0] = static_cast<std::uint8_t>(ReadFlag | DataRegister);
-    const platform::Spi::Result result = platform::Spi::StartTransferAsync(platform::Spi::Device::ImuAccelerometer,
-                                                                           transmitBuffer_.data(),
-                                                                           receiveBuffer_.data(),
-                                                                           transmitBuffer_.size(),
-                                                                           Bmi088Transfer::Complete,
-                                                                           &completion_);
+    transmit_buffer_.fill(0U);
+    transmit_buffer_[0] = static_cast<std::uint8_t>(READ_FLAG | DATA_REGISTER);
+    const platform::Spi::Result result = platform::Spi::start_transfer_async(platform::Spi::Device::IMU_ACCELEROMETER,
+                                                                             transmit_buffer_.data(),
+                                                                             receive_buffer_.data(),
+                                                                             transmit_buffer_.size(),
+                                                                             Bmi088Transfer::complete,
+                                                                             &completion_);
     switch (result)
     {
-    case platform::Spi::Result::Started:
-        transferActive_ = true;
+    case platform::Spi::Result::STARTED:
+        transfer_active_ = true;
         return true;
 
-    case platform::Spi::Result::Busy:
+    case platform::Spi::Result::BUSY:
         return false;
 
     default:
-        Fail();
+        fail();
         return false;
     }
 }
 
-bool Bmi088Temperature::TryGetSample(Sample &sample) const noexcept
+bool Bmi088Temperature::try_get_sample(Sample &sample) const noexcept
 {
-    if (!sampleValid_)
+    if (!sample_valid_)
     {
         return false;
     }
@@ -112,11 +112,11 @@ bool Bmi088Temperature::TryGetSample(Sample &sample) const noexcept
     return true;
 }
 
-void Bmi088Temperature::Fail() noexcept
+void Bmi088Temperature::fail() noexcept
 {
-    ++errorCount_;
-    state_ = State::Error;
-    transferActive_ = false;
+    ++error_count_;
+    state_ = State::ERROR;
+    transfer_active_ = false;
 }
 
 } // namespace device

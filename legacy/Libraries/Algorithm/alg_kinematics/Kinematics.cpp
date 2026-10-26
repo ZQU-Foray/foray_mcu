@@ -4,34 +4,34 @@
 namespace
 {
 
-constexpr float TwoPi = 6.28318530717958647692f;
-constexpr float Quarter = 0.25f;
+constexpr float TWO_PI = 6.28318530717958647692f;
+constexpr float QUARTER = 0.25f;
 
-constexpr uint8_t WheelM1 = static_cast<uint8_t>(alg_kinematics::WheelIndex::M1);
-constexpr uint8_t WheelM2 = static_cast<uint8_t>(alg_kinematics::WheelIndex::M2);
-constexpr uint8_t WheelM3 = static_cast<uint8_t>(alg_kinematics::WheelIndex::M3);
-constexpr uint8_t WheelM4 = static_cast<uint8_t>(alg_kinematics::WheelIndex::M4);
+constexpr uint8_t WHEEL_M1 = static_cast<uint8_t>(alg_kinematics::WheelIndex::M1);
+constexpr uint8_t WHEEL_M2 = static_cast<uint8_t>(alg_kinematics::WheelIndex::M2);
+constexpr uint8_t WHEEL_M3 = static_cast<uint8_t>(alg_kinematics::WheelIndex::M3);
+constexpr uint8_t WHEEL_M4 = static_cast<uint8_t>(alg_kinematics::WheelIndex::M4);
 
-bool IsFinite(float value)
+bool is_finite(float value)
 {
     return std::isfinite(value);
 }
 
-bool IsFinite(const alg_kinematics::ChassisVelocity &value)
+bool is_finite(const alg_kinematics::ChassisVelocity &value)
 {
-    return IsFinite(value.Vx) && IsFinite(value.Vy) && IsFinite(value.Wz);
+    return is_finite(value.vx) && is_finite(value.vy) && is_finite(value.wz);
 }
 
-bool IsFinite(const alg_kinematics::ChassisDelta &value)
+bool is_finite(const alg_kinematics::ChassisDelta &value)
 {
-    return IsFinite(value.Dx) && IsFinite(value.Dy) && IsFinite(value.DYaw);
+    return is_finite(value.dx) && is_finite(value.dy) && is_finite(value.d_yaw);
 }
 
-bool IsFinite(const alg_kinematics::WheelRpm &value)
+bool is_finite(const alg_kinematics::WheelRpm &value)
 {
-    for (uint8_t i = 0; i < alg_kinematics::Kinematics::WheelCount; i++)
+    for (uint8_t i = 0; i < alg_kinematics::Kinematics::WHEEL_COUNT; i++)
     {
-        if (!IsFinite(value.Value[i]))
+        if (!is_finite(value.value[i]))
         {
             return false;
         }
@@ -40,11 +40,11 @@ bool IsFinite(const alg_kinematics::WheelRpm &value)
     return true;
 }
 
-bool IsFinite(const alg_kinematics::WheelDelta &value)
+bool is_finite(const alg_kinematics::WheelDelta &value)
 {
-    for (uint8_t i = 0; i < alg_kinematics::Kinematics::WheelCount; i++)
+    for (uint8_t i = 0; i < alg_kinematics::Kinematics::WHEEL_COUNT; i++)
     {
-        if (!IsFinite(value.Value[i]))
+        if (!is_finite(value.value[i]))
         {
             return false;
         }
@@ -53,19 +53,19 @@ bool IsFinite(const alg_kinematics::WheelDelta &value)
     return true;
 }
 
-bool IsFinite(const alg_odometry::OdometryState &value)
+bool is_finite(const alg_odometry::OdometryState &value)
 {
-    return IsFinite(value.X) && IsFinite(value.Y) && IsFinite(value.Yaw) && IsFinite(value.Vx) && IsFinite(value.Vy) &&
-           IsFinite(value.Wz);
+    return is_finite(value.x) && is_finite(value.y) && is_finite(value.yaw) && is_finite(value.vx) &&
+           is_finite(value.vy) && is_finite(value.wz);
 }
 
-void BodyToWorld(float bodyX, float bodyY, float yaw, float &worldX, float &worldY)
+void body_to_world(float body_x, float body_y, float yaw, float &world_x, float &world_y)
 {
-    const float cosYaw = std::cos(yaw);
-    const float sinYaw = std::sin(yaw);
+    const float cos_yaw = std::cos(yaw);
+    const float sin_yaw = std::sin(yaw);
 
-    worldX = bodyX * cosYaw - bodyY * sinYaw;
-    worldY = bodyX * sinYaw + bodyY * cosYaw;
+    world_x = body_x * cos_yaw - body_y * sin_yaw;
+    world_y = body_x * sin_yaw + body_y * cos_yaw;
 }
 
 } // namespace
@@ -73,77 +73,77 @@ void BodyToWorld(float bodyX, float bodyY, float yaw, float &worldX, float &worl
 namespace alg_kinematics
 {
 
-bool Kinematics::Init(const Config &config)
+bool Kinematics::init(const Config &config)
 {
-    Cfg = Config{};
-    VelocityToRpm = 0.0f;
-    RpmToVelocity = 0.0f;
-    RotationRadius = 0.0f;
-    Initialized = false;
+    cfg_ = Config{};
+    velocity_to_rpm_ = 0.0f;
+    rpm_to_velocity_ = 0.0f;
+    rotation_radius_ = 0.0f;
+    initialized_ = false;
 
-    const bool modeValid = config.Mode == KinematicsMode::Omni || config.Mode == KinematicsMode::Mecanum;
-    const bool paramFinite = IsFinite(config.WheelRadius) && IsFinite(config.WheelBaseLength) &&
-                             IsFinite(config.WheelBaseWidth) && IsFinite(config.ReductionRatio) &&
-                             IsFinite(config.LateralScale);
+    const bool mode_valid = config.mode == KinematicsMode::OMNI || config.mode == KinematicsMode::MECANUM;
+    const bool param_finite = is_finite(config.wheel_radius) && is_finite(config.wheel_base_length) &&
+                              is_finite(config.wheel_base_width) && is_finite(config.reduction_ratio) &&
+                              is_finite(config.lateral_scale);
 
-    if (!modeValid || !paramFinite || config.WheelRadius <= 0.0f || config.WheelBaseLength < 0.0f ||
-        config.WheelBaseWidth < 0.0f || config.ReductionRatio <= 0.0f || config.LateralScale <= 0.0f)
+    if (!mode_valid || !param_finite || config.wheel_radius <= 0.0f || config.wheel_base_length < 0.0f ||
+        config.wheel_base_width < 0.0f || config.reduction_ratio <= 0.0f || config.lateral_scale <= 0.0f)
     {
         return false;
     }
 
-    const float rotationRadius = (config.WheelBaseLength + config.WheelBaseWidth) * 0.5f;
-    const float velocityToRpm = 60.0f * config.ReductionRatio / (TwoPi * config.WheelRadius);
-    const float rpmToVelocity = TwoPi * config.WheelRadius / (60.0f * config.ReductionRatio);
+    const float rotation_radius = (config.wheel_base_length + config.wheel_base_width) * 0.5f;
+    const float velocity_to_rpm = 60.0f * config.reduction_ratio / (TWO_PI * config.wheel_radius);
+    const float rpm_to_velocity = TWO_PI * config.wheel_radius / (60.0f * config.reduction_ratio);
 
-    if (!IsFinite(rotationRadius) || rotationRadius <= 0.0f || !IsFinite(velocityToRpm) || velocityToRpm <= 0.0f ||
-        !IsFinite(rpmToVelocity) || rpmToVelocity <= 0.0f)
+    if (!is_finite(rotation_radius) || rotation_radius <= 0.0f || !is_finite(velocity_to_rpm) ||
+        velocity_to_rpm <= 0.0f || !is_finite(rpm_to_velocity) || rpm_to_velocity <= 0.0f)
     {
         return false;
     }
 
-    Cfg = config;
-    VelocityToRpm = velocityToRpm;
-    RpmToVelocity = rpmToVelocity;
-    RotationRadius = rotationRadius;
-    Initialized = true;
+    cfg_ = config;
+    velocity_to_rpm_ = velocity_to_rpm;
+    rpm_to_velocity_ = rpm_to_velocity;
+    rotation_radius_ = rotation_radius;
+    initialized_ = true;
 
     return true;
 }
 
-bool Kinematics::Inverse(const ChassisVelocity &input, WheelRpm &output) const
+bool Kinematics::inverse(const ChassisVelocity &input, WheelRpm &output) const
 {
     output = WheelRpm{};
 
-    if (!Initialized || !IsFinite(input))
+    if (!initialized_ || !is_finite(input))
     {
         return false;
     }
 
-    const float rotationVelocity = input.Wz * RotationRadius;
+    const float rotation_velocity = input.wz * rotation_radius_;
     WheelRpm result{};
 
-    switch (Cfg.Mode)
+    switch (cfg_.mode)
     {
-    case KinematicsMode::Omni:
-        result.Value[WheelM1] = (input.Vx + input.Vy - rotationVelocity) * VelocityToRpm;
-        result.Value[WheelM2] = (-input.Vx + input.Vy - rotationVelocity) * VelocityToRpm;
-        result.Value[WheelM3] = (-input.Vx - input.Vy - rotationVelocity) * VelocityToRpm;
-        result.Value[WheelM4] = (input.Vx - input.Vy - rotationVelocity) * VelocityToRpm;
+    case KinematicsMode::OMNI:
+        result.value[WHEEL_M1] = (input.vx + input.vy - rotation_velocity) * velocity_to_rpm_;
+        result.value[WHEEL_M2] = (-input.vx + input.vy - rotation_velocity) * velocity_to_rpm_;
+        result.value[WHEEL_M3] = (-input.vx - input.vy - rotation_velocity) * velocity_to_rpm_;
+        result.value[WHEEL_M4] = (input.vx - input.vy - rotation_velocity) * velocity_to_rpm_;
         break;
 
-    case KinematicsMode::Mecanum:
-        result.Value[WheelM1] = (input.Vx - input.Vy - rotationVelocity) * VelocityToRpm;
-        result.Value[WheelM2] = (input.Vx + input.Vy - rotationVelocity) * VelocityToRpm;
-        result.Value[WheelM3] = (input.Vx - input.Vy + rotationVelocity) * VelocityToRpm;
-        result.Value[WheelM4] = (input.Vx + input.Vy + rotationVelocity) * VelocityToRpm;
+    case KinematicsMode::MECANUM:
+        result.value[WHEEL_M1] = (input.vx - input.vy - rotation_velocity) * velocity_to_rpm_;
+        result.value[WHEEL_M2] = (input.vx + input.vy - rotation_velocity) * velocity_to_rpm_;
+        result.value[WHEEL_M3] = (input.vx - input.vy + rotation_velocity) * velocity_to_rpm_;
+        result.value[WHEEL_M4] = (input.vx + input.vy + rotation_velocity) * velocity_to_rpm_;
         break;
 
     default:
         return false;
     }
 
-    if (!IsFinite(result))
+    if (!is_finite(result))
     {
         return false;
     }
@@ -152,41 +152,41 @@ bool Kinematics::Inverse(const ChassisVelocity &input, WheelRpm &output) const
     return true;
 }
 
-bool Kinematics::Forward(const WheelRpm &input, ChassisVelocity &output) const
+bool Kinematics::forward(const WheelRpm &input, ChassisVelocity &output) const
 {
     output = ChassisVelocity{};
 
-    if (!Initialized || !IsFinite(input))
+    if (!initialized_ || !is_finite(input))
     {
         return false;
     }
 
-    const float velocityM1 = input.Value[WheelM1] * RpmToVelocity;
-    const float velocityM2 = input.Value[WheelM2] * RpmToVelocity;
-    const float velocityM3 = input.Value[WheelM3] * RpmToVelocity;
-    const float velocityM4 = input.Value[WheelM4] * RpmToVelocity;
-    const float rotationDenominator = 4.0f * RotationRadius;
+    const float velocity_m1 = input.value[WHEEL_M1] * rpm_to_velocity_;
+    const float velocity_m2 = input.value[WHEEL_M2] * rpm_to_velocity_;
+    const float velocity_m3 = input.value[WHEEL_M3] * rpm_to_velocity_;
+    const float velocity_m4 = input.value[WHEEL_M4] * rpm_to_velocity_;
+    const float rotation_denominator = 4.0f * rotation_radius_;
     ChassisVelocity result{};
 
-    switch (Cfg.Mode)
+    switch (cfg_.mode)
     {
-    case KinematicsMode::Omni:
-        result.Vx = (velocityM1 - velocityM2 - velocityM3 + velocityM4) * Quarter;
-        result.Vy = (velocityM1 + velocityM2 - velocityM3 - velocityM4) * Quarter;
-        result.Wz = -(velocityM1 + velocityM2 + velocityM3 + velocityM4) / rotationDenominator;
+    case KinematicsMode::OMNI:
+        result.vx = (velocity_m1 - velocity_m2 - velocity_m3 + velocity_m4) * QUARTER;
+        result.vy = (velocity_m1 + velocity_m2 - velocity_m3 - velocity_m4) * QUARTER;
+        result.wz = -(velocity_m1 + velocity_m2 + velocity_m3 + velocity_m4) / rotation_denominator;
         break;
 
-    case KinematicsMode::Mecanum:
-        result.Vx = (velocityM1 + velocityM2 + velocityM3 + velocityM4) * Quarter;
-        result.Vy = (-velocityM1 + velocityM2 - velocityM3 + velocityM4) * Quarter * Cfg.LateralScale;
-        result.Wz = (-velocityM1 - velocityM2 + velocityM3 + velocityM4) / rotationDenominator;
+    case KinematicsMode::MECANUM:
+        result.vx = (velocity_m1 + velocity_m2 + velocity_m3 + velocity_m4) * QUARTER;
+        result.vy = (-velocity_m1 + velocity_m2 - velocity_m3 + velocity_m4) * QUARTER * cfg_.lateral_scale;
+        result.wz = (-velocity_m1 - velocity_m2 + velocity_m3 + velocity_m4) / rotation_denominator;
         break;
 
     default:
         return false;
     }
 
-    if (!IsFinite(result))
+    if (!is_finite(result))
     {
         return false;
     }
@@ -195,41 +195,41 @@ bool Kinematics::Forward(const WheelRpm &input, ChassisVelocity &output) const
     return true;
 }
 
-bool Kinematics::ForwardDelta(const WheelDelta &input, ChassisDelta &output) const
+bool Kinematics::forward_delta(const WheelDelta &input, ChassisDelta &output) const
 {
     output = ChassisDelta{};
 
-    if (!Initialized || !IsFinite(input))
+    if (!initialized_ || !is_finite(input))
     {
         return false;
     }
 
-    const float deltaM1 = input.Value[WheelM1];
-    const float deltaM2 = input.Value[WheelM2];
-    const float deltaM3 = input.Value[WheelM3];
-    const float deltaM4 = input.Value[WheelM4];
-    const float rotationDenominator = 4.0f * RotationRadius;
+    const float delta_m1 = input.value[WHEEL_M1];
+    const float delta_m2 = input.value[WHEEL_M2];
+    const float delta_m3 = input.value[WHEEL_M3];
+    const float delta_m4 = input.value[WHEEL_M4];
+    const float rotation_denominator = 4.0f * rotation_radius_;
     ChassisDelta result{};
 
-    switch (Cfg.Mode)
+    switch (cfg_.mode)
     {
-    case KinematicsMode::Omni:
-        result.Dx = (deltaM1 - deltaM2 - deltaM3 + deltaM4) * Quarter;
-        result.Dy = (deltaM1 + deltaM2 - deltaM3 - deltaM4) * Quarter;
-        result.DYaw = -(deltaM1 + deltaM2 + deltaM3 + deltaM4) / rotationDenominator;
+    case KinematicsMode::OMNI:
+        result.dx = (delta_m1 - delta_m2 - delta_m3 + delta_m4) * QUARTER;
+        result.dy = (delta_m1 + delta_m2 - delta_m3 - delta_m4) * QUARTER;
+        result.d_yaw = -(delta_m1 + delta_m2 + delta_m3 + delta_m4) / rotation_denominator;
         break;
 
-    case KinematicsMode::Mecanum:
-        result.Dx = (deltaM1 + deltaM2 + deltaM3 + deltaM4) * Quarter;
-        result.Dy = (-deltaM1 + deltaM2 - deltaM3 + deltaM4) * Quarter * Cfg.LateralScale;
-        result.DYaw = (-deltaM1 - deltaM2 + deltaM3 + deltaM4) / rotationDenominator;
+    case KinematicsMode::MECANUM:
+        result.dx = (delta_m1 + delta_m2 + delta_m3 + delta_m4) * QUARTER;
+        result.dy = (-delta_m1 + delta_m2 - delta_m3 + delta_m4) * QUARTER * cfg_.lateral_scale;
+        result.d_yaw = (-delta_m1 - delta_m2 + delta_m3 + delta_m4) / rotation_denominator;
         break;
 
     default:
         return false;
     }
 
-    if (!IsFinite(result))
+    if (!is_finite(result))
     {
         return false;
     }
@@ -238,46 +238,46 @@ bool Kinematics::ForwardDelta(const WheelDelta &input, ChassisDelta &output) con
     return true;
 }
 
-bool Kinematics::LimitWheelRpm(WheelRpm &wheelRpm, float maxAbsRpm)
+bool Kinematics::limit_wheel_rpm(WheelRpm &wheel_rpm, float max_abs_rpm)
 {
-    if (!IsFinite(maxAbsRpm) || maxAbsRpm < 0.0f || !IsFinite(wheelRpm))
+    if (!is_finite(max_abs_rpm) || max_abs_rpm < 0.0f || !is_finite(wheel_rpm))
     {
-        wheelRpm = WheelRpm{};
+        wheel_rpm = WheelRpm{};
         return false;
     }
 
-    float maxValue = 0.0f;
-    for (uint8_t i = 0; i < WheelCount; i++)
+    float max_value = 0.0f;
+    for (uint8_t i = 0; i < WHEEL_COUNT; i++)
     {
-        const float absValue = std::fabs(wheelRpm.Value[i]);
-        if (absValue > maxValue)
+        const float abs_value = std::fabs(wheel_rpm.value[i]);
+        if (abs_value > max_value)
         {
-            maxValue = absValue;
+            max_value = abs_value;
         }
     }
 
-    if (maxValue <= maxAbsRpm)
+    if (max_value <= max_abs_rpm)
     {
         return true;
     }
 
-    const float scale = maxAbsRpm / maxValue;
-    for (uint8_t i = 0; i < WheelCount; i++)
+    const float scale = max_abs_rpm / max_value;
+    for (uint8_t i = 0; i < WHEEL_COUNT; i++)
     {
-        wheelRpm.Value[i] *= scale;
+        wheel_rpm.value[i] *= scale;
     }
 
     return true;
 }
 
-const Kinematics::Config &Kinematics::GetConfig() const
+const Kinematics::Config &Kinematics::get_config() const
 {
-    return Cfg;
+    return cfg_;
 }
 
-bool Kinematics::IsInitialized() const
+bool Kinematics::is_initialized() const
 {
-    return Initialized;
+    return initialized_;
 }
 
 } // namespace alg_kinematics
@@ -285,101 +285,101 @@ bool Kinematics::IsInitialized() const
 namespace alg_odometry
 {
 
-void Odometry::Reset()
+void Odometry::reset()
 {
-    State = OdometryState{};
+    state_ = OdometryState{};
 }
 
-bool Odometry::Reset(float x, float y, float yaw)
+bool Odometry::reset(float x, float y, float yaw)
 {
-    if (!IsFinite(x) || !IsFinite(y) || !IsFinite(yaw))
+    if (!is_finite(x) || !is_finite(y) || !is_finite(yaw))
     {
         return false;
     }
 
-    State = OdometryState{};
-    State.X = x;
-    State.Y = y;
-    State.Yaw = yaw;
+    state_ = OdometryState{};
+    state_.x = x;
+    state_.y = y;
+    state_.yaw = yaw;
     return true;
 }
 
-bool Odometry::UpdateVelocity(const alg_kinematics::ChassisVelocity &velocity, float dt)
+bool Odometry::update_velocity(const alg_kinematics::ChassisVelocity &velocity, float dt)
 {
-    if (!IsFinite(velocity) || !IsFinite(dt) || dt <= 0.0f)
+    if (!is_finite(velocity) || !is_finite(dt) || dt <= 0.0f)
     {
         return false;
     }
 
     const alg_kinematics::ChassisDelta delta = {
-        velocity.Vx * dt,
-        velocity.Vy * dt,
-        velocity.Wz * dt,
+        velocity.vx * dt,
+        velocity.vy * dt,
+        velocity.wz * dt,
     };
 
-    return UpdateDelta(delta, dt);
+    return update_delta(delta, dt);
 }
 
-bool Odometry::UpdateDelta(const alg_kinematics::ChassisDelta &delta, float dt)
+bool Odometry::update_delta(const alg_kinematics::ChassisDelta &delta, float dt)
 {
-    if (!IsFinite(State) || !IsFinite(delta) || !IsFinite(dt) || dt <= 0.0f)
+    if (!is_finite(state_) || !is_finite(delta) || !is_finite(dt) || dt <= 0.0f)
     {
         return false;
     }
 
-    float worldDx = 0.0f;
-    float worldDy = 0.0f;
-    const float middleYaw = State.Yaw + delta.DYaw * 0.5f;
-    BodyToWorld(delta.Dx, delta.Dy, middleYaw, worldDx, worldDy);
+    float world_dx = 0.0f;
+    float world_dy = 0.0f;
+    const float middle_yaw = state_.yaw + delta.d_yaw * 0.5f;
+    body_to_world(delta.dx, delta.dy, middle_yaw, world_dx, world_dy);
 
-    OdometryState result = State;
-    result.X += worldDx;
-    result.Y += worldDy;
-    result.Yaw += delta.DYaw;
-    result.Vx = delta.Dx / dt;
-    result.Vy = delta.Dy / dt;
-    result.Wz = delta.DYaw / dt;
+    OdometryState result = state_;
+    result.x += world_dx;
+    result.y += world_dy;
+    result.yaw += delta.d_yaw;
+    result.vx = delta.dx / dt;
+    result.vy = delta.dy / dt;
+    result.wz = delta.d_yaw / dt;
 
-    if (!IsFinite(result))
+    if (!is_finite(result))
     {
         return false;
     }
 
-    State = result;
+    state_ = result;
     return true;
 }
 
-bool Odometry::UpdateDeltaWithYaw(const alg_kinematics::ChassisDelta &delta, float yaw, float dt)
+bool Odometry::update_delta_with_yaw(const alg_kinematics::ChassisDelta &delta, float yaw, float dt)
 {
-    if (!IsFinite(State) || !IsFinite(delta) || !IsFinite(yaw) || !IsFinite(dt) || dt <= 0.0f)
+    if (!is_finite(state_) || !is_finite(delta) || !is_finite(yaw) || !is_finite(dt) || dt <= 0.0f)
     {
         return false;
     }
 
-    float worldDx = 0.0f;
-    float worldDy = 0.0f;
-    BodyToWorld(delta.Dx, delta.Dy, yaw, worldDx, worldDy);
+    float world_dx = 0.0f;
+    float world_dy = 0.0f;
+    body_to_world(delta.dx, delta.dy, yaw, world_dx, world_dy);
 
-    OdometryState result = State;
-    result.X += worldDx;
-    result.Y += worldDy;
-    result.Yaw = yaw;
-    result.Vx = delta.Dx / dt;
-    result.Vy = delta.Dy / dt;
-    result.Wz = delta.DYaw / dt;
+    OdometryState result = state_;
+    result.x += world_dx;
+    result.y += world_dy;
+    result.yaw = yaw;
+    result.vx = delta.dx / dt;
+    result.vy = delta.dy / dt;
+    result.wz = delta.d_yaw / dt;
 
-    if (!IsFinite(result))
+    if (!is_finite(result))
     {
         return false;
     }
 
-    State = result;
+    state_ = result;
     return true;
 }
 
-const OdometryState &Odometry::GetState() const
+const OdometryState &Odometry::get_state() const
 {
-    return State;
+    return state_;
 }
 
 } // namespace alg_odometry

@@ -8,10 +8,10 @@ namespace alg_math
 namespace
 {
 // 与上游参考实现一致：用 float 的机器精度做奇异判据。
-constexpr double Epsilon{static_cast<double>(std::numeric_limits<float>::epsilon())};
+constexpr double EPSILON{static_cast<double>(std::numeric_limits<float>::epsilon())};
 } // namespace
 
-Matrix3 ScaledIdentity(double scale) noexcept
+Matrix3 scaled_identity(double scale) noexcept
 {
     Matrix3 result{};
     result.value[0] = scale;
@@ -20,7 +20,7 @@ Matrix3 ScaledIdentity(double scale) noexcept
     return result;
 }
 
-Matrix3 Multiply(const Matrix3 &first, const Matrix3 &second) noexcept
+Matrix3 multiply(const Matrix3 &first, const Matrix3 &second) noexcept
 {
     Matrix3 result{};
     result.value[0] =
@@ -44,7 +44,7 @@ Matrix3 Multiply(const Matrix3 &first, const Matrix3 &second) noexcept
     return result;
 }
 
-Matrix3 MultiplyTransposedFirst(const Matrix3 &first, const Matrix3 &second) noexcept
+Matrix3 multiply_transposed_first(const Matrix3 &first, const Matrix3 &second) noexcept
 {
     Matrix3 result{};
     result.value[0] =
@@ -68,7 +68,7 @@ Matrix3 MultiplyTransposedFirst(const Matrix3 &first, const Matrix3 &second) noe
     return result;
 }
 
-Matrix3 MultiplyTransposedSecond(const Matrix3 &first, const Matrix3 &second) noexcept
+Matrix3 multiply_transposed_second(const Matrix3 &first, const Matrix3 &second) noexcept
 {
     Matrix3 result{};
     result.value[0] =
@@ -92,7 +92,7 @@ Matrix3 MultiplyTransposedSecond(const Matrix3 &first, const Matrix3 &second) no
     return result;
 }
 
-bool Inverted(const Matrix3 &input, Matrix3 &output) noexcept
+bool inverted(const Matrix3 &input, Matrix3 &output) noexcept
 {
     const double *in = input.value;
     const double a = in[4] * in[8] - in[5] * in[7];
@@ -106,7 +106,7 @@ bool Inverted(const Matrix3 &input, Matrix3 &output) noexcept
     const double i = in[0] * in[4] - in[1] * in[3];
 
     const double determinant = in[0] * a + in[1] * b + in[2] * c;
-    if (determinant >= -Epsilon && determinant <= Epsilon)
+    if (determinant >= -EPSILON && determinant <= EPSILON)
     {
         for (std::size_t index = 0U; index < 9U; ++index)
         {
@@ -127,7 +127,7 @@ bool Inverted(const Matrix3 &input, Matrix3 &output) noexcept
     return true;
 }
 
-void LimitInPlace(Matrix3 &value, double minimum, double maximum) noexcept
+void limit_in_place(Matrix3 &value, double minimum, double maximum) noexcept
 {
     for (std::size_t index = 0U; index < 9U; ++index)
     {

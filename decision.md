@@ -297,8 +297,59 @@
 
 ---
 
+## Decision-20261026-05（P0.5 命名统一：工具、规则微调与改名结果，Accepted）
+
+- **Date**：2026-10-26
+- **Status**：Accepted（按 plan.md P0.5 执行；`.clang-tidy` 首版的微调按评审报告 §5.12 在此登记）
+- **Source**：评审报告 §5.12；Decision-20261025-04；过程与证据见 `docs/ai/decisions/2026-10-26-P0.5-改名/`
+
+**Context**：P0.5 要用 clang-tidy 把 C++ 标识符改为 ROS 2 命名。首次运行发现：
+
+1. 同一个头文件会被多个翻译单元重复报告，并行 `clang-tidy --fix` 会互相覆盖；pip 版 clang-tidy 18 不带 `clang-apply-replacements`。
+2. 迁移源固件工程的 include 目录写成 `DM_MC02/../../..`，clang 看到的头文件路径不规范化，原 `HeaderFilterRegex` 匹配不上，固件独有的头文件被整体漏掉；Windows 路径用 `\` 时同样匹配不上。
+3. `Application_Init` 等 C ABI 函数、测试替身重新声明的 CMSIS-RTOS2 函数会被当成普通函数改名，导致链接失败。
+4. 被 `#if` 关掉的代码（`IMU_ENABLE_DIAGNOSTICS` 只在 Debug 打开）、没有被任何翻译单元包含的头文件，对 clang-tidy 都不可见。
+
+**Decision**：
+
+1. 新增 `tool/ci/naming.py`，CI 与本地共用：
+   - 输入多个编译数据库，向交叉编译器查询目标三元组与系统头目录后交给 clang-tidy 18；
+   - 汇总各单元导出的修正，去重、查冲突，全部成功后才写盘；有任一单元无法自动修正的标识符整体跳过；
+   - 用 `-H` 找出孤立头文件，借路径最近的翻译单元的编译参数单独检查。
+2. `.clang-tidy` 微调：
+   - `HeaderFilterRegex` 兼容 `/` 与 `\`，接受以 `../` 开头的写法，并纳入 `Platform/Interface/*.hpp`（C++ 包装层）；
+   - 新增 `FunctionIgnoredRegexp`，不改名的函数包括"模块_函数"形式的 C ABI、`os*`（CMSIS-RTOS2）、`HAL_*`（覆盖 HAL 弱符号的回调）。
+3. 命名检查覆盖三个编译数据库：固件 Debug、固件 Release、宿主测试。以后新增编译开关时，要把对应配置加入检查。
+4. 补充一条命名约定（`.clang-tidy` 检查不出，评审时把关）——标识符里的数字：
+   - "数值+单位"和序号单独成段，如 `ACCEL_ODR_100_HZ`、`GYRO_RANGE_2000_DPS`、`POWER_24V_0`、`CHANNEL_1`、`LEVEL_0`；C++ 包装层的枚举名因此与 C 层宏后缀一致（`CAN_PORT_CHANNEL_1`）；
+   - 名字里固有的数字不拆：型号（`BMI088`、`GM6020_CURRENT`、`c610`）、引脚名（`INTERRUPT1`）、术语（`OSR2`、`crc8`）、数学常量（`SQRT2`）、标号（`WHEEL_M1`）。
+5. 改名结果：
+   - 自动改名 2190 处（9383 处修改）；
+   - 手工修正模板依赖访问、未实例化模板里的调用、2 处同名遮蔽、注释中的旧名字 205 处；
+   - 改名提交（`2b3fbf8`）与改名后的格式化提交（`0c51793`）分开，均登记在 `.git-blame-ignore-revs`。
+6. CI 新增 `lint-naming` 作业（`naming.py --check`），存量已清零，此后全量检查。
+
+**验证**：
+- legacy Debug/Release `.bin` 与基线 SHA-256 逐字节一致（Windows，xPack GCC 15.2.1）；
+- 符号"地址+大小+类型"集合与基线一致；
+- 宿主测试 13/13 通过；
+- 三种配置的命名检查均为 0 处。
+
+**Consequences**：
+- 芯片里旧固件的符号名仍是旧名，调试时按地址对照（改名后的符号表与基线地址一一对应）。
+- `alg_math::PI` 与 CMSIS-DSP `arm_math.h` 的 `#define PI` 同名，同一翻译单元不能同时包含两者（P3a 注意）。
+- 未实例化模板里依赖类型的旧名字，clang-tidy 与编译器都发现不了，只能靠残留扫描（`residual.py`）。P1 起新写的模板要有实例化测试。
+
+**Alternatives / Rejected**：
+
+- 直接并行 `clang-tidy --fix`：同一头文件被多个进程改写，结果不确定，否决。
+- 用 `clang-apply-replacements`：pip 版不带，要另装完整 LLVM，且不处理"部分单元无法修正"的情况，否决。
+- 只用固件 Release 数据库：会漏掉诊断代码与测试代码，否决。
+
+---
+
 ## 待登记
 
 - 分支保护的具体设置（组织规范 §6.1、§10，负责人在 GitHub 上操作后补记）。
-- P0.5 首次运行 `.clang-tidy` 后的规则微调记录；`-Wdouble-promotion` 豁免清单（P3a）。
+- `-Wdouble-promotion` 豁免清单（P3a）。
 - 契约 v1 冻结记录（P3a 结束时）；TM4C、AM26x port 的启动条件与编译器选择（Q13）。

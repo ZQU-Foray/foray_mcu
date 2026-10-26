@@ -3,6 +3,8 @@
 # 本仓的调整（见 decision.md Decision-20261026-01）：
 #   - lint-c 改为由 tool/ci/format.py 全量检查：范围是手写 C/C++，排除 CubeMX 生成区、
 #     厂商代码与 vendor 生成头（P0.5 一次性格式化之后，Decision-20261026-04）。
+#   - 新增 lint-naming：tool/ci/naming.py 全量检查 C++ 命名（clang-tidy，P0.5 改名之后，
+#     Decision-20261026-05）。
 #   - 新增 host-tests：test/host 宿主测试（ctest）。
 #   - 新增 firmware-legacy：用与基线相同版本的 xPack GCC 构建 legacy/ 固件，
 #     Release 镜像必须与基线 SHA-256 逐字节一致；Debug 镜像内含工具链安装路径，
@@ -29,6 +31,7 @@ concurrency:
 env:
   # 与 Decision-20261025-04 一致：clang-format 统一用 18。
   CLANG_FORMAT_VERSION: "18.1.8"
+  CLANG_TIDY_VERSION: "18.1.8"
   # 与基线复现所用工具链同版本（docs/ai/decisions/2026-10-25-迁移基线与对照.md §7）。
   XPACK_GCC_VERSION: "15.2.1-1.1"
   # 来源：xPack 发布页 xpack-arm-none-eabi-gcc-15.2.1-1.1-linux-x64.tar.gz.sha
@@ -95,6 +98,66 @@ jobs:
         run: |
           if ! python tool/ci/format.py --check; then
             echo "::error::C/C++ 文件不符合 .clang-format。本地执行 python tool/ci/format.py --fix（clang-format ${CLANG_FORMAT_VERSION}）后重新提交。"
+            exit 1
+          fi
+
+  # ---- C++ 命名检查（全量，本仓新增） ----
+  # 规则见根目录 .clang-tidy（ROS 2 命名），由 tool/ci/naming.py 执行（Decision-20261026-05）。
+  # 被 #if 关掉的代码对 clang-tidy 不可见，所以三种配置都要检查：固件 Debug（打开 IMU 诊断代码）、
+  # 固件 Release（#else 分支）与宿主测试。只做 cmake 配置生成编译数据库，不编译。
+  lint-naming:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 安装 clang-tidy
+        run: pip install "clang-tidy==${CLANG_TIDY_VERSION}" "pyyaml==6.0.2"
+
+      - name: 缓存 xPack GCC
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/xpack-arm-none-eabi-gcc-${{ env.XPACK_GCC_VERSION }}
+          key: xpack-arm-none-eabi-gcc-${{ env.XPACK_GCC_VERSION }}-linux-x64
+
+      - name: 下载并校验 xPack GCC
+        if: steps.cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          url="https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v${XPACK_GCC_VERSION}/xpack-arm-none-eabi-gcc-${XPACK_GCC_VERSION}-linux-x64.tar.gz"
+          curl -fsSL -o "$RUNNER_TEMP/gcc.tar.gz" "$url"
+          echo "${XPACK_GCC_SHA256}  $RUNNER_TEMP/gcc.tar.gz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/gcc.tar.gz" -C "$RUNNER_TEMP"
+          rm "$RUNNER_TEMP/gcc.tar.gz"
+
+      - name: 安装 Ninja
+        shell: bash
+        run: command -v ninja >/dev/null || { sudo apt-get update -q && sudo apt-get install -y -q ninja-build; }
+
+      - name: 生成编译数据库
+        shell: bash
+        run: |
+          gcc_root="$RUNNER_TEMP/xpack-arm-none-eabi-gcc-${XPACK_GCC_VERSION}"
+          src=legacy/Platform/STM32H7/DM_MC02
+          for cfg in Debug Release; do
+            cmake -S "$src" -B "build/legacy/$cfg" -G Ninja \
+              -DCMAKE_BUILD_TYPE="$cfg" \
+              -DCMAKE_TOOLCHAIN_FILE="$PWD/$src/cmake/gcc-arm-none-eabi.cmake" \
+              -DARM_GCC_ROOT="$gcc_root"
+          done
+          cmake -S test/host -B build/host-tests -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+      - name: 命名检查（全量）
+        shell: bash
+        run: |
+          if ! python tool/ci/naming.py --check \
+               -p build/legacy/Debug -p build/legacy/Release -p build/host-tests; then
+            echo "::error::C++ 命名不符合 .clang-tidy。本地生成同样三个编译数据库后执行 python tool/ci/naming.py --fix（clang-tidy ${CLANG_TIDY_VERSION}），模板与注释里的遗漏需手工补齐。"
             exit 1
           fi
 

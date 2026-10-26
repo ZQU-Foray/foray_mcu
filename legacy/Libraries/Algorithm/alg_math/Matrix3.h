@@ -21,16 +21,16 @@ struct Matrix3 final
 };
 
 /** @brief 对角为 scale 的对角矩阵。 */
-[[nodiscard]] Matrix3 ScaledIdentity(double scale) noexcept;
+[[nodiscard]] Matrix3 scaled_identity(double scale) noexcept;
 
 /** @brief 矩阵乘：first · second。 */
-[[nodiscard]] Matrix3 Multiply(const Matrix3 &first, const Matrix3 &second) noexcept;
+[[nodiscard]] Matrix3 multiply(const Matrix3 &first, const Matrix3 &second) noexcept;
 
 /** @brief first 转置后乘 second：firstᵀ · second。 */
-[[nodiscard]] Matrix3 MultiplyTransposedFirst(const Matrix3 &first, const Matrix3 &second) noexcept;
+[[nodiscard]] Matrix3 multiply_transposed_first(const Matrix3 &first, const Matrix3 &second) noexcept;
 
 /** @brief first 乘 second 转置：first · secondᵀ。 */
-[[nodiscard]] Matrix3 MultiplyTransposedSecond(const Matrix3 &first, const Matrix3 &second) noexcept;
+[[nodiscard]] Matrix3 multiply_transposed_second(const Matrix3 &first, const Matrix3 &second) noexcept;
 
 /**
  * @brief 求逆（伴随矩阵 / 行列式）。
@@ -39,7 +39,7 @@ struct Matrix3 final
  * @return 行列式绝对值大于 float 机器精度时写入结果并返回 true；否则输出清零并返回 false。
  * @note 奇异判据与上游参考实现一致（用 float 的 epsilon 而不是 double 的），以便跨实现对照。
  */
-[[nodiscard]] bool Inverted(const Matrix3 &input, Matrix3 &output) noexcept;
+[[nodiscard]] bool inverted(const Matrix3 &input, Matrix3 &output) noexcept;
 
 /**
  * @brief 逐元素限幅（就地）。
@@ -47,7 +47,7 @@ struct Matrix3 final
  * @param minimum 下限。
  * @param maximum 上限。
  */
-void LimitInPlace(Matrix3 &value, double minimum, double maximum) noexcept;
+void limit_in_place(Matrix3 &value, double minimum, double maximum) noexcept;
 
 } // namespace alg_math
 

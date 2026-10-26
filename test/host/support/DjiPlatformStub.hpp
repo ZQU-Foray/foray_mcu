@@ -12,37 +12,37 @@ namespace
 struct CanStub
 {
     bool ready{true};
-    CanPort_Channel lastTxChannel{CAN_PORT_CHANNEL_1};
-    std::uint8_t rxCount{0U};
-    std::uint8_t rxIndex{0U};
+    CanPort_Channel last_tx_channel{CAN_PORT_CHANNEL_1};
+    std::uint8_t rx_count{0U};
+    std::uint8_t rx_index{0U};
     struct RxFrame
     {
         std::uint32_t identifier{0U};
         std::array<std::uint8_t, 8U> data{};
     };
     std::array<RxFrame, 8U> rx{};
-    std::uint32_t txCount{0U};
-    std::uint32_t lastTxIdentifier{0U};
-    std::array<std::uint8_t, 8U> lastTxData{};
-    CanPort_SendResult txResult{CAN_PORT_SEND_QUEUED};
+    std::uint32_t tx_count{0U};
+    std::uint32_t last_tx_identifier{0U};
+    std::array<std::uint8_t, 8U> last_tx_data{};
+    CanPort_SendResult tx_result{CAN_PORT_SEND_QUEUED};
     CanPort_Statistics statistics{};
-} canStub;
+} g_can_stub;
 
 struct TimeStub
 {
     std::uint32_t ticks{0U};
-} timeStub;
+} g_time_stub;
 
-void FeedRx(std::uint32_t identifier, const std::array<std::uint8_t, 8U> &data)
+void feed_rx(std::uint32_t identifier, const std::array<std::uint8_t, 8U> &data)
 {
-    canStub.rx[canStub.rxCount] = CanStub::RxFrame{identifier, data};
-    ++canStub.rxCount;
+    g_can_stub.rx[g_can_stub.rx_count] = CanStub::RxFrame{identifier, data};
+    ++g_can_stub.rx_count;
 }
 
-void ResetRx()
+void reset_rx()
 {
-    canStub.rxCount = 0U;
-    canStub.rxIndex = 0U;
+    g_can_stub.rx_count = 0U;
+    g_can_stub.rx_index = 0U;
 }
 
 } // namespace
@@ -56,7 +56,7 @@ extern "C"
 
     bool CanPort_IsReady(CanPort_Channel)
     {
-        return canStub.ready;
+        return g_can_stub.ready;
     }
 
     bool CanPort_ConfigureStandardReceiveFilter(CanPort_Channel, bool, std::uint32_t, std::uint32_t)
@@ -75,33 +75,33 @@ extern "C"
                                        std::uint8_t length,
                                        const std::uint8_t *data)
     {
-        canStub.lastTxChannel = channel;
-        ++canStub.txCount;
-        canStub.lastTxIdentifier = identifier;
+        g_can_stub.last_tx_channel = channel;
+        ++g_can_stub.tx_count;
+        g_can_stub.last_tx_identifier = identifier;
         for (std::uint8_t index = 0U; index < 8U; ++index)
         {
-            canStub.lastTxData[index] = index < length ? data[index] : 0U;
+            g_can_stub.last_tx_data[index] = index < length ? data[index] : 0U;
         }
-        return canStub.txResult;
+        return g_can_stub.tx_result;
     }
 
     CanPort_ReceiveResult CanPort_TryReceive(CanPort_Channel,
                                              std::uint32_t *identifier,
-                                             CanPort_IdentifierType *identifierType,
+                                             CanPort_IdentifierType *identifier_type,
                                              std::uint8_t *length,
                                              std::uint8_t *data,
-                                             std::uint8_t dataCapacity)
+                                             std::uint8_t data_capacity)
     {
-        if (canStub.rxIndex >= canStub.rxCount)
+        if (g_can_stub.rx_index >= g_can_stub.rx_count)
         {
             return CAN_PORT_RECEIVE_EMPTY;
         }
-        const CanStub::RxFrame &frame = canStub.rx[canStub.rxIndex];
-        ++canStub.rxIndex;
+        const CanStub::RxFrame &frame = g_can_stub.rx[g_can_stub.rx_index];
+        ++g_can_stub.rx_index;
         *identifier = frame.identifier;
-        *identifierType = CAN_PORT_IDENTIFIER_STANDARD;
+        *identifier_type = CAN_PORT_IDENTIFIER_STANDARD;
         *length = 8U;
-        for (std::uint8_t index = 0U; index < 8U && index < dataCapacity; ++index)
+        for (std::uint8_t index = 0U; index < 8U && index < data_capacity; ++index)
         {
             data[index] = frame.data[index];
         }
@@ -110,7 +110,7 @@ extern "C"
 
     bool CanPort_GetStatistics(CanPort_Channel, CanPort_Statistics *statistics)
     {
-        *statistics = canStub.statistics;
+        *statistics = g_can_stub.statistics;
         return true;
     }
 
@@ -124,7 +124,7 @@ extern "C"
     }
     std::uint32_t TimePort_NowTicks(void)
     {
-        return timeStub.ticks;
+        return g_time_stub.ticks;
     }
     std::uint32_t TimePort_FrequencyHz(void)
     {

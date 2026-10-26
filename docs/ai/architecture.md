@@ -163,6 +163,7 @@ EXECUTABLE foray_test_<name>  →  被测 target + STATIC foray_platform_mock + 
 | 作业 | 检查内容 | 有效期 |
 |---|---|---|
 | `lint-c` | `tool/ci/format.py --check`：全部手写 C/C++ 文件必须符合 `.clang-format`（18.1.8）；排除生成区、厂商代码与 vendor 生成头 | 长期（P0.5 起全量，Decision-20261026-04） |
+| `lint-naming` | `tool/ci/naming.py --check`：C++ 标识符必须符合 `.clang-tidy`（ROS 2 命名，clang-tidy 18.1.8）；编译数据库为 legacy 固件 Debug、Release 与宿主测试，孤立头文件单独检查 | 长期（P0.5 起全量，Decision-20261026-05） |
 | `host-tests` | `test/host` 的 13 项 ctest | 长期 |
 | `firmware-legacy` | 构建 `legacy/` 的 Debug 与 Release；**Release 镜像必须与基线 SHA-256 逐字节一致** | P0–P0.5；P1 起改为根工程构建 + 符号名与大小集合对照 |
 
@@ -267,7 +268,9 @@ EXECUTABLE foray_test_<name>  →  被测 target + STATIC foray_platform_mock + 
 | 头文件保护宏 | 路径大写 + 双下划线 | `FORAY__HAL__CAN_HPP_` |
 | 本项目自有的 C 链接函数 | 模块前缀 + snake_case | `foray_boot_init` |
 
-不改名的：HAL 回调与中断入口（`HAL_*Callback`、`*_IRQHandler`）、CubeMX 生成代码、P3a 会被合并掉的 C ABI（`CanPort_*` 等）。
+不改名的：HAL 回调与中断入口（`HAL_*Callback`、`*_IRQHandler`）、CubeMX 生成代码、CMSIS-RTOS2 API（`os*`）、P3a 会被合并掉的 C ABI（`CanPort_*`、`Application_Init` 等"模块_函数"）；由 `.clang-tidy` 的 `FunctionIgnoredRegexp` 排除。
+
+标识符里的数字（`.clang-tidy` 查不出，评审把关，Decision-20261026-05）："数值+单位"和序号单独成段（`ACCEL_ODR_100_HZ`、`POWER_24V_0`、`CHANNEL_1`）；名字里固有的数字不拆（型号 `BMI088`、`GM6020_CURRENT`，引脚名 `INTERRUPT1`，术语 `crc8`，标号 `WHEEL_M1`）。
 
 ### 8.3 C 链接只允许三处（规则 16）
 
@@ -283,7 +286,7 @@ EXECUTABLE foray_test_<name>  →  被测 target + STATIC foray_platform_mock + 
 - clang-format 与 clang-tidy 统一用 18（CI 固定 clang-format 18.1.8）。ROS 2 中属于排版的部分（2 空格缩进、行宽 100 等）不采用。
 - 生成区与厂商代码不格式化。格式化范围由 `tool/ci/format.py` 统一定义（CI 与本地共用）；不使用 `.clang-format-ignore`，因为 clang-format 18 的该文件不支持 `**`、`*` 也不跨目录（Decision-20261026-04）。
 - 格式化与改名必须各自单独提交，提交号写入 `.git-blame-ignore-revs`；`.clang-format`、`.clang-tidy` 的规则调整记入 decision.md。
-- 时间表：P0.5 一次性格式化手写代码并改名（含 `test/host` 中恢复的测试）；P2 搬迁时文件名改为 snake_case；P3a 改写 port 时直接按新规则命名；命名检查（clang-tidy）在 P0.5 之后加入 CI。
+- 时间表：P0.5 一次性格式化手写代码并改名（含 `test/host` 中恢复的测试，已完成，见 `docs/ai/decisions/2026-10-26-P0.5-改名/`），CI 的 `lint-c` 与 `lint-naming` 均为全量检查；P2 搬迁时文件名改为 snake_case；P3a 改写 port 时直接按新规则命名。
 
 ## 9. 修改本文件
 

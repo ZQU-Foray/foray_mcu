@@ -5,9 +5,12 @@
 # 由 readability-identifier-naming 检查执行；P0.5 用 --fix 批量改名，之后在 CI 中检查。
 # 迁移源中的 C ABI（Detail/*.h、Port、PortKit 的 C 函数）在 P3a 合并进 C++ 契约时按新规则重写，P0.5 不对其改名。
 # 本文件是首版：P0.5 首次运行后按实测结果微调，改动在 decision.md 登记（见评审报告 §5.12）。
+# 执行与检查用 tool/ci/naming.py（汇总多个编译数据库的修正后统一写回），见 decision.md Decision-20261026-05。
 Checks: '-*,readability-identifier-naming'
 WarningsAsErrors: ''
-HeaderFilterRegex: '(/app/|/config/|/src/|/test/|/legacy/Application/|/legacy/Libraries/)'
+# 头文件过滤：路径分隔符兼容 / 与 \（Windows）；迁移源的 include 目录写成 DM_MC02/../../..，
+# clang 看到的头文件路径不做规范化，所以 legacy 下的目录也要接受以 ../ 开头的写法。
+HeaderFilterRegex: '[/\\](app|config|src|test)[/\\]|[/\\](legacy|\.\.)[/\\](Application|Libraries)[/\\]|[/\\](legacy|\.\.)[/\\]Platform[/\\]Interface[/\\][A-Za-z0-9_]+\.hpp$'
 CheckOptions:
   # ---- 命名空间 ----
   - key: readability-identifier-naming.NamespaceCase
@@ -32,6 +35,10 @@ CheckOptions:
     value: lower_case
   - key: readability-identifier-naming.MethodCase
     value: lower_case
+  # 不改名的函数（外部约定的名字）：迁移源 C ABI 的"模块_函数"（如 Application_Init、CanPort_Init，P3a 重写）、
+  # CMSIS-RTOS2 API（os 前缀，测试替身会重新声明）、覆盖 HAL 弱符号的回调（HAL_ 前缀）。
+  - key: readability-identifier-naming.FunctionIgnoredRegexp
+    value: '^([A-Z][A-Za-z0-9]*_[A-Z][A-Za-z0-9]*|os[A-Z][A-Za-z0-9]*|HAL_[A-Za-z0-9_]+)$'
   # ---- 变量与参数 ----
   - key: readability-identifier-naming.VariableCase
     value: lower_case

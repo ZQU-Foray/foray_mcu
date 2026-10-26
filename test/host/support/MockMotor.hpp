@@ -7,13 +7,13 @@
 
 namespace mock
 {
-inline bool initResult{true};
-inline bool readFailure{false}, commandFailure{false};
-inline unsigned processes{0}, clears{0}, writes{0};
-inline std::array<float, 4> staged{}, sent{};
-inline bool ready{false};
+inline bool g_init_result{true};
+inline bool g_read_failure{false}, g_command_failure{false};
+inline unsigned g_processes{0}, g_clears{0}, g_writes{0};
+inline std::array<float, 4> g_staged{}, g_sent{};
+inline bool g_ready{false};
 // 输出轴最大力矩能力（N·m）；默认取底盘所用 M2006/C610 的 10 A × 0.18 N·m/A。
-inline float maximumTorque{1.8F};
+inline float g_maximum_torque{1.8F};
 
 // 最小非 DJI 适配器：与 DjiMotorAdapter 同契约，直连全局测试观测量。
 class Adapter final
@@ -25,17 +25,17 @@ class Adapter final
         std::array<device::MotorConnection, 4> connections{};
         std::size_t count{0U};
     };
-    static constexpr std::size_t MaximumMotors{4U};
+    static constexpr std::size_t MAXIMUM_MOTORS{4U};
 
     explicit Adapter(const Config &config) noexcept : config_{config} {}
-    [[nodiscard]] bool Init() noexcept;
-    void Process() noexcept;
-    [[nodiscard]] bool ReadState(std::size_t id, device::MotorState &state) const noexcept;
-    [[nodiscard]] bool SetTorque(std::size_t id, float value) noexcept;
-    void ClearCommands() noexcept;
+    [[nodiscard]] bool init() noexcept;
+    void process() noexcept;
+    [[nodiscard]] bool read_state(std::size_t id, device::MotorState &state) const noexcept;
+    [[nodiscard]] bool set_torque(std::size_t id, float value) noexcept;
+    void clear_commands() noexcept;
     // 与 DjiMotorAdapter 同语义：Init 成功后返回能力值，未就绪返回 0。
-    [[nodiscard]] float MaximumTorqueNewtonMeter() const noexcept;
-    [[nodiscard]] const Config &GetConfig() const noexcept
+    [[nodiscard]] float maximum_torque_newton_meter() const noexcept;
+    [[nodiscard]] const Config &get_config() const noexcept
     {
         return config_;
     }
@@ -50,10 +50,10 @@ namespace device
 
 // 模拟映射共用装配：全部型号指向模拟适配器。
 template <std::size_t N>
-[[nodiscard]] mock::Adapter::Config MakeMockConfig(platform::Can::Channel channel,
-                                                   const std::array<MotorConnection, N> &connections) noexcept
+[[nodiscard]] mock::Adapter::Config make_mock_config(platform::Can::Channel channel,
+                                                     const std::array<MotorConnection, N> &connections) noexcept
 {
-    static_assert(N > 0U && N <= mock::Adapter::MaximumMotors, "电机数量超出模拟适配器能力");
+    static_assert(N > 0U && N <= mock::Adapter::MAXIMUM_MOTORS, "电机数量超出模拟适配器能力");
     mock::Adapter::Config config{};
     config.channel = channel;
     config.count = N;
@@ -68,36 +68,36 @@ template <std::size_t N>
 template <> struct MotorAdapterFor<MotorModel::M2006>
 {
     using Adapter = mock::Adapter;
-    static constexpr std::size_t MaximumMotors{mock::Adapter::MaximumMotors};
+    static constexpr std::size_t MAXIMUM_MOTORS{mock::Adapter::MAXIMUM_MOTORS};
     template <std::size_t N>
-    [[nodiscard]] static mock::Adapter::Config MakeConfig(platform::Can::Channel channel,
-                                                          const std::array<MotorConnection, N> &connections) noexcept
+    [[nodiscard]] static mock::Adapter::Config make_config(platform::Can::Channel channel,
+                                                           const std::array<MotorConnection, N> &connections) noexcept
     {
-        return MakeMockConfig(channel, connections);
+        return make_mock_config(channel, connections);
     }
 };
 
 template <> struct MotorAdapterFor<MotorModel::M3508>
 {
     using Adapter = mock::Adapter;
-    static constexpr std::size_t MaximumMotors{mock::Adapter::MaximumMotors};
+    static constexpr std::size_t MAXIMUM_MOTORS{mock::Adapter::MAXIMUM_MOTORS};
     template <std::size_t N>
-    [[nodiscard]] static mock::Adapter::Config MakeConfig(platform::Can::Channel channel,
-                                                          const std::array<MotorConnection, N> &connections) noexcept
+    [[nodiscard]] static mock::Adapter::Config make_config(platform::Can::Channel channel,
+                                                           const std::array<MotorConnection, N> &connections) noexcept
     {
-        return MakeMockConfig(channel, connections);
+        return make_mock_config(channel, connections);
     }
 };
 
-template <> struct MotorAdapterFor<MotorModel::GM6020Current>
+template <> struct MotorAdapterFor<MotorModel::GM6020_CURRENT>
 {
     using Adapter = mock::Adapter;
-    static constexpr std::size_t MaximumMotors{mock::Adapter::MaximumMotors};
+    static constexpr std::size_t MAXIMUM_MOTORS{mock::Adapter::MAXIMUM_MOTORS};
     template <std::size_t N>
-    [[nodiscard]] static mock::Adapter::Config MakeConfig(platform::Can::Channel channel,
-                                                          const std::array<MotorConnection, N> &connections) noexcept
+    [[nodiscard]] static mock::Adapter::Config make_config(platform::Can::Channel channel,
+                                                           const std::array<MotorConnection, N> &connections) noexcept
     {
-        return MakeMockConfig(channel, connections);
+        return make_mock_config(channel, connections);
     }
 };
 

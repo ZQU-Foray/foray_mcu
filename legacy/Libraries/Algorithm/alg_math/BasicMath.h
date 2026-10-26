@@ -8,18 +8,18 @@
 namespace alg_math
 {
 
-constexpr float pi = 3.14159265358979323846f;
-constexpr float radToDeg = 180.0f / pi;
-constexpr float degToRad = pi / 180.0f;
+constexpr float PI = 3.14159265358979323846f;
+constexpr float RAD_TO_DEG = 180.0f / PI;
+constexpr float DEG_TO_RAD = PI / 180.0f;
 
-constexpr float RadToDeg(float rad)
+constexpr float rad_to_deg(float rad)
 {
-    return rad * radToDeg;
+    return rad * RAD_TO_DEG;
 }
 
-constexpr float DegToRad(float deg)
+constexpr float deg_to_rad(float deg)
 {
-    return deg * degToRad;
+    return deg * DEG_TO_RAD;
 }
 
 /**
@@ -30,7 +30,7 @@ constexpr float DegToRad(float deg)
  * @param max 最大值
  * @return 限幅后的输出值
  */
-template <typename Type> Type Limit(Type x, Type min, Type max)
+template <typename Type> Type limit(Type x, Type min, Type max)
 {
     if (x < min)
     {
@@ -49,7 +49,7 @@ template <typename Type> Type Limit(Type x, Type min, Type max)
  * @param x 传入数据
  * @return x 的平方
  */
-template <typename Type> constexpr Type Square(Type x)
+template <typename Type> constexpr Type square(Type x)
 {
     return x * x;
 }
@@ -62,7 +62,7 @@ template <typename Type> constexpr Type Square(Type x)
  * @param max 最大值
  * @return 限幅后的输出值
  */
-template <typename Type> Type LimitInPlace(Type &x, Type min, Type max)
+template <typename Type> Type limit_in_place(Type &x, Type min, Type max)
 {
     if (x < min)
     {
@@ -81,7 +81,7 @@ template <typename Type> Type LimitInPlace(Type &x, Type min, Type max)
  * @param x 传入数据
  * @return Type x的绝对值
  */
-template <typename Type> Type Abs(Type x)
+template <typename Type> Type abs(Type x)
 {
     return ((x > 0) ? x : -x);
 }
@@ -93,7 +93,7 @@ template <typename Type> Type Abs(Type x)
  * @note 用 memcpy 做位转换，规避 C++ 严格别名规则的未定义行为；
  *       相对误差约 1e-4 量级，精度低于 1/sqrtf 但速度更快
  */
-inline float InvSqrt(float x)
+inline float inv_sqrt(float x)
 {
     if (!std::isfinite(x) || x <= 0.0f)
     {

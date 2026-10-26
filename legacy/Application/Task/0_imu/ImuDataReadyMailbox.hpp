@@ -11,14 +11,14 @@ namespace application::task
 class ImuDataReadyMailbox final
 {
   public:
-    void Publish(std::uint32_t tick) noexcept
+    void publish(std::uint32_t tick) noexcept
     {
         version_.fetch_add(1U);
         tick_.store(tick);
         sequence_.fetch_add(1U);
         version_.fetch_add(1U);
     }
-    device::Bmi088DataReady Snapshot() const noexcept
+    device::Bmi088DataReady snapshot() const noexcept
     {
         for (;;)
         {
