@@ -9,6 +9,7 @@
 foray_mcu/
 ├── .git/                     dev（日常开发）+ main（里程碑）；tag baseline/a2cfd16；origin = GitHub ZQU-Foray/foray_mcu；legacy remote（ControllerCode 历史）
 ├── .gitignore / .gitattributes / .clang-format / .clang-tidy   仓库规则、格式与命名配置
+├── .git-blame-ignore-revs     git blame 忽略的纯格式/纯改名提交
 ├── .foray-layer / CODEOWNERS  组织合规件（layer: MCU；@ZQU-Foray/电控组）
 ├── .github/workflows/ci.yml   CI 第一版：lint-c 增量、宿主测试、legacy 固件 Release SHA 闸门
 ├── README.md / AGENTS.md / plan.md / tree.md / decision.md   五件套
@@ -27,6 +28,7 @@ foray_mcu/
 ├── test/data/imu/            真实 IMU 数据（原固件静态陀螺采集 ×2）
 ├── test/data/heater/         原固件加热冷启动曲线（L6 重做的验收下限）
 ├── tool/debug/               SWD 只读轮询、IMU 采集与加热日志解码（Python）
+├── tool/ci/format.py         C/C++ 格式检查与格式化入口（CI 与本地共用）
 └── docs/
     ├── assets/controller_code-架构图.png                    迁移源架构图（人工绘制，PNG 内嵌 5 页）
     └── ai/                      AI 撰写的文档（Decision-20261026-03）

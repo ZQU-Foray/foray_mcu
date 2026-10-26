@@ -1,8 +1,8 @@
 # 复制自组织 CI 模板：ZQU-Foray/.github → workflows/ci-template.yml
 #
 # 本仓的调整（见 decision.md Decision-20261026-01）：
-#   - lint-c 改为增量检查：只检查本次改动的 C/C++ 文件，排除 CubeMX 生成区、厂商代码
-#     与 vendor 生成头。存量手写代码在 P0.5 一次性格式化之后改为全量检查。
+#   - lint-c 改为由 tool/ci/format.py 全量检查：范围是手写 C/C++，排除 CubeMX 生成区、
+#     厂商代码与 vendor 生成头（P0.5 一次性格式化之后，Decision-20261026-04）。
 #   - 新增 host-tests：test/host 宿主测试（ctest）。
 #   - 新增 firmware-legacy：用与基线相同版本的 xPack GCC 构建 legacy/ 固件，
 #     Release 镜像必须与基线 SHA-256 逐字节一致；Debug 镜像内含工具链安装路径，
@@ -74,64 +74,27 @@ jobs:
         if: steps.detect.outputs.found == 'true'
         run: black --check --diff .
 
-  # ---- C/C++ 格式检查（增量，本仓调整） ----
-  # 存量手写代码（legacy/ 与从 fd1edbb 恢复的测试）还没按根 .clang-format 统一，
-  # 全量检查会长期红灯。P0.5 一次性格式化之前，只要求本次改动的文件合规：
-  # 改了哪个文件，就把整个文件按 .clang-format 格式化后再提交。
+  # ---- C/C++ 格式检查（全量，本仓调整） ----
+  # 手写代码已在 P0.5 一次性格式化（Decision-20261026-04）。检查范围与排除项由
+  # tool/ci/format.py 统一定义，本地用同一个脚本检查或格式化。
   lint-c:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: 收集本次改动的 C/C++ 文件
-        id: files
-        shell: bash
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          PR_BASE: ${{ github.event.pull_request.base.sha }}
-          PUSH_BEFORE: ${{ github.event.before }}
-        run: |
-          if [ "$EVENT_NAME" = "pull_request" ]; then BASE="$PR_BASE"; else BASE="$PUSH_BEFORE"; fi
-          : > "$RUNNER_TEMP/files.txt"
-          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
-            echo "新分支首次推送，没有基准提交，跳过。"
-          elif ! git cat-file -e "$BASE^{commit}" 2>/dev/null && ! git fetch -q origin "$BASE"; then
-            echo "::warning::取不到基准提交 $BASE，跳过格式检查。"
-          else
-            # 排除：CubeMX 生成区与厂商代码（只能重新生成或整体替换）、vendor 的生成头。
-            EXCLUDE='^legacy/Platform/STM32H7/DM_MC02/(Core|Drivers|Middlewares|USB_DEVICE)/|^platform/.*/cubemx/|^src/third_party/'
-            git diff --name-only --diff-filter=ACMR "$BASE"...HEAD \
-              | grep -E '\.(c|h|cpp|hpp)$' | grep -vE "$EXCLUDE" > "$RUNNER_TEMP/files.txt" || true
-          fi
-          echo "count=$(wc -l < "$RUNNER_TEMP/files.txt")" >> "$GITHUB_OUTPUT"
 
       - name: Set up Python
-        if: steps.files.outputs.count != '0'
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
       - name: 安装 clang-format
-        if: steps.files.outputs.count != '0'
         run: pip install "clang-format==${CLANG_FORMAT_VERSION}"
 
-      - name: 格式检查（仅本次改动文件）
+      - name: 格式检查（全量）
         shell: bash
         run: |
-          mapfile -t FILES < "$RUNNER_TEMP/files.txt"
-          if [ "${#FILES[@]}" -eq 0 ]; then
-            echo "本次改动没有需要检查的 C/C++ 文件，跳过。"
-            exit 0
-          fi
-          clang-format --version
-          printf '检查 %d 个改动文件：\n' "${#FILES[@]}"
-          printf '  %s\n' "${FILES[@]}"
-          if clang-format --dry-run --Werror "${FILES[@]}"; then
-            echo "clang-format 通过"
-          else
-            echo "::error::本次改动的 C/C++ 文件不符合 clang-format。本地执行 clang-format -i <文件>（18.1.8）后重新提交。"
+          if ! python tool/ci/format.py --check; then
+            echo "::error::C/C++ 文件不符合 .clang-format。本地执行 python tool/ci/format.py --fix（clang-format ${CLANG_FORMAT_VERSION}）后重新提交。"
             exit 1
           fi
 

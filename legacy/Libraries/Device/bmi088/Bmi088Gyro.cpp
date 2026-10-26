@@ -32,282 +32,282 @@ constexpr std::uint32_t ConfigVerifySettleMs{1U};
 
 void Bmi088Gyro::Init() noexcept
 {
-  state_ = State::Initializing;
-  step_ = Step::CheckChipId;
-  stepTick_ = platform::Time::NowTicks();
-  stepWaitMs_ = PowerUpSettleMs;
-  transferActive_ = false;
-  sampleValid_ = false;
-  sample_ = Sample{};
-  readCount_ = 0U;
-  errorCount_ = 0U;
-  chipIdAttempts_ = 0U;
-  configurationVerifyAttempts_ = 0U;
-  transmitBuffer_.fill(0U);
+    state_ = State::Initializing;
+    step_ = Step::CheckChipId;
+    stepTick_ = platform::Time::NowTicks();
+    stepWaitMs_ = PowerUpSettleMs;
+    transferActive_ = false;
+    sampleValid_ = false;
+    sample_ = Sample{};
+    readCount_ = 0U;
+    errorCount_ = 0U;
+    chipIdAttempts_ = 0U;
+    configurationVerifyAttempts_ = 0U;
+    transmitBuffer_.fill(0U);
 }
 
 void Bmi088Gyro::Harvest() noexcept
 {
-  if (state_ != State::Initializing && state_ != State::Ready)
-  {
-    return;
-  }
+    if (state_ != State::Initializing && state_ != State::Ready)
+    {
+        return;
+    }
 
-  if (!transferActive_)
-  {
-    return;
-  }
+    if (!transferActive_)
+    {
+        return;
+    }
 
-  switch (platform::Spi::GetAsyncResult(platform::Spi::Device::ImuGyroscope))
-  {
-  case platform::Spi::Result::Busy:
-  case platform::Spi::Result::Started:
-    return;
+    switch (platform::Spi::GetAsyncResult(platform::Spi::Device::ImuGyroscope))
+    {
+    case platform::Spi::Result::Busy:
+    case platform::Spi::Result::Started:
+        return;
 
-  case platform::Spi::Result::Completed:
-    transferActive_ = false;
-    CompleteStep();
-    return;
+    case platform::Spi::Result::Completed:
+        transferActive_ = false;
+        CompleteStep();
+        return;
 
-  default:
-    transferActive_ = false;
-    Fail();
-    return;
-  }
+    default:
+        transferActive_ = false;
+        Fail();
+        return;
+    }
 }
 
 bool Bmi088Gyro::TryStart() noexcept
 {
-  if (state_ != State::Initializing && state_ != State::Ready)
-  {
-    return false;
-  }
+    if (state_ != State::Initializing && state_ != State::Ready)
+    {
+        return false;
+    }
 
-  if (transferActive_ || !WaitElapsed())
-  {
-    return false;
-  }
+    if (transferActive_ || !WaitElapsed())
+    {
+        return false;
+    }
 
-  BeginStep();
-  return transferActive_;
+    BeginStep();
+    return transferActive_;
 }
 
 bool Bmi088Gyro::TryGetSample(Sample &sample) const noexcept
 {
-  if (!sampleValid_)
-  {
-    return false;
-  }
+    if (!sampleValid_)
+    {
+        return false;
+    }
 
-  sample = sample_;
-  return true;
+    sample = sample_;
+    return true;
 }
 
 bool Bmi088Gyro::WaitElapsed() const noexcept
 {
-  return stepWaitMs_ == 0U || platform::Time::HasElapsedMs(stepTick_, stepWaitMs_);
+    return stepWaitMs_ == 0U || platform::Time::HasElapsedMs(stepTick_, stepWaitMs_);
 }
 
 void Bmi088Gyro::BeginStep() noexcept
 {
-  std::size_t length = 0U;
+    std::size_t length = 0U;
 
-  transmitBuffer_.fill(0U);
-  switch (step_)
-  {
-  case Step::CheckChipId:
-    transmitBuffer_[0] = static_cast<std::uint8_t>(ReadFlag | ChipIdRegister);
-    length = 2U;
-    break;
+    transmitBuffer_.fill(0U);
+    switch (step_)
+    {
+    case Step::CheckChipId:
+        transmitBuffer_[0] = static_cast<std::uint8_t>(ReadFlag | ChipIdRegister);
+        length = 2U;
+        break;
 
-  case Step::WriteRange:
-    transmitBuffer_[0] = RangeRegister;
-    transmitBuffer_[1] = RangeRegisterValue;
-    length = 2U;
-    break;
+    case Step::WriteRange:
+        transmitBuffer_[0] = RangeRegister;
+        transmitBuffer_[1] = RangeRegisterValue;
+        length = 2U;
+        break;
 
-  case Step::WriteBandwidth:
-    transmitBuffer_[0] = BandwidthRegister;
-    transmitBuffer_[1] = BandwidthRegisterValue;
-    length = 2U;
-    break;
+    case Step::WriteBandwidth:
+        transmitBuffer_[0] = BandwidthRegister;
+        transmitBuffer_[1] = BandwidthRegisterValue;
+        length = 2U;
+        break;
 
-  case Step::WriteInterruptControl:
-    transmitBuffer_[0] = InterruptControlRegister;
-    transmitBuffer_[1] = EnableDataReadyInterrupt;
-    length = 2U;
-    break;
+    case Step::WriteInterruptControl:
+        transmitBuffer_[0] = InterruptControlRegister;
+        transmitBuffer_[1] = EnableDataReadyInterrupt;
+        length = 2U;
+        break;
 
-  case Step::WriteInterruptIo:
-    transmitBuffer_[0] = InterruptIoConfigurationRegister;
-    transmitBuffer_[1] = Interrupt3ActiveHighPushPull;
-    length = 2U;
-    break;
+    case Step::WriteInterruptIo:
+        transmitBuffer_[0] = InterruptIoConfigurationRegister;
+        transmitBuffer_[1] = Interrupt3ActiveHighPushPull;
+        length = 2U;
+        break;
 
-  case Step::WriteInterruptMap:
-    transmitBuffer_[0] = InterruptMapRegister;
-    transmitBuffer_[1] = MapDataReadyToInterrupt3;
-    length = 2U;
-    break;
+    case Step::WriteInterruptMap:
+        transmitBuffer_[0] = InterruptMapRegister;
+        transmitBuffer_[1] = MapDataReadyToInterrupt3;
+        length = 2U;
+        break;
 
-  case Step::VerifyCoreConfiguration:
-    transmitBuffer_[0] = static_cast<std::uint8_t>(ReadFlag | RangeRegister);
-    length = 3U;
-    break;
+    case Step::VerifyCoreConfiguration:
+        transmitBuffer_[0] = static_cast<std::uint8_t>(ReadFlag | RangeRegister);
+        length = 3U;
+        break;
 
-  case Step::VerifyInterruptControlAndIo:
-    transmitBuffer_[0] = static_cast<std::uint8_t>(ReadFlag | InterruptControlRegister);
-    length = 3U;
-    break;
+    case Step::VerifyInterruptControlAndIo:
+        transmitBuffer_[0] = static_cast<std::uint8_t>(ReadFlag | InterruptControlRegister);
+        length = 3U;
+        break;
 
-  case Step::VerifyInterruptMap:
-    transmitBuffer_[0] = static_cast<std::uint8_t>(ReadFlag | InterruptMapRegister);
-    length = 2U;
-    break;
+    case Step::VerifyInterruptMap:
+        transmitBuffer_[0] = static_cast<std::uint8_t>(ReadFlag | InterruptMapRegister);
+        length = 2U;
+        break;
 
-  case Step::ReadData:
-    transmitBuffer_[0] = static_cast<std::uint8_t>(ReadFlag | DataRegister);
-    length = 7U;
-    break;
-  }
+    case Step::ReadData:
+        transmitBuffer_[0] = static_cast<std::uint8_t>(ReadFlag | DataRegister);
+        length = 7U;
+        break;
+    }
 
-  const platform::Spi::Result result = platform::Spi::StartTransferAsync(platform::Spi::Device::ImuGyroscope,
-                                                                         transmitBuffer_.data(),
-                                                                         receiveBuffer_.data(),
-                                                                         length,
-                                                                         Bmi088Transfer::Complete,
-                                                                         &completion_);
-  switch (result)
-  {
-  case platform::Spi::Result::Started:
-    transferActive_ = true;
-    return;
+    const platform::Spi::Result result = platform::Spi::StartTransferAsync(platform::Spi::Device::ImuGyroscope,
+                                                                           transmitBuffer_.data(),
+                                                                           receiveBuffer_.data(),
+                                                                           length,
+                                                                           Bmi088Transfer::Complete,
+                                                                           &completion_);
+    switch (result)
+    {
+    case platform::Spi::Result::Started:
+        transferActive_ = true;
+        return;
 
-  case platform::Spi::Result::Busy:
-    return;
+    case platform::Spi::Result::Busy:
+        return;
 
-  default:
-    Fail();
-    return;
-  }
+    default:
+        Fail();
+        return;
+    }
 }
 
 void Bmi088Gyro::CompleteStep() noexcept
 {
-  switch (step_)
-  {
-  case Step::CheckChipId:
-    if (receiveBuffer_[1] != ExpectedChipId)
+    switch (step_)
     {
-      ++chipIdAttempts_;
-      if (chipIdAttempts_ < ChipIdMaxAttempts)
-      {
-        Advance(Step::CheckChipId, ChipIdRetryWaitMs);
+    case Step::CheckChipId:
+        if (receiveBuffer_[1] != ExpectedChipId)
+        {
+            ++chipIdAttempts_;
+            if (chipIdAttempts_ < ChipIdMaxAttempts)
+            {
+                Advance(Step::CheckChipId, ChipIdRetryWaitMs);
+                return;
+            }
+            Fail();
+            return;
+        }
+        chipIdAttempts_ = 0U;
+        Advance(Step::WriteRange, 0U);
         return;
-      }
-      Fail();
-      return;
-    }
-    chipIdAttempts_ = 0U;
-    Advance(Step::WriteRange, 0U);
-    return;
 
-  case Step::WriteRange:
-    Advance(Step::WriteBandwidth, ConfigSettleMs);
-    return;
-
-  case Step::WriteBandwidth:
-    Advance(Step::WriteInterruptControl, ConfigSettleMs);
-    return;
-
-  case Step::WriteInterruptControl:
-    Advance(Step::WriteInterruptIo, ConfigSettleMs);
-    return;
-
-  case Step::WriteInterruptIo:
-    Advance(Step::WriteInterruptMap, ConfigSettleMs);
-    return;
-
-  case Step::WriteInterruptMap:
-    Advance(Step::VerifyCoreConfiguration, ConfigVerifySettleMs);
-    return;
-
-  case Step::VerifyCoreConfiguration:
-    if ((receiveBuffer_[1] & RangeRegisterReadMask) != (RangeRegisterValue & RangeRegisterReadMask) ||
-        (receiveBuffer_[2] & BandwidthRegisterReadMask) != (BandwidthRegisterValue & BandwidthRegisterReadMask))
-    {
-      ++configurationVerifyAttempts_;
-      if (configurationVerifyAttempts_ < ConfigurationVerifyMaxAttempts)
-      {
-        Advance(Step::VerifyCoreConfiguration, ConfigurationVerifyRetryWaitMs);
+    case Step::WriteRange:
+        Advance(Step::WriteBandwidth, ConfigSettleMs);
         return;
-      }
-      Fail();
-      return;
-    }
 
-    Advance(Step::VerifyInterruptControlAndIo, 0U);
-    return;
-
-  case Step::VerifyInterruptControlAndIo:
-    if (receiveBuffer_[1] != EnableDataReadyInterrupt || receiveBuffer_[2] != Interrupt3ActiveHighPushPull)
-    {
-      ++configurationVerifyAttempts_;
-      if (configurationVerifyAttempts_ < ConfigurationVerifyMaxAttempts)
-      {
-        Advance(Step::VerifyInterruptControlAndIo, ConfigurationVerifyRetryWaitMs);
+    case Step::WriteBandwidth:
+        Advance(Step::WriteInterruptControl, ConfigSettleMs);
         return;
-      }
-      Fail();
-      return;
-    }
-    Advance(Step::VerifyInterruptMap, 0U);
-    return;
 
-  case Step::VerifyInterruptMap:
-    if (receiveBuffer_[1] != MapDataReadyToInterrupt3)
-    {
-      ++configurationVerifyAttempts_;
-      if (configurationVerifyAttempts_ < ConfigurationVerifyMaxAttempts)
-      {
-        Advance(Step::VerifyInterruptMap, ConfigurationVerifyRetryWaitMs);
+    case Step::WriteInterruptControl:
+        Advance(Step::WriteInterruptIo, ConfigSettleMs);
         return;
-      }
-      Fail();
-      return;
+
+    case Step::WriteInterruptIo:
+        Advance(Step::WriteInterruptMap, ConfigSettleMs);
+        return;
+
+    case Step::WriteInterruptMap:
+        Advance(Step::VerifyCoreConfiguration, ConfigVerifySettleMs);
+        return;
+
+    case Step::VerifyCoreConfiguration:
+        if ((receiveBuffer_[1] & RangeRegisterReadMask) != (RangeRegisterValue & RangeRegisterReadMask) ||
+            (receiveBuffer_[2] & BandwidthRegisterReadMask) != (BandwidthRegisterValue & BandwidthRegisterReadMask))
+        {
+            ++configurationVerifyAttempts_;
+            if (configurationVerifyAttempts_ < ConfigurationVerifyMaxAttempts)
+            {
+                Advance(Step::VerifyCoreConfiguration, ConfigurationVerifyRetryWaitMs);
+                return;
+            }
+            Fail();
+            return;
+        }
+
+        Advance(Step::VerifyInterruptControlAndIo, 0U);
+        return;
+
+    case Step::VerifyInterruptControlAndIo:
+        if (receiveBuffer_[1] != EnableDataReadyInterrupt || receiveBuffer_[2] != Interrupt3ActiveHighPushPull)
+        {
+            ++configurationVerifyAttempts_;
+            if (configurationVerifyAttempts_ < ConfigurationVerifyMaxAttempts)
+            {
+                Advance(Step::VerifyInterruptControlAndIo, ConfigurationVerifyRetryWaitMs);
+                return;
+            }
+            Fail();
+            return;
+        }
+        Advance(Step::VerifyInterruptMap, 0U);
+        return;
+
+    case Step::VerifyInterruptMap:
+        if (receiveBuffer_[1] != MapDataReadyToInterrupt3)
+        {
+            ++configurationVerifyAttempts_;
+            if (configurationVerifyAttempts_ < ConfigurationVerifyMaxAttempts)
+            {
+                Advance(Step::VerifyInterruptMap, ConfigurationVerifyRetryWaitMs);
+                return;
+            }
+            Fail();
+            return;
+        }
+
+        configurationVerifyAttempts_ = 0U;
+        state_ = State::Ready;
+        sampleValid_ = false;
+        Advance(Step::ReadData, 0U);
+        return;
+
+    case Step::ReadData:
+        sample_.xAxis = static_cast<std::int16_t>(static_cast<std::uint16_t>(receiveBuffer_[1]) |
+                                                  (static_cast<std::uint16_t>(receiveBuffer_[2]) << 8U));
+        sample_.yAxis = static_cast<std::int16_t>(static_cast<std::uint16_t>(receiveBuffer_[3]) |
+                                                  (static_cast<std::uint16_t>(receiveBuffer_[4]) << 8U));
+        sample_.zAxis = static_cast<std::int16_t>(static_cast<std::uint16_t>(receiveBuffer_[5]) |
+                                                  (static_cast<std::uint16_t>(receiveBuffer_[6]) << 8U));
+        sampleValid_ = true;
+        ++readCount_;
+        return;
     }
-
-    configurationVerifyAttempts_ = 0U;
-    state_ = State::Ready;
-    sampleValid_ = false;
-    Advance(Step::ReadData, 0U);
-    return;
-
-  case Step::ReadData:
-    sample_.xAxis = static_cast<std::int16_t>(static_cast<std::uint16_t>(receiveBuffer_[1]) |
-                                              (static_cast<std::uint16_t>(receiveBuffer_[2]) << 8U));
-    sample_.yAxis = static_cast<std::int16_t>(static_cast<std::uint16_t>(receiveBuffer_[3]) |
-                                              (static_cast<std::uint16_t>(receiveBuffer_[4]) << 8U));
-    sample_.zAxis = static_cast<std::int16_t>(static_cast<std::uint16_t>(receiveBuffer_[5]) |
-                                              (static_cast<std::uint16_t>(receiveBuffer_[6]) << 8U));
-    sampleValid_ = true;
-    ++readCount_;
-    return;
-  }
 }
 
 void Bmi088Gyro::Advance(Step nextStep, std::uint32_t waitMs) noexcept
 {
-  step_ = nextStep;
-  stepWaitMs_ = waitMs;
-  stepTick_ = platform::Time::NowTicks();
+    step_ = nextStep;
+    stepWaitMs_ = waitMs;
+    stepTick_ = platform::Time::NowTicks();
 }
 
 void Bmi088Gyro::Fail() noexcept
 {
-  ++errorCount_;
-  state_ = State::Error;
-  transferActive_ = false;
+    ++errorCount_;
+    state_ = State::Error;
+    transferActive_ = false;
 }
 
 } // namespace device

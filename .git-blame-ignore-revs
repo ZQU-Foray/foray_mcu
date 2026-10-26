@@ -1,0 +1,5 @@
+# git blame 忽略的提交：只改格式或只改名、不改行为的大范围提交。
+# 使用：git config blame.ignoreRevsFile .git-blame-ignore-revs（GitHub 网页会自动读取本文件）。
+
+# P0.5 一次性格式化手写 C/C++ 代码（style: c23eb5e）
+c23eb5e6b5ec1bbe54e8ef3de30ed6f206322a52

@@ -8,11 +8,11 @@ extern "C"
 {
 #endif
 
-  /**
+    /**
  * @brief 初始化当前目标的全部 Port
  * @return 全部 Port 初始化成功时返回 true，否则返回 false
  */
-  bool Port_Init(void);
+    bool Port_Init(void);
 
 #ifdef __cplusplus
 }

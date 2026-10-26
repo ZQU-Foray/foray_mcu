@@ -17,50 +17,50 @@ extern "C"
 {
 #endif
 
-  typedef uint8_t SpiPort_Device;
-  typedef uint8_t SpiPort_Result;
-  typedef void (*SpiPort_CompletionNotification)(void *context);
+    typedef uint8_t SpiPort_Device;
+    typedef uint8_t SpiPort_Result;
+    typedef void (*SpiPort_CompletionNotification)(void *context);
 
-  enum
-  {
-    SPI_PORT_DEVICE_IMU_ACCELEROMETER = 0U,
-    SPI_PORT_DEVICE_IMU_GYROSCOPE,
-    SPI_PORT_DEVICE_ADDRESSABLE_LED,
-    SPI_PORT_DEVICE_COUNT
-  };
+    enum
+    {
+        SPI_PORT_DEVICE_IMU_ACCELEROMETER = 0U,
+        SPI_PORT_DEVICE_IMU_GYROSCOPE,
+        SPI_PORT_DEVICE_ADDRESSABLE_LED,
+        SPI_PORT_DEVICE_COUNT
+    };
 
-  enum
-  {
-    SPI_PORT_RESULT_COMPLETED = 0U,
-    SPI_PORT_RESULT_BUSY,
-    SPI_PORT_RESULT_TIMEOUT,
-    SPI_PORT_RESULT_NOT_READY,
-    SPI_PORT_RESULT_UNSUPPORTED,
-    SPI_PORT_RESULT_INVALID_ARGUMENT,
-    SPI_PORT_RESULT_ERROR,
-    SPI_PORT_RESULT_STARTED
-  };
+    enum
+    {
+        SPI_PORT_RESULT_COMPLETED = 0U,
+        SPI_PORT_RESULT_BUSY,
+        SPI_PORT_RESULT_TIMEOUT,
+        SPI_PORT_RESULT_NOT_READY,
+        SPI_PORT_RESULT_UNSUPPORTED,
+        SPI_PORT_RESULT_INVALID_ARGUMENT,
+        SPI_PORT_RESULT_ERROR,
+        SPI_PORT_RESULT_STARTED
+    };
 
-  enum
-  {
-    SPI_PORT_MAX_ASYNC_LENGTH = 512U
-  };
+    enum
+    {
+        SPI_PORT_MAX_ASYNC_LENGTH = 512U
+    };
 
-  /**
+    /**
  * @brief 初始化 SPI 逻辑设备状态、DMA 缓冲区和共享总线所有权。
  * @return 全部逻辑设备及其底层 DMA 条件均满足要求时返回 true。
  * @note 应在 CubeMX 完成 SPI、DMA 和 GPIO 初始化后、调度器启动前调用一次。
  */
-  bool SpiPort_Init(void);
+    bool SpiPort_Init(void);
 
-  /**
+    /**
  * @brief 查询指定 SPI 逻辑设备是否可以启动新事务。
  * @param device 要查询的逻辑设备。
  * @return 设备有效、底层外设就绪且共享总线空闲时返回 true。
  */
-  bool SpiPort_IsReady(SpiPort_Device device);
+    bool SpiPort_IsReady(SpiPort_Device device);
 
-  /**
+    /**
  * @brief 以阻塞方式向指定 SPI 逻辑设备发送数据。
  * @param device 目标逻辑设备。
  * @param data 指向待发送数据的缓冲区。
@@ -69,9 +69,9 @@ extern "C"
  * @return 返回完成、忙、超时、未就绪、不支持或参数错误等结果。
  * @note 仅在线程或初始化上下文调用，事务期间由 Port 管理片选和共享总线。
  */
-  SpiPort_Result SpiPort_Transmit(SpiPort_Device device, const uint8_t *data, uint32_t length, uint32_t timeout_ms);
+    SpiPort_Result SpiPort_Transmit(SpiPort_Device device, const uint8_t *data, uint32_t length, uint32_t timeout_ms);
 
-  /**
+    /**
  * @brief 以阻塞方式与指定 SPI 逻辑设备进行全双工传输。
  * @param device 目标逻辑设备。
  * @param transmit_data 指向待发送数据的缓冲区。
@@ -81,10 +81,13 @@ extern "C"
  * @return 返回完成、忙、超时、未就绪、不支持或参数错误等结果。
  * @note 仅支持具有全双工能力的逻辑设备，且仅在线程或初始化上下文调用。
  */
-  SpiPort_Result SpiPort_Transfer(
-      SpiPort_Device device, const uint8_t *transmit_data, uint8_t *receive_data, uint32_t length, uint32_t timeout_ms);
+    SpiPort_Result SpiPort_Transfer(SpiPort_Device device,
+                                    const uint8_t *transmit_data,
+                                    uint8_t *receive_data,
+                                    uint32_t length,
+                                    uint32_t timeout_ms);
 
-  /**
+    /**
  * @brief 启动一次基于 DMA 的非阻塞 SPI 发送事务。
  * @note 能力分级：MAY。
  * @param device 目标逻辑设备。
@@ -97,13 +100,13 @@ extern "C"
  * @note 可不实现，返回 SPI_PORT_RESULT_UNSUPPORTED；业务应回退到阻塞
  * SpiPort_Transmit。
  */
-  SpiPort_Result SpiPort_StartTransmitAsync(SpiPort_Device device,
-                                            const uint8_t *data,
-                                            uint32_t length,
-                                            SpiPort_CompletionNotification notification,
-                                            void *context);
+    SpiPort_Result SpiPort_StartTransmitAsync(SpiPort_Device device,
+                                              const uint8_t *data,
+                                              uint32_t length,
+                                              SpiPort_CompletionNotification notification,
+                                              void *context);
 
-  /**
+    /**
  * @brief 启动一次基于 DMA 的非阻塞 SPI 全双工事务。
  * @note 能力分级：MAY。
  * @param device 目标逻辑设备。
@@ -118,20 +121,20 @@ extern "C"
  * @note 可不实现，返回 SPI_PORT_RESULT_UNSUPPORTED；业务应回退到阻塞
  * SpiPort_Transfer。
  */
-  SpiPort_Result SpiPort_StartTransferAsync(SpiPort_Device device,
-                                            const uint8_t *transmit_data,
-                                            uint8_t *receive_data,
-                                            uint32_t length,
-                                            SpiPort_CompletionNotification notification,
-                                            void *context);
+    SpiPort_Result SpiPort_StartTransferAsync(SpiPort_Device device,
+                                              const uint8_t *transmit_data,
+                                              uint8_t *receive_data,
+                                              uint32_t length,
+                                              SpiPort_CompletionNotification notification,
+                                              void *context);
 
-  /**
+    /**
  * @brief 查询指定 SPI 逻辑设备最近一次异步事务的当前或最终结果。
  * @param device 要查询的逻辑设备。
  * @return 事务进行中时返回忙，终止后返回完成或错误，无有效设备时返回参数错误。
  * @note 能力分级：MAY。异步未实现时返回 SPI_PORT_RESULT_UNSUPPORTED。
  */
-  SpiPort_Result SpiPort_GetAsyncResult(SpiPort_Device device);
+    SpiPort_Result SpiPort_GetAsyncResult(SpiPort_Device device);
 
 #ifdef __cplusplus
 }

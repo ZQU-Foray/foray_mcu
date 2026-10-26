@@ -274,6 +274,29 @@
 
 ---
 
+## Decision-20261026-04（P0.5 格式化范围与全量格式检查，Accepted）
+
+- **Date**：2026-10-26
+- **Status**：Accepted（按 plan.md P0.5 执行，"二选一并记入 decision.md"）
+- **Source**：评审报告 §5.12；Decision-20261025-04；Decision-20261026-01 第 4 项
+
+**Context**：P0.5 要一次性格式化手写代码并排除生成区与厂商代码。clang-format 18 的 `.clang-format-ignore` 不支持 `**`，`*` 也不跨目录（2026-10-26 实测），只能按目录深度展开模式；CI 的增量检查此前把排除正则写在 workflow 里。
+
+**Decision**：
+
+1. 格式化范围由 `tool/ci/format.py` 统一定义，CI 与本地共用：git 跟踪的 `.c/.h/.cpp/.hpp`，排除 `legacy/Platform/STM32H7/DM_MC02/{Core,Drivers,Middlewares,USB_DEVICE}/`、`platform/**/cubemx/`、`src/third_party/`。不使用 `.clang-format-ignore`。
+2. 一次性格式化 126 个手写文件，单独提交（`c23eb5e`），并去除块注释内残留的 CR（手写文件统一为 LF）；提交登记在 `.git-blame-ignore-revs`。
+3. CI 的 lint-c 改为全量检查（`tool/ci/format.py --check`），关闭 Decision-20261026-01 第 4 项的增量检查与 `docs/ai/architecture.md` 例外 X-13。
+
+**验证**：legacy Debug/Release `.bin` 与基线 SHA-256 逐字节一致（Windows，xPack GCC 15.2.1，同一安装路径）；`test/host` 13 项 ctest 全绿。
+
+**Alternatives / Rejected**：
+
+- `.clang-format-ignore` 按深度展开（如 `Drivers/*`、`Drivers/*/*`……）：生成区目录很深、写法冗长，新增层级会漏，否决。
+- 在生成区放 `DisableFormat: true` 的 `.clang-format`：要往生成区与 `legacy/` 里加文件，否决。
+
+---
+
 ## 待登记
 
 - 分支保护的具体设置（组织规范 §6.1、§10，负责人在 GitHub 上操作后补记）。

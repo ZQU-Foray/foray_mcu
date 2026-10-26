@@ -17,7 +17,7 @@ namespace alg_math
  */
 struct Matrix3 final
 {
-  double value[9]{};
+    double value[9]{};
 };
 
 /** @brief 对角为 scale 的对角矩阵。 */

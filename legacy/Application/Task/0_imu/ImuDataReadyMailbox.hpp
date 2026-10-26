@@ -10,30 +10,30 @@ namespace application::task
 // 会构成 C++ 数据竞争。最新值邮箱故意不假装旧传感器寄存器还能被读回。
 class ImuDataReadyMailbox final
 {
-public:
-  void Publish(std::uint32_t tick) noexcept
-  {
-    version_.fetch_add(1U);
-    tick_.store(tick);
-    sequence_.fetch_add(1U);
-    version_.fetch_add(1U);
-  }
-  device::Bmi088DataReady Snapshot() const noexcept
-  {
-    for (;;)
+  public:
+    void Publish(std::uint32_t tick) noexcept
     {
-      const auto before = version_.load();
-      if ((before & 1U) != 0U)
-        continue;
-      const device::Bmi088DataReady result{sequence_.load(), tick_.load()};
-      if (before == version_.load())
-        return result;
+        version_.fetch_add(1U);
+        tick_.store(tick);
+        sequence_.fetch_add(1U);
+        version_.fetch_add(1U);
     }
-  }
+    device::Bmi088DataReady Snapshot() const noexcept
+    {
+        for (;;)
+        {
+            const auto before = version_.load();
+            if ((before & 1U) != 0U)
+                continue;
+            const device::Bmi088DataReady result{sequence_.load(), tick_.load()};
+            if (before == version_.load())
+                return result;
+        }
+    }
 
-private:
-  static_assert(std::atomic<std::uint32_t>::is_always_lock_free);
-  std::atomic<std::uint32_t> version_{0U}, sequence_{0U}, tick_{0U};
+  private:
+    static_assert(std::atomic<std::uint32_t>::is_always_lock_free);
+    std::atomic<std::uint32_t> version_{0U}, sequence_{0U}, tick_{0U};
 };
 } // namespace application::task
 #endif

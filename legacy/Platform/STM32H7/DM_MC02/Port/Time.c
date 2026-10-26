@@ -14,17 +14,17 @@ static bool time_port_ready = false;
 
 static bool TimePort_EnsureCounterRunning(void)
 {
-  if ((CoreDebug->DEMCR & CoreDebug_DEMCR_TRCENA_Msk) != 0U && (DWT->CTRL & DWT_CTRL_CYCCNTENA_Msk) != 0U)
-  {
-    return true;
-  }
+    if ((CoreDebug->DEMCR & CoreDebug_DEMCR_TRCENA_Msk) != 0U && (DWT->CTRL & DWT_CTRL_CYCCNTENA_Msk) != 0U)
+    {
+        return true;
+    }
 
-  CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
-  DWT->LAR = DWT_UNLOCK_KEY;
-  DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
-  __DSB();
-  __ISB();
-  return (CoreDebug->DEMCR & CoreDebug_DEMCR_TRCENA_Msk) != 0U && (DWT->CTRL & DWT_CTRL_CYCCNTENA_Msk) != 0U;
+    CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+    DWT->LAR = DWT_UNLOCK_KEY;
+    DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+    __DSB();
+    __ISB();
+    return (CoreDebug->DEMCR & CoreDebug_DEMCR_TRCENA_Msk) != 0U && (DWT->CTRL & DWT_CTRL_CYCCNTENA_Msk) != 0U;
 }
 
 /**
@@ -35,79 +35,79 @@ static bool TimePort_EnsureCounterRunning(void)
  */
 bool TimePort_Init(void)
 {
-  time_port_ready = false;
-  time_tick_frequency_hz = 0U;
+    time_port_ready = false;
+    time_tick_frequency_hz = 0U;
 
-  if (SystemCoreClock == 0U || (DWT->CTRL & DWT_CTRL_NOCYCCNT_Msk) != 0U)
-  {
-    return false;
-  }
+    if (SystemCoreClock == 0U || (DWT->CTRL & DWT_CTRL_NOCYCCNT_Msk) != 0U)
+    {
+        return false;
+    }
 
-  CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
-  DWT->LAR = DWT_UNLOCK_KEY;
-  DWT->CYCCNT = 0U;
-  DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
-  __DSB();
-  __ISB();
+    CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+    DWT->LAR = DWT_UNLOCK_KEY;
+    DWT->CYCCNT = 0U;
+    DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+    __DSB();
+    __ISB();
 
-  if ((DWT->CTRL & DWT_CTRL_CYCCNTENA_Msk) == 0U)
-  {
-    return false;
-  }
+    if ((DWT->CTRL & DWT_CTRL_CYCCNTENA_Msk) == 0U)
+    {
+        return false;
+    }
 
-  time_tick_frequency_hz = SystemCoreClock;
-  time_port_ready = true;
-  return true;
+    time_tick_frequency_hz = SystemCoreClock;
+    time_port_ready = true;
+    return true;
 }
 
 bool TimePort_IsReady(void)
 {
-  return time_port_ready && time_tick_frequency_hz != 0U && TimePort_EnsureCounterRunning();
+    return time_port_ready && time_tick_frequency_hz != 0U && TimePort_EnsureCounterRunning();
 }
 
 uint32_t TimePort_NowTicks(void)
 {
-  if (!TimePort_IsReady())
-  {
-    return 0U;
-  }
+    if (!TimePort_IsReady())
+    {
+        return 0U;
+    }
 
-  return DWT->CYCCNT;
+    return DWT->CYCCNT;
 }
 
 uint32_t TimePort_FrequencyHz(void)
 {
-  if (!TimePort_IsReady())
-  {
-    return 0U;
-  }
+    if (!TimePort_IsReady())
+    {
+        return 0U;
+    }
 
-  return time_tick_frequency_hz;
+    return time_tick_frequency_hz;
 }
 
 void TimePort_DelayUs(uint32_t delay_us)
 {
-  uint64_t remaining_ticks;
+    uint64_t remaining_ticks;
 
-  if (!TimePort_IsReady() || delay_us == 0U)
-  {
-    return;
-  }
-
-  // 向上取整，保证非零延时时间不会因整数截断而短于请求值
-  remaining_ticks = ((uint64_t)delay_us * (uint64_t)time_tick_frequency_hz + MICROSECONDS_PER_SECOND - 1ULL) /
-                    MICROSECONDS_PER_SECOND;
-
-  while (remaining_ticks > 0ULL)
-  {
-    const uint32_t chunk_ticks =
-        remaining_ticks > MAX_DELAY_CHUNK_TICKS ? MAX_DELAY_CHUNK_TICKS : (uint32_t)remaining_ticks;
-    const uint32_t start_tick = DWT->CYCCNT;
-
-    while ((uint32_t)(DWT->CYCCNT - start_tick) < chunk_ticks)
+    if (!TimePort_IsReady() || delay_us == 0U)
     {
+        return;
     }
 
-    remaining_ticks -= chunk_ticks;
-  }
+    // 向上取整，保证非零延时时间不会因整数截断而短于请求值
+    remaining_ticks = ((uint64_t)delay_us * (uint64_t)time_tick_frequency_hz + MICROSECONDS_PER_SECOND - 1ULL) /
+                      MICROSECONDS_PER_SECOND;
+
+    while (remaining_ticks > 0ULL)
+    {
+        const uint32_t chunk_ticks =
+            remaining_ticks > MAX_DELAY_CHUNK_TICKS ? MAX_DELAY_CHUNK_TICKS : (uint32_t)remaining_ticks;
+        const uint32_t start_tick = DWT->CYCCNT;
+
+        while ((uint32_t)(DWT->CYCCNT - start_tick) < chunk_ticks)
+        {
+        }
+
+        remaining_ticks -= chunk_ticks;
+    }
 }
