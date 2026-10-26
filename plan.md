@@ -14,7 +14,7 @@
 - [x] 评审报告 v0.4：契约语言统一为 C++，取消 C ABI 层，C 链接只留三处外部强制的接缝（2026-10-25）
 - [x] 负责人确认 Q1–Q18 全部采纳建议（2026-10-25）；Decision-20261025-01 改为 Accepted，新增 Decision-20261025-04（命名与格式）、-05（仓库、环境与迁移源布局）
 - [x] 评审报告定稿为 v1.0（v0.1–v0.4 原文存档于 `docs/reviews/archive/`）
-- [ ] 完善 `docs/architecture.md`（当前为占位）：分层判据、16 条依赖规则、命名与格式、例外登记（含 `-Wdouble-promotion` 豁免清单）——P0 内完成
+- [x] 完善 `docs/architecture.md`：分层判据、16 条依赖规则（含检查方式与生效阶段）、一级目录白名单、生成区治理、例外登记表（X-01–X-13，含 `-Wdouble-promotion` 豁免清单）、框架边界与可移植性、命名与格式（v1，2026-10-26，Decision-20261026-02）
 
 ### P0 基线与资产恢复（2–4 人日，进行中）
 
@@ -77,6 +77,7 @@
 - [ ] CI 增加 HAL 回调符号检查（`nm` 确认 `HAL_*Callback` 未被 C++ 改名）
 
 - [ ] 设备 ID 移出公共契约头：契约头只定义 API 与不透明 ID 类型，ID 常量由 board 头提供，驱动经 `Config` 接收（BMI088 的 4 个文件、Buzzer、WS2812，共 16 处）
+- [ ] 契约能力分级要有执行机制：SPI 异步接口在契约注释中是可选（MAY），BMI088、WS2812 却当作必选且无回退（评审报告 §2.3 缺口 1），F407 若用阻塞 SPI 会让 IMU 驱动进入故障态；契约 v1 中明确必选/可选并给出回退或编译期能力检查
 - [ ] 最小 OS 契约实体（C++ RAII 临界区守卫 + 单调时基）在 H723 port 与 `platform/mock` 中实现
 - [ ] `src/utils` 并发原语：计数器、最新值邮箱（seqlock）、SPSC 环形队列；在 M4/M7/R5 上用 `std::atomic`，M0+ 上退回临界区实现
 - [ ] 框架代码开启 `-Wdouble-promotion`（IMU 姿态解算文件豁免）；`Vqf.cpp` 增加无双精度 FPU 时的 `#error` 检查
@@ -114,7 +115,7 @@
 
 ## 当前 Agent State
 
-`EXECUTING`（P0 进行中：git 仓库、历史导入、`legacy/` 布局、忽略规则与格式/命名配置、GitHub 首推、芯片 Flash 存档、基线构建复现已完成；host 测试已恢复（13 项全绿）、组织合规件与 CI 第一版已提交；下一步是完善 `docs/architecture.md`；IMU 数据录制需负责人接板配合）。
+`EXECUTING`（P0 进行中：git 仓库、历史导入、`legacy/` 布局、忽略规则与格式/命名配置、GitHub 首推、芯片 Flash 存档、基线构建复现已完成；host 测试已恢复（13 项全绿）、组织合规件与 CI 第一版已合并，`docs/architecture.md` v1 已提交；P0 剩余：录制真实 IMU 数据（需负责人接板配合）与 P0 验收，之后进入 P0.5）。
 状态词表：`REVIEW_PENDING`（等待评审）/ `PLANNING`（方案已批准、编制细节）/ `EXECUTING`（实施中）/ `BLOCKED`（外部阻塞）/ `DONE`（阶段完成）。
 
 ## Before Snapshot
@@ -125,6 +126,7 @@
 - 本次变更（P0 第二部分，2026-10-26）：推送到 GitHub `ZQU-Foray/foray_mcu`；只读存档芯片 Flash（仓库外）；在 Windows 上复现基线构建并入档符号表。只新增/修改文档与符号表文本，无源码改动、无生成区改动、未烧录。
 - 本次变更（P0 第三部分，2026-10-26，分支 `p0/restore-host-tests`）：从 `fd1edbb` 恢复宿主测试到 `test/host/`（原样放入与适配分两个提交），新增独立 CMake 工程。无 `legacy/` 改动、无生成区改动。
 - 本次变更（P0 第四部分，2026-10-26，分支 `p0/compliance-ci`）：新增 `.foray-layer`、`CODEOWNERS`、`.github/workflows/ci.yml`、`docs/decisions/baseline-a2cfd16/SHA256SUMS`；更正基线工具链说明并补 Linux 复现结论。无源码改动、无 `legacy/` 改动。
+- 本次变更（P0 第五部分，2026-10-26，分支 `p0/architecture-doc`）：`docs/architecture.md` 从占位改为 v1；P3a 补 SPI 能力分级任务。只改文档。
 - 风险级别：**L1（仓库结构与配置，可整体回滚）**。
 - 分支：`dev`（日常开发，PR 目标）+ `main`（里程碑快照）；基线 tag：`baseline/a2cfd16`；本仓提交见 `git log baseline/a2cfd16..dev`。
 
@@ -169,3 +171,4 @@ Q1–Q18 已全部确认（见评审报告 v1.0 §11.1 与 decision.md）。仍�
 | 2026-10-26 | P0 | 推送到 GitHub（`main` + tag）；只读存档芯片 Flash（RDP 0，两遍一致，含丢失的链路协议与遥控任务）；Windows + xPack GCC 15.2.1 复现基线构建，Debug/Release SHA-256 均一致，符号表入档 | 进行中 |
 | 2026-10-26 | P0 | 从 `fd1edbb` 恢复宿主测试到 `test/host/`（13 项 ctest 全绿，WSL 与 Windows 均验证；适配 5 处，未改 `legacy/`；`ImuStream` 待重写）；发现 `a2cfd16` 底盘从不使能 | 进行中 |
 | 2026-10-26 | P0 | 补齐 `.foray-layer`、`CODEOWNERS`、CI 第一版（lint-c 增量、宿主测试、legacy 固件 Release SHA 闸门）；Linux 上 Release 逐字节复现基线；更正"基线用 Arm 官方工具链"的说法 | 进行中 |
+| 2026-10-26 | P0 | 合并 CI 第一版（PR #2，CI 首次运行 5 个作业全绿），建 `dev` 分支；`docs/architecture.md` v1：判据、规则表（检查方式 + 生效阶段）、白名单、例外登记表 | 进行中 |

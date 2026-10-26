@@ -20,7 +20,7 @@
 - `platform/**/cubemx/**`、`*.ioc`、`.mxproject`、startup 文件与链接脚本属于 **CubeMX 生成区**：只能通过重新生成修改，**禁止手工编辑**；自定义段用 `platform/.../board/link/overlay.ld` 以第二个 `-T` 追加（Q9），不改生成 `.ld`；生成前后必须可复现（CI regenerate-diff 或生成清单校验）。
 - `legacy/` 是迁移源的原样副本：只允许按 plan.md 的阶段做机械操作（搬出、改名、格式化），**禁止在 `legacy/` 里开发新功能或修 bug**；新代码从 P1 起按目标结构编写。
 - **禁止手写链路协议编解码**：链路协议只允许使用 `foray_interfaces` 生成的 `generated/lower_link.hpp`（vendor 到 `src/third_party/`，带版本与 sha256）。
-- 禁止引入反向/跨层依赖：`app → platform 实现`、`src → platform/app/config`、任何层 → 厂商 HAL/RTOS 头。**例外**：`src/hal` 契约头本身不得出现 HAL/RTOS 类型；`platform` 实现 `src/hal` 时可以使用厂商头。规则以评审报告 §5 与 `docs/architecture.md` 为准（后者 P0 创建，评审通过后生效）。
+- 禁止引入反向/跨层依赖：`app → platform 实现`、`src → platform/app/config`、任何层 → 厂商 HAL/RTOS 头。**例外**：`src/hal` 契约头本身不得出现 HAL/RTOS 类型；`platform` 实现 `src/hal` 时可以使用厂商头。规则以评审报告 §5 与 [docs/architecture.md](docs/architecture.md) 为准；后者是分层判据、16 条依赖规则与例外登记表的人读入口（v1，Decision-20261026-02）。
 - 禁止 `file(GLOB)` 收集业务源码；禁止全局 `include_directories()`；禁止把仓库根加入 include 路径。
 - 禁止在 `app/` 与 `src/` 代码中用 `#if` 兵种/能力宏做裁剪（能力用 target/装配表达；`#if` 只允许出现在生成头与 platform 适配层）。
 - 框架（`src/`、`platform/`、`cmake/`）不得引用产品（`app/`、`config/`）的路径或 target；`src/` 零 RTOS，需要临界区或时间时只经 `src/hal/os` 最小契约。
@@ -54,6 +54,6 @@
 ## 6. 与组织规范的关系
 
 - 本仓 `layer: MCU`，**不在 L1–L5 分层内**，位于 L2 下行 HAL 之下；`depends_on_layers: [X2]`，仅 vendor 消费 `foray_interfaces` 生成头文件。
-- 组织合规件：`.foray-layer`、`CODEOWNERS`（`@ZQU-Foray/电控组`）、`.github/workflows/ci.yml` 已落地（CI 设计见 Decision-20261026-01）；`docs/architecture.md` 仍属 P0 创建任务。
+- 组织合规件：`.foray-layer`、`CODEOWNERS`（`@ZQU-Foray/电控组`）、`.github/workflows/ci.yml` 已落地（CI 设计见 Decision-20261026-01）；`docs/architecture.md` v1 已创建（Decision-20261026-02）。
 - CI 的 `firmware-legacy` 要求 `legacy/` 的 Release 镜像与基线逐字节一致（P0–P0.5 有效）；`lint-c` 只检查本次改动的 C/C++ 文件，改了哪个文件就要把整个文件按 `.clang-format`（18.1.8）格式化。
 - 规则与组织仓库规范冲突时，以组织 `foray_docs/repository_structure.md` 为准，并在 [decision.md](decision.md) 登记。
