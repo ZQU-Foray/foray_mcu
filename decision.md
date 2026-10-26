@@ -196,7 +196,7 @@
 
 ---
 
-## Decision-20261026-01（组织合规件与 CI 第一版，Accepted）
+## Decision-20261026-01（组织合规件、CI 第一版与分支模型，Accepted）
 
 - **Date**：2026-10-26
 - **Status**：Accepted（负责人授权推进 P0；CI 在首个 PR 上运行验证）
@@ -212,6 +212,7 @@
 4. **lint-c 改为增量检查**：只检查相对 PR 基准（或推送前提交）改动的 C/C++ 文件；用 CI 脚本中的正则排除 `legacy/Platform/STM32H7/DM_MC02/{Core,Drivers,Middlewares,USB_DEVICE}/`、`platform/**/cubemx/`、`src/third_party/`；clang-format 通过 pip 固定为 18.1.8。P0.5 一次性格式化之后改为全量检查（排除项保留）。
 5. 新增 **host-tests** 作业：构建并运行 `test/host`（ctest）。
 6. 新增 **firmware-legacy** 作业：用 xPack GCC 15.2.1-1.1 linux-x64（发布包 SHA-256 固定在 CI 中）构建 `legacy/` 的 Debug 与 Release。**Release 镜像必须与基线 SHA-256 逐字节一致**（`docs/decisions/baseline-a2cfd16/SHA256SUMS`）；Debug 镜像内含工具链安装路径，只要求构建成功。该闸门在 P0–P0.5 有效，P1 起改为根工程构建 + 符号名与大小集合对照。
+7. **分支模型按组织规范 §6.1**（负责人 2026-10-26 确认）：从 `main`（`28a5533`）建 `dev`；日常 PR 一律合到 `dev`，功能分支从 `dev` 切出；`main` 只承载里程碑快照，每个阶段（如 P0）验收后由 `dev` 合入 `main`。
 
 **Reason**：
 
@@ -225,12 +226,12 @@
 - 在生成区目录放 `DisableFormat: true` 的 `.clang-format`：要往 `legacy/` 与生成区里加文件，违反冻结约定。否决。
 - 对 Debug 也做 SHA 闸门：Debug 镜像随工具链安装路径变化，CI 上不可能复现。否决。
 
-**待负责人在 GitHub 上操作**：给 `电控组` 本仓 Write 权限（否则 CODEOWNERS 静默失效）；分支保护；是否按组织规范 §6.1 建 `dev` 分支（代码仓 PR 合到 `dev`，`main` 只放里程碑快照）。
+**待负责人在 GitHub 上操作**：把默认分支改为 `dev`；给 `电控组` 本仓 Write 权限（否则 CODEOWNERS 静默失效）；`main` 与 `dev` 的分支保护（组织规范：PR + 1 approve、禁强推、禁删除）。
 
 ---
 
 ## 待登记
 
-- 是否建 `dev` 分支与分支保护设置（组织规范 §6.1，待负责人决定）。
+- 分支保护的具体设置（组织规范 §6.1、§10，负责人在 GitHub 上操作后补记）。
 - P0.5 首次运行 `.clang-tidy` 后的规则微调记录；`-Wdouble-promotion` 豁免清单（P3a）。
 - 契约 v1 冻结记录（P3a 结束时）；TM4C、AM26x port 的启动条件与编译器选择（Q13）。

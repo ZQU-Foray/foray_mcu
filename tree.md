@@ -7,7 +7,7 @@
 
 ```text
 foray_mcu/
-├── .git/                     main 分支；tag baseline/a2cfd16；origin = GitHub ZQU-Foray/foray_mcu；legacy remote（ControllerCode 历史）
+├── .git/                     dev（日常开发）+ main（里程碑）；tag baseline/a2cfd16；origin = GitHub ZQU-Foray/foray_mcu；legacy remote（ControllerCode 历史）
 ├── .gitignore / .gitattributes / .clang-format / .clang-tidy   仓库规则、格式与命名配置
 ├── .foray-layer / CODEOWNERS  组织合规件（layer: MCU；@ZQU-Foray/电控组）
 ├── .github/workflows/ci.yml   CI 第一版：lint-c 增量、宿主测试、legacy 固件 Release SHA 闸门
