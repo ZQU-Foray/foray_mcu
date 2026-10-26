@@ -17,6 +17,8 @@ ctest --test-dir build/host-tests --output-on-failure
 
 Windows 上用 MSYS2 UCRT64 的 g++：配置时加 `-DCMAKE_CXX_COMPILER=C:/msys64/ucrt64/bin/g++.exe`，并保证 `C:\msys64\ucrt64\bin` 在 `PATH` 中（运行测试需要它的运行库）。
 
+CI 的 `host-tests` 作业（`.github/workflows/ci.yml`）在 GitHub Actions 的 Ubuntu 上运行同样的三条命令。
+
 已验证环境（2026-10-26，13/13 通过）：WSL Ubuntu 22.04 + g++ 11.4.0 + CMake 3.31.6；Windows + MSYS2 UCRT64 g++ 16.2.0 + CMake 4.4.4。
 
 ## 测试清单

@@ -53,5 +53,6 @@
 ## 6. 与组织规范的关系
 
 - 本仓 `layer: MCU`，**不在 L1–L5 分层内**，位于 L2 下行 HAL 之下；`depends_on_layers: [X2]`，仅 vendor 消费 `foray_interfaces` 生成头文件。
-- 组织合规件状态：`.foray-layer`、`CODEOWNERS`（`@ZQU-Foray/电控组`）、`.github/workflows/ci.yml` **尚未落地**，属 P0 任务；`docs/architecture.md` 也属 P0 创建任务。
+- 组织合规件：`.foray-layer`、`CODEOWNERS`（`@ZQU-Foray/电控组`）、`.github/workflows/ci.yml` 已落地（CI 设计见 Decision-20261026-01）；`docs/architecture.md` 仍属 P0 创建任务。
+- CI 的 `firmware-legacy` 要求 `legacy/` 的 Release 镜像与基线逐字节一致（P0–P0.5 有效）；`lint-c` 只检查本次改动的 C/C++ 文件，改了哪个文件就要把整个文件按 `.clang-format`（18.1.8）格式化。
 - 规则与组织仓库规范冲突时，以组织 `foray_docs/repository_structure.md` 为准，并在 [decision.md](decision.md) 登记。

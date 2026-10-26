@@ -93,7 +93,7 @@ cmake -S . -B build/hero-debug -DFORAY_PROFILE=hero_v1 ...   # 其他兵种/机�
 | [tree.md](tree.md) | 目录结构说明与关键位置 |
 | [decision.md](decision.md) | 关键工程决策日志（含本次重构的决策） |
 
-尚未落地的组织合规件（P0 补齐）：`.foray-layer`、`CODEOWNERS`（`@ZQU-Foray/电控组`）、`.github/workflows/ci.yml`。
+组织合规件：`.foray-layer`（layer: MCU）、`CODEOWNERS`（`@ZQU-Foray/电控组`）、`.github/workflows/ci.yml`（lint-c 增量格式检查、宿主测试、legacy 固件构建与 Release SHA 闸门，见 [decision.md](decision.md) Decision-20261026-01）。
 
 ## 8. 参考
 

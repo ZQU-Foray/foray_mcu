@@ -176,7 +176,7 @@
 ## Decision-20261025-05（仓库、开发环境与迁移源布局，Accepted）
 
 - **Date**：2026-10-25
-- **Status**：Accepted（负责人确认；P0 已执行前 4 项）
+- **Status**：Accepted（负责人确认；第 1–5 项已执行，2026-10-26 完成 GitHub 首次推送；第 7 项的芯片存档已完成）
 - **Source**：评审报告 v1.0 §1.4、§1.5、§7.4
 
 **Decision**：
@@ -196,8 +196,41 @@
 
 ---
 
+## Decision-20261026-01（组织合规件与 CI 第一版，Accepted）
+
+- **Date**：2026-10-26
+- **Status**：Accepted（负责人授权推进 P0；CI 在首个 PR 上运行验证）
+- **Source**：组织 `foray_docs/repository_structure.md` §6.4、§6.5、§7.3；组织 `ZQU-Foray/.github` 的 `workflows/ci-template.yml`；迁移源 `chore/align-org-structure` @ `f1f46cd` 的合规件
+
+**Context**：组织要求每个仓库有 `.foray-layer`、`CODEOWNERS`，并把组织 CI 模板复制为 `.github/workflows/ci.yml`。模板的 lint-c 会对全部 C/C++ 文件做 clang-format 检查，而本仓的 `legacy/` 手写代码与从 `fd1edbb` 恢复的测试要到 P0.5 才统一格式，CubeMX 生成区与厂商代码则永远不应格式化。clang-format 18 的 `.clang-format-ignore` 不支持 `**`，`*` 也不跨目录（2026-10-26 实测），排除不了整棵目录树。
+
+**Decision**：
+
+1. `.foray-layer` 沿用迁移源 `f1f46cd` 的版本（`layer: MCU`、`depends_on_layers: [X2]`，与 Decision-20260219-01 一致）。
+2. `CODEOWNERS` 放在仓库根目录，内容为 `* @ZQU-Foray/电控组`。链路协议的算法组 Review 规则等 P4 vendor 生成头时再加（届时需要先给算法组 Write 权限）。
+3. `.github/workflows/ci.yml` 从组织模板复制：lint-python、test-python 保持原样（无 Python 文件时自动跳过）；删除 build-ros2（本仓不是 ROS 2 工作空间）。
+4. **lint-c 改为增量检查**：只检查相对 PR 基准（或推送前提交）改动的 C/C++ 文件；用 CI 脚本中的正则排除 `legacy/Platform/STM32H7/DM_MC02/{Core,Drivers,Middlewares,USB_DEVICE}/`、`platform/**/cubemx/`、`src/third_party/`；clang-format 通过 pip 固定为 18.1.8。P0.5 一次性格式化之后改为全量检查（排除项保留）。
+5. 新增 **host-tests** 作业：构建并运行 `test/host`（ctest）。
+6. 新增 **firmware-legacy** 作业：用 xPack GCC 15.2.1-1.1 linux-x64（发布包 SHA-256 固定在 CI 中）构建 `legacy/` 的 Debug 与 Release。**Release 镜像必须与基线 SHA-256 逐字节一致**（`docs/decisions/baseline-a2cfd16/SHA256SUMS`）；Debug 镜像内含工具链安装路径，只要求构建成功。该闸门在 P0–P0.5 有效，P1 起改为根工程构建 + 符号名与大小集合对照。
+
+**Reason**：
+
+- 增量检查沿用迁移源已经跑通的做法：新代码不放过，存量代码也不会让 CI 长期红灯（组织模板的设计原则同样是"长期红灯等于没有 CI"）。
+- Release SHA 闸门把"P0–P0.5 不改变 legacy 行为"从约定变成了自动检查，P0.5 的格式化与改名尤其需要它；2026-10-26 已在 Linux 上验证 Release 能逐字节复现基线。
+
+**Alternatives / Rejected**：
+
+- 照搬模板的全量 lint-c：P0.5 之前必然红灯。否决。
+- 用 `.clang-format-ignore` 排除生成区：clang-format 18 的模式语法排除不了整棵目录树。否决（P0.5 再评估按深度展开的写法）。
+- 在生成区目录放 `DisableFormat: true` 的 `.clang-format`：要往 `legacy/` 与生成区里加文件，违反冻结约定。否决。
+- 对 Debug 也做 SHA 闸门：Debug 镜像随工具链安装路径变化，CI 上不可能复现。否决。
+
+**待负责人在 GitHub 上操作**：给 `电控组` 本仓 Write 权限（否则 CODEOWNERS 静默失效）；分支保护；是否按组织规范 §6.1 建 `dev` 分支（代码仓 PR 合到 `dev`，`main` 只放里程碑快照）。
+
+---
+
 ## 待登记
 
-- GitHub 仓库创建与首次推送；CODEOWNERS / `.foray-layer` / CI 的启用时间（P0）。
+- 是否建 `dev` 分支与分支保护设置（组织规范 §6.1，待负责人决定）。
 - P0.5 首次运行 `.clang-tidy` 后的规则微调记录；`-Wdouble-promotion` 豁免清单（P3a）。
 - 契约 v1 冻结记录（P3a 结束时）；TM4C、AM26x port 的启动条件与编译器选择（Q13）。

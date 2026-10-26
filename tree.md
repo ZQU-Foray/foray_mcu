@@ -9,6 +9,8 @@
 foray_mcu/
 ├── .git/                     main 分支；tag baseline/a2cfd16；origin = GitHub ZQU-Foray/foray_mcu；legacy remote（ControllerCode 历史）
 ├── .gitignore / .gitattributes / .clang-format / .clang-tidy   仓库规则、格式与命名配置
+├── .foray-layer / CODEOWNERS  组织合规件（layer: MCU；@ZQU-Foray/电控组）
+├── .github/workflows/ci.yml   CI 第一版：lint-c 增量、宿主测试、legacy 固件 Release SHA 闸门
 ├── README.md / AGENTS.md / plan.md / tree.md / decision.md   五件套
 ├── legacy/                   迁移源 ControllerCode a2cfd16 原样副本（P0–P2.5 只做机械搬出）
 │   ├── Application/          业务层：任务、IMU、模块、启动入口
@@ -31,7 +33,7 @@ foray_mcu/
     ├── reviews/2026-10-25-foray_mcu-架构评审报告.md          v1.0（已确认）
     ├── reviews/archive/                                      v0.1–v0.4 原文存档
     ├── decisions/2026-10-25-迁移基线与对照.md               基线数据、SHA、工具链、P0 复核记录、芯片 Flash 存档记录
-    └── decisions/baseline-a2cfd16/                          基线符号表与段表（nm -S / size -A，Debug 与 Release）
+    └── decisions/baseline-a2cfd16/                          基线符号表与段表（nm -S / size -A）、SHA256SUMS
 ```
 
 **事实**：本仓已建 git 并推送到 GitHub，迁移源在 `legacy/`，可在 `legacy/Platform/STM32H7/DM_MC02` 构建（P0 已复现，SHA-256 与基线一致）；还没有根 `CMakeLists.txt`；宿主测试已恢复到 `test/host/`（独立工程，直接编译 `legacy/` 源码）；其余目标结构目录仍是空骨架。
@@ -131,6 +133,7 @@ foray_mcu/
 | 板级生成区（CubeMX） | `platform/<vendor>/<mcu>/<board>/cubemx/` | 🟡 待迁移 |
 | 板级手写适配（Port） | `platform/<vendor>/<mcu>/<board>/port/` | 🟡 待迁移 |
 | 宿主测试 | `test/host/`（从 ControllerCode `fd1edbb` 恢复） | ✅ 已恢复（P0 独立工程，13 项全绿；`ImuStream` 待重写） |
+| 组织合规件 | `.foray-layer`、`CODEOWNERS`、`.github/workflows/ci.yml` | ✅ 已落地（P0，CI 第一版，见 Decision-20261026-01） |
 | 链路协议生成头 | `src/third_party/foray_interfaces/generated/lower_link.hpp` | 🟡 待 vendor |
 | 架构评审 | `docs/reviews/`（v1.0；旧版在 `archive/`） | ✅ 已确认 |
 | 迁移基线证据 | `docs/decisions/2026-10-25-迁移基线与对照.md`、`docs/decisions/baseline-a2cfd16/`、`docs/assets/controller_code-固件恢复可行性评估.md` | ✅ P0 已复核（SHA 一致，符号表入档） |
