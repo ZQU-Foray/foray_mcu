@@ -35,4 +35,7 @@ void Adapter::ClearCommands() noexcept {
   ++clears;
   staged = {};
 }
+float Adapter::MaximumTorqueNewtonMeter() const noexcept {
+  return ready ? maximumTorque : 0.0F;
+}
 } // namespace mock

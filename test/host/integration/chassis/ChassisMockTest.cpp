@@ -1,5 +1,5 @@
 #include "Application/Task/1_chassis/ChassisTask.hpp"
-#include "MockMotor.hpp"
+#include "support/MockMotor.hpp"
 #include <cassert>
 #include <cmath>
 #include <string>
@@ -69,5 +69,7 @@ int main(int argc, char **argv) {
   }
   assert(Task::Init());
   assert(Task::Init());
+  // a2cfd16 起底盘上电默认失能、由上层使能（Run 不再自行使能），这里模拟上层使能。
+  Task::SetEnabled(true);
   Task::Run(nullptr);
 }

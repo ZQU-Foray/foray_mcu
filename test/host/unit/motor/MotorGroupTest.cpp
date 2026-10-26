@@ -1,6 +1,6 @@
 #include "Libraries/Device/motor/dji/DjiMotorModelMap.hpp"
 #include "Libraries/Device/motor/MotorGroup.hpp"
-#include "Tests/Motor/Support/DjiPlatformStub.hpp"
+#include "support/DjiPlatformStub.hpp"
 #include <cmath>
 #include <type_traits>
 

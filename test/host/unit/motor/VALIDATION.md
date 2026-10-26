@@ -1,3 +1,5 @@
+> 历史记录：从 ControllerCode `fd1edbb` 原样恢复，记录的是迁移源当时的验证过程，文中路径、命令与固件资源数据对应旧工程，不代表当前基线。当前运行方式见 [../../README.md](../../README.md)。
+
 # 移除后端转发层验证
 
 MotorGroup 不再经由 detail::MotorBackend 转发，直接持有编译期选定的品牌适配器。

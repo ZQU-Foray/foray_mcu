@@ -1,3 +1,5 @@
+> 历史记录：从 ControllerCode `fd1edbb` 原样恢复。构建命令已改为 `test/host` 统一工程（见 [../../README.md](../../README.md)，ctest 名称 `bmi088_acquisition`）；文中提到的 `Tests/backups/` 在迁移源中已丢失。
+
 # DRDY/DMA acquisition regression
 
 Build this directory as a standalone native CMake project and run CTest:

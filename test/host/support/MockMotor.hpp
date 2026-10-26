@@ -11,6 +11,8 @@ inline bool readFailure{false}, commandFailure{false};
 inline unsigned processes{0}, clears{0}, writes{0};
 inline std::array<float, 4> staged{}, sent{};
 inline bool ready{false};
+// 输出轴最大力矩能力（N·m）；默认取底盘所用 M2006/C610 的 10 A × 0.18 N·m/A。
+inline float maximumTorque{1.8F};
 
 // 最小非 DJI 适配器：与 DjiMotorAdapter 同契约，直连全局测试观测量。
 class Adapter final {
@@ -29,6 +31,8 @@ public:
                                device::MotorState &state) const noexcept;
   [[nodiscard]] bool SetTorque(std::size_t id, float value) noexcept;
   void ClearCommands() noexcept;
+  // 与 DjiMotorAdapter 同语义：Init 成功后返回能力值，未就绪返回 0。
+  [[nodiscard]] float MaximumTorqueNewtonMeter() const noexcept;
   [[nodiscard]] const Config &GetConfig() const noexcept { return config_; }
 
 private:

@@ -1,4 +1,4 @@
-#include "Tests/Motor/Support/DjiPlatformStub.hpp"
+#include "support/DjiPlatformStub.hpp"
 #include <initializer_list>
 
 void Check(std::initializer_list<std::uint16_t> angles, std::int32_t expected) {

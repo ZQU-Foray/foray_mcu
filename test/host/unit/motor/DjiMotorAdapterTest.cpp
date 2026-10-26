@@ -1,4 +1,4 @@
-#include "Tests/Motor/Support/DjiPlatformStub.hpp"
+#include "support/DjiPlatformStub.hpp"
 #include "Libraries/Device/motor/dji/DjiMotorAdapter.hpp"
 #include <cmath>
 #include <limits>
@@ -45,7 +45,8 @@ int main() {
   FeedRx(0x202, {0x18,0x00,0x0E,0x10,0,0,0,0}); // +90 rotor deg
   adapter.Process();
   assert(adapter.ReadState(0, state) && std::fabs(state.angleDegrees + 2.5F) < 1e-6F);
-  timeStub.ticks = 110;
+  // a2cfd16 把离线超时从 10 ms 调为 50 ms；引用常量，仍验证"恰好到超时即离线"。
+  timeStub.ticks = 100U + device::DjiMotor::LinkTimeoutMs;
   adapter.Process();
   assert(adapter.ReadState(0, state) && !state.online && state.feedbackValid);
   ResetRx();
