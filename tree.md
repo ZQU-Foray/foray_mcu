@@ -27,7 +27,7 @@ foray_mcu/
 ├── tool/                     空
 └── docs/
     ├── README.md                docs 索引
-    ├── architecture.md          分层判据与依赖规则（占位，P0 完善）
+    ├── architecture.md          分层判据、依赖规则、例外登记表（v1）
     ├── assets/controller_code-架构图.png                    迁移源架构图（PNG 内嵌 5 页）
     ├── assets/controller_code-固件恢复可行性评估.md          迁移源基线证据（未入 git 的工作区文件转存）
     ├── reviews/2026-10-25-foray_mcu-架构评审报告.md          v1.0（已确认）
