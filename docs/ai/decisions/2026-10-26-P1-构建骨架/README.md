@@ -18,7 +18,7 @@ cmake --preset host-tests && cmake --build --preset host-tests && ctest --preset
 
 ## target 与源码归属
 
-每个 legacy 文件都明确归属于一个 target（头文件也列入），P2 按这份归属搬迁。
+每个 legacy 文件都明确归属于一个 target（头文件也列入），P2 按这份归属搬迁。CMake 文件按层组织：一层的全部 target 写在该层的一个 `CMakeLists.txt` 里，手写的共 7 个（根、`src/`、`app/`、`config/`、`platform/st/stm32h7/board_dm/`、`platform/mock/`、`test/host/`）。P1 初版曾按子目录各放一个（共 14 个），按负责人意见合并；合并前后依赖图（节点、边与可见性）与 Debug、Release、宿主三套编译数据库的每条编译命令逐字相同，符号对照与 14 项测试照常通过。
 
 | 层 | target | 迁移期来源（`legacy/` 下） | P2/P2.5 目标位置 |
 |---|---|---|---|

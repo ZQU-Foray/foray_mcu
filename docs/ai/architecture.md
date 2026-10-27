@@ -121,6 +121,7 @@ EXECUTABLE test_<name>  →  被测 target + STATIC platform_mock + ctest
 - `platform_mock` 用 C++ 实现 `hal` 与 `hal_os`，只供宿主测试；它是测试替身，不构成 `src` 对 `platform` 的依赖。
 - **port 与 board 用 OBJECT 库，不用 STATIC**：port 中有覆盖 HAL 弱符号的回调。静态库里的目标文件只在有未解析引用时才被拉入，回调单独成文件后会被静默丢弃，中断回调退化成 HAL 的空实现。也可以用 CMake 3.24+ 的 `$<LINK_LIBRARY:WHOLE_ARCHIVE,...>`。
 - target 名不带项目前缀（Decision-20261026-06）。`<profile>` 是 profile 目录名（如 `baseline`），`<board>` 是板标识（如 `dm_mc02`，见各板 `board.cmake`）。
+- CMake 文件按层组织：一层的全部 target 定义在该层的一个 `CMakeLists.txt` 里（根、`src/`、`app/`、`config/`、每块板、`platform/mock`、`test/host`），子目录不各放一个；拆分先登记（Decision-20261026-07）。
 - OBJECT 库只有被直接链接时目标文件才进入最终链接；间接依赖的 OBJECT 库（port 下的生成区、assembly 下的 board）用 `cmake/targets.cmake` 的 `link_object_library()` 把目标文件传到固件（Decision-20261026-07）。
 
 **P1 的实际状态**（2026-10-26）：上图除 `msg`、`middleware_<svc>`（P3b/P4 才有内容）外都已建立，源码仍在 `legacy/` 原地。另有迁移期过渡件：`hal_detail`（X-07）、`legacy_include`（X-11）、`legacy_build_options`（X-14）、`portkit`（X-15）；`app_tasks` 是任务外壳的 target（`app/tasks`）。CI 用 `tool/ci/arch_check.py graph` 检查实际依赖图，迁移期放行的边在脚本中逐条注明。

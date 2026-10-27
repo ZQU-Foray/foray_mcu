@@ -24,6 +24,7 @@
 - **禁止手写链路协议编解码**：链路协议只允许使用 `foray_interfaces` 生成的 `generated/lower_link.hpp`（vendor 到 `src/third_party/`，带版本与 sha256）。
 - 禁止引入反向/跨层依赖：`app → platform 实现`、`src → platform/app/config`、任何层 → 厂商 HAL/RTOS 头。**例外**：`src/hal` 契约头本身不得出现 HAL/RTOS 类型；`platform` 实现 `src/hal` 时可以使用厂商头。规则以评审报告 §5 与 [docs/ai/architecture.md](docs/ai/architecture.md) 为准；后者是分层判据、16 条依赖规则与例外登记表的人读入口（v1，Decision-20261026-02）。
 - 禁止 `file(GLOB)` 收集业务源码；禁止全局 `include_directories()`；禁止把仓库根加入 include 路径。
+- CMake 文件按层组织：一层的全部 target 写在该层的一个 `CMakeLists.txt` 里（根、`src/`、`app/`、`config/`、每块板、`platform/mock`、`test/host`），不在子目录里各放一个；需要拆分时先在 [decision.md](decision.md) 登记（Decision-20261026-07）。
 - 禁止在 `app/` 与 `src/` 代码中用 `#if` 兵种/能力宏做裁剪（能力用 target/装配表达；`#if` 只允许出现在生成头与 platform 适配层）。
 - 框架（`src/`、`platform/`、`cmake/`）不得引用产品（`app/`、`config/`）的路径或 target；`src/` 零 RTOS，需要临界区或时间时只经 `src/hal/os` 最小契约。
 - 框架代码不直接使用 `std::atomic` 的 `fetch_*` / `exchange` / `compare_exchange_*`（Cortex-M0+ 不支持无锁实现），改用 `src/utils` 并发原语。

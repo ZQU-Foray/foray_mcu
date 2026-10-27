@@ -19,13 +19,13 @@ foray_mcu/
 │   ├── toolchains/           arm-gcc-cortex-m7、arm-gcc-cortex-m4f、host（-m4f 尚无使用者，P3a 用）
 │   ├── targets.cmake         严格告警、OBJECT 库目标文件传递、固件产物、烧录目标
 │   └── legacy.cmake          迁移期过渡件：legacy_include（P2 删）、legacy_build_options（P3b 删）
-├── src/                      框架 target：hal、hal_detail、hal_os、boot、utils、lib_*、driver_*
-│   ├── hal/os/               最小 OS 契约草案（clock.hpp、critical_section.hpp），唯一已搬入的代码
-│   └── {hal,boot,utils,lib,driver}/CMakeLists.txt   源码仍引用 legacy/ 路径
-├── app/CMakeLists.txt        产品 target：app_imu、app_chassis、app_gimbal、app_remote、app_tasks、app_common
+├── src/
+│   ├── CMakeLists.txt        框架的全部 target：hal、hal_detail、hal_os、boot、utils、lib_*、driver_*（源码仍引用 legacy/ 路径）
+│   └── hal/os/               最小 OS 契约草案（clock.hpp、critical_section.hpp），唯一已搬入的代码
+├── app/CMakeLists.txt        产品的全部 target：app_imu、app_chassis、app_gimbal、app_remote、app_tasks、app_common
 ├── config/
-│   ├── profiles/baseline/profile.cmake   a2cfd16 基线固件（DM-MC02）；profiles/profile.hpp.in 生成 profile.hpp
-│   └── assembly/CMakeLists.txt           assembly_baseline（迁移期为 legacy/Application/Entry.cpp）
+│   ├── CMakeLists.txt        profile_baseline、assembly_baseline（迁移期为 legacy/Application/Entry.cpp）
+│   └── profiles/             baseline/profile.cmake（a2cfd16 基线固件，DM-MC02）；profile.hpp.in 生成 profile.hpp
 ├── platform/
 │   ├── st/stm32h7/board_dm/  board.cmake（板标识 dm_mc02）+ CMakeLists.txt（mx_generated、rtos、usb、portkit、port、board、os_freertos）
 │   └── mock/                 platform_mock：hal_os 的宿主替身
@@ -57,6 +57,7 @@ foray_mcu/
 ```
 
 **事实**：
+- CMake 文件按层组织：手写的 `CMakeLists.txt` 共 7 个（根、`src/`、`app/`、`config/`、每块板一个、`platform/mock`、`test/host`），一层的全部 target 定义在该层的文件里（Decision-20261026-07）；
 - 根工程按目标结构组织 target，固件 `firmware_baseline` 与迁移源构建的符号集合一致（P1 验收）；
 - 源码仍在 `legacy/` 原地编译，P2 起搬到 `src/`、`app/`、`config/`、`platform/`；
 - `src/msg`、`src/middleware`、`src/third_party`、`app/` 下的能力目录与 `platform/st/stm32f4` 等尚未建立，按阶段落地。
@@ -94,7 +95,7 @@ foray_mcu/
 │   │   │   ├── cubemx/           生成物 only：Core/ Drivers/ Middlewares/ USB_DEVICE/ .ioc/ startup/ .ld
 │   │   │   ├── port/             手写 C++：实现 src/hal 与 src/hal/os（原 Platform/.../Port，P3a 由 C 改写；OBJECT 库）
 │   │   │   ├── board/            pinmap、时钟、能力常量、设备 ID、board bring-up、link/overlay.ld（OBJECT 库）
-│   │   │   └── CMakeLists.txt    手写；add_subdirectory(cubemx)
+│   │   │   └── CMakeLists.txt    手写；本板全部 target（cubemx 生成物、port、board、os_freertos），每块板一个
 │   │   └── stm32f4/board_c/      第二块板（P3a，验证契约 v1）
 │   ├── ti/
 │   │   ├── tm4c/、am26x/         Cortex-M4F / Cortex-R5F（P4 起按需）
