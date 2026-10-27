@@ -2,7 +2,7 @@
 
 > **下位机（MCU）固件** · owner 角色：电控组
 > `layer: MCU` —— **不在 L1–L5 分层内**，位于 L2 下行 HAL **之下**
-> 当前状态：🟡 **结构重构 P0、P0.5、P1、P2、P2.5 已验收，下一步 P3a 框架化与契约 v1**（源码已全部搬到 `src/`、`app/`、`config/`、`platform/`，`legacy/` 只剩迁移源 README 与架构图）
+> 当前状态：🟡 **P0–P2.5 已验收；2026-10-27 起按架构 v2 重建，先建框架（F1–F4），框架验收后再重建能力**（Decision-20261027-01）
 
 ## 1. 本仓是什么
 
@@ -11,24 +11,24 @@ RoboMaster 多兵种、多开发板的 MCU 下位机固件。本仓以 `Controll
 - 迁移源基线：`ControllerCode` `main` @ `a2cfd16`（2026-10-23，19 个提交，git 跟踪 333 个文件，项目自有代码约 2.3 万行）。
 - 目标平台：STM32H723（DM-MC02，主力，先行）、STM32F407（RM C 板）、TI TM4C / AM26x（按需）；`src/` + `platform/` 作为可复用框架，另供 MSPM0 等小项目（大概率裸机）使用。
 - 当前状态：基线 tag `baseline/a2cfd16`。根工程（P1）按目标结构建立了 target，用 profile `baseline` 构建出的固件与迁移源构建的符号集合一致；宿主测试由根工程引入（14 项 ctest，见 [test/host/README.md](test/host/README.md)）。P2、P2.5 已把全部源码搬到 `src/`、`app/`、`config/`、`platform/`，`src/lib` 去掉了 `alg_` 前缀，固件符号与迁移源一致（命名空间按改名表换算）。
-- 结构方案与完整评审材料：**[docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md](docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md)**。
-- 方案已确认（[decision.md](decision.md) Decision-20261025-01 至 -05），执行计划与进度见 [plan.md](plan.md)。
+- 架构：**[docs/ai/architecture.md](docs/ai/architecture.md) v2**（按负责人骨架重建，Decision-20261027-01）；执行计划与进度见 [plan.md](plan.md)。
+- 评审报告 [docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md](docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md) v1.0 是历史记录，与架构 v2 冲突处以 v2 为准。
 
-## 2. 目标结构（已确认，按阶段实施）
+## 2. 目标结构（架构 v2，按阶段实施）
 
 | 目录 | 职责 | 目标依赖方向 |
 |---|---|---|
-| `app/` | 业务能力实现：imu / chassis / gimbal / remote / link / launch … 与任务薄壳；**每个能力一个 target** | → `src/` 的契约与公共库；**禁止**依赖 `platform/` 实现与 `config/assembly` |
-| `config/` | 装配根，拆两个角色：`profiles/<profile>/` 是纯数据（能力集合、参数、板卡，INTERFACE）；`assembly/` 是组合根（任务表、对象构造、启动入口，STATIC） | `assembly` → `profile` + `app` + `platform/board`；`profile` 为叶子，不依赖任何代码 |
-| `platform/` | 平台层：`<vendor>/<mcu>/<board>/{cubemx,port,board}`；`mock/` 供宿主测试 | → `src/hal` 契约（用 C++ 实现）；**禁止**依赖 app/config；**禁止**把 HAL/CMSIS/FreeRTOS 类型放进公共头 |
-| `src/` | 通用框架：`hal`（C++ 契约 + 最小 OS 契约 + boot 契约）、`lib`（纯算法/组件）、`driver`（设备与设备协议）、`msg`（最新值邮箱/SPSC 队列）、`middleware`、`utils`（含并发原语）、`third_party` | 层内依赖见评审报告 §5.7；**禁止**依赖 platform/app/config/RTOS/HAL；必须能独立构建、能裸机构建 |
+| `app/` | 业务能力：imu / chassis / gimbal / remote / launch / link …，**每个能力一个 target**，只提供 init/step、零 RTOS；`topics/` 集中定义产品的全部 topic；`common/` 是任务运行器 | → `src/`；能力之间只经 topic；**禁止**依赖 `platform/` 与 `config/` |
+| `config/` | `profiles/<兵种>_<板>/`：选板、选能力（`profile.cmake`）与 constexpr 参数（`params.hpp`）；`assembly/`：组合根（构造对象、注入参数、任务表、启动入口） | `assembly` → `profile` + `app` + `platform/<板>/board`；只有固件链接 assembly |
+| `platform/` | 按板一级：`<板>/{cubemx,port,board}`；`mock/` 供宿主测试 | → `src/hal` 契约（用 C++ 实现）；**禁止**依赖 app/config；**禁止**把 HAL/CMSIS/FreeRTOS 类型放进公共头 |
+| `src/` | 通用框架：`hal`（硬件契约 + `os`）、`boot`、`utils`（无领域含义的基础件）、`topic`（发布/订阅机制）、`lib`（领域算法）、`driver`（设备与设备协议）、`third_party` | 层内依赖见架构 v2 §2.3；**禁止**依赖 platform/app/config/RTOS/HAL；必须能独立构建、能裸机构建 |
 | `test/` | 宿主单元/集成测试（ctest），链接 `platform/mock`；**必须入库** | → 被测 target + `platform/mock`；**不进固件链接图** |
 | `tool/` | 烧录、调试、数据回放、代码生成、CI 脚本 | 无构建期依赖；不得再被 `.gitignore` 排除 |
 | `docs/` | 架构、评审、迁移、决策与证据链 | — |
 
-CMake target 图与"禁止依赖"规则见 [docs/ai/architecture.md](docs/ai/architecture.md)（target 名不带项目前缀，Decision-20261026-06）。
+CMake target 图、关键机制（hal、hal/os、boot、topic、任务模型、profile）与依赖规则见 [docs/ai/architecture.md](docs/ai/architecture.md)（target 名不带项目前缀，Decision-20261026-06）。
 
-**语言**：主语言 C++17（`-fno-rtti -fno-exceptions -fno-threadsafe-statics`，无堆分配）；C 只用于三处外部强制的接缝：CubeMX 生成区调用的启动入口、覆盖 HAL 弱符号的回调、生成区里的中断入口（评审报告 §5.11）。命名按 ROS 2 C++ 风格，格式按组织规则（4 空格、LF、UTF-8），分别由根目录 `.clang-tidy` 与 `.clang-format` 执行（评审报告 §5.12）。
+**语言**：主语言 C++17（`-fno-rtti -fno-exceptions -fno-threadsafe-statics`，无堆分配）；C 只用于外部强制的接缝：CubeMX 生成区调用的启动入口、覆盖 HAL 弱符号的回调、生成区里的中断入口（架构 v2 §9.3）。命名按 ROS 2 C++ 风格，格式按组织规则（4 空格、LF、UTF-8），分别由根目录 `.clang-tidy` 与 `.clang-format` 执行（评审报告 §5.12）。
 
 ## 3. 构建
 
@@ -43,7 +43,7 @@ cmake --preset host-tests  && cmake --build --preset host-tests && ctest --prese
 ```
 
 - 唯一的开关是 `-DPROFILE=<名称>`（preset 中为 `baseline`，即 a2cfd16 基线固件 × DM-MC02）；板卡由 profile 声明，工具链在 `cmake/toolchains/`。本机路径（工具链、Windows 上的宿主编译器）写在 `CMakeUserPresets.json`，不入库。
-- 其他兵种的 profile 在 P3b 建立：`cmake -S . -B build/<目录> --toolchain cmake/toolchains/<工具链>.cmake -DPROFILE=<名称>`。
+- 兵种 profile 在阶段 A（能力重建）建立：`cmake -S . -B build/<目录> --toolchain cmake/toolchains/<工具链>.cmake -DPROFILE=<名称>`。
 - 迁移源自带的构建已在 P2 删除；固件不改行为的证据是符号集合与 P1 存档一致（CI 的 `firmware` 作业）。
 - 迁移验收用的基线对照（ControllerCode 可复现构建实测，2026-10-26 在本仓复现一致）：Debug `.bin` **238,320 B**，Release `.bin` **100,664 B**；SHA-256、工具链版本、符号表与对照判据见 [docs/ai/decisions/2026-10-25-迁移基线与对照.md](docs/ai/decisions/2026-10-25-迁移基线与对照.md)（证据来源已转存 [docs/ai/assets/controller_code-固件恢复可行性评估.md](docs/ai/assets/controller_code-固件恢复可行性评估.md)）。
 
@@ -56,7 +56,7 @@ cmake --preset host-tests  && cmake --build --preset host-tests && ctest --prese
 
 ## 5. 下位机安全职责（硬路径）
 
-链路失联后的安全必须由本仓自主保证，不依赖上位机。以下职责继承自 `ControllerCode`，**当前尚未实现**（列入 [plan.md](plan.md) P4）：
+链路失联后的安全必须由本仓自主保证，不依赖上位机。以下职责继承自 `ControllerCode`，**当前尚未实现**（列入 [plan.md](plan.md) 阶段 A）：
 
 | 失联时长 | 动作 |
 |---|---|
