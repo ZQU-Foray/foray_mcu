@@ -1,7 +1,7 @@
 #ifndef PLATFORM_STM32H7_DM_MC02_PORT_USB_CDC_H
 #define PLATFORM_STM32H7_DM_MC02_PORT_USB_CDC_H
 
-#include "Detail/UsbCdc.h"
+#include "hal/detail/usb_cdc.h"
 
 #ifdef __cplusplus
 extern "C"

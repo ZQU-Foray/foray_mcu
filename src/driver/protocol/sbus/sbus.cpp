@@ -1,4 +1,4 @@
-#include "Libraries/Protocol/sbus/Sbus.hpp"
+#include "driver/protocol/sbus/sbus.hpp"
 
 namespace protocol
 {

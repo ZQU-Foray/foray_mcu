@@ -1,8 +1,8 @@
-#include "Application/Task/1_chassis/ChassisTask.hpp"
-#include "Application/Task/1_chassis/ChassisController.hpp"
-#include "Libraries/Device/motor/MotorGroup.hpp"
-#include "Libraries/Device/motor/dji/DjiMotorModelMap.hpp"
-#include "Platform/Interface/Time.hpp"
+#include "tasks/chassis_task.hpp"
+#include "chassis/chassis_controller.hpp"
+#include "driver/motor/motor_group.hpp"
+#include "driver/motor/dji/dji_motor_model_map.hpp"
+#include "hal/time.hpp"
 #include "cmsis_os2.h"
 
 namespace application::task

@@ -1,5 +1,5 @@
-#ifndef APPLICATION_TASK_IMU_TASK_HPP
-#define APPLICATION_TASK_IMU_TASK_HPP
+#ifndef TASKS_IMU_TASK_HPP
+#define TASKS_IMU_TASK_HPP
 
 namespace application::task
 {

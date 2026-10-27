@@ -1,10 +1,10 @@
-#ifndef LIBRARIES_ALGORITHM_ALG_ESTIMATE_VQF_H
-#define LIBRARIES_ALGORITHM_ALG_ESTIMATE_VQF_H
+#ifndef LIB_ALG_ESTIMATE_VQF_HPP
+#define LIB_ALG_ESTIMATE_VQF_HPP
 
-#include "Libraries/Algorithm/alg_filter/ButterworthLowPass.hpp"
-#include "Libraries/Algorithm/alg_math/Matrix3.h"
-#include "Libraries/Algorithm/alg_math/Quaternion.h"
-#include "Libraries/Algorithm/alg_math/Vector3.h"
+#include "lib/alg_filter/butterworth_low_pass.hpp"
+#include "lib/alg_math/matrix3.hpp"
+#include "lib/alg_math/quaternion.hpp"
+#include "lib/alg_math/vector3.hpp"
 #include <cstdint>
 
 namespace alg_estimate
@@ -243,4 +243,4 @@ class Vqf final
 
 } // namespace alg_estimate
 
-#endif // LIBRARIES_ALGORITHM_ALG_ESTIMATE_VQF_H
+#endif // LIB_ALG_ESTIMATE_VQF_HPP

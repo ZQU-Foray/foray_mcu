@@ -1,10 +1,10 @@
-#ifndef LIBRARIES_DEVICE_BMI088_BMI088_HEATER_HPP
-#define LIBRARIES_DEVICE_BMI088_BMI088_HEATER_HPP
+#ifndef DRIVER_BMI088_BMI088_HEATER_HPP
+#define DRIVER_BMI088_BMI088_HEATER_HPP
 
-#include "Libraries/Algorithm/alg_controller/Pid.h"
-#include "Libraries/Device/bmi088/Bmi088Temperature.hpp"
-#include "Platform/Interface/Pwm.hpp"
-#include "Platform/Interface/Time.hpp"
+#include "lib/alg_controller/pid.hpp"
+#include "driver/bmi088/bmi088_temperature.hpp"
+#include "hal/pwm.hpp"
+#include "hal/time.hpp"
 #include <cstdint>
 
 namespace device

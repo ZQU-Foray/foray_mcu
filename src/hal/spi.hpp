@@ -1,7 +1,7 @@
-#ifndef PLATFORM_INTERFACE_SPI_HPP
-#define PLATFORM_INTERFACE_SPI_HPP
+#ifndef HAL_SPI_HPP
+#define HAL_SPI_HPP
 
-#include "Detail/Spi.h"
+#include "hal/detail/spi.h"
 #include <array>
 #include <cstddef>
 #include <cstdint>

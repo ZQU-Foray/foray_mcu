@@ -1,5 +1,5 @@
-#ifndef PLATFORM_INTERFACE_DETAIL_CAN_H
-#define PLATFORM_INTERFACE_DETAIL_CAN_H
+#ifndef HAL_DETAIL_CAN_H
+#define HAL_DETAIL_CAN_H
 
 #include <stdbool.h>
 #include <stdint.h>

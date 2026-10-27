@@ -1,7 +1,7 @@
-#ifndef APPLICATION_REMOTE_RECEIVER_HPP
-#define APPLICATION_REMOTE_RECEIVER_HPP
+#ifndef REMOTE_REMOTE_RECEIVER_HPP
+#define REMOTE_REMOTE_RECEIVER_HPP
 
-#include "Libraries/Protocol/sbus/Sbus.hpp"
+#include "driver/protocol/sbus/sbus.hpp"
 #include <array>
 #include <cstddef>
 #include <cstdint>

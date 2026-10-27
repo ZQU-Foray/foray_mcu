@@ -1,5 +1,5 @@
-#include "Libraries/Algorithm/alg_estimate/QuaternionEkf.hpp"
-#include "Libraries/Algorithm/alg_math/BasicMath.h"
+#include "lib/alg_estimate/quaternion_ekf.hpp"
+#include "lib/alg_math/basic_math.hpp"
 #include <cmath>
 #include <cstddef>
 

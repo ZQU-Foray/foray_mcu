@@ -1,4 +1,4 @@
-#include "Detail/Pwm.h"
+#include "hal/detail/pwm.h"
 #include "tim.h"
 #include <stdint.h>
 

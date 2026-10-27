@@ -1,4 +1,4 @@
-#include "Libraries/Protocol/dji/DjiEsc.hpp"
+#include "driver/protocol/dji/dji_esc.hpp"
 
 #include <array>
 #include <cassert>

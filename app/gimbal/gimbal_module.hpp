@@ -1,8 +1,8 @@
-#ifndef APPLICATION_MODULE_GIMBAL_MODULE_HPP
-#define APPLICATION_MODULE_GIMBAL_MODULE_HPP
+#ifndef GIMBAL_GIMBAL_MODULE_HPP
+#define GIMBAL_GIMBAL_MODULE_HPP
 
-#include "Libraries/Algorithm/alg_controller/Pid.h"
-#include "Libraries/Component/AxisController.hpp"
+#include "lib/alg_controller/pid.hpp"
+#include "lib/component/axis_controller.hpp"
 #include <cstddef>
 #include <cstdint>
 
@@ -141,4 +141,4 @@ class GimbalModule final
 
 } // namespace application::module
 
-#endif // APPLICATION_MODULE_GIMBAL_MODULE_HPP
+#endif // GIMBAL_GIMBAL_MODULE_HPP

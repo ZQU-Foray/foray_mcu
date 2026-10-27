@@ -1,7 +1,7 @@
-#ifndef LIBRARIES_ALGORITHM_ALG_ESTIMATE_KALMAN_FILTER_HPP
-#define LIBRARIES_ALGORITHM_ALG_ESTIMATE_KALMAN_FILTER_HPP
+#ifndef LIB_ALG_ESTIMATE_KALMAN_FILTER_HPP
+#define LIB_ALG_ESTIMATE_KALMAN_FILTER_HPP
 
-#include "Libraries/Algorithm/alg_math/Matrix.h"
+#include "lib/alg_math/matrix.hpp"
 #include <cstddef>
 #include <cstdint>
 

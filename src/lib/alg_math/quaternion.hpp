@@ -1,7 +1,7 @@
-#ifndef LIBRARIES_ALGORITHM_ALG_MATH_QUATERNION_H
-#define LIBRARIES_ALGORITHM_ALG_MATH_QUATERNION_H
+#ifndef LIB_ALG_MATH_QUATERNION_HPP
+#define LIB_ALG_MATH_QUATERNION_HPP
 
-#include "Libraries/Algorithm/alg_math/Vector3.h"
+#include "lib/alg_math/vector3.hpp"
 
 namespace alg_math
 {

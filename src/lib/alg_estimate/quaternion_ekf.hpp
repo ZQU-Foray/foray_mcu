@@ -1,9 +1,9 @@
-#ifndef LIBRARIES_ALGORITHM_ALG_ESTIMATE_QUATERNION_EKF_HPP
-#define LIBRARIES_ALGORITHM_ALG_ESTIMATE_QUATERNION_EKF_HPP
+#ifndef LIB_ALG_ESTIMATE_QUATERNION_EKF_HPP
+#define LIB_ALG_ESTIMATE_QUATERNION_EKF_HPP
 
-#include "Libraries/Algorithm/alg_estimate/KalmanFilter.hpp"
-#include "Libraries/Algorithm/alg_math/Quaternion.h"
-#include "Libraries/Algorithm/alg_math/Vector3.h"
+#include "lib/alg_estimate/kalman_filter.hpp"
+#include "lib/alg_math/quaternion.hpp"
+#include "lib/alg_math/vector3.hpp"
 #include <cstdint>
 
 namespace alg_estimate

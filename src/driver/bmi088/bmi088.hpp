@@ -1,11 +1,11 @@
-#ifndef LIBRARIES_DEVICE_BMI088_BMI088_HPP
-#define LIBRARIES_DEVICE_BMI088_BMI088_HPP
+#ifndef DRIVER_BMI088_BMI088_HPP
+#define DRIVER_BMI088_BMI088_HPP
 
-#include "Libraries/Device/bmi088/Bmi088Accel.hpp"
-#include "Libraries/Device/bmi088/Bmi088Gyro.hpp"
-#include "Libraries/Device/bmi088/Bmi088SampleQueue.hpp"
-#include "Libraries/Device/bmi088/Bmi088Temperature.hpp"
-#include "Platform/Interface/Time.hpp"
+#include "driver/bmi088/bmi088_accel.hpp"
+#include "driver/bmi088/bmi088_gyro.hpp"
+#include "driver/bmi088/bmi088_sample_queue.hpp"
+#include "driver/bmi088/bmi088_temperature.hpp"
+#include "hal/time.hpp"
 #include <cstdint>
 
 namespace device

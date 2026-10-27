@@ -1,7 +1,7 @@
 // 非 DJI 品牌扩展机制验证：独立最小适配器 + 虚拟型号映射，不依赖任何
 // DJI 实现——本翻译单元只包含通用 MotorGroup.hpp，证明电机组与映射机制
 // 品牌无关。
-#include "Libraries/Device/motor/MotorGroup.hpp"
+#include "driver/motor/motor_group.hpp"
 #include <array>
 #include <cassert>
 #include <cmath>

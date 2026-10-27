@@ -1,8 +1,8 @@
-#ifndef LIBRARIES_COMPONENT_AXIS_CONTROLLER_HPP
-#define LIBRARIES_COMPONENT_AXIS_CONTROLLER_HPP
+#ifndef LIB_COMPONENT_AXIS_CONTROLLER_HPP
+#define LIB_COMPONENT_AXIS_CONTROLLER_HPP
 
-#include "Libraries/Algorithm/alg_controller/Pid.h"
-#include "Libraries/Algorithm/alg_math/BasicMath.h"
+#include "lib/alg_controller/pid.hpp"
+#include "lib/alg_math/basic_math.hpp"
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -470,4 +470,4 @@ template <std::size_t AxisCount> class AxisController final
 
 } // namespace component
 
-#endif // LIBRARIES_COMPONENT_AXIS_CONTROLLER_HPP
+#endif // LIB_COMPONENT_AXIS_CONTROLLER_HPP

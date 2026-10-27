@@ -1,8 +1,8 @@
-#ifndef LIBRARIES_DEVICE_BMI088_BMI088_ACCEL_HPP
-#define LIBRARIES_DEVICE_BMI088_BMI088_ACCEL_HPP
+#ifndef DRIVER_BMI088_BMI088_ACCEL_HPP
+#define DRIVER_BMI088_BMI088_ACCEL_HPP
 
-#include "Libraries/Device/bmi088/Bmi088Transfer.hpp"
-#include "Platform/Interface/Time.hpp"
+#include "driver/bmi088/bmi088_transfer.hpp"
+#include "hal/time.hpp"
 #include <array>
 #include <cstddef>
 #include <cstdint>

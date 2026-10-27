@@ -1,5 +1,5 @@
-#include "Libraries/Algorithm/alg_estimate/ImuBodyMapping.hpp"
-#include "Libraries/Algorithm/alg_math/BasicMath.h"
+#include "lib/alg_estimate/imu_body_mapping.hpp"
+#include "lib/alg_math/basic_math.hpp"
 
 namespace alg_estimate
 {

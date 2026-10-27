@@ -1,8 +1,8 @@
-#ifndef LIBRARIES_DEVICE_BMI088_TRANSFER_HPP
-#define LIBRARIES_DEVICE_BMI088_TRANSFER_HPP
+#ifndef DRIVER_BMI088_BMI088_TRANSFER_HPP
+#define DRIVER_BMI088_BMI088_TRANSFER_HPP
 
-#include "Platform/Interface/Spi.hpp"
-#include "Platform/Interface/Time.hpp"
+#include "hal/spi.hpp"
+#include "hal/time.hpp"
 #include <atomic>
 
 namespace device

@@ -1,11 +1,11 @@
-#include "Application/Task/0_imu/ImuTask.hpp"
+#include "tasks/imu_task.hpp"
 #include "Application/Imu/AttitudeEstimator.hpp"
 #include "Application/Imu/GyroBiasCalibration.hpp"
 #include "Application/Imu/ImuDiagnostics.hpp"
-#include "Application/Task/0_imu/ImuDataReadyMailbox.hpp"
-#include "Libraries/Device/bmi088/Bmi088.hpp"
-#include "Libraries/Device/bmi088/Bmi088Heater.hpp"
-#include "Platform/Interface/Gpio.hpp"
+#include "tasks/imu_data_ready_mailbox.hpp"
+#include "driver/bmi088/bmi088.hpp"
+#include "driver/bmi088/bmi088_heater.hpp"
+#include "hal/gpio.hpp"
 #include "cmsis_os2.h"
 #include <atomic>
 #include <cstdint>

@@ -1,7 +1,7 @@
-#ifndef PLATFORM_INTERFACE_PWM_HPP
-#define PLATFORM_INTERFACE_PWM_HPP
+#ifndef HAL_PWM_HPP
+#define HAL_PWM_HPP
 
-#include "Detail/Pwm.h"
+#include "hal/detail/pwm.h"
 #include <cstdint>
 
 namespace platform

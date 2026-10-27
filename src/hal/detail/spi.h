@@ -1,5 +1,5 @@
-#ifndef PLATFORM_INTERFACE_DETAIL_SPI_H
-#define PLATFORM_INTERFACE_DETAIL_SPI_H
+#ifndef HAL_DETAIL_SPI_H
+#define HAL_DETAIL_SPI_H
 
 #include <stdbool.h>
 #include <stdint.h>

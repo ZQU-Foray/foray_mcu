@@ -1,7 +1,7 @@
-#ifndef PLATFORM_INTERFACE_CAN_HPP
-#define PLATFORM_INTERFACE_CAN_HPP
+#ifndef HAL_CAN_HPP
+#define HAL_CAN_HPP
 
-#include "Detail/Can.h"
+#include "hal/detail/can.h"
 #include <array>
 #include <cstddef>
 #include <cstdint>

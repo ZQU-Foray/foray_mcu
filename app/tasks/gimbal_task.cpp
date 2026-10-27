@@ -1,7 +1,7 @@
-#include "Application/Task/2_gimbal/GimbalTask.hpp"
-#include "Libraries/Device/motor/MotorGroup.hpp"
-#include "Libraries/Device/motor/dji/DjiMotorModelMap.hpp"
-#include "Platform/Interface/Time.hpp"
+#include "tasks/gimbal_task.hpp"
+#include "driver/motor/motor_group.hpp"
+#include "driver/motor/dji/dji_motor_model_map.hpp"
+#include "hal/time.hpp"
 #include "cmsis_os2.h"
 
 namespace application::task

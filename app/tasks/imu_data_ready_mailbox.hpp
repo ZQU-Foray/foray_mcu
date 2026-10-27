@@ -1,7 +1,7 @@
-#ifndef APPLICATION_TASK_IMU_DATA_READY_MAILBOX_HPP
-#define APPLICATION_TASK_IMU_DATA_READY_MAILBOX_HPP
+#ifndef TASKS_IMU_DATA_READY_MAILBOX_HPP
+#define TASKS_IMU_DATA_READY_MAILBOX_HPP
 
-#include "Libraries/Device/bmi088/Bmi088SampleQueue.hpp"
+#include "driver/bmi088/bmi088_sample_queue.hpp"
 #include <atomic>
 
 namespace application::task

@@ -1,4 +1,4 @@
-#include "Libraries/Device/bmi088/Bmi088Temperature.hpp"
+#include "driver/bmi088/bmi088_temperature.hpp"
 
 namespace device
 {

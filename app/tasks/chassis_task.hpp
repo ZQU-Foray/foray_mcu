@@ -1,7 +1,7 @@
-#ifndef APPLICATION_TASK_CHASSIS_TASK_HPP
-#define APPLICATION_TASK_CHASSIS_TASK_HPP
+#ifndef TASKS_CHASSIS_TASK_HPP
+#define TASKS_CHASSIS_TASK_HPP
 
-#include "Application/Task/1_chassis/ChassisController.hpp"
+#include "chassis/chassis_controller.hpp"
 #include <cstdint>
 
 namespace application::task

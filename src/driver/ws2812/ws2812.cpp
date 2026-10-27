@@ -1,4 +1,4 @@
-#include "Libraries/Device/ws2812/Ws2812.hpp"
+#include "driver/ws2812/ws2812.hpp"
 
 namespace device
 {

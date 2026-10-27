@@ -1,4 +1,4 @@
-#include "Libraries/Device/buzzer/Buzzer.hpp"
+#include "driver/buzzer/buzzer.hpp"
 
 namespace device
 {

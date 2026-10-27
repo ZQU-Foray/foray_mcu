@@ -1,7 +1,7 @@
-#ifndef PLATFORM_INTERFACE_USB_CDC_HPP
-#define PLATFORM_INTERFACE_USB_CDC_HPP
+#ifndef HAL_USB_CDC_HPP
+#define HAL_USB_CDC_HPP
 
-#include "Detail/UsbCdc.h"
+#include "hal/detail/usb_cdc.h"
 #include <array>
 #include <cstddef>
 #include <cstdint>

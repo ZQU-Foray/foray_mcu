@@ -1,6 +1,6 @@
 #pragma once
-#include "Libraries/Device/motor/MotorGroup.hpp"
-#include "Platform/Interface/Can.hpp"
+#include "driver/motor/motor_group.hpp"
+#include "hal/can.hpp"
 #include <array>
 #include <cstddef>
 #include <cstdint>

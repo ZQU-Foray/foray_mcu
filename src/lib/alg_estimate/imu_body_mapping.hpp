@@ -1,9 +1,9 @@
-#ifndef LIBRARIES_ALGORITHM_ALG_ESTIMATE_IMU_BODY_MAPPING_HPP
-#define LIBRARIES_ALGORITHM_ALG_ESTIMATE_IMU_BODY_MAPPING_HPP
+#ifndef LIB_ALG_ESTIMATE_IMU_BODY_MAPPING_HPP
+#define LIB_ALG_ESTIMATE_IMU_BODY_MAPPING_HPP
 
-#include "Libraries/Device/bmi088/Bmi088Accel.hpp"
-#include "Libraries/Device/bmi088/Bmi088Gyro.hpp"
-#include "Libraries/Device/bmi088/Bmi088SampleQueue.hpp"
+#include "driver/bmi088/bmi088_accel.hpp"
+#include "driver/bmi088/bmi088_gyro.hpp"
+#include "driver/bmi088/bmi088_sample_queue.hpp"
 #include <array>
 #include <cstdint>
 

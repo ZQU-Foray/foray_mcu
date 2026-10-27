@@ -1,5 +1,5 @@
-#ifndef FILTER_H
-#define FILTER_H
+#ifndef LIB_ALG_FILTER_FILTER_HPP
+#define LIB_ALG_FILTER_FILTER_HPP
 
 #include <cstdint>
 

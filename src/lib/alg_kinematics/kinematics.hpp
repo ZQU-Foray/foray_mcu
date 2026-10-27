@@ -1,5 +1,5 @@
-#ifndef KINEMATICS_H
-#define KINEMATICS_H
+#ifndef LIB_ALG_KINEMATICS_KINEMATICS_HPP
+#define LIB_ALG_KINEMATICS_KINEMATICS_HPP
 
 #include <cstdint>
 

@@ -1,4 +1,4 @@
-#include "MockMotor.hpp"
+#include "support/mock_motor.hpp"
 #include <cmath>
 
 namespace mock

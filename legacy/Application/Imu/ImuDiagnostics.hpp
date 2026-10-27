@@ -1,7 +1,7 @@
 #ifndef APPLICATION_IMU_DIAGNOSTICS_HPP
 #define APPLICATION_IMU_DIAGNOSTICS_HPP
 
-#include "Libraries/Device/bmi088/Bmi088.hpp"
+#include "driver/bmi088/bmi088.hpp"
 
 namespace application
 {

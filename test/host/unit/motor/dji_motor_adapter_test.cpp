@@ -1,5 +1,5 @@
-#include "support/DjiPlatformStub.hpp"
-#include "Libraries/Device/motor/dji/DjiMotorAdapter.hpp"
+#include "support/dji_platform_stub.hpp"
+#include "driver/motor/dji/dji_motor_adapter.hpp"
 #include <cmath>
 #include <limits>
 

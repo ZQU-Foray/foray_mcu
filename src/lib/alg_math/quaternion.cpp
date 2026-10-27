@@ -1,4 +1,4 @@
-#include "Libraries/Algorithm/alg_math/Quaternion.h"
+#include "lib/alg_math/quaternion.hpp"
 #include <cmath>
 
 namespace alg_math

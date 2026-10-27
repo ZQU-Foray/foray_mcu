@@ -1,7 +1,7 @@
-#ifndef PLATFORM_INTERFACE_UART_HPP
-#define PLATFORM_INTERFACE_UART_HPP
+#ifndef HAL_UART_HPP
+#define HAL_UART_HPP
 
-#include "Detail/Uart.h"
+#include "hal/detail/uart.h"
 #include <array>
 #include <cstddef>
 #include <cstdint>

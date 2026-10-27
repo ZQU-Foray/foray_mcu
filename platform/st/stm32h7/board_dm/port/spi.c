@@ -1,4 +1,4 @@
-#include "Detail/Spi.h"
+#include "hal/detail/spi.h"
 #include "PortKit.h"
 #include "main.h"
 #include "spi.h"

@@ -1,7 +1,7 @@
-#ifndef LIBRARIES_DEVICE_MOTOR_MOTOR_HPP
-#define LIBRARIES_DEVICE_MOTOR_MOTOR_HPP
+#ifndef DRIVER_MOTOR_MOTOR_HPP
+#define DRIVER_MOTOR_MOTOR_HPP
 
-#include "Platform/Interface/Time.hpp"
+#include "hal/time.hpp"
 #include <cstddef>
 #include <cstdint>
 

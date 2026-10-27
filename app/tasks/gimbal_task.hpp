@@ -1,7 +1,7 @@
-#ifndef APPLICATION_TASK_GIMBAL_TASK_HPP
-#define APPLICATION_TASK_GIMBAL_TASK_HPP
+#ifndef TASKS_GIMBAL_TASK_HPP
+#define TASKS_GIMBAL_TASK_HPP
 
-#include "Application/Module/GimbalModule.hpp"
+#include "gimbal/gimbal_module.hpp"
 #include <cstdint>
 
 namespace application::task
@@ -78,4 +78,4 @@ class GimbalTask final
 
 } // namespace application::task
 
-#endif // APPLICATION_TASK_GIMBAL_TASK_HPP
+#endif // TASKS_GIMBAL_TASK_HPP

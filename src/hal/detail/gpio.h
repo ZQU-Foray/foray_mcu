@@ -1,5 +1,5 @@
-#ifndef PLATFORM_INTERFACE_DETAIL_GPIO_H
-#define PLATFORM_INTERFACE_DETAIL_GPIO_H
+#ifndef HAL_DETAIL_GPIO_H
+#define HAL_DETAIL_GPIO_H
 
 #include <stdbool.h>
 #include <stdint.h>

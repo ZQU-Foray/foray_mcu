@@ -1,5 +1,5 @@
-#ifndef PID_H
-#define PID_H
+#ifndef LIB_ALG_CONTROLLER_PID_HPP
+#define LIB_ALG_CONTROLLER_PID_HPP
 
 #include <cstdint>
 

@@ -1,5 +1,5 @@
-#ifndef PLATFORM_INTERFACE_DETAIL_TIME_H
-#define PLATFORM_INTERFACE_DETAIL_TIME_H
+#ifndef HAL_DETAIL_TIME_H
+#define HAL_DETAIL_TIME_H
 
 #include <stdbool.h>
 #include <stdint.h>

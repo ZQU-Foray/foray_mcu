@@ -1,7 +1,7 @@
-#ifndef LIBRARIES_DEVICE_MOTOR_MOTOR_GROUP_HPP
-#define LIBRARIES_DEVICE_MOTOR_MOTOR_GROUP_HPP
-#include "Libraries/Device/motor/Motor.hpp"
-#include "Platform/Interface/Can.hpp"
+#ifndef DRIVER_MOTOR_MOTOR_GROUP_HPP
+#define DRIVER_MOTOR_MOTOR_GROUP_HPP
+#include "driver/motor/motor.hpp"
+#include "hal/can.hpp"
 #include <array>
 #include <cstddef>
 #include <cstdint>

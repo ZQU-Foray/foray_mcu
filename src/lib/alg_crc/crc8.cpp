@@ -1,4 +1,4 @@
-#include "Crc8.h"
+#include "lib/alg_crc/crc8.hpp"
 #include <array>
 
 namespace alg_crc

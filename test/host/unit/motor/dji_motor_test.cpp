@@ -1,4 +1,4 @@
-#include "Libraries/Device/motor/dji/DjiMotor.hpp"
+#include "driver/motor/dji/dji_motor.hpp"
 
 #include <array>
 #include <cassert>

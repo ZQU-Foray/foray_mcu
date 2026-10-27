@@ -1,5 +1,5 @@
-#include "Libraries/Algorithm/alg_estimate/Vqf.hpp"
-#include "Libraries/Algorithm/alg_math/BasicMath.h"
+#include "lib/alg_estimate/vqf.hpp"
+#include "lib/alg_math/basic_math.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstddef>

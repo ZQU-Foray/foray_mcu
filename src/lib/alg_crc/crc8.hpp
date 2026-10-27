@@ -1,5 +1,5 @@
-#ifndef CRC8_H
-#define CRC8_H
+#ifndef LIB_ALG_CRC_CRC8_HPP
+#define LIB_ALG_CRC_CRC8_HPP
 
 #include <cstddef>
 #include <cstdint>

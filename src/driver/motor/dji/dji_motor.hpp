@@ -1,9 +1,9 @@
-#ifndef LIBRARIES_DEVICE_MOTOR_DJI_DJI_MOTOR_HPP
-#define LIBRARIES_DEVICE_MOTOR_DJI_DJI_MOTOR_HPP
+#ifndef DRIVER_MOTOR_DJI_DJI_MOTOR_HPP
+#define DRIVER_MOTOR_DJI_DJI_MOTOR_HPP
 
-#include "Libraries/Protocol/dji/DjiEsc.hpp"
-#include "Platform/Interface/Can.hpp"
-#include "Platform/Interface/Time.hpp"
+#include "driver/protocol/dji/dji_esc.hpp"
+#include "hal/can.hpp"
+#include "hal/time.hpp"
 #include <array>
 #include <atomic>
 #include <cstddef>

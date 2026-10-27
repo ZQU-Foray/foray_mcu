@@ -1,7 +1,7 @@
-#ifndef PLATFORM_INTERFACE_TIME_HPP
-#define PLATFORM_INTERFACE_TIME_HPP
+#ifndef HAL_TIME_HPP
+#define HAL_TIME_HPP
 
-#include "Detail/Time.h"
+#include "hal/detail/time.h"
 #include <cstdint>
 #include <limits>
 

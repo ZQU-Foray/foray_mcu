@@ -1,4 +1,4 @@
-#include "Slope.h"
+#include "lib/alg_slope/slope.hpp"
 #include <cmath>
 
 namespace

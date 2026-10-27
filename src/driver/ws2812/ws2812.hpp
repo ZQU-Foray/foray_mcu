@@ -1,7 +1,7 @@
-#ifndef LIBRARIES_DEVICE_WS2812_WS2812_HPP
-#define LIBRARIES_DEVICE_WS2812_WS2812_HPP
+#ifndef DRIVER_WS2812_WS2812_HPP
+#define DRIVER_WS2812_WS2812_HPP
 
-#include "Platform/Interface/Spi.hpp"
+#include "hal/spi.hpp"
 #include <array>
 #include <cstddef>
 #include <cstdint>

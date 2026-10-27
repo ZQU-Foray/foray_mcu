@@ -1,4 +1,4 @@
-#include "Detail/Gpio.h"
+#include "hal/detail/gpio.h"
 #include "PortKit.h"
 #include "main.h"
 #include <stddef.h>

@@ -1,11 +1,11 @@
 #include "Entry.h"
-#include "Application/Task/4_communication/RemoteReceiver.hpp"
+#include "remote/remote_receiver.hpp"
 #include "Application/Task/TaskManager.hpp"
-#include "Can.hpp"
-#include "Gpio.hpp"
-#include "Spi.hpp"
-#include "Time.hpp"
-#include "Uart.hpp"
+#include "hal/can.hpp"
+#include "hal/gpio.hpp"
+#include "hal/spi.hpp"
+#include "hal/time.hpp"
+#include "hal/uart.hpp"
 
 bool Application_Init(void)
 {

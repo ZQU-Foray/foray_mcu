@@ -1,4 +1,4 @@
-#include "Libraries/Device/bmi088/Bmi088Heater.hpp"
+#include "driver/bmi088/bmi088_heater.hpp"
 
 #include <cmath>
 

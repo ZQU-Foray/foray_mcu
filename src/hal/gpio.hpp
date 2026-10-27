@@ -1,7 +1,7 @@
-#ifndef PLATFORM_INTERFACE_GPIO_HPP
-#define PLATFORM_INTERFACE_GPIO_HPP
+#ifndef HAL_GPIO_HPP
+#define HAL_GPIO_HPP
 
-#include "Detail/Gpio.h"
+#include "hal/detail/gpio.h"
 #include <cstdint>
 
 namespace platform

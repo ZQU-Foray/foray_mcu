@@ -1,5 +1,5 @@
-#ifndef PLATFORM_INTERFACE_DETAIL_UART_H
-#define PLATFORM_INTERFACE_DETAIL_UART_H
+#ifndef HAL_DETAIL_UART_H
+#define HAL_DETAIL_UART_H
 
 #include <stdbool.h>
 #include <stdint.h>

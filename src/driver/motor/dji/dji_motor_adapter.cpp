@@ -1,4 +1,4 @@
-#include "Libraries/Device/motor/dji/DjiMotorAdapter.hpp"
+#include "driver/motor/dji/dji_motor_adapter.hpp"
 #include <cmath>
 
 namespace device

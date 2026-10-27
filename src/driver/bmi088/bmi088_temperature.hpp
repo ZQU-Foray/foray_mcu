@@ -1,7 +1,7 @@
-#ifndef LIBRARIES_DEVICE_BMI088_BMI088_TEMPERATURE_HPP
-#define LIBRARIES_DEVICE_BMI088_BMI088_TEMPERATURE_HPP
+#ifndef DRIVER_BMI088_BMI088_TEMPERATURE_HPP
+#define DRIVER_BMI088_BMI088_TEMPERATURE_HPP
 
-#include "Libraries/Device/bmi088/Bmi088Transfer.hpp"
+#include "driver/bmi088/bmi088_transfer.hpp"
 #include <array>
 #include <cstddef>
 #include <cstdint>

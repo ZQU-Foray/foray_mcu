@@ -1,7 +1,7 @@
-#ifndef LIBRARIES_DEVICE_BUZZER_BUZZER_HPP
-#define LIBRARIES_DEVICE_BUZZER_BUZZER_HPP
+#ifndef DRIVER_BUZZER_BUZZER_HPP
+#define DRIVER_BUZZER_BUZZER_HPP
 
-#include "Platform/Interface/Pwm.hpp"
+#include "hal/pwm.hpp"
 #include <cstdint>
 
 namespace device

@@ -1,9 +1,9 @@
 #include "Init.h"
-#include "Detail/Can.h"
-#include "Detail/Pwm.h"
-#include "Detail/Spi.h"
-#include "Detail/Time.h"
-#include "Detail/Uart.h"
+#include "hal/detail/can.h"
+#include "hal/detail/pwm.h"
+#include "hal/detail/spi.h"
+#include "hal/detail/time.h"
+#include "hal/detail/uart.h"
 
 bool Port_Init(void)
 {

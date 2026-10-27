@@ -1,4 +1,4 @@
-#include "Crc32.h"
+#include "lib/alg_crc/crc32.hpp"
 #include <array>
 
 namespace alg_crc

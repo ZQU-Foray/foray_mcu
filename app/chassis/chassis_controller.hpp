@@ -1,8 +1,8 @@
-#ifndef APPLICATION_TASK_CHASSIS_CONTROLLER_HPP
-#define APPLICATION_TASK_CHASSIS_CONTROLLER_HPP
+#ifndef CHASSIS_CHASSIS_CONTROLLER_HPP
+#define CHASSIS_CHASSIS_CONTROLLER_HPP
 
-#include "Libraries/Component/AxisController.hpp"
-#include "Libraries/Device/motor/Motor.hpp"
+#include "lib/component/axis_controller.hpp"
+#include "driver/motor/motor.hpp"
 #include <cstddef>
 #include <cstdint>
 
@@ -121,4 +121,4 @@ class ChassisController final
 
 } // namespace application::chassis
 
-#endif // APPLICATION_TASK_CHASSIS_CONTROLLER_HPP
+#endif // CHASSIS_CHASSIS_CONTROLLER_HPP

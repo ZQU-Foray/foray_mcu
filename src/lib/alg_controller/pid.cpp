@@ -1,5 +1,5 @@
-#include "Pid.h"
-#include "Libraries/Algorithm/alg_math/BasicMath.h"
+#include "lib/alg_controller/pid.hpp"
+#include "lib/alg_math/basic_math.hpp"
 #include <cmath>
 
 namespace

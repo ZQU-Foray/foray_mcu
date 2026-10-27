@@ -1,5 +1,5 @@
-#ifndef LIBRARIES_ALGORITHM_ALG_MATH_MATRIX_H
-#define LIBRARIES_ALGORITHM_ALG_MATH_MATRIX_H
+#ifndef LIB_ALG_MATH_MATRIX_HPP
+#define LIB_ALG_MATH_MATRIX_HPP
 
 #include <array>
 #include <cmath>

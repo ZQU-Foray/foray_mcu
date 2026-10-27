@@ -1,5 +1,5 @@
-#ifndef LIBRARIES_ALGORITHM_ALG_MATH_MATRIX3_H
-#define LIBRARIES_ALGORITHM_ALG_MATH_MATRIX3_H
+#ifndef LIB_ALG_MATH_MATRIX3_HPP
+#define LIB_ALG_MATH_MATRIX3_HPP
 
 namespace alg_math
 {
@@ -51,4 +51,4 @@ void limit_in_place(Matrix3 &value, double minimum, double maximum) noexcept;
 
 } // namespace alg_math
 
-#endif // LIBRARIES_ALGORITHM_ALG_MATH_MATRIX3_H
+#endif // LIB_ALG_MATH_MATRIX3_HPP

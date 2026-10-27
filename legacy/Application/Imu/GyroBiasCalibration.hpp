@@ -1,7 +1,7 @@
 #ifndef APPLICATION_IMU_GYRO_BIAS_CALIBRATION_HPP
 #define APPLICATION_IMU_GYRO_BIAS_CALIBRATION_HPP
 
-#include "Libraries/Algorithm/alg_math/Vector3.h"
+#include "lib/alg_math/vector3.hpp"
 #include <cstdint>
 
 namespace application

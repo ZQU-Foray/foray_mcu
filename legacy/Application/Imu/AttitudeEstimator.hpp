@@ -2,7 +2,7 @@
 #define APPLICATION_IMU_ATTITUDE_ESTIMATOR_HPP
 
 #include "Application/Imu/GyroBiasCalibration.hpp"
-#include "Libraries/Device/bmi088/Bmi088SampleQueue.hpp"
+#include "driver/bmi088/bmi088_sample_queue.hpp"
 #include <cstdint>
 
 namespace application

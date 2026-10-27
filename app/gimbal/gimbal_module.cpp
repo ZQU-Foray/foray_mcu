@@ -1,4 +1,4 @@
-#include "Application/Module/GimbalModule.hpp"
+#include "gimbal/gimbal_module.hpp"
 #include <cmath>
 
 namespace application::module

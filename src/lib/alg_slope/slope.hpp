@@ -1,5 +1,5 @@
-#ifndef SLOPE_H
-#define SLOPE_H
+#ifndef LIB_ALG_SLOPE_SLOPE_HPP
+#define LIB_ALG_SLOPE_SLOPE_HPP
 
 #include <cstdint>
 

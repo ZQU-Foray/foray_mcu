@@ -1,5 +1,5 @@
-#ifndef FSM_H
-#define FSM_H
+#ifndef LIB_ALG_FSM_FSM_HPP
+#define LIB_ALG_FSM_FSM_HPP
 
 #include <cstdint>
 #include <limits>

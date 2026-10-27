@@ -1,7 +1,7 @@
 #include "Application/Imu/AttitudeEstimator.hpp"
-#include "Libraries/Algorithm/alg_estimate/ImuBodyMapping.hpp"
-#include "Libraries/Algorithm/alg_estimate/Vqf.hpp"
-#include "Platform/Interface/Time.hpp"
+#include "lib/alg_estimate/imu_body_mapping.hpp"
+#include "lib/alg_estimate/vqf.hpp"
+#include "hal/time.hpp"
 #include <cmath>
 #include <cstddef>
 

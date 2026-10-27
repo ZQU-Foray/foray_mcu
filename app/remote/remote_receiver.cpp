@@ -1,6 +1,6 @@
-#include "Application/Task/4_communication/RemoteReceiver.hpp"
-#include "Time.hpp"
-#include "Uart.hpp"
+#include "remote/remote_receiver.hpp"
+#include "hal/time.hpp"
+#include "hal/uart.hpp"
 #include <array>
 #include <atomic>
 

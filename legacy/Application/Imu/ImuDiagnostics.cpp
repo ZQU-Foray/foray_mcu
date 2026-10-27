@@ -1,6 +1,6 @@
 #include "Application/Imu/ImuDiagnostics.hpp"
-#include "Libraries/Device/bmi088/Bmi088Heater.hpp"
-#include "Platform/Interface/Time.hpp"
+#include "driver/bmi088/bmi088_heater.hpp"
+#include "hal/time.hpp"
 #include <cmath>
 #include <cstdint>
 #include <limits>

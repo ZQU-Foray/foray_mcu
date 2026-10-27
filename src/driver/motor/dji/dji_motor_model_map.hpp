@@ -1,8 +1,8 @@
-#ifndef LIBRARIES_DEVICE_MOTOR_DJI_DJI_MOTOR_MODEL_MAP_HPP
-#define LIBRARIES_DEVICE_MOTOR_DJI_DJI_MOTOR_MODEL_MAP_HPP
+#ifndef DRIVER_MOTOR_DJI_DJI_MOTOR_MODEL_MAP_HPP
+#define DRIVER_MOTOR_DJI_DJI_MOTOR_MODEL_MAP_HPP
 
-#include "Libraries/Device/motor/MotorGroup.hpp"
-#include "Libraries/Device/motor/dji/DjiMotorAdapter.hpp"
+#include "driver/motor/motor_group.hpp"
+#include "driver/motor/dji/dji_motor_adapter.hpp"
 
 namespace device
 {

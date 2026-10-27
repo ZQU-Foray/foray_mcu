@@ -1,4 +1,4 @@
-#include "Kinematics.h"
+#include "lib/alg_kinematics/kinematics.hpp"
 #include <cmath>
 
 namespace

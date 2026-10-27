@@ -1,5 +1,5 @@
-#ifndef PLATFORM_INTERFACE_DETAIL_USB_CDC_H
-#define PLATFORM_INTERFACE_DETAIL_USB_CDC_H
+#ifndef HAL_DETAIL_USB_CDC_H
+#define HAL_DETAIL_USB_CDC_H
 
 #include <stdbool.h>
 #include <stdint.h>

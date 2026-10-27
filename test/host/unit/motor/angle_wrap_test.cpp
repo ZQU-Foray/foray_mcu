@@ -1,4 +1,4 @@
-#include "support/DjiPlatformStub.hpp"
+#include "support/dji_platform_stub.hpp"
 #include <initializer_list>
 
 void check(std::initializer_list<std::uint16_t> angles, std::int32_t expected)

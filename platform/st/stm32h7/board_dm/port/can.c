@@ -1,4 +1,4 @@
-#include "Detail/Can.h"
+#include "hal/detail/can.h"
 #include "PortKit.h"
 #include "fdcan.h"
 #include <stddef.h>
