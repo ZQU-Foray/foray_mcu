@@ -18,3 +18,6 @@ ee2bcfc788db51140c1ba4a262590d5ec0aca1b6
 
 # P2.5 去掉 alg_ 前缀后重新格式化（style: bdada62）
 bdada620ad7078153416bdb01254b449106fb8f8
+
+# P2.5 机械改写 include 与头文件保护宏（refactor: 11cea0b，只改 include 与保护宏所在的行）
+11cea0b935559f5b46de015a068bbd63924f6a6c

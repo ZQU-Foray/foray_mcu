@@ -1,6 +1,6 @@
 # 架构判据与依赖规则（foray_mcu）
 
-> **状态**：v1.3（2026-10-26：v1 于 P0 创建，Decision-20261026-02；v1.1 随 P1 更新——target 名去掉项目前缀〔Decision-20261026-06〕，补充 P1 实际状态、CI 检查与例外 X-14–X-16〔Decision-20261026-07〕；v1.2 随 P2 更新——源码位置、`legacy_include` 推迟到 P2.5、规则 9 的迁移期放行〔Decision-20261026-08〕；v1.3 随 P2.5 更新——`src/lib` 去掉 `alg_` 前缀〔Decision-20261026-09〕）。本文件是"一段代码该放哪一层、能依赖谁"的唯一人读入口，供人工评审与 AI 代理使用。
+> **状态**：v1.4（2026-10-26：v1 于 P0 创建，Decision-20261026-02；v1.1 随 P1 更新——target 名去掉项目前缀〔Decision-20261026-06〕，补充 P1 实际状态、CI 检查与例外 X-14–X-16〔Decision-20261026-07〕；v1.2 随 P2 更新——源码位置、`legacy_include` 推迟到 P2.5、规则 9 的迁移期放行〔Decision-20261026-08〕；v1.3 随 P2.5 更新——`src/lib` 去掉 `alg_` 前缀〔Decision-20261026-09〕；v1.4 随 P2.5 搬迁更新——源码全部搬出 `legacy/`，例外 X-11、X-12、X-15 关闭，PortKit 的拆分推迟到 P3a〔Decision-20261026-10〕）。本文件是"一段代码该放哪一层、能依赖谁"的唯一人读入口，供人工评审与 AI 代理使用。
 > **权威来源**：[评审报告 v1.0](reviews/2026-10-25-foray_mcu-架构评审报告.md) §3.2–§3.3、§5，以及 [decision.md](../../decision.md) 中的 Accepted 条目。本文件与它们冲突时以后者为准，并同步修正本文件。
 > **修改流程**：新增或修改规则、例外、白名单，先在 decision.md 登记，再改本文件和对应的 CI 检查（§9）。
 
@@ -8,7 +8,7 @@
 
 - **写新代码前**：按 §2 判定位置，按 §4 核对依赖。
 - **评审 PR**：对照 §4 的规则表和 §6 的例外登记。违反规则又不在例外表里的改动，不合并。
-- **现阶段（P2 完成）**：根工程已按 §3 建立 target，1:1 项源码已搬到 `src/`、`app/`、`platform/`；`legacy/` 只剩 P2.5 的文件（Entry、TaskManager、Imu、PortKit、UsbCdc），只允许机械操作。生效阶段为 P1 的规则已由构建与 CI 执行，见 §4.2 与 §4.3。
+- **现阶段（P2.5 完成）**：根工程已按 §3 建立 target，源码已全部搬到 `src/`、`app/`、`config/`、`platform/`；`legacy/` 只剩迁移源 README 与架构图。生效阶段为 P1 的规则已由构建与 CI 执行，见 §4.2 与 §4.3。
 
 ## 1. 术语
 
@@ -81,7 +81,7 @@
 - **能力裁剪**：用 target 组合表达（assembly 只链接 profile 列出的能力，未链接的能力不进镜像），不用 `#if`。模块内部的差异用 `constexpr bool`、依赖注入或非虚接口表达。
 - **新兵种、新行为、新板**：新兵种 = 新 profile（既有能力重组 + 参数）；新行为 = 新能力 target；新板 = 新 `platform` board。都不复制已有代码目录。
 - **线程、队列、事件**：不进框架，只出现在 `app/tasks`、`app/common` 与 `config/assembly`。框架需要互斥或时间时只经 `src/hal/os`。
-- **PortKit 的去向**：队列和通知 → `src/utils`；临界区契约 → `src/hal/os`；CMSIS 实现 → `platform/.../port`。
+- **PortKit 的去向**：队列和通知 → `src/utils`；临界区契约 → `src/hal/os`；CMSIS 实现 → `platform/.../port`。P2.5 先整体并入 port（`port_kit.{c,h}`），P3a 改写为 C++ 时按此拆分：现有队列与通知用 CMSIS 的 `__DMB()`，原样放进零平台的 `src/utils` 会违反规则 3（Decision-20261026-10）。
 - **链路协议**：只用 vendor 的 `lower_link.hpp`，`app/` 与 `src/` 中不得手写帧或 CRC。
 
 ## 3. target 依赖图（目标态）
@@ -124,7 +124,7 @@ EXECUTABLE test_<name>  →  被测 target + STATIC platform_mock + ctest
 - CMake 文件按层组织：一层的全部 target 定义在该层的一个 `CMakeLists.txt` 里（根、`src/`、`app/`、`config/`、每块板、`platform/mock`、`test/host`），子目录不各放一个；拆分先登记（Decision-20261026-07）。
 - OBJECT 库只有被直接链接时目标文件才进入最终链接；间接依赖的 OBJECT 库（port 下的生成区、assembly 下的 board）用 `cmake/targets.cmake` 的 `link_object_library()` 把目标文件传到固件（Decision-20261026-07）。
 
-**当前实际状态**（2026-10-26，P2 完成）：上图除 `msg`、`middleware_<svc>`（P3b/P4 才有内容）外都已建立。1:1 项源码已在目标位置；`app_imu`、`app_common`、`assembly_<profile>` 与 port 的 UsbCdc、`portkit` 的源码仍在 `legacy/`（P2.5 搬）。迁移期过渡件：`hal_detail`（X-07）、`legacy_include`（X-11，只剩 P2.5 的文件使用）、`legacy_build_options`（X-14）、`portkit`（X-15）；`app_tasks` 是任务外壳的 target（`app/tasks`）。CI 用 `tool/ci/arch_check.py graph` 检查实际依赖图，迁移期放行的边在脚本中逐条注明。
+**当前实际状态**（2026-10-26，P2.5 完成）：上图除 `msg`、`middleware_<svc>`（P3b/P4 才有内容）外都已建立，源码都在目标位置。迁移期过渡件只剩 `hal_detail`（X-07，P3a）与 `legacy_build_options`（X-14，P3b）；`app_tasks` 是任务外壳的 target（`app/tasks`）。CI 用 `tool/ci/arch_check.py graph` 检查实际依赖图，迁移期放行的边在脚本中逐条注明。
 
 ## 4. 依赖规则
 
@@ -171,7 +171,7 @@ EXECUTABLE test_<name>  →  被测 target + STATIC platform_mock + ctest
 | `lint-naming` | `tool/ci/naming.py --check`：C++ 标识符必须符合 `.clang-tidy`（ROS 2 命名，clang-tidy 18.1.8）；编译数据库为根工程的 arm-debug、arm-release、host-tests 三个 preset，孤立头文件单独检查 | 长期（P0.5 起全量，Decision-20261026-05） |
 | `lint-arch` | `tool/ci/arch_check.py scan`：规则 3、8、9、12、15 的文本扫描 | 长期（P1 起，Decision-20261026-07） |
 | `host-tests` | 根工程 host-tests preset：14 项 ctest；`arch_check.py graph --mode host` 检查宿主依赖图（规则 2、6 等） | 长期 |
-| `firmware` | 根工程 arm-debug、arm-release 构建；与迁移源的符号集合比较（`tool/ci/symbols.py`：名称、大小、类型、绑定、输出段；P2 起基准为 P1 存档的 `docs/ai/decisions/2026-10-26-P1-构建骨架/symbols-*.txt`）；`arch_check.py graph --mode firmware` 检查固件依赖图（规则 1、5 等） | 符号对照 P1–P2.5（迁移源 SHA 校验已在 P2 随迁移源构建删除） |
+| `firmware` | 根工程 arm-debug、arm-release 构建；与迁移源的符号集合比较（`tool/ci/symbols.py`：名称、大小、类型、绑定、输出段；P2 起基准为 P1 存档的 `docs/ai/decisions/2026-10-26-P1-构建骨架/symbols-*.txt`，P2.5 起按改名表换算命名空间改名）；`arch_check.py graph --mode firmware` 检查固件依赖图（规则 1、5 等） | 符号对照 P1–P2.5（迁移源 SHA 校验已在 P2 随迁移源构建删除） |
 
 ### 4.4 一级目录白名单（规则 12）
 
@@ -199,7 +199,7 @@ EXECUTABLE test_<name>  →  被测 target + STATIC platform_mock + ctest
 
 | 编号 | 例外 | 涉及规则 | 依据 | 处置与到期 |
 |---|---|---|---|---|
-| X-01 | **UsbCdc 边界**：USB 生成代码（`usb_device.c`、`usbd_cdc_if.c`）直接调用 port 私有 ABI（`UsbCdcPort_*`），`Interface/UsbCdc.hpp` 在业务中零消费者。按 Q8 ①，UsbCdc 视为板私有能力，不纳入 `src/hal` 公共契约；中长期按 Q8 ② 改为 HAL 回调注册 | 7 | Q8 | P2.5 原样搬到 `platform/.../port/usb_cdc.c`；P4 按 Q8 重划边界 |
+| X-01 | **UsbCdc 边界**：USB 生成代码（`usb_device.c`、`usbd_cdc_if.c`）直接调用 port 私有 ABI（`UsbCdcPort_*`），`Interface/UsbCdc.hpp` 在业务中零消费者。按 Q8 ①，UsbCdc 视为板私有能力，不纳入 `src/hal` 公共契约；中长期按 Q8 ② 改为 HAL 回调注册 | 7 | Q8 | P2.5 已原样搬到 `platform/.../port/usb_cdc.c`（`UsbCdc.h` 被生成代码按名字 include，保持原名）；P4 按 Q8 重划边界 |
 | X-02 | **生成区链接 seam**：`-Wl,--wrap=HAL_PCD_EP_Transmit` 保留 | 16 | 评审报告 §5.6、Q8 | P4 随 X-01 改为回调注册后删除 |
 | X-03 | **链接脚本 overlay**：自定义段（如 `.dma_buffer.imu_diag`）不改生成的 `.ld`，用第二个 `-T` 追加 | 生成区冻结 | Q9 | P4 落地 |
 | X-04 | **OS 抽象范围**：框架只含临界区 + 单调时基；线程、队列、事件只在产品层；迁移期任务外壳可继续用 `cmsis_os2` | 10 | Q10、Q12 | 任务层在 P3b 改用 FreeRTOS 原生 API |
@@ -207,22 +207,22 @@ EXECUTABLE test_<name>  →  被测 target + STATIC platform_mock + ctest
 | X-06 | **`-Wdouble-promotion` 豁免**：`vqf.cpp`（`src/lib/estimate/`，P2 前为 `legacy/Libraries/Algorithm/alg_estimate/Vqf.cpp`）。该文件同时须有"目标无双精度 FPU 即 `#error`"的检查 | 14 | Decision-20261025-03 | 长期有效；第一个在 M4F 板上链接姿态解算的 profile 出现时重新评估 |
 | X-07 | **迁移期的 C ABI 层**：`Platform/Interface/Detail/*.h` 在 P2 暂放 `src/hal/detail/`（过渡 target `hal_detail`），port 与 PortKit 仍是 C | 3、16 | Q17、评审报告 §5.11 | P3a 合并进 C++ 契约后删除 |
 | X-08 | **迁移期的原子读改写**：框架侧只有 `DjiMotor.cpp` 有 2 处读改写；产品侧 `ImuDataReadyMailbox.hpp`（3 处）、`ImuTask.cpp`（1 处）、`RemoteReceiver.cpp`（2 处） | 13 | 评审报告 §5.8 | P3b 迁移到 `src/utils` 并发原语 |
-| X-09 | **生成区引用应用头**：`main.c`、`freertos.c` 的 USER CODE 区 include `Application/Entry.h` 并调用 `Application_*`；P2.5 起实现位于 `config/assembly/entry_legacy.*` | 7 | 评审报告 M4 | P3b 落地 boot ABI 后删除 |
+| X-09 | **生成区引用应用头**：`main.c`、`freertos.c` 的 USER CODE 区 include `Application/Entry.h` 并调用 `Application_*`；P2.5 起实现位于 `config/assembly/entry_legacy.cpp`，头文件只能放在 `config/assembly/Application/Entry.h`，由 `config/CMakeLists.txt` 把 `config/assembly` 注入 `mx_generated_<board>` 的 include 路径（平台 CMake 不出现产品路径；这条耦合是 include 路径，不在依赖图上） | 7 | 评审报告 M4；Decision-20261026-10 | P3b 落地 boot ABI 后删除 |
 | X-10 | **集成测试直接编译产品源码**：P1 起宿主测试由根工程引入，框架的单元测试已链接被测 target；底盘集成测试仍在测试里直接编译 `app` 源码（`ChassisController.cpp`、`ChassisTask.cpp`），用影子头替换 `cmsis_os2.h` 与 DJI 映射 | §2.2 `test` 行 | `test/host/README.md` | P3b 能力 target 有了测试接缝后改为链接 |
-| X-11 | **过渡 include 根**：P1 设 `legacy_include`，暴露 `legacy/` 作为 include 根（零源码改动无法去掉旧路径）。P2 后只剩 P2.5 的文件（`Application/{Entry,Imu,Task/TaskManager}`）以 `"Application/..."` 被引用 | 8 | 评审报告 §7.2 P1；Decision-20261026-08 | P2.5 搬完后删除（原定 P2，因 P2.5 的文件仍被引用而推迟） |
-| X-12 | **冻结的迁移源**：`legacy/` 在 P0–P2.5 期间不受目标态目录规则约束（自带 `file(GLOB)` 构建、全局 include），只允许机械操作；由 CI 的基线对照守护 | 8、12 | Decision-20261025-05 | 随 P2/P2.5 搬空后删除 |
+| X-11 | ~~**过渡 include 根**：P1 设 `legacy_include`，暴露 `legacy/` 作为 include 根~~ | 8 | 评审报告 §7.2 P1；Decision-20261026-08 | **已关闭**（2026-10-26，P2.5 搬完后删除 `legacy_include` 与 `legacy_library()`，Decision-20261026-10） |
+| X-12 | ~~**冻结的迁移源**：`legacy/` 在 P0–P2.5 期间不受目标态目录规则约束，只允许机械操作~~ | 8、12 | Decision-20261025-05 | **已关闭**（2026-10-26，P2.5 后 `legacy/` 只剩迁移源 README 与架构图，没有代码与构建文件；目录保留作历史参考） |
 | X-13 | ~~**C/C++ 格式增量检查**：P0.5 之前 lint-c 只查改动文件~~ | 格式规则 | Decision-20261026-01 | **已关闭**（2026-10-26，P0.5 格式化后改为全量检查，Decision-20261026-04） |
 | X-14 | **迁移期构建开关**：`legacy_build_options` 把迁移源的 `IMU_GYRO_BANDWIDTH`（→ `BMI088_GYRO_BANDWIDTH_REGISTER`）与 Debug 的 `IMU_ENABLE_DIAGNOSTICS` 作为宏加给全部业务 target（含框架的 lib、driver），与迁移源一致；`app/tasks/imu_task.cpp`、`src/driver/bmi088/bmi088_gyro.hpp` 中按这两个宏做条件编译，`arch_check.py` 的规则 9 对它们放行 | 9、15 | 评审报告 §2.4、§5.4；Decision-20261026-07、-08 | P3b 收进 profile 后删除 |
-| X-15 | **迁移期 PortKit**：`portkit`（OBJECT）原样编译 `Platform/PortKit/PortKit.c`，由 port 链接 | 依赖图 | 评审报告 §7.2.1 | P2.5 拆到 `src/utils`、`src/hal/os` 与 port 后删除 |
+| X-15 | ~~**迁移期 PortKit**：`portkit`（OBJECT）原样编译 `Platform/PortKit/PortKit.c`，由 port 链接~~ | 依赖图 | 评审报告 §7.2.1 | **已关闭**（2026-10-26，P2.5 整体并入 `port_<board>`，删除 `portkit` target；拆分随 P3a 的 C++ 改写进行，Decision-20261026-10） |
 | X-16 | **RTOS 头的可见范围**：`os_freertos_<board>` 要暴露 CubeMX 生成的 `FreeRTOSConfig.h`，只能整目录暴露 `Core/Inc`，其中其他生成头也对任务层可见；任务层只应 include RTOS 头 | 10 | Decision-20261026-07 | 长期（CubeMX 生成布局决定）；P3b 任务层改用 FreeRTOS 原生 API 时复核 |
 
 **已知结构债**（违反目标规则，不是例外，按计划偿还，见 [plan.md](../../plan.md) P3a、P3b）：
 
 - `ImuBodyMapping` 反向依赖 Device：改为 POD 入参，或迁到 `src/driver/imu/`（P1 的依赖图中为 `lib_estimate → driver_bmi088`，检查脚本单独放行）。
 - `TaskManager` 同时含任务表与创建机制：P1 中 `app_common → app_tasks`（common 反过来依赖任务外壳）；P3b 把任务表拆到 `config/assembly` 后消除。
-- `Application/Imu` 的时钟读取与设备类型依赖。
+- `app/imu`（原 `Application/Imu`）的时钟读取与设备类型依赖。
 - 任务表外的 `defaultTask` 承载应用周期；栈巡检只遍历表内任务。
-- `Entry.cpp` 检查 3 个无消费者的端点，却漏检实际使用的 Pwm。
+- `config/assembly/entry_legacy.cpp`（原 `Entry.cpp`）检查 3 个无消费者的端点，却漏检实际使用的 Pwm。
 - SPI 异步能力在契约注释里标为可选（MAY），BMI088 与 WS2812 却当作必选使用且没有回退（评审报告 §2.3 缺口 1）；P3a 契约 v1 中处理。
 - 其他已知问题：迁移源架构图的 F1–F13、C1–C8 清单，见评审报告附录 B（P3b/P4 验收项）。
 

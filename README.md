@@ -2,15 +2,15 @@
 
 > **下位机（MCU）固件** · owner 角色：电控组
 > `layer: MCU` —— **不在 L1–L5 分层内**，位于 L2 下行 HAL **之下**
-> 当前状态：🟡 **结构重构 P0、P0.5、P1、P2 已验收，下一步 P2.5 混合文件拆分搬迁**（源码已搬到 `src/`、`app/`、`platform/`，`legacy/` 只剩少量待拆分文件）
+> 当前状态：🟡 **结构重构 P0、P0.5、P1、P2、P2.5 已验收，下一步 P3a 框架化与契约 v1**（源码已全部搬到 `src/`、`app/`、`config/`、`platform/`，`legacy/` 只剩迁移源 README 与架构图）
 
 ## 1. 本仓是什么
 
-RoboMaster 多兵种、多开发板的 MCU 下位机固件。本仓以 `ControllerCode`（GitHub `ZQU-Foray/foray_mcu_controller`）为迁移源（历史已导入，文件原样放在 `legacy/`），正在做结构重构：把"单板、单产品、单可执行文件"的工程改造成"产品线（兵种 × 开发板）"工程。
+RoboMaster 多兵种、多开发板的 MCU 下位机固件。本仓以 `ControllerCode`（GitHub `ZQU-Foray/foray_mcu_controller`）为迁移源（历史已导入，源码已搬到目标结构），正在做结构重构：把"单板、单产品、单可执行文件"的工程改造成"产品线（兵种 × 开发板）"工程。
 
 - 迁移源基线：`ControllerCode` `main` @ `a2cfd16`（2026-10-23，19 个提交，git 跟踪 333 个文件，项目自有代码约 2.3 万行）。
 - 目标平台：STM32H723（DM-MC02，主力，先行）、STM32F407（RM C 板）、TI TM4C / AM26x（按需）；`src/` + `platform/` 作为可复用框架，另供 MSPM0 等小项目（大概率裸机）使用。
-- 当前状态：基线 tag `baseline/a2cfd16`；迁移源原样放在 `legacy/`。根工程（P1）按目标结构建立了 target，用 profile `baseline` 构建出的固件与迁移源构建的符号集合一致；宿主测试由根工程引入（14 项 ctest，见 [test/host/README.md](test/host/README.md)）。P2 已把 1:1 项源码搬到 `src/`、`app/`、`platform/`，固件符号与迁移源一致；剩余的 Entry、TaskManager、Imu、PortKit、UsbCdc 在 P2.5 搬。
+- 当前状态：基线 tag `baseline/a2cfd16`。根工程（P1）按目标结构建立了 target，用 profile `baseline` 构建出的固件与迁移源构建的符号集合一致；宿主测试由根工程引入（14 项 ctest，见 [test/host/README.md](test/host/README.md)）。P2、P2.5 已把全部源码搬到 `src/`、`app/`、`config/`、`platform/`，`src/lib` 去掉了 `alg_` 前缀，固件符号与迁移源一致（命名空间按改名表换算）。
 - 结构方案与完整评审材料：**[docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md](docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md)**。
 - 方案已确认（[decision.md](decision.md) Decision-20261025-01 至 -05），执行计划与进度见 [plan.md](plan.md)。
 

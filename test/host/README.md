@@ -4,7 +4,7 @@
 
 - 测框架代码的单元测试直接链接框架 target（`lib_*`、`driver_*`）与 `platform_mock`；
 - 测产品代码的底盘集成测试要用影子头替换 DJI 映射与 `cmsis_os2.h`，仍在测试里直接编译 app 源码（例外 X-10，P3b 改为链接）；
-- 测试以 `test/host` 为根引用支持文件（`"support/mock_motor.hpp"`），以 `src/`、`app/` 为根引用被测代码（`"driver/bmi088/bmi088.hpp"`、`"tasks/chassis_task.hpp"`）；`Application/Imu` 仍在 `legacy/`，P2.5 搬迁时同步更新。
+- 测试以 `test/host` 为根引用支持文件（`"support/mock_motor.hpp"`），以 `src/`、`app/` 为根引用被测代码（`"driver/bmi088/bmi088.hpp"`、`"tasks/chassis_task.hpp"`、`"imu/imu_diagnostics.hpp"`）。
 
 ## 运行
 
@@ -34,7 +34,7 @@ CI 的 `host-tests` 作业（`.github/workflows/ci.yml`）在 GitHub Actions 的
 | `angle_wrap` | `unit/motor/angle_wrap_test.cpp` | `driver_motor_dji` |
 | `motor_group` | `unit/motor/motor_group_test.cpp` | `driver_motor_dji` |
 | `brand_extension` | `unit/motor/brand_extension_test.cpp` | `driver_motor`（只用 `motor_group.hpp`，非 DJI 最小适配器） |
-| `bmi088_acquisition` | `unit/imu_acquisition/bmi088_acquisition_test.cpp` | `driver_bmi088`；测试源码直接 `#include` 了 `Application/Imu/ImuDiagnostics.cpp`（P2.5 搬到 `app/imu/`） |
+| `bmi088_acquisition` | `unit/imu_acquisition/bmi088_acquisition_test.cpp` | `driver_bmi088`；测试源码直接 `#include` 了 `imu/imu_diagnostics.cpp`（`app/imu/`） |
 | `hal_os_mock` | `unit/hal_os/mock_os_test.cpp` | `platform_mock`（hal_os 的宿主替身：时基、临界区嵌套） |
 | `chassis_controller` | `integration/chassis/chassis_controller_test.cpp` | `lib_control`；直接编译 `app/chassis/chassis_controller.cpp`、`app/tasks/chassis_task.cpp`（模拟电机） |
 | `controller_equivalence` | `integration/chassis/controller_equivalence_test.cpp` | 同上 |
@@ -63,6 +63,7 @@ test/host/
 
 ## 来源与适配记录
 
+> P2.5（2026-10-26）：`Application/Imu` 搬到 `app/imu/` 后，测试改为 `#include "imu/imu_diagnostics.cpp"`，不再链接 `legacy_include`（Decision-20261026-10）。
 > P2（2026-10-26）：测试与支持文件名改为 snake_case，影子头随被替换的头文件改到 `shadow/driver/...`；include 改为相对层根目录的写法（Decision-20261026-08）。
 > P1（2026-10-26）：宿主测试改由根工程引入，`foray_host_test()` 改名为 `host_test()`（Decision-20261026-06），框架单元测试改为链接被测 target，新增 `hal_os_mock`。
 > P0.5（2026-10-26）把测试与被测代码中的 C++ 标识符按 ROS 2 命名统一改名（如 `SetEnabled` → `set_enabled`，`canStub` → `g_can_stub`）。下表是 P0 时的适配记录，保留当时的名字；新旧名字对照见 [P0.5 改名表](../../docs/ai/decisions/2026-10-26-P0.5-改名/改名表.tsv)，文件名对照见 [P2 移动表](../../docs/ai/decisions/2026-10-26-P2-机械搬迁/移动表.tsv)。

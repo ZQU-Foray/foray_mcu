@@ -548,6 +548,54 @@
 
 ---
 
+## Decision-20261026-10（P2.5 搬迁的去向与结果，Accepted）
+
+- **Date**：2026-10-26
+- **Status**：Accepted（按 plan.md P2.5 执行；脚本与验证见 `docs/ai/decisions/2026-10-26-P2.5-拆分搬迁/`）
+- **Source**：评审报告 §7.2.1、附录 A；Decision-20261026-08 第 6 点
+
+**Decision**：
+
+1. **去向**（16 个文件，全部 R100）：
+   - `Application/Entry.cpp` → `config/assembly/entry_legacy.cpp`；
+   - `Application/Task/TaskManager.*` → `app/common/task_manager.*`；
+   - `Application/Imu/*` → `app/imu/`；
+   - `Port/UsbCdc.c` → `platform/.../port/usb_cdc.c`。
+
+   被生成代码按名字 include 的头保持路径与文件名：`Entry.h` 放在 `config/assembly/Application/Entry.h`，`UsbCdc.h` 放在 port。
+2. **PortKit 整体并入 port，拆分推迟到 P3a**（修订 plan.md P2.5 与评审报告 §7.2.1 的这一项）：`PortKit.{c,h}` → `platform/st/stm32h7/board_dm/port/port_kit.{c,h}`，删除过渡 target `portkit`。原样拆分做不到：
+   - 队列与通知也用 CMSIS 的 `__DMB()`，放进零平台的 `src/utils` 违反规则 3；
+   - 临界区拆到另一个文件会改变 Release 生成代码：`PortKit_Critical_Enter/Exit` 原本内联进 `PortKit_Notifier_Set`，拆开后变成调用。
+
+   P3a 把 PortKit 改写为 C++ 时一并拆分：队列与通知 → `src/utils` 并发原语，临界区 → `src/hal/os` 契约 + 各板 port 实现。
+3. **生成区接缝的 include 路径由组合根注入**（例外 X-09）：`config/CMakeLists.txt` 对 `mx_generated_<board>` 追加 `config/assembly` 的 include 路径。
+   - 平台层 CMake 不出现产品路径，规则 15 不变；
+   - 这条耦合只是 include 路径，不在依赖图上；
+   - P3b 生成区改为只调 boot ABI 后删除。
+4. **删除迁移期过渡件**：
+   - `legacy_include`、`legacy_library()`、`LEGACY_DIR`；
+   - `.clang-tidy` 头文件过滤中的 `legacy/Application` 一段；
+   - 例外 X-11、X-15 关闭。X-12 也关闭：`legacy/` 只剩迁移源 README 与架构图，没有代码与构建文件。
+
+   `cmake/legacy.cmake` 只剩 `legacy_build_options`（X-14，P3b）。
+5. **编译选项的一处变化**：`port_kit.c` 随 port 带上严格告警（`-Wextra -Werror`）。它没有告警，目标文件的反汇编与重定位与搬迁前逐项相同。其余 111 个固件源文件除 include 目录外不变。
+6. **工具**：`arch_check.py` 删去 `portkit` 层、`legacy_include`、生成区 → legacy 的放行；测试不再允许依赖 legacy 层。
+
+**验证**：
+- 符号与 P1 存档一致（带 `alg_` 改名表）：Debug 1426、Release 1038；Windows xPack 与 Linux Arm GNU 各验证一次；
+- 搬迁的 4 个目标文件反汇编（含重定位）与数据段逐项相同；
+- ctest 14/14（WSL g++ 11.4、MSYS2 g++ 16.2）；
+- 命名检查 0 处，格式检查 131 个文件通过，文本扫描与两张依赖图检查通过；
+- `git log --follow` 可追溯到迁移源最早的提交。
+
+**Alternatives / Rejected**：
+- **按计划把队列/通知原样放进 `src/utils`**：`src/` 会 include CMSIS 头，违反规则 3；把 `__DMB()` 换成 C11 `atomic_thread_fence` 会改变生成的指令（`dmb ish` 与 `dmb sy`），不属于不改行为的阶段。否决。
+- **保留 `portkit` 过渡 target，原地不动**：`legacy/` 搬不空，`legacy_include` 与例外 X-15 都要继续保留。否决。
+- **把 `Entry.h` 放进 `src/boot`，让生成区链接 `boot`**：这是 P3b boot ABI 的形态，但现有 `Application_*` 入口是产品的组合根，提前放进框架会让框架含产品接口。否决。
+- **在平台 CMake 里直接写 `config/assembly` 路径**：违反规则 15（框架不得引用产品路径）。否决。
+
+---
+
 ## 待登记
 
 - 分支保护的具体设置（组织规范 §6.1、§10，负责人在 GitHub 上操作后补记）。

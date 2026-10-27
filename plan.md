@@ -1,6 +1,6 @@
 # 开发计划（foray_mcu 结构重构）
 
-> 当前状态：**P0、P0.5、P1、P2 已验收（2026-10-26），P2.5 进行中**：`src/lib` 去掉 `alg_` 前缀已完成，下一步混合文件拆分搬迁（方案已确认，[decision.md](decision.md) Decision-20261025-01 至 -05 均为 Accepted；里程碑合并入 `main` 暂缓）。
+> 当前状态：**P0、P0.5、P1、P2、P2.5 已验收（2026-10-26），下一步 P3a 框架化与契约 v1**（方案已确认，[decision.md](decision.md) Decision-20261025-01 至 -05 均为 Accepted；里程碑合并入 `main` 暂缓）。
 > 权威方案见 [docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md](docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md)；本文件只记录执行计划、进度与验收标准。
 > 迁移源 ControllerCode 原样放在 `legacy/`；各阶段的动作、验收与回滚以下文为准，不跨阶段混做。
 
@@ -64,24 +64,24 @@
 - [x] 验收（2026-10-26）：构建绿（零告警）；符号集合与 P1 存档一致（Debug 1426、Release 1038，xPack 与 Arm GNU 两套工具链）；112 个固件源文件除 include 目录外的编译选项与 P1 相同；改动分三个提交：纯 `git mv`（323 个文件全部 R100）、include/保护宏改写（只改这两类行）、构建与工具适配；`ctest` 14/14；`git log --follow` 可追溯到迁移源最早的提交（含只有一行的文件）；CI 的 `firmware` 作业改用存档符号表作基准，删除迁移源 SHA 校验
 - [x] 回滚：revert P2 的合并提交，P1 基线仍在
 
-### P2.5 混合文件拆分搬迁（不改行为，2–4 人日）
+### P2.5 混合文件拆分搬迁（不改行为，2–4 人日，✅ 2026-10-26 验收）
 
-> 处理评审报告 §7.2.1 的"非一对一映射"项：只移位/拆文件，不改逻辑。
+> 处理评审报告 §7.2.1 的"非一对一映射"项：只移位/拆文件，不改逻辑。过程、对照与验证见 [P2.5 搬迁记录](docs/ai/decisions/2026-10-26-P2.5-拆分搬迁/README.md)，去向与偏离计划之处见 Decision-20261026-10。
 
 - [x] `src/lib` 子目录与命名空间去掉 `alg_` 前缀（负责人要求，原定 P3b，单独一个 PR；`alg_controller` → `control`，其余去掉前缀）：纯 `git mv` + 整词替换 + 重新格式化三个提交；`symbols.py compare --renames` 按改名表换算 P1 存档后，Debug 1426、Release 1038 一致（Decision-20261026-09，[记录](docs/ai/decisions/2026-10-26-P2.5-去掉alg前缀/README.md)）
 
-- [ ] `Application/Entry.*` → `config/assembly/entry_legacy.*`（P3b 再收敛为 `boot_*`）
-- [ ] `Application/Task/TaskManager.*` → `app/common/task_manager.*`（P3b 再拆任务表到 `config/assembly`）
-- [ ] `Application/Imu/*` → `app/imu/`（P3b 再拆 `ImuBodyMapping` 与时钟注入）
-- [ ] `Platform/PortKit/*` → `src/utils/`（队列/通知）+ `src/hal/os/`（临界区契约）+ `platform/.../port/critical.c`（实现）
-- [ ] `Port/UsbCdc.{c,h}` 与 USB 生成桩 → `platform/.../port/usb_cdc.c`（边界重划按 Q8，P4 做）
-- [ ] 搬完后删除 `legacy_include`、`legacy_library()` 与 `.clang-tidy` 头文件过滤中的 `legacy/Application` 一段（P2 推迟到此，Decision-20261026-08）；`legacy/` 只剩迁移源 README 与架构图
-- [ ] 验收：构建绿；行为不变（host 对照/实机对照）；`git diff` 只含移位/拆文件/路径；ctest 绿
-- [ ] 回滚：revert P2.5 分支，P2 基线仍在
+- [x] `Application/Entry.*` → `config/assembly/entry_legacy.cpp` + `config/assembly/Application/Entry.h`（生成代码按 `"Application/Entry.h"` include，路径保持；由组合根把 `config/assembly` 注入生成区的 include 路径，例外 X-09；P3b 再收敛为 `boot_*`）
+- [x] `Application/Task/TaskManager.*` → `app/common/task_manager.*`（P3b 再拆任务表到 `config/assembly`）
+- [x] `Application/Imu/*` → `app/imu/`（P3b 再拆 `ImuBodyMapping` 与时钟注入）
+- [x] `Platform/PortKit/*` → **整体并入** `platform/.../port/port_kit.{c,h}`，删除过渡 target `portkit`（X-15 关闭）。原计划的拆分（队列/通知 → `src/utils`，临界区契约 → `src/hal/os`，实现 → port）**推迟到 P3a**：队列与通知用 CMSIS 的 `__DMB()`，不能原样进零平台的 `src/utils`；临界区拆到别的文件会改变 Release 生成代码（Decision-20261026-10）
+- [x] `Port/UsbCdc.{c,h}` → `platform/.../port/usb_cdc.c` + `UsbCdc.h`（被 USB 生成代码按名字 include，保持原名；边界重划按 Q8，P4 做）
+- [x] 搬完后删除 `legacy_include`、`legacy_library()` 与 `.clang-tidy` 头文件过滤中的 `legacy/Application` 一段（P2 推迟到此，Decision-20261026-08）；`legacy/` 只剩迁移源 README 与架构图（X-11、X-12 关闭）
+- [x] 验收（2026-10-26）：构建绿（零告警）；符号集合按 `alg_` 改名表换算后与 P1 存档一致（Debug 1426、Release 1038，xPack 与 Arm GNU 两套工具链）；搬迁的 4 个目标文件反汇编（含重定位）与数据段逐项相同；编译选项除 include 目录外不变（`port_kit.c` 随 port 带上严格告警，无告警）；改动分纯 `git mv`（16 个文件 R100）、include/保护宏改写、构建与工具适配三个提交；`ctest` 14/14；命名 0 处
+- [x] 回滚：revert P2.5 的两个合并提交（搬迁、去掉 `alg_` 前缀），P2 基线仍在
 
 ### P3a 框架化与契约 v1（改接口不改行为，11–20 人日）
 
-- [ ] 契约统一为 C++：合并 C ABI 层、删除 `src/hal/detail/`，枚举只保留 C++ 一份；port、PortKit 与 `platform/mock` 改写为 C++（约 2,700 行；`Spi.c`、`Uart.c` 的指定初始化器需改写）；历史测试的 C ABI 桩改为 C++ mock
+- [ ] 契约统一为 C++：合并 C ABI 层、删除 `src/hal/detail/`，枚举只保留 C++ 一份；port、PortKit 与 `platform/mock` 改写为 C++（PortKit 同时拆分：队列/通知 → `src/utils` 并发原语，临界区 → `src/hal/os` 契约 + 各板 port 实现，P2.5 推迟到此，Decision-20261026-10；约 2,700 行；`Spi.c`、`Uart.c` 的指定初始化器需改写）；历史测试的 C ABI 桩改为 C++ mock
 - [ ] CI 增加 HAL 回调符号检查（`nm` 确认 `HAL_*Callback` 未被 C++ 改名）
 
 - [ ] 设备 ID 移出公共契约头：契约头只定义 API 与不透明 ID 类型，ID 常量由 board 头提供，驱动经 `Config` 接收（BMI088 的 4 个文件、Buzzer、WS2812，共 16 处）
@@ -124,7 +124,7 @@
 
 ## 当前 Agent State
 
-`EXECUTING`（P0、P0.5、P1、P2 均于 2026-10-26 验收，里程碑合并入 `main` 按负责人要求暂缓；P2.5 进行中：`src/lib` 已去掉 `alg_` 前缀，固件符号按改名表换算后与 P1 存档一致，下一步是混合文件拆分搬迁）。
+`EXECUTING`（P0、P0.5、P1、P2、P2.5 均于 2026-10-26 验收，里程碑合并入 `main` 按负责人要求暂缓；源码已全部搬出 `legacy/`，固件符号按改名表换算后与 P1 存档一致；下一步是 P3a 框架化与契约 v1）。
 状态词表：`REVIEW_PENDING`（等待评审）/ `PLANNING`（方案已批准、编制细节）/ `EXECUTING`（实施中）/ `BLOCKED`（外部阻塞）/ `DONE`（阶段完成）。
 
 ## Before Snapshot
@@ -194,3 +194,4 @@ Q1–Q18 已全部确认（见评审报告 v1.0 §11.1 与 decision.md）。仍�
 | 2026-10-26 | P1 | CMake 文件按层合并为 7 个（负责人选定，Decision-20261026-07 第 11 点）；合并前后依赖图与编译命令逐字相同 | 已完成 |
 | 2026-10-26 | P2 | 机械搬迁：323 个文件 `git mv`（R100）+ include/保护宏改写 + 构建与工具适配；GimbalModule 随 P2 搬；`legacy_include` 删除推迟到 P2.5（Decision-20261026-08）。符号与 P1 存档一致，ctest 14/14 | P2 验收 |
 | 2026-10-26 | P2.5 | `src/lib` 子目录与命名空间去掉 `alg_` 前缀（负责人要求，Decision-20261026-09）；`symbols.py` 支持改名表，CI 按改名表换算 P1 存档。符号一致（Debug 1426、Release 1038），ctest 14/14 | 已完成 |
+| 2026-10-26 | P2.5 | 搬迁 `legacy/` 剩余 16 个源码文件（R100）+ include/保护宏改写 + 构建与工具适配；PortKit 整体并入 port，拆分推迟到 P3a；删除 `legacy_include`、`legacy_library()`、`portkit`（X-11、X-12、X-15 关闭，Decision-20261026-10）。符号一致，搬迁文件的目标文件逐项相同，ctest 14/14 | P2.5 验收 |
