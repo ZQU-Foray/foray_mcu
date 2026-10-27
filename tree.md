@@ -21,10 +21,12 @@ foray_mcu/
 │   ├── targets.cmake         严格告警、OBJECT 库目标文件传递、固件产物、烧录目标
 │   └── legacy.cmake          迁移期过渡件：legacy_build_options（迁移源的两个构建期开关，F2、F3 删）
 ├── src/                      框架（include 根：#include "hal/can.hpp"）
-│   ├── CMakeLists.txt        框架的全部 target：hal、hal_detail、hal_os、boot、utils、lib_*、driver_*
+│   ├── CMakeLists.txt        框架的全部 target：hal、hal_detail、hal_os、boot、utils_*、middleware_*、lib_*、driver_*
 │   ├── README.md             迁移源 Libraries/README.md（正文为旧路径，F1 更新）
 │   ├── hal/                  C++ 契约（can、gpio、pwm、spi、time、uart、usb_cdc）；detail/ 为迁移期 C ABI（F2 删）；os/ 为最小 OS 契约草案
-│   ├── lib/                  math、control、crc、estimate、filter、fsm、kinematics、slope、component（目录名即命名空间名）
+│   ├── utils/                math、crc（F1 第 1 步由 lib 移入）
+│   ├── middleware/           fsm（F1 第 1 步由 lib 移入）
+│   ├── lib/                  control（pid、slope）、estimate、filter、kinematics、component（目录名即命名空间名）
 │   └── driver/               bmi088、buzzer、motor（含 dji/）、ws2812、protocol/{dji,sbus}
 ├── app/                      产品（include 根：#include "tasks/imu_task.hpp"）
 │   ├── CMakeLists.txt        产品的全部 target：app_imu、app_chassis、app_gimbal、app_remote、app_tasks、app_common
@@ -91,10 +93,11 @@ foray_mcu/
 │   ├── hal/                      硬件契约（C++ 自由函数 + 不透明句柄）：can、spi、uart、gpio、pwm、time、usb_cdc（F2）
 │   │   └── os/                   OS 契约：临界区、单调时基、信号（F1）
 │   ├── boot/                     启动入口 boot.h：boot_init / boot_init_rtos / boot_run（F2）
-│   ├── utils/                    无领域含义的基础件：spsc_queue、latest_value、fsm、crc（F1）
-│   ├── middleware/               系统服务：topic（F1）；将来按需加调试遥测、参数存储、链路传输
-│   │   └── topic/                topic 机制：最新值、单发布者、中断发布、阻塞等待
-│   ├── lib/                      领域算法：math、control（pid、slope）、estimate、filter、kinematics、component
+│   ├── utils/                    无领域含义的基础件：math、crc；spsc_queue、latest_value（F1）
+│   ├── middleware/               给能力用的运行期机制与服务：topic（F1）、fsm；将来按需加调试遥测、参数存储、链路传输
+│   │   ├── topic/                topic 机制：最新值、单发布者、中断发布、阻塞等待
+│   │   └── fsm/                  通用状态机
+│   ├── lib/                      领域算法：control（pid、slope）、estimate、filter、kinematics、component
 │   ├── driver/                   设备驱动与设备协议：bmi088、motor/dji、buzzer、ws2812、protocol/{dji,sbus}（F3 适配 hal v1）
 │   └── third_party/              vendor 生成头：foray_interfaces/generated/lower_link.hpp + 版本/sha256（阶段 A）
 ├── platform/                     按板一级
@@ -147,7 +150,7 @@ foray_mcu/
 | 要找什么 | 去哪（目标位置） | 当前状态 |
 |---|---|---|
 | 迁移源 README 与架构图 | `legacy/` | ⛔ 只读（源码已在 P2、P2.5 全部搬出） |
-| 无领域含义的基础件 | `src/utils/` | 🟡 F1（现有 `lib/fsm`、`lib/crc` 移入；PortKit 队列改写） |
+| 无领域含义的基础件 | `src/utils/` | ✅ math、crc 已移入（F1 第 1 步）；🟡 spsc_queue、latest_value（F1） |
 | topic 机制 / 产品的 topic 清单 | `src/middleware/topic/` / `app/topics/` | 🟡 F1 |
 | OS 契约 | `src/hal/os/` | 📄 草案与宿主替身（P1）；定稿与 `Signal` 在 F1，port 实现在 F2 |
 | 硬件契约 v1 | `src/hal/` | 🟡 F2（现为旧契约 + `src/hal/detail` C 接口，F2 删除） |
@@ -175,7 +178,7 @@ foray_mcu/
 | `Application/Entry.*` | `config/assembly/<profile>.cpp` 实现 `boot_*`（F2） |
 | `Application/Task/TaskManager.*` | 任务表 → `config/assembly`；创建机制 → `app/common` 任务运行器（F2） |
 | `Application/Task/*`、`Application/Imu/*`、`Application/Module/*` | 阶段 A 按能力重建（`app/<capability>`，init/step + topic） |
-| `Libraries/Algorithm/*`、`Component/*` | `src/lib/`；fsm、crc → `src/utils/`，slope → `src/lib/control`（F1） |
+| `Libraries/Algorithm/*`、`Component/*` | `src/lib/`；math、crc → `src/utils/`，fsm → `src/middleware/`，slope → `src/lib/control`（F1 第 1 步） |
 | `Libraries/Device/*`、`Protocol/*` | `src/driver/`，F3 适配 hal v1 |
 | `Platform/Interface/*.hpp` + `Detail/*.h` | 由 `src/hal` 契约 v1 取代（F2） |
 | `Platform/PortKit/*` | 队列 → `src/utils/spsc_queue`（F1）；临界区 → `src/hal/os` 契约 + port 实现（F1、F2） |

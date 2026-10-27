@@ -21,3 +21,6 @@ bdada620ad7078153416bdb01254b449106fb8f8
 
 # P2.5 机械改写 include 与头文件保护宏（refactor: 11cea0b，只改 include 与保护宏所在的行）
 11cea0b935559f5b46de015a068bbd63924f6a6c
+
+# F1 第 1 步 改写 include、保护宏与命名空间（refactor: e98b581，只改这三类行）
+e98b581b6478f38c27b0df46aac47fcbd5ec479a

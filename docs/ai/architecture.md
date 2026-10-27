@@ -1,6 +1,6 @@
 # 架构判据与依赖规则（foray_mcu）
 
-> **状态**：v2.0（2026-10-27，Decision-20261027-01）。v2 按负责人的骨架重写：迁移方式从"改造迁移源"改为"按新骨架重建，迁移源只作参考与零件来源"。v1.0–v1.4（P0–P2.5）见 git 历史与 decision.md。
+> **状态**：v2.1（2026-10-27）。v2.0 见 Decision-20261027-01；v2.1 随 F1 第 1 步更新 utils、middleware、lib 的归类：math 进 utils，fsm 进 middleware（Decision-20261027-02）。v2 按负责人的骨架重写：迁移方式从"改造迁移源"改为"按新骨架重建，迁移源只作参考与零件来源"。v1.0–v1.4（P0–P2.5）见 git 历史与 decision.md。
 > **权威来源**：[decision.md](../../decision.md) 中的 Accepted 条目，v2 起以 Decision-20261027-01 为准。[评审报告 v1.0](reviews/2026-10-25-foray_mcu-架构评审报告.md) 是历史记录，与本文件冲突的部分以本文件为准。
 > **修改流程**：新增或修改规则、例外、白名单，先在 decision.md 登记，再改本文件和对应的 CI 检查（§10）。
 
@@ -45,10 +45,11 @@ foray_mcu/
 │   ├── hal/                  硬件契约（C++ 头）：can、spi、uart、gpio、pwm、time、usb_cdc
 │   │   └── os/               OS 契约：临界区、单调时基、信号（等待/唤醒）
 │   ├── boot/                 启动入口 boot.h（extern "C"）：生成区只调它
-│   ├── utils/                无领域含义的基础件：spsc_queue、latest_value、fsm、crc
-│   ├── middleware/           系统服务：建立在契约与基础件之上，供能力使用
-│   │   └── topic/            topic 机制：最新值、单发布者、可在中断里发布、可阻塞等待
-│   ├── lib/                  领域算法：math、control（pid、slope）、estimate、filter、kinematics、component
+│   ├── utils/                无领域含义的基础件：math、crc；F1 加入 spsc_queue、latest_value
+│   ├── middleware/           给能力用的运行期机制与服务：建立在契约与基础件之上
+│   │   ├── topic/            topic 机制：最新值、单发布者、可在中断里发布、可阻塞等待
+│   │   └── fsm/              通用状态机
+│   ├── lib/                  领域算法：control（pid、slope）、estimate、filter、kinematics、component
 │   ├── driver/               设备驱动与设备协议：bmi088、motor（dji）、buzzer、ws2812、protocol/{dji,sbus}
 │   └── third_party/          vendor 进来的外部生成头（foray_interfaces 的 lower_link.hpp）
 ├── platform/                 按板一级
@@ -78,10 +79,10 @@ foray_mcu/
 3. **描述某个兵种 × 板吗**（用哪些能力、什么参数）？→ 数据放 `config/profiles/`；对象构造、参数注入、任务表、启动入口的实现放 `config/assembly/`。
 4. **是 RM 专用的吗？** → 行为放 `app/<capability>/`；产品的 topic 定义放 `app/topics/`；线程与调度机制放 `app/common/`。
 5. **与产品和板都无关吗？**
-   - 没有领域含义、哪一层都可能用（容器、并发原语、状态机、校验）→ `src/utils/`；
-   - 领域算法（数学、控制、估计、滤波、运动学、执行器骨架）→ `src/lib/`；
+   - 没有领域含义、哪一层都可能用（数学、容器、并发原语、校验）→ `src/utils/`；
+   - 领域算法（控制、估计、滤波、运动学、执行器骨架）→ `src/lib/`；
    - 设备驱动与设备协议 → `src/driver/`；
-   - 供能力使用的系统服务（发布/订阅；将来的调试遥测、参数存储、链路传输）→ `src/middleware/<服务>/`。topic 只有机制，不含任何具体 topic。
+   - 给能力用的运行期机制与服务（发布/订阅、状态机；将来的调试遥测、参数存储、链路传输）→ `src/middleware/<名>/`。topic 只有机制，不含任何具体 topic。
 
    只有一个产品用的，留在 `app/`，不为尚未出现的项目预先抽象。
 6. **只为测试而存在？** → `test/`。**构建之外的工具**（烧录、调试、生成、检查）→ `tool/`。
@@ -93,15 +94,16 @@ foray_mcu/
 | `hal/` | 硬件资源契约（§3.1） | 标准库、`hal/os` | 厂商头、RTOS、其他层 |
 | `hal/os/` | 临界区、单调时基、信号（§3.2） | 标准库 | 同上 |
 | `boot/` | 启动入口声明（§3.3） | 标准库 | 同上 |
-| `utils/` | SPSC 队列、最新值邮箱（seqlock）、状态机、CRC | 标准库 | 其他所有层 |
-| `middleware/` | 系统服务：`topic`（§3.4）；将来按需加调试遥测、参数存储、链路传输，新增先登记 | `utils`、`hal/os`、中间件内部（无环）；传输类服务另可依赖 `hal` | `driver`、`lib`、`app`、RTOS |
-| `lib/` | 领域算法；层内无环（`math` ← `control`、`filter`、`estimate`、`kinematics`；`component` → `control`） | 标准库、`utils`、`lib` 内部 | `hal`、`driver`、`middleware` |
+| `utils/` | 数学（向量、四元数、矩阵）、CRC；F1 加入 SPSC 队列、最新值邮箱（seqlock）。每个子目录一个 target `utils_<名>` | 标准库 | 其他所有层（包括迁移期的构建开关 `legacy_build_options`） |
+| `middleware/` | 给能力用的运行期机制与服务：`topic`（§3.4）、`fsm`（通用状态机）；将来按需加调试遥测、参数存储、链路传输，新增先登记 | `utils`、`hal/os`、中间件内部（无环）；传输类服务另可依赖 `hal` | `driver`、`lib`、`app`、RTOS |
+| `lib/` | 领域算法；层内无环（`component` → `control`）；数学基础在 `utils/math` | 标准库、`utils`、`lib` 内部 | `hal`、`driver`、`middleware` |
 | `driver/` | 设备驱动与设备协议 | `hal`、`hal/os`、`lib`、`utils`、驱动内部 | `middleware`、`app`、RTOS |
 | `third_party/` | vendor 的外部生成头，固定版本 + sha256 | 标准库 | 手工修改 |
 
 - 驱动不发布 topic：驱动要能脱离本产品的 topic 清单复用，由能力把驱动的数据发布出去。
 - topic 只依赖 `utils` 与 `hal/os`，裸机与宿主测试都能用。
-- `middleware` 只收与产品无关、给能力用的运行期服务。硬件契约、无领域基础件、算法、设备驱动各有其层，不放这里，避免它变成杂物间。
+- `middleware` 只收与产品无关、给能力用的运行期机制与服务（topic、状态机等）。硬件契约、无领域基础件、算法、设备驱动各有其层，不放这里，避免它变成杂物间。
+- driver 与 lib 不依赖 middleware：状态机是给能力组织模式与流程用的；驱动内部的少量状态自己处理（Decision-20261027-02）。
 
 ### 2.4 产品（`app/`、`config/`）
 
@@ -251,7 +253,7 @@ EXECUTABLE  firmware_<profile>
  │   │   ├─ 库       middleware_topic   src/middleware/topic → utils、hal_os
  │   │   ├─ STATIC  driver_<device>     src/driver → hal、hal_os、lib、utils
  │   │   ├─ STATIC  lib_<pkg>           src/lib → utils
- │   │   ├─ 库       utils              src/utils
+ │   │   ├─ STATIC  utils_<名>          src/utils（只依赖标准库）
  │   │   └─ INTERFACE hal、hal_os        src/hal（实现在 port）
  │   ├─ INTERFACE os_freertos_<board>   FreeRTOS 头（只对 app_common、assembly 可见）
  │   └─ OBJECT    board_<board>         platform/<board>/board（board.hpp、链接脚本）

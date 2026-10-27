@@ -85,7 +85,8 @@
 
 ### F1 框架基础件（宿主可测，纯新增，4–6 人日）
 
-- [ ] `src/utils`：`spsc_queue`（由 PortKit 的队列改写，acquire/release，不用原子读改写）、`latest_value`（单写者 seqlock）；`fsm`、`crc` 从 `src/lib` 移入，`crc` 补 crc16（裁判系统用）；`slope` 移到 `src/lib/control`
+- [x] 第 1 步 归类调整（2026-10-27，Decision-20261027-02）：`crc`、`math` → `src/utils`（target `utils_crc`、`utils_math`，用 `utils_library()`，不带迁移期构建开关）；`fsm` → `src/middleware/fsm`（负责人决定）；`slope` 并入 `src/lib/control`（命名空间 `control`）；依赖图检查加入 lib → utils，middleware 按架构 v2 收紧
+- [ ] `src/utils`：`spsc_queue`（由 PortKit 的队列改写，acquire/release，不用原子读改写）、`latest_value`（单写者 seqlock）；`crc` 补 crc16（裁判系统用）
 - [ ] `src/hal/os` 契约定稿：`CriticalSection`、单调时基、`Signal`（等待/唤醒，中断里可唤醒）；`platform/mock` 实现（宿主线程，测试控制时间）
 - [ ] `src/middleware/topic`（target `middleware_topic`）：最新值、单发布者、中断里可发布、阻塞等待、观测计数（架构 v2 §3.4）；`app/topics` 目录与清单约定
 - [ ] 宿主测试：utils 与 topic 的单元测试，含多线程压力（发布线程 × 订阅线程、模拟中断发布、等待超时、单发布者检查）
@@ -228,3 +229,4 @@ Q1–Q18 已全部确认（见评审报告 v1.0 §11.1 与 decision.md）。仍�
 | 2026-10-26 | P2.5 | `src/lib` 子目录与命名空间去掉 `alg_` 前缀（负责人要求，Decision-20261026-09）；`symbols.py` 支持改名表，CI 按改名表换算 P1 存档。符号一致（Debug 1426、Release 1038），ctest 14/14 | 已完成 |
 | 2026-10-26 | P2.5 | 搬迁 `legacy/` 剩余 16 个源码文件（R100）+ include/保护宏改写 + 构建与工具适配；PortKit 整体并入 port，拆分推迟到 P3a；删除 `legacy_include`、`legacy_library()`、`portkit`（X-11、X-12、X-15 关闭，Decision-20261026-10）。符号一致，搬迁文件的目标文件逐项相同，ctest 14/14 | P2.5 验收 |
 | 2026-10-27 | v2 | 迁移方式改为按负责人骨架重建（Decision-20261027-01）：`docs/ai/architecture.md` 重写为 v2；原 P3a–P5 改为 F1–F4（框架）、A（能力）、B（F407）、E（提取） | 待审阅 |
+| 2026-10-27 | F1 | 第 1 步：crc、math 移入 `src/utils`，fsm 移入 `src/middleware`，slope 并入 `lib/control`（Decision-20261027-02）。纯移动、改写、构建三个提交；ctest 14/14，固件符号与 P1 存档一致 | 已完成 |

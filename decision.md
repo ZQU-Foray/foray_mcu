@@ -651,6 +651,42 @@
 
 ---
 
+## Decision-20261027-02（F1 第 1 步：utils、middleware、lib 的归类，Accepted）
+
+- **Date**：2026-10-27
+- **Status**：Accepted（负责人动手完成并确认；fsm 放 middleware 为负责人决定）
+- **Source**：Decision-20261027-01 第 7 点；修订其中"fsm 归 utils、math 留 lib"的划分
+
+**Decision**：
+
+1. **math → `src/utils/math`**：向量、四元数、矩阵没有领域含义，按"无领域含义、哪层都可能用"的标准归 utils。命名空间仍为 `math`。lib 的算法改为依赖 `utils_math`。
+2. **crc → `src/utils/crc`**（同 -01）。
+3. **fsm → `src/middleware/fsm`**（负责人决定）：
+   - 状态机作为给能力组织模式与流程的运行期机制，与 topic 同属 middleware；
+   - middleware 的定义相应改为"给能力用的运行期机制与服务"；
+   - driver 与 lib 仍不得依赖 middleware，驱动内部的少量状态自己处理。
+4. **slope 并入 `src/lib/control`**：目录名即命名空间，`slope::` 改为 `control::`；`lib_slope` 并入 `lib_control`。
+5. **target 与构建**：
+   - utils 每个子目录一个 target：`utils_<名>`；
+   - utils 用新的 `utils_library()`，不链接迁移期的构建开关 `legacy_build_options`，因为 utils 只依赖标准库；
+   - 删除 P1 留下的空 target `utils`。
+6. **依赖图检查**：
+   - target 名规则 `utils_\w+`；
+   - lib 可以依赖 utils；
+   - middleware 收紧为只依赖 utils、契约与 middleware 内部（迁移期另允许 `legacy_build_options`）。
+
+**验证**：
+- 宿主 ctest 14/14；
+- arm-debug、arm-release 构建通过，固件符号与 P1 存档一致：被移动或改名的代码（math 之外）固件都没有链接，math 的命名空间未变；
+- 两张依赖图检查、文本扫描、格式、命名检查通过；
+- 纯移动单独一个提交，只有一行的 `basic_math.cpp`、`fsm.cpp` 也能被识别为改名。
+
+**Alternatives / Rejected**：
+- **fsm 放 utils**（-01 原方案）：驱动也能用状态机。负责人选择把它作为能力层的运行期机制，放 middleware。
+- **utils 也链接 `legacy_build_options` 并在检查中放行**：utils 会背上产品的迁移期宏，与"只依赖标准库"矛盾。否决。
+
+---
+
 ## 待登记
 
 - 分支保护的具体设置（组织规范 §6.1、§10，负责人在 GitHub 上操作后补记）。
