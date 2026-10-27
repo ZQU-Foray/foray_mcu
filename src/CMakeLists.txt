@@ -62,7 +62,7 @@ framework_interface(boot)
 framework_interface(utils)
 
 # ==== lib：纯算法与组件，零平台（评审报告 §5.7）。只依赖标准库与 lib 内部 ====
-# 子目录沿用迁移源的名字（alg_*），P3b 统一为小写分类。
+# 子目录名即命名空间名、即 target 名的后缀（lib/math → math:: → lib_math；controller 例外为 control，Decision-20261026-09）。
 
 framework_library(lib_math
     lib/math/basic_math.cpp

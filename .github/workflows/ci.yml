@@ -217,7 +217,8 @@ jobs:
   # ---- 固件构建、符号对照与依赖图检查（本仓新增） ----
   # P1–P2.5 只搬结构、不改行为：根工程固件的函数与对象符号（名称、大小、类型、绑定、输出段）
   # 必须与迁移源一致（链接顺序会变，镜像 SHA 不作判据，见评审报告 §7.3）。P2 起迁移源构建已随搬迁失效，
-  # 基准为 P1 存档的归一化符号表（docs/ai/decisions/2026-10-26-P1-构建骨架/symbols-*.txt）。
+  # 基准为 P1 存档的归一化符号表（docs/ai/decisions/2026-10-26-P1-构建骨架/symbols-*.txt）；
+  # 此后只改名、不改行为的提交把改名表登记在 renames 中，比较前换算基准里的名字。
   firmware:
     runs-on: ubuntu-latest
     steps:
@@ -242,11 +243,12 @@ jobs:
         run: |
           readelf="$ARM_GCC_ROOT/bin/arm-none-eabi-readelf"
           archive="docs/ai/decisions/2026-10-26-P1-构建骨架"
+          renames=(--renames "docs/ai/decisions/2026-10-26-P2.5-去掉alg前缀/改名表.tsv")
           status=0
           for cfg in Debug Release; do
             preset="arm-$(echo "$cfg" | tr '[:upper:]' '[:lower:]')"
             echo "== $cfg"
-            python3 tool/ci/symbols.py --readelf "$readelf" compare \
+            python3 tool/ci/symbols.py --readelf "$readelf" compare "${renames[@]}" \
               "$archive/symbols-$cfg.txt" "build/$preset/firmware_baseline.elf" || status=1
             sha256sum "build/$preset/firmware_baseline.bin"
           done

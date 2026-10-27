@@ -10,7 +10,13 @@ P1–P2.5 只搬结构、不改行为：链接顺序会变，镜像的 SHA 不�
 用法：
     symbols.py dump <ELF>                     # 输出归一化的符号表
     symbols.py compare <基准> <ELF>           # 基准可以是 ELF 或 dump 的输出；不一致时返回 1
+    symbols.py compare --renames <改名表> <基准> <ELF>
+                                              # 先按改名表换算基准中的名字（只改名、不改行为的提交）
     symbols.py sections <ELF>                 # 输出各段大小（辅助参考）
+
+改名表是 TSV（# 开头为注释），每行"旧名<TAB>新名"，是 C++ 源码中的标识符（如命名空间
+alg_math → math）；比较前把基准修饰名里的"长度+旧名"（8alg_math）换成"长度+新名"（4math）。
+大小、类型等其余字段不换算，仍须逐项一致。
 
 readelf 取自 --readelf、环境变量 READELF 或 PATH（Arm GNU 工具链的 arm-none-eabi-readelf，
 或 binutils 的 readelf，两者对 ARM ELF 的输出一致）。
@@ -87,6 +93,32 @@ def load(tool: str, path: Path) -> collections.Counter[tuple[str, ...]]:
     return table
 
 
+def load_renames(paths: list[Path]) -> list[tuple[re.Pattern[str], str]]:
+    """读取改名表，转成修饰名中的替换规则。"""
+    rules = []
+    for path in paths:
+        for line in path.read_text("utf-8").splitlines():
+            if not line.strip() or line.startswith("#"):
+                continue
+            old, new = line.split("\t")
+            pattern = re.compile(rf"(?<![0-9]){len(old)}{re.escape(old)}")
+            rules.append((pattern, f"{len(new)}{new}"))
+    return rules
+
+
+def renamed(
+    table: collections.Counter[tuple[str, ...]],
+    rules: list[tuple[re.Pattern[str], str]],
+) -> collections.Counter[tuple[str, ...]]:
+    result: collections.Counter[tuple[str, ...]] = collections.Counter()
+    for key, count in table.items():
+        name = key[4]
+        for pattern, replacement in rules:
+            name = pattern.sub(replacement, name)
+        result[(*key[:4], name)] += count
+    return result
+
+
 def format_rows(table: collections.Counter[tuple[str, ...]]) -> list[str]:
     rows = []
     for key in sorted(table, key=lambda key: (key[0], key[4], key[1], key[2], key[3])):
@@ -101,6 +133,13 @@ def main() -> int:
     dump = commands.add_parser("dump", help="输出归一化的符号表")
     dump.add_argument("elf", type=Path)
     compare = commands.add_parser("compare", help="与基准比较，不一致时返回 1")
+    compare.add_argument(
+        "--renames",
+        type=Path,
+        action="append",
+        default=[],
+        help="改名表（可重复）：比较前换算基准中的名字",
+    )
     compare.add_argument("reference", type=Path, help="基准 ELF 或 dump 的输出")
     compare.add_argument("elf", type=Path)
     section_command = commands.add_parser("sections", help="输出各段大小")
@@ -118,6 +157,12 @@ def main() -> int:
         return 0
 
     reference = load(args.readelf, args.reference)
+    rules = load_renames(args.renames)
+    if rules:
+        before = reference
+        reference = renamed(reference, rules)
+        changed = sum(count for key, count in before.items() if key not in reference)
+        print(f"按改名表换算了基准中 {changed} 个符号的名字")
     current = symbols(args.readelf, args.elf)
     missing = reference - current
     extra = current - reference
