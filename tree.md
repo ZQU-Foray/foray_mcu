@@ -1,6 +1,6 @@
 # 目录结构说明（foray_mcu）
 
-> 状态：**方案已确认，P0、P0.5、P1、P2 已验收（2026-10-26），下一步 P2.5**。本文件描述"目标结构"与"当前实际状态"的差异。
+> 状态：**方案已确认，P0、P0.5、P1、P2 已验收（2026-10-26），P2.5 进行中**（`src/lib` 已去掉 `alg_` 前缀）。本文件描述"目标结构"与"当前实际状态"的差异。
 > 目标结构以 [docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md](docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md) 为准；"目标位置"按阶段落地，是否已落地以状态图例为准。
 
 ## 当前实际结构（2026-10-26，P2 完成）
@@ -24,7 +24,7 @@ foray_mcu/
 │   ├── CMakeLists.txt        框架的全部 target：hal、hal_detail、hal_os、boot、utils、lib_*、driver_*
 │   ├── README.md             迁移源 Libraries/README.md（正文为旧路径，P3b 更新）
 │   ├── hal/                  C++ 契约（can、gpio、pwm、spi、time、uart、usb_cdc）；detail/ 为迁移期 C ABI（P3a 删）；os/ 为最小 OS 契约草案
-│   ├── lib/                  alg_controller、alg_crc、alg_estimate、alg_filter、alg_fsm、alg_kinematics、alg_math、alg_slope、component
+│   ├── lib/                  math、control、crc、estimate、filter、fsm、kinematics、slope、component（目录名即命名空间名）
 │   └── driver/               bmi088、buzzer、motor（含 dji/）、ws2812、protocol/{dji,sbus}
 ├── app/                      产品（include 根：#include "tasks/imu_task.hpp"）
 │   ├── CMakeLists.txt        产品的全部 target：app_imu、app_chassis、app_gimbal、app_remote、app_tasks、app_common
@@ -167,7 +167,7 @@ foray_mcu/
 | 启动 ABI（生成区 ↔ 装配根） | `src/boot/` | 🟡 target 已建，内容在 P3b |
 | 最小 OS 契约 / 并发原语 | `src/hal/os/`、`src/utils/` | 📄 OS 契约草案与宿主替身（P1）；port 实现与并发原语在 P3a |
 | 设备驱动与协议 | `src/driver/` | ✅ 已搬入（P2） |
-| 算法与组件 | `src/lib/` | ✅ 已搬入（P2，保留 alg_* 子目录名，P3b 统一） |
+| 算法与组件 | `src/lib/` | ✅ 已搬入（P2）；子目录与命名空间已去掉 `alg_` 前缀（P2.5，Decision-20261026-09） |
 | 板级生成区（CubeMX） | `platform/<vendor>/<mcu>/<board>/cubemx/` | ✅ 已搬入（P2，冻结） |
 | 板级手写适配（Port） | `platform/<vendor>/<mcu>/<board>/port/` | ✅ 已搬入（P2，仍是 C；UsbCdc 在 P2.5，P3a 改写为 C++） |
 | 宿主测试 | `test/host/`（从 ControllerCode `fd1edbb` 恢复） | ✅ 由根工程引入（P1，14 项全绿；`ImuStream` 待重写） |

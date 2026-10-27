@@ -503,6 +503,51 @@
 
 ---
 
+## Decision-20261026-09（src/lib 去掉 alg_ 前缀，Accepted）
+
+- **Date**：2026-10-26
+- **Status**：Accepted（负责人 2026-10-26 要求："取消掉 alg_ 这样的前缀"）
+- **Source**：负责人指示；修订 Decision-20261026-08 第 1 点"保留 `alg_*` 子目录名"与 tree.md 中"P3b 统一"的安排。过程与验证见 `docs/ai/decisions/2026-10-26-P2.5-去掉alg前缀/`
+
+**Decision**：
+
+1. **范围**：`src/lib` 的子目录与命名空间一起去掉 `alg_` 前缀。目录名、命名空间名、target 名后缀三者一致：
+
+   | 原目录 / 命名空间 | 新目录 / 命名空间 | target（不变） |
+   |---|---|---|
+   | `alg_math` | `math` | `lib_math` |
+   | `alg_controller` | `control` | `lib_control` |
+   | `alg_crc`、`alg_estimate`、`alg_filter`、`alg_fsm`、`alg_slope` | `crc`、`estimate`、`filter`、`fsm`、`slope` | `lib_<同名>` |
+   | `alg_kinematics`（另有命名空间 `alg_odometry`） | `kinematics`（`odometry`） | `lib_kinematics` |
+
+   - `alg_controller` 改为 `control`，不是字面去前缀的 `controller`：与已有 target 名 `lib_control`、tree.md 目标结构的分类名一致；
+   - `component` 本来没有前缀，不变。
+2. **时机**：放在 P2.5 开头，单独一个 PR。它是改名类变更，按"一个 PR 只做一类变更"与 P2.5 的拆分搬迁分开。原计划 P3b 统一，提前的理由：P3b 同时改行为，改名混在其中难以审查；现在改，除 `legacy/Application/Imu` 外的引用都已在新位置，一次改完。
+3. **提交拆分**（同 P2）：
+   - 纯 `git mv`：8 个目录、31 个文件，全部 R100；
+   - 整词替换：45 个文件 416 行，只改命名空间、限定名、include、保护宏与 `src/CMakeLists.txt` 的源文件路径；
+   - 重新格式化：10 个文件。
+   - 后两个提交登记到 `.git-blame-ignore-revs`。
+4. **对照判据不变，基准不变**：命名空间改名会改变修饰名。
+   - `tool/ci/symbols.py compare` 新增 `--renames`：按改名表把 P1 存档修饰名里的"长度+旧名"换成"长度+新名"，大小等其余字段仍须逐项一致；
+   - CI `firmware` 作业带改名表对照，基准仍是 P1 存档；
+   - 固件中没有大小随名字变化的符号（如 `__PRETTY_FUNCTION__`），只换算名字、不放宽大小。
+
+**验证**：
+- 符号集合与 P1 存档一致（带改名表）：Debug 1426、Release 1038；Windows xPack 与 Linux Arm GNU 各验证一次。不带改名表时报不一致，说明对照覆盖了改名的符号；
+- 编译选项与 P2 相比只有源文件路径不同；依赖图不变；
+- ctest 14/14；命名检查 0 处，格式检查 131 个文件通过，文本扫描通过。
+
+**Consequences**：
+- 新名字较通用（`math`、`filter`、`control`）。与局部变量、参数同名（如 `filter`、`crc`）不冲突，因为 `X::` 前的名字只按命名空间与类型查找。框架将来被其他工程引入时（P5）若与对方命名空间冲突，再整体加外层命名空间，与 Decision-20261026-06 的 target 名同样处理。
+- 历史记录中的 `alg_*` 按上表理解，不逐条改写：评审报告、Decision-20261026-05（如 `alg_math::PI` 与 CMSIS-DSP 的 `PI` 同名，现为 `math::PI`）、-08、P2 移动表、`src/README.md` 正文。
+
+**Alternatives / Rejected**：
+- **只改目录、不改命名空间**：`lib/math/` 下是 `alg_math::`，同一模块两套名字，否决。
+- **按原计划在 P3b 统一**：P3b 允许改行为，改名混在其中难以审查，否决。
+
+---
+
 ## 待登记
 
 - 分支保护的具体设置（组织规范 §6.1、§10，负责人在 GitHub 上操作后补记）。

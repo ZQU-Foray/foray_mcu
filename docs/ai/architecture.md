@@ -1,6 +1,6 @@
 # 架构判据与依赖规则（foray_mcu）
 
-> **状态**：v1.2（2026-10-26：v1 于 P0 创建，Decision-20261026-02；v1.1 随 P1 更新——target 名去掉项目前缀〔Decision-20261026-06〕，补充 P1 实际状态、CI 检查与例外 X-14–X-16〔Decision-20261026-07〕；v1.2 随 P2 更新——源码位置、`legacy_include` 推迟到 P2.5、规则 9 的迁移期放行〔Decision-20261026-08〕）。本文件是"一段代码该放哪一层、能依赖谁"的唯一人读入口，供人工评审与 AI 代理使用。
+> **状态**：v1.3（2026-10-26：v1 于 P0 创建，Decision-20261026-02；v1.1 随 P1 更新——target 名去掉项目前缀〔Decision-20261026-06〕，补充 P1 实际状态、CI 检查与例外 X-14–X-16〔Decision-20261026-07〕；v1.2 随 P2 更新——源码位置、`legacy_include` 推迟到 P2.5、规则 9 的迁移期放行〔Decision-20261026-08〕；v1.3 随 P2.5 更新——`src/lib` 去掉 `alg_` 前缀〔Decision-20261026-09〕）。本文件是"一段代码该放哪一层、能依赖谁"的唯一人读入口，供人工评审与 AI 代理使用。
 > **权威来源**：[评审报告 v1.0](reviews/2026-10-25-foray_mcu-架构评审报告.md) §3.2–§3.3、§5，以及 [decision.md](../../decision.md) 中的 Accepted 条目。本文件与它们冲突时以后者为准，并同步修正本文件。
 > **修改流程**：新增或修改规则、例外、白名单，先在 decision.md 登记，再改本文件和对应的 CI 检查（§9）。
 
@@ -204,7 +204,7 @@ EXECUTABLE test_<name>  →  被测 target + STATIC platform_mock + ctest
 | X-03 | **链接脚本 overlay**：自定义段（如 `.dma_buffer.imu_diag`）不改生成的 `.ld`，用第二个 `-T` 追加 | 生成区冻结 | Q9 | P4 落地 |
 | X-04 | **OS 抽象范围**：框架只含临界区 + 单调时基；线程、队列、事件只在产品层；迁移期任务外壳可继续用 `cmsis_os2` | 10 | Q10、Q12 | 任务层在 P3b 改用 FreeRTOS 原生 API |
 | X-05 | **Dji 型号映射**：`DjiMotorModelMap`（型号 → 电调档案、原生减速比）是品牌默认值，留在驱动层 | 2.4 判据 | Q11 | 长期有效 |
-| X-06 | **`-Wdouble-promotion` 豁免**：`vqf.cpp`（`src/lib/alg_estimate/`，P2 前为 `legacy/Libraries/Algorithm/alg_estimate/Vqf.cpp`）。该文件同时须有"目标无双精度 FPU 即 `#error`"的检查 | 14 | Decision-20261025-03 | 长期有效；第一个在 M4F 板上链接姿态解算的 profile 出现时重新评估 |
+| X-06 | **`-Wdouble-promotion` 豁免**：`vqf.cpp`（`src/lib/estimate/`，P2 前为 `legacy/Libraries/Algorithm/alg_estimate/Vqf.cpp`）。该文件同时须有"目标无双精度 FPU 即 `#error`"的检查 | 14 | Decision-20261025-03 | 长期有效；第一个在 M4F 板上链接姿态解算的 profile 出现时重新评估 |
 | X-07 | **迁移期的 C ABI 层**：`Platform/Interface/Detail/*.h` 在 P2 暂放 `src/hal/detail/`（过渡 target `hal_detail`），port 与 PortKit 仍是 C | 3、16 | Q17、评审报告 §5.11 | P3a 合并进 C++ 契约后删除 |
 | X-08 | **迁移期的原子读改写**：框架侧只有 `DjiMotor.cpp` 有 2 处读改写；产品侧 `ImuDataReadyMailbox.hpp`（3 处）、`ImuTask.cpp`（1 处）、`RemoteReceiver.cpp`（2 处） | 13 | 评审报告 §5.8 | P3b 迁移到 `src/utils` 并发原语 |
 | X-09 | **生成区引用应用头**：`main.c`、`freertos.c` 的 USER CODE 区 include `Application/Entry.h` 并调用 `Application_*`；P2.5 起实现位于 `config/assembly/entry_legacy.*` | 7 | 评审报告 M4 | P3b 落地 boot ABI 后删除 |
@@ -266,7 +266,7 @@ EXECUTABLE test_<name>  →  被测 target + STATIC platform_mock + ctest
 | 元素 | 规则 | 示例（现名 → 新名） |
 |---|---|---|
 | 文件、目录 | snake_case；C++ 头文件 `.hpp`、实现 `.cpp` | `ChassisTask.cpp` → `chassis_task.cpp` |
-| 命名空间 | snake_case | `alg_math`、`device` |
+| 命名空间 | snake_case；`src/lib` 下与目录同名，不加 `alg_` 前缀（Decision-20261026-09） | `math`、`device` |
 | 类、结构体、枚举类型、类型别名、模板参数 | PascalCase | `DjiMotor` |
 | 函数、方法 | snake_case | `SetWheelTarget` → `set_wheel_target` |
 | 局部变量、参数 | snake_case | `keyLevel` → `key_level` |

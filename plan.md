@@ -1,6 +1,6 @@
 # 开发计划（foray_mcu 结构重构）
 
-> 当前状态：**P0、P0.5、P1、P2 已验收（2026-10-26），下一步 P2.5 混合文件拆分搬迁**（方案已确认，[decision.md](decision.md) Decision-20261025-01 至 -05 均为 Accepted；里程碑合并入 `main` 暂缓）。
+> 当前状态：**P0、P0.5、P1、P2 已验收（2026-10-26），P2.5 进行中**：`src/lib` 去掉 `alg_` 前缀已完成，下一步混合文件拆分搬迁（方案已确认，[decision.md](decision.md) Decision-20261025-01 至 -05 均为 Accepted；里程碑合并入 `main` 暂缓）。
 > 权威方案见 [docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md](docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md)；本文件只记录执行计划、进度与验收标准。
 > 迁移源 ControllerCode 原样放在 `legacy/`；各阶段的动作、验收与回滚以下文为准，不跨阶段混做。
 
@@ -68,6 +68,8 @@
 
 > 处理评审报告 §7.2.1 的"非一对一映射"项：只移位/拆文件，不改逻辑。
 
+- [x] `src/lib` 子目录与命名空间去掉 `alg_` 前缀（负责人要求，原定 P3b，单独一个 PR；`alg_controller` → `control`，其余去掉前缀）：纯 `git mv` + 整词替换 + 重新格式化三个提交；`symbols.py compare --renames` 按改名表换算 P1 存档后，Debug 1426、Release 1038 一致（Decision-20261026-09，[记录](docs/ai/decisions/2026-10-26-P2.5-去掉alg前缀/README.md)）
+
 - [ ] `Application/Entry.*` → `config/assembly/entry_legacy.*`（P3b 再收敛为 `boot_*`）
 - [ ] `Application/Task/TaskManager.*` → `app/common/task_manager.*`（P3b 再拆任务表到 `config/assembly`）
 - [ ] `Application/Imu/*` → `app/imu/`（P3b 再拆 `ImuBodyMapping` 与时钟注入）
@@ -122,7 +124,7 @@
 
 ## 当前 Agent State
 
-`EXECUTING`（P0、P0.5、P1、P2 均于 2026-10-26 验收，里程碑合并入 `main` 按负责人要求暂缓；P2 搬迁后固件符号与 P1 存档一致，下一步是 P2.5 混合文件拆分搬迁）。
+`EXECUTING`（P0、P0.5、P1、P2 均于 2026-10-26 验收，里程碑合并入 `main` 按负责人要求暂缓；P2.5 进行中：`src/lib` 已去掉 `alg_` 前缀，固件符号按改名表换算后与 P1 存档一致，下一步是混合文件拆分搬迁）。
 状态词表：`REVIEW_PENDING`（等待评审）/ `PLANNING`（方案已批准、编制细节）/ `EXECUTING`（实施中）/ `BLOCKED`（外部阻塞）/ `DONE`（阶段完成）。
 
 ## Before Snapshot
@@ -191,3 +193,4 @@ Q1–Q18 已全部确认（见评审报告 v1.0 §11.1 与 decision.md）。仍�
 | 2026-10-26 | P1 | 根工程构建骨架（target 按目标结构组织，源码仍在 `legacy/`）；`symbols.py`、`arch_check.py`；CI 改用根工程（`firmware`、`lint-arch`）；target 名去掉项目前缀（Decision-20261026-06、-07）。根工程固件与迁移源符号集合一致（Debug 1426、Release 1038），ctest 14/14，依赖图检查通过 | P1 验收 |
 | 2026-10-26 | P1 | CMake 文件按层合并为 7 个（负责人选定，Decision-20261026-07 第 11 点）；合并前后依赖图与编译命令逐字相同 | 已完成 |
 | 2026-10-26 | P2 | 机械搬迁：323 个文件 `git mv`（R100）+ include/保护宏改写 + 构建与工具适配；GimbalModule 随 P2 搬；`legacy_include` 删除推迟到 P2.5（Decision-20261026-08）。符号与 P1 存档一致，ctest 14/14 | P2 验收 |
+| 2026-10-26 | P2.5 | `src/lib` 子目录与命名空间去掉 `alg_` 前缀（负责人要求，Decision-20261026-09）；`symbols.py` 支持改名表，CI 按改名表换算 P1 存档。符号一致（Debug 1426、Release 1038），ctest 14/14 | 已完成 |
