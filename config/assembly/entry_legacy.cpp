@@ -1,6 +1,6 @@
-#include "Entry.h"
+#include "Application/Entry.h"
 #include "remote/remote_receiver.hpp"
-#include "Application/Task/TaskManager.hpp"
+#include "common/task_manager.hpp"
 #include "hal/can.hpp"
 #include "hal/gpio.hpp"
 #include "hal/spi.hpp"

@@ -3,7 +3,7 @@
 // Include the recorder in this test translation unit to inspect its private
 // frozen debugger ABI without adding a production-facing test interface.
 #define IMU_ENABLE_DIAGNOSTICS
-#include "Application/Imu/ImuDiagnostics.cpp"
+#include "imu/imu_diagnostics.cpp"
 #include <cassert>
 #include <cstring>
 #include <iostream>

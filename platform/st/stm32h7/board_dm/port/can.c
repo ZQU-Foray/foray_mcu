@@ -1,5 +1,5 @@
 #include "hal/detail/can.h"
-#include "PortKit.h"
+#include "port_kit.h"
 #include "fdcan.h"
 #include <stddef.h>
 #include <stdint.h>

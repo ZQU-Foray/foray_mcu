@@ -1,5 +1,5 @@
-#ifndef PORTKIT_H
-#define PORTKIT_H
+#ifndef ST_STM32H7_BOARD_DM_PORT_PORT_KIT_H
+#define ST_STM32H7_BOARD_DM_PORT_PORT_KIT_H
 
 #include <stdbool.h>
 #include <stdint.h>

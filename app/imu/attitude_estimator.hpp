@@ -1,7 +1,7 @@
-#ifndef APPLICATION_IMU_ATTITUDE_ESTIMATOR_HPP
-#define APPLICATION_IMU_ATTITUDE_ESTIMATOR_HPP
+#ifndef IMU_ATTITUDE_ESTIMATOR_HPP
+#define IMU_ATTITUDE_ESTIMATOR_HPP
 
-#include "Application/Imu/GyroBiasCalibration.hpp"
+#include "imu/gyro_bias_calibration.hpp"
 #include "driver/bmi088/bmi088_sample_queue.hpp"
 #include <cstdint>
 

@@ -1,4 +1,4 @@
-#include "Application/Imu/ImuDiagnostics.hpp"
+#include "imu/imu_diagnostics.hpp"
 #include "driver/bmi088/bmi088_heater.hpp"
 #include "hal/time.hpp"
 #include <cmath>

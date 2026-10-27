@@ -1,4 +1,4 @@
-#include "Application/Imu/AttitudeEstimator.hpp"
+#include "imu/attitude_estimator.hpp"
 #include "lib/estimate/imu_body_mapping.hpp"
 #include "lib/estimate/vqf.hpp"
 #include "hal/time.hpp"

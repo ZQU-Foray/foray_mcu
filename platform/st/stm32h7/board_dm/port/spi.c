@@ -1,5 +1,5 @@
 #include "hal/detail/spi.h"
-#include "PortKit.h"
+#include "port_kit.h"
 #include "main.h"
 #include "spi.h"
 #include <limits.h>

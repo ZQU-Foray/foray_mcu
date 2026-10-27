@@ -1,4 +1,4 @@
-#include "Application/Imu/ZeroRateBiasObserver.hpp"
+#include "imu/zero_rate_bias_observer.hpp"
 #include <cmath>
 
 namespace application

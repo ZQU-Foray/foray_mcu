@@ -1,5 +1,5 @@
-#ifndef APPLICATION_TASK_TASK_MANAGER_HPP
-#define APPLICATION_TASK_TASK_MANAGER_HPP
+#ifndef COMMON_TASK_MANAGER_HPP
+#define COMMON_TASK_MANAGER_HPP
 
 #include <cstdint>
 
@@ -139,4 +139,4 @@ class TaskManager final
 
 } // namespace application::task
 
-#endif // APPLICATION_TASK_TASK_MANAGER_HPP
+#endif // COMMON_TASK_MANAGER_HPP

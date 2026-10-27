@@ -1,4 +1,4 @@
-#include "Application/Imu/GyroBiasCalibration.hpp"
+#include "imu/gyro_bias_calibration.hpp"
 #include <cmath>
 
 namespace application
