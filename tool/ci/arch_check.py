@@ -316,6 +316,8 @@ GUARD = re.compile(r"^\s*#\s*ifndef\s+(\w+)\s*\n\s*#\s*define\s+\1\b", re.MULTIL
 GLOBAL_INCLUDE = re.compile(r"(?<![\w])include_directories\s*\(", re.IGNORECASE)
 FILE_GLOB = re.compile(r"\bfile\s*\(\s*GLOB", re.IGNORECASE)
 CONDITIONAL = re.compile(r"^\s*#\s*(if|ifdef|ifndef|elif)\b(.*)$")
+# 规则 9 迁移期放行的宏：迁移源的两个构建期开关（例外 X-14），P3b 收进 profile 后删除。
+CONDITIONAL_EXCEPTIONS = ("IMU_ENABLE_DIAGNOSTICS", "BMI088_GYRO_BANDWIDTH_REGISTER")
 PRODUCT_REFERENCE = re.compile(
     r"\b(app_\w+|assembly_\w+|profile_\w+|firmware_\w+)\b|(?<![\w/.])(app|config)/"
 )
@@ -356,7 +358,9 @@ def conditional_violations(text: str) -> list[int]:
         if not match:
             continue
         keyword, rest = match.group(1), match.group(2).strip()
-        if "__cplusplus" in rest:
+        if "__cplusplus" in rest or any(
+            name in rest for name in CONDITIONAL_EXCEPTIONS
+        ):
             continue
         if keyword == "ifndef":
             following = next(
@@ -404,6 +408,8 @@ def check_scan() -> list[str]:
                     f"规则 12：{root}/{path.parts[1]} 不在一级目录白名单内（{path}）"
                 )
     for path in tracked("src/*", "platform/*", "cmake/*"):
+        if "cubemx" in path.parts:
+            continue  # 生成区由规则 7 与例外 X-09 管
         if (
             path.suffix in SOURCE_SUFFIXES
             or path.name == "CMakeLists.txt"

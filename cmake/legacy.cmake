@@ -1,8 +1,8 @@
-# 迁移期过渡件（P1 建立）：源码仍在 legacy/ 原地编译，按迁移源根路径 include（如 "Libraries/..."）。
-# 只在搬迁完成前存在，到期删除（docs/ai/architecture.md 例外 X-11、X-14）：
-#   - legacy_include：P2 结束时删除（源码搬出、include 改写之后）；
-#   - legacy_build_options：P3b 把两个构建期开关收进 profile 后删除；
-#   - legacy_library()：P2 搬迁时改为各目录自己的 add_library()。
+# 迁移期过渡件（P1 建立）：仍在 legacy/ 原地编译的源码按迁移源根路径 include（如 "Application/Imu/..."）。
+# P2 之后只剩 P2.5 的文件（Application/{Entry,Imu,Task/TaskManager}、PortKit、Port/UsbCdc）。
+# 到期删除（docs/ai/architecture.md 例外 X-11、X-14）：
+#   - legacy_include、legacy_library()：P2.5 搬完剩余文件后删除（原计划 P2，因 P2.5 的文件仍按旧路径被引用而推迟）；
+#   - legacy_build_options：P3b 把两个构建期开关收进 profile 后删除。
 
 set(LEGACY_DIR "${PROJECT_SOURCE_DIR}/legacy")
 
@@ -35,10 +35,4 @@ function(legacy_library name)
     add_library(${name} STATIC ${ARGN})
     target_link_libraries(${name} PUBLIC legacy_include PRIVATE legacy_build_options)
     enable_strict_warnings(${name})
-endfunction()
-
-# legacy_interface(<名称> <头文件>...)：只有头文件的业务库。
-function(legacy_interface name)
-    add_library(${name} INTERFACE ${ARGN})
-    target_link_libraries(${name} INTERFACE legacy_include)
 endfunction()

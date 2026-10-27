@@ -2,13 +2,23 @@
 # CMake 文件按层组织：app/ 的全部 target 定义在这里，不在能力子目录里各放一个（Decision-20261026-07）。
 # 能力（imu、chassis、gimbal、remote）各是一个 target，不得依赖 OS 与 platform 实现；
 # 线程、节拍等任务外壳在 app_tasks，任务表与创建机制在 app_common，只有这两者与 assembly 能看到 RTOS 头（规则 10）。
+# 以 app/ 为 include 根：#include "tasks/imu_task.hpp"、"chassis/chassis_controller.hpp"。
 #
-# 迁移期源码在 legacy/Application，P2/P2.5 按评审报告附录 A 搬到对应目录。
+# 迁移期：app_imu（Application/Imu）与 app_common（Application/Task/TaskManager）的源码仍在 legacy/，
+# 按 "Application/..." 引用，P2.5 搬到 app/imu、app/common。
 # 过渡事实：TaskManager（任务表 + 创建机制）在 app_common 并依赖 app_tasks，P3b 把任务表拆到 config/assembly 后消除。
-set(application_dir "${LEGACY_DIR}/Application")
-set(task_dir "${application_dir}/Task")
 set(os_freertos os_freertos_${BOARD_ID})
 
+# app_library(<名称> <源文件与头文件>...)：产品的 STATIC 库，带严格告警。
+#   迁移期的构建开关见例外 X-14（P3b 收进 profile 后去掉）。
+function(app_library name)
+    add_library(${name} STATIC ${ARGN})
+    target_include_directories(${name} PUBLIC "${PROJECT_SOURCE_DIR}/app")
+    target_link_libraries(${name} PRIVATE legacy_build_options)
+    enable_strict_warnings(${name})
+endfunction()
+
+set(application_dir "${LEGACY_DIR}/Application")
 legacy_library(app_imu
     "${application_dir}/Imu/AttitudeEstimator.cpp"
     "${application_dir}/Imu/AttitudeEstimator.hpp"
@@ -20,36 +30,36 @@ legacy_library(app_imu
     "${application_dir}/Imu/ZeroRateBiasObserver.hpp")
 target_link_libraries(app_imu PUBLIC lib_estimate lib_math driver_bmi088 hal)
 
-legacy_library(app_chassis
-    "${task_dir}/1_chassis/ChassisController.cpp"
-    "${task_dir}/1_chassis/ChassisController.hpp")
+app_library(app_chassis
+    chassis/chassis_controller.cpp
+    chassis/chassis_controller.hpp)
 target_link_libraries(app_chassis PUBLIC lib_control lib_math driver_motor hal)
 
-legacy_library(app_gimbal
-    "${application_dir}/Module/GimbalModule.cpp"
-    "${application_dir}/Module/GimbalModule.hpp")
+app_library(app_gimbal
+    gimbal/gimbal_module.cpp
+    gimbal/gimbal_module.hpp)
 target_link_libraries(app_gimbal PUBLIC lib_component lib_control lib_math driver_motor hal)
 
-legacy_library(app_remote
-    "${task_dir}/4_communication/RemoteReceiver.cpp"
-    "${task_dir}/4_communication/RemoteReceiver.hpp")
+app_library(app_remote
+    remote/remote_receiver.cpp
+    remote/remote_receiver.hpp)
 target_link_libraries(app_remote PUBLIC driver_protocol_sbus hal)
 
-legacy_library(app_tasks
-    "${task_dir}/0_imu/ImuDataReadyMailbox.hpp"
-    "${task_dir}/0_imu/ImuTask.cpp"
-    "${task_dir}/0_imu/ImuTask.hpp"
-    "${task_dir}/1_chassis/ChassisTask.cpp"
-    "${task_dir}/1_chassis/ChassisTask.hpp"
-    "${task_dir}/2_gimbal/GimbalTask.cpp"
-    "${task_dir}/2_gimbal/GimbalTask.hpp")
+app_library(app_tasks
+    tasks/imu_data_ready_mailbox.hpp
+    tasks/imu_task.cpp
+    tasks/imu_task.hpp
+    tasks/chassis_task.cpp
+    tasks/chassis_task.hpp
+    tasks/gimbal_task.cpp
+    tasks/gimbal_task.hpp)
 target_link_libraries(app_tasks
     PUBLIC app_imu app_chassis app_gimbal driver_bmi088 driver_motor driver_motor_dji hal
     PRIVATE ${os_freertos})
 
 legacy_library(app_common
-    "${task_dir}/TaskManager.cpp"
-    "${task_dir}/TaskManager.hpp")
+    "${application_dir}/Task/TaskManager.cpp"
+    "${application_dir}/Task/TaskManager.hpp")
 target_link_libraries(app_common
     PUBLIC app_tasks hal
     PRIVATE ${os_freertos})

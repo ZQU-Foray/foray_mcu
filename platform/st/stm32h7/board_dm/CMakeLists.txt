@@ -8,12 +8,16 @@
 #   os_freertos_<板>   RTOS 头文件，只给 app_tasks、app_common 与 assembly       INTERFACE
 #
 # port 与 board 必须是 OBJECT 库（覆盖 HAL 弱符号的回调在静态库里会被静默丢弃）。
-# 生成区（cubemx）冻结，只能重新生成；迁移期源码在 legacy/Platform/STM32H7/DM_MC02，P2 拆到 cubemx/、port/、board/。
+# 生成区（cubemx/）冻结，只能重新生成；cubemx/cmake/stm32cubemx/CMakeLists.txt 是 CubeMX 生成的，根工程不用，
+# 重新生成后可对照它更新下面的源文件清单。迁移期 port 的 UsbCdc 与 PortKit 仍在 legacy/（P2.5 搬）。
 #
 # 编译选项与迁移源一致（P1 的符号对照依赖这一点，Decision-20261026-07）：
 #   - 宏：CubeMX 的宏给全部平台代码；ARM_MATH_CM7 给生成的应用代码（迁移源如此，实际未使用）；
 #   - 手写的 port 带严格告警（-Wextra -Werror），厂商与生成代码不带。
-set(board_dir "${LEGACY_DIR}/Platform/STM32H7/DM_MC02")
+set(cubemx_dir "${CMAKE_CURRENT_SOURCE_DIR}/cubemx")
+set(port_dir "${CMAKE_CURRENT_SOURCE_DIR}/port")
+# 迁移期：UsbCdc 的 port 实现仍在 legacy/（P2.5 搬到 port/）。
+set(legacy_port_dir "${LEGACY_DIR}/Platform/STM32H7/DM_MC02/Port")
 
 # CubeMX 生成的宏与 include 路径（迁移源 cmake/stm32cubemx/CMakeLists.txt 的 MX_Defines_Syms 与 MX_Include_Dirs）。
 set(cubemx_definitions
@@ -22,60 +26,60 @@ set(cubemx_definitions
     STM32H723xx
     $<$<CONFIG:Debug>:DEBUG>)
 set(cubemx_include_dirs
-    "${board_dir}/Core/Inc"
-    "${board_dir}/USB_DEVICE/App"
-    "${board_dir}/USB_DEVICE/Target"
-    "${board_dir}/Drivers/STM32H7xx_HAL_Driver/Inc"
-    "${board_dir}/Drivers/STM32H7xx_HAL_Driver/Inc/Legacy"
-    "${board_dir}/Middlewares/Third_Party/FreeRTOS/Source/include"
-    "${board_dir}/Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2"
-    "${board_dir}/Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F"
-    "${board_dir}/Drivers/CMSIS/RTOS2/Include"
-    "${board_dir}/Middlewares/ST/STM32_USB_Device_Library/Core/Inc"
-    "${board_dir}/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc"
-    "${board_dir}/Drivers/CMSIS/Device/ST/STM32H7xx/Include"
-    "${board_dir}/Drivers/CMSIS/Include"
-    "${board_dir}/Middlewares/ST/ARM/DSP/Inc")
+    "${cubemx_dir}/Core/Inc"
+    "${cubemx_dir}/USB_DEVICE/App"
+    "${cubemx_dir}/USB_DEVICE/Target"
+    "${cubemx_dir}/Drivers/STM32H7xx_HAL_Driver/Inc"
+    "${cubemx_dir}/Drivers/STM32H7xx_HAL_Driver/Inc/Legacy"
+    "${cubemx_dir}/Middlewares/Third_Party/FreeRTOS/Source/include"
+    "${cubemx_dir}/Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2"
+    "${cubemx_dir}/Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F"
+    "${cubemx_dir}/Drivers/CMSIS/RTOS2/Include"
+    "${cubemx_dir}/Middlewares/ST/STM32_USB_Device_Library/Core/Inc"
+    "${cubemx_dir}/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc"
+    "${cubemx_dir}/Drivers/CMSIS/Device/ST/STM32H7xx/Include"
+    "${cubemx_dir}/Drivers/CMSIS/Include"
+    "${cubemx_dir}/Middlewares/ST/ARM/DSP/Inc")
 
 # 再生成防护（沿用迁移源）：CubeMX 重新生成后这两处配置不得丢失。
-file(READ "${board_dir}/USB_DEVICE/Target/usbd_conf.c" usbd_conf_source)
+file(READ "${cubemx_dir}/USB_DEVICE/Target/usbd_conf.c" usbd_conf_source)
 if(NOT usbd_conf_source MATCHES "hpcd_USB_OTG_HS\\.Init\\.dma_enable[ \t]*=[ \t]*ENABLE")
     message(FATAL_ERROR "CubeMX 重新生成后必须保持 USB OTG HS 内部 DMA 开启")
 endif()
-file(READ "${board_dir}/Port/UsbCdc.c" usb_cdc_port_source)
+file(READ "${legacy_port_dir}/UsbCdc.c" usb_cdc_port_source)
 if(NOT usb_cdc_port_source MATCHES "gpio_init\\.Alternate[ \t]*=[ \t]*GPIO_AF10_OTG1_FS")
     message(FATAL_ERROR "UsbCdc port 缺少 USB OTG HS PA11/PA12 的复用功能配置")
 endif()
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
-    "${board_dir}/USB_DEVICE/Target/usbd_conf.c"
-    "${board_dir}/Port/UsbCdc.c")
+    "${cubemx_dir}/USB_DEVICE/Target/usbd_conf.c"
+    "${legacy_port_dir}/UsbCdc.c")
 
 # ---- mx_generated：CubeMX 生成的应用代码 + HAL 驱动 + 启动文件 ----
 set(cubemx_application_sources
-    "${board_dir}/USB_DEVICE/Target/usbd_conf.c"
-    "${board_dir}/USB_DEVICE/App/usb_device.c"
-    "${board_dir}/USB_DEVICE/App/usbd_desc.c"
-    "${board_dir}/USB_DEVICE/App/usbd_cdc_if.c"
-    "${board_dir}/Core/Src/main.c"
-    "${board_dir}/Core/Src/gpio.c"
-    "${board_dir}/Core/Src/freertos.c"
-    "${board_dir}/Core/Src/adc.c"
-    "${board_dir}/Core/Src/bdma.c"
-    "${board_dir}/Core/Src/dma.c"
-    "${board_dir}/Core/Src/fdcan.c"
-    "${board_dir}/Core/Src/mdma.c"
-    "${board_dir}/Core/Src/octospi.c"
-    "${board_dir}/Core/Src/spi.c"
-    "${board_dir}/Core/Src/tim.c"
-    "${board_dir}/Core/Src/usart.c"
-    "${board_dir}/Core/Src/stm32h7xx_it.c"
-    "${board_dir}/Core/Src/stm32h7xx_hal_msp.c"
-    "${board_dir}/Core/Src/stm32h7xx_hal_timebase_tim.c"
-    "${board_dir}/Core/Src/sysmem.c"
-    "${board_dir}/Core/Src/syscalls.c")
-set(hal_driver_dir "${board_dir}/Drivers/STM32H7xx_HAL_Driver/Src")
+    "${cubemx_dir}/USB_DEVICE/Target/usbd_conf.c"
+    "${cubemx_dir}/USB_DEVICE/App/usb_device.c"
+    "${cubemx_dir}/USB_DEVICE/App/usbd_desc.c"
+    "${cubemx_dir}/USB_DEVICE/App/usbd_cdc_if.c"
+    "${cubemx_dir}/Core/Src/main.c"
+    "${cubemx_dir}/Core/Src/gpio.c"
+    "${cubemx_dir}/Core/Src/freertos.c"
+    "${cubemx_dir}/Core/Src/adc.c"
+    "${cubemx_dir}/Core/Src/bdma.c"
+    "${cubemx_dir}/Core/Src/dma.c"
+    "${cubemx_dir}/Core/Src/fdcan.c"
+    "${cubemx_dir}/Core/Src/mdma.c"
+    "${cubemx_dir}/Core/Src/octospi.c"
+    "${cubemx_dir}/Core/Src/spi.c"
+    "${cubemx_dir}/Core/Src/tim.c"
+    "${cubemx_dir}/Core/Src/usart.c"
+    "${cubemx_dir}/Core/Src/stm32h7xx_it.c"
+    "${cubemx_dir}/Core/Src/stm32h7xx_hal_msp.c"
+    "${cubemx_dir}/Core/Src/stm32h7xx_hal_timebase_tim.c"
+    "${cubemx_dir}/Core/Src/sysmem.c"
+    "${cubemx_dir}/Core/Src/syscalls.c")
+set(hal_driver_dir "${cubemx_dir}/Drivers/STM32H7xx_HAL_Driver/Src")
 set(cubemx_driver_sources
-    "${board_dir}/Core/Src/system_stm32h7xx.c"
+    "${cubemx_dir}/Core/Src/system_stm32h7xx.c"
     "${hal_driver_dir}/stm32h7xx_hal_tim.c"
     "${hal_driver_dir}/stm32h7xx_hal_tim_ex.c"
     "${hal_driver_dir}/stm32h7xx_hal_pcd.c"
@@ -109,22 +113,22 @@ set(cubemx_driver_sources
 add_library(mx_generated_${BOARD_ID} OBJECT
     ${cubemx_application_sources}
     ${cubemx_driver_sources}
-    "${board_dir}/startup_stm32h723xx.s")
+    "${cubemx_dir}/startup_stm32h723xx.s")
 target_compile_definitions(mx_generated_${BOARD_ID}
     PUBLIC ${cubemx_definitions}
     PRIVATE ARM_MATH_CM7)
 target_include_directories(mx_generated_${BOARD_ID}
     PUBLIC ${cubemx_include_dirs}
-    # 生成区接缝（例外 X-01、X-09）：main.c 调用 port 的 Port_Init（Port/Init.h），
-    # USB_DEVICE 调用 port 私有的 UsbCdcPort_*（Port/UsbCdc.h），main.c/freertos.c 调用 Application_*。
-    PRIVATE "${board_dir}/Port")
+    # 生成区接缝（例外 X-01、X-09）：main.c 调用 port 的 Port_Init（port/Init.h，被生成代码按名字 include，
+    # 所以保持原文件名），USB_DEVICE 调用 port 私有的 UsbCdcPort_*（UsbCdc.h），main.c/freertos.c 调用 Application_*。
+    PRIVATE "${port_dir}" "${legacy_port_dir}")
 target_link_libraries(mx_generated_${BOARD_ID}
     PRIVATE hal_detail legacy_include
     # 迁移源链接的库：libm 与预编译的 CMSIS-DSP（顺序与迁移源一致）。
-    INTERFACE m "${board_dir}/Middlewares/ST/ARM/DSP/Lib/libarm_cortexM7lfsp_math.a")
+    INTERFACE m "${cubemx_dir}/Middlewares/ST/ARM/DSP/Lib/libarm_cortexM7lfsp_math.a")
 
 # ---- rtos：FreeRTOS 内核、CMSIS-RTOS2 适配、heap_4、Cortex-M4F/M7 移植层 ----
-set(freertos_dir "${board_dir}/Middlewares/Third_Party/FreeRTOS/Source")
+set(freertos_dir "${cubemx_dir}/Middlewares/Third_Party/FreeRTOS/Source")
 add_library(rtos_${BOARD_ID} OBJECT
     "${freertos_dir}/portable/Common/mpu_wrappers_v2.c"
     "${freertos_dir}/croutine.c"
@@ -141,7 +145,7 @@ target_compile_definitions(rtos_${BOARD_ID} PRIVATE ${cubemx_definitions})
 target_include_directories(rtos_${BOARD_ID} PRIVATE ${cubemx_include_dirs})
 
 # ---- usb：ST USB Device 库 ----
-set(usb_library_dir "${board_dir}/Middlewares/ST/STM32_USB_Device_Library")
+set(usb_library_dir "${cubemx_dir}/Middlewares/ST/STM32_USB_Device_Library")
 add_library(usb_${BOARD_ID} OBJECT
     "${usb_library_dir}/Core/Src/usbd_core.c"
     "${usb_library_dir}/Core/Src/usbd_ctlreq.c"
@@ -154,11 +158,11 @@ target_include_directories(usb_${BOARD_ID} PRIVATE ${cubemx_include_dirs})
 # FreeRTOSConfig.h 由 CubeMX 生成在 Core/Inc，只能整目录暴露；Core/Inc 里的其他生成头因此对任务层可见（迁移期限制）。
 add_library(os_freertos_${BOARD_ID} INTERFACE)
 target_include_directories(os_freertos_${BOARD_ID} INTERFACE
-    "${board_dir}/Core/Inc"
+    "${cubemx_dir}/Core/Inc"
     "${freertos_dir}/include"
     "${freertos_dir}/CMSIS_RTOS_V2"
     "${freertos_dir}/portable/GCC/ARM_CM4F"
-    "${board_dir}/Drivers/CMSIS/RTOS2/Include")
+    "${cubemx_dir}/Drivers/CMSIS/RTOS2/Include")
 
 # ---- portkit：迁移期的 SPSC 队列、中断通知与短临界区（C，依赖 CMSIS 内联函数） ----
 # P2.5 拆分：队列与通知 → src/utils，临界区契约 → src/hal/os，CMSIS 实现 → port。
@@ -172,18 +176,17 @@ target_include_directories(portkit
     PRIVATE ${cubemx_include_dirs})
 
 # ---- port：契约（迁移期为 hal_detail 的 C ABI）的手写实现 ----
-set(port_dir "${board_dir}/Port")
 add_library(port_${BOARD_ID} OBJECT
-    "${port_dir}/Can.c"
-    "${port_dir}/Gpio.c"
-    "${port_dir}/Init.c"
-    "${port_dir}/Init.h"
-    "${port_dir}/Pwm.c"
-    "${port_dir}/Spi.c"
-    "${port_dir}/Time.c"
-    "${port_dir}/Uart.c"
-    "${port_dir}/UsbCdc.c"
-    "${port_dir}/UsbCdc.h")
+    port/can.c
+    port/gpio.c
+    port/init.c
+    port/Init.h
+    port/pwm.c
+    port/spi.c
+    port/time.c
+    port/uart.c
+    "${legacy_port_dir}/UsbCdc.c"
+    "${legacy_port_dir}/UsbCdc.h")
 enable_strict_warnings(port_${BOARD_ID})
 target_link_libraries(port_${BOARD_ID} PRIVATE hal_detail)
 link_object_library(port_${BOARD_ID}
@@ -196,7 +199,7 @@ target_link_options(port_${BOARD_ID} INTERFACE "-Wl,--wrap=HAL_PCD_EP_Transmit")
 
 # ---- board：板级内容。P1 只有链接脚本（CubeMX 生成，冻结）；
 #      引脚表、能力常量、设备 ID 在 P3a 加入，链接脚本 overlay 在 P4 加入（Q9） ----
-set(linker_script "${board_dir}/STM32H723xG_flash.ld")
+set(linker_script "${cubemx_dir}/STM32H723xG_flash.ld")
 add_library(board_${BOARD_ID} OBJECT "${linker_script}")
 set_target_properties(board_${BOARD_ID} PROPERTIES LINKER_LANGUAGE C)
 target_link_options(board_${BOARD_ID} INTERFACE "-T${linker_script}")

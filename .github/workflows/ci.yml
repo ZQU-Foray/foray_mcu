@@ -7,9 +7,9 @@
 #     Decision-20261026-05）；P1 起编译数据库来自根工程的三个 preset。
 #   - 新增 lint-arch：tool/ci/arch_check.py 的文本扫描（依赖规则 3、8、9、12、15，P1 起）。
 #   - 新增 host-tests：根工程 host-tests preset 的宿主测试（ctest）与宿主依赖图检查。
-#   - 新增 firmware：根工程构建固件（arm-debug、arm-release），与迁移源构建逐个比较符号集合
+#   - 新增 firmware：根工程构建固件（arm-debug、arm-release），与迁移源的符号集合比较
 #     （名称、大小、类型，P1–P2.5 的判据），并检查固件依赖图（Decision-20261026-07）；
-#     迁移源仍单独构建，Release 镜像必须与基线 SHA-256 逐字节一致（P0–P1 有效，P2 搬迁后删除）。
+#     P2 起迁移源构建随搬迁失效，基准改为 P1 存档的符号表，迁移源基线 SHA 校验删除（Decision-20261026-08）。
 #   - 删除 build-ros2：本仓是 MCU 固件，不是 ROS 2 工作空间。
 #
 # 设计原则沿用模板：没有适用文件就跳过；存量不合规代码不让 CI 长期红灯，新代码不放过。
@@ -215,9 +215,9 @@ jobs:
         run: ctest --preset host-tests
 
   # ---- 固件构建、符号对照与依赖图检查（本仓新增） ----
-  # P1–P2.5 只搬结构、不改行为：根工程的固件与迁移源构建的固件，函数与对象符号的名称、大小、
-  # 类型集合必须一致（链接顺序会变，镜像 SHA 不作判据，见评审报告 §7.3）。
-  # 迁移源构建保留到 P2：Release 镜像仍须与基线逐字节一致，证明 legacy/ 没有被改动。
+  # P1–P2.5 只搬结构、不改行为：根工程固件的函数与对象符号（名称、大小、类型、绑定、输出段）
+  # 必须与迁移源一致（链接顺序会变，镜像 SHA 不作判据，见评审报告 §7.3）。P2 起迁移源构建已随搬迁失效，
+  # 基准为 P1 存档的归一化符号表（docs/ai/decisions/2026-10-26-P1-构建骨架/symbols-*.txt）。
   firmware:
     runs-on: ubuntu-latest
     steps:
@@ -226,27 +226,7 @@ jobs:
       - name: 安装 Arm GNU 工具链
         uses: ./.github/actions/setup-arm-gcc
 
-      - name: 构建迁移源（Debug 与 Release）
-        shell: bash
-        run: |
-          src=legacy/Platform/STM32H7/DM_MC02
-          for cfg in Debug Release; do
-            cmake -S "$src" -B "build/legacy/$cfg" -G Ninja \
-              -DCMAKE_BUILD_TYPE="$cfg" \
-              -DCMAKE_TOOLCHAIN_FILE="$PWD/$src/cmake/gcc-arm-none-eabi.cmake" \
-              -DARM_GCC_ROOT="$ARM_GCC_ROOT"
-            cmake --build "build/legacy/$cfg"
-          done
-
-      - name: 对照基线（迁移源 Release 逐字节一致）
-        shell: bash
-        run: |
-          cd build/legacy
-          grep ' Release/mc02_cpp.bin$' "$GITHUB_WORKSPACE/docs/ai/decisions/baseline-a2cfd16/SHA256SUMS" | sha256sum -c -
-          echo "Debug（只供参考，镜像内含工具链安装路径）："
-          sha256sum Debug/mc02_cpp.bin
-
-      - name: 构建根工程固件（arm-debug 与 arm-release）
+      - name: 构建固件（arm-debug 与 arm-release）
         shell: bash
         run: |
           cmake --preset arm-debug --graphviz=build/arm-debug/graph/targets.dot
@@ -257,16 +237,17 @@ jobs:
       - name: 依赖图检查（固件）
         run: python3 tool/ci/arch_check.py graph build/arm-debug/graph/targets.dot --mode firmware
 
-      - name: 符号对照（根工程 vs 迁移源）
+      - name: 符号对照（与存档的迁移源符号表）
         shell: bash
         run: |
           readelf="$ARM_GCC_ROOT/bin/arm-none-eabi-readelf"
+          archive="docs/ai/decisions/2026-10-26-P1-构建骨架"
           status=0
           for cfg in Debug Release; do
             preset="arm-$(echo "$cfg" | tr '[:upper:]' '[:lower:]')"
             echo "== $cfg"
             python3 tool/ci/symbols.py --readelf "$readelf" compare \
-              "build/legacy/$cfg/mc02_cpp.elf" "build/$preset/firmware_baseline.elf" || status=1
+              "$archive/symbols-$cfg.txt" "build/$preset/firmware_baseline.elf" || status=1
             sha256sum "build/$preset/firmware_baseline.bin"
           done
           exit $status
@@ -281,8 +262,5 @@ jobs:
             build/arm-*/firmware_*.bin
             build/arm-*/firmware_*.hex
             build/arm-*/firmware_*.map
-            build/legacy/*/mc02_cpp.elf
-            build/legacy/*/mc02_cpp.bin
-            build/legacy/*/mc02_cpp.map
           if-no-files-found: ignore
           retention-days: 14

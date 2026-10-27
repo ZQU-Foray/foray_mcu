@@ -25,11 +25,7 @@ import subprocess
 import sys
 
 SUFFIXES = ("*.c", "*.h", "*.cpp", "*.hpp")
-EXCLUDE = re.compile(
-    r"^legacy/Platform/STM32H7/DM_MC02/(Core|Drivers|Middlewares|USB_DEVICE)/"
-    r"|^platform/.*/cubemx/"
-    r"|^src/third_party/"
-)
+EXCLUDE = re.compile(r"^platform/.*/cubemx/" r"|^src/third_party/")
 BATCH = 40
 
 
