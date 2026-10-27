@@ -1,3 +1,5 @@
+> **迁移说明（P2，2026-10-26）**：本文原为迁移源的 `Libraries/README.md`，正文保留迁移前的路径。对应关系：`Libraries/Algorithm/*`、`Component/` → `src/lib/`（子目录名不变，文件名改为 snake_case）；`Libraries/Device/` → `src/driver/`；`Libraries/Protocol/` → `src/driver/protocol/`；`Application/Task/*` → `app/`。逐文件对照见 [P2 移动表](../docs/ai/decisions/2026-10-26-P2-机械搬迁/移动表.tsv)，正文在 P3b 统一更新。文中提到的 `Tests/` 已恢复到 `test/host/`。
+
 ### 通用代码库，一般情况下适用于h723和f407
 
 ### 目录结构

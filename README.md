@@ -2,7 +2,7 @@
 
 > **下位机（MCU）固件** · owner 角色：电控组
 > `layer: MCU` —— **不在 L1–L5 分层内**，位于 L2 下行 HAL **之下**
-> 当前状态：🟡 **结构重构 P0、P0.5、P1 已验收，下一步 P2 机械搬迁**（根工程已按目标结构建立 target，源码仍在 `legacy/` 原地编译）
+> 当前状态：🟡 **结构重构 P0、P0.5、P1、P2 已验收，下一步 P2.5 混合文件拆分搬迁**（源码已搬到 `src/`、`app/`、`platform/`，`legacy/` 只剩少量待拆分文件）
 
 ## 1. 本仓是什么
 
@@ -10,7 +10,7 @@ RoboMaster 多兵种、多开发板的 MCU 下位机固件。本仓以 `Controll
 
 - 迁移源基线：`ControllerCode` `main` @ `a2cfd16`（2026-10-23，19 个提交，git 跟踪 333 个文件，项目自有代码约 2.3 万行）。
 - 目标平台：STM32H723（DM-MC02，主力，先行）、STM32F407（RM C 板）、TI TM4C / AM26x（按需）；`src/` + `platform/` 作为可复用框架，另供 MSPM0 等小项目（大概率裸机）使用。
-- 当前状态：基线 tag `baseline/a2cfd16`；迁移源原样放在 `legacy/`。根工程（P1）按目标结构建立了 target，用 profile `baseline` 构建出的固件与迁移源构建的符号集合一致；宿主测试由根工程引入（14 项 ctest，见 [test/host/README.md](test/host/README.md)）。源码从 P2 起搬到 `src/`、`app/`、`config/`、`platform/`。
+- 当前状态：基线 tag `baseline/a2cfd16`；迁移源原样放在 `legacy/`。根工程（P1）按目标结构建立了 target，用 profile `baseline` 构建出的固件与迁移源构建的符号集合一致；宿主测试由根工程引入（14 项 ctest，见 [test/host/README.md](test/host/README.md)）。P2 已把 1:1 项源码搬到 `src/`、`app/`、`platform/`，固件符号与迁移源一致；剩余的 Entry、TaskManager、Imu、PortKit、UsbCdc 在 P2.5 搬。
 - 结构方案与完整评审材料：**[docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md](docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md)**。
 - 方案已确认（[decision.md](decision.md) Decision-20261025-01 至 -05），执行计划与进度见 [plan.md](plan.md)。
 
@@ -44,7 +44,7 @@ cmake --preset host-tests  && cmake --build --preset host-tests && ctest --prese
 
 - 唯一的开关是 `-DPROFILE=<名称>`（preset 中为 `baseline`，即 a2cfd16 基线固件 × DM-MC02）；板卡由 profile 声明，工具链在 `cmake/toolchains/`。本机路径（工具链、Windows 上的宿主编译器）写在 `CMakeUserPresets.json`，不入库。
 - 其他兵种的 profile 在 P3b 建立：`cmake -S . -B build/<目录> --toolchain cmake/toolchains/<工具链>.cmake -DPROFILE=<名称>`。
-- `legacy/Platform/STM32H7/DM_MC02` 下迁移源自带的构建保留到 P2，CI 用它校验基线 SHA。
+- 迁移源自带的构建已在 P2 删除；固件不改行为的证据是符号集合与 P1 存档一致（CI 的 `firmware` 作业）。
 - 迁移验收用的基线对照（ControllerCode 可复现构建实测，2026-10-26 在本仓复现一致）：Debug `.bin` **238,320 B**，Release `.bin` **100,664 B**；SHA-256、工具链版本、符号表与对照判据见 [docs/ai/decisions/2026-10-25-迁移基线与对照.md](docs/ai/decisions/2026-10-25-迁移基线与对照.md)（证据来源已转存 [docs/ai/assets/controller_code-固件恢复可行性评估.md](docs/ai/assets/controller_code-固件恢复可行性评估.md)）。
 
 ## 4. 依赖

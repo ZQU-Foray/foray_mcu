@@ -4,7 +4,7 @@
 # 本机路径放 CMakeUserPresets.json（不入库），CI 用环境变量；不在这里写死任何人的路径。
 # GNU 专属的编译、链接选项只出现在工具链与 platform 的 CMake 中（评审报告 §5.4）。
 #
-# 编译选项与迁移源 legacy/Platform/STM32H7/DM_MC02/cmake/gcc-arm-none-eabi.cmake 一致（P1 的符号对照依赖这一点）：
+# 编译选项与迁移源的 cmake/gcc-arm-none-eabi.cmake 一致（该文件已在 P2 删除，见 git 历史；符号对照依赖这一点）：
 #   - Debug 为 -O0 -g3，Release 为 -Os -g0，Release 不定义 NDEBUG（断言保留）；
 #   - 汇编的配置选项沿用 CMake 默认值；
 #   - -Wall 作用于全部 C/C++ 代码（含厂商与生成代码）：GCC 15 在 -O0 下 -Wall 会改变生成的代码

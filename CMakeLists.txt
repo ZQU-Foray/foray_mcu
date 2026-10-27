@@ -5,8 +5,8 @@
 #                                                   板卡、能力、参数都来自 config/profiles/<名称>/profile.cmake
 #   宿主  cmake --preset host-tests                 框架 + platform/mock + 宿主测试（ctest）
 #
-# 迁移期（P1–P2.5）源码仍在 legacy/ 原地，由各层的 target 引用（cmake/legacy.cmake）。
-# legacy/Platform/STM32H7/DM_MC02 下迁移源自带的构建保留到 P2，用于基线 SHA 对照。
+# 迁移期：P2.5 的少量源码（Entry、TaskManager、Imu、PortKit、UsbCdc）仍在 legacy/，由各层的 target
+# 按旧路径引用（cmake/legacy.cmake），P2.5 搬完后删除。
 cmake_minimum_required(VERSION 3.22)
 project(foray_mcu LANGUAGES C CXX)
 

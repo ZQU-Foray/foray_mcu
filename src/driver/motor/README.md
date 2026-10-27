@@ -1,3 +1,5 @@
+> **迁移说明（P2，2026-10-26）**：本文原为迁移源的 `Libraries/Device/motor/README.md`，正文保留迁移前的文件名（如 `MotorGroup.hpp` 现为 `motor_group.hpp`，`Application/Task/1_chassis` 现为 `app/tasks`、`app/chassis`），逐文件对照见 [P2 移动表](../../../docs/ai/decisions/2026-10-26-P2-机械搬迁/移动表.tsv)，正文在 P3b 统一更新。文中提到的 `Tests/` 已恢复到 `test/host/`。
+
 # 任务内选型的电机组
 
 每个任务在自己的 cpp 内持有 MotorGroup<MotorModel, N>，不再需要
@@ -111,4 +113,4 @@ DjiMotor::Profile 的 Kt 已是输出轴 N·m/A；适配器仅改变力矩方向
 
 独立入口启用断言与严格告警，配置阶段检查业务／公共接口不存在 DJI 依赖。
 替换构建目录并设置 Release 可验证优化构建。实际结果和资源比较见
-[验证记录](../../../Tests/Motor/VALIDATION.md)。
+[验证记录](../../../test/host/unit/motor/VALIDATION.md)。

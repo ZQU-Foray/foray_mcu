@@ -1,6 +1,6 @@
 # 开发计划（foray_mcu 结构重构）
 
-> 当前状态：**P0、P0.5、P1 已验收（2026-10-26），下一步 P2 机械搬迁**（方案已确认，[decision.md](decision.md) Decision-20261025-01 至 -05 均为 Accepted；里程碑合并入 `main` 暂缓）。
+> 当前状态：**P0、P0.5、P1、P2 已验收（2026-10-26），下一步 P2.5 混合文件拆分搬迁**（方案已确认，[decision.md](decision.md) Decision-20261025-01 至 -05 均为 Accepted；里程碑合并入 `main` 暂缓）。
 > 权威方案见 [docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md](docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md)；本文件只记录执行计划、进度与验收标准。
 > 迁移源 ControllerCode 原样放在 `legacy/`；各阶段的动作、验收与回滚以下文为准，不跨阶段混做。
 
@@ -54,13 +54,15 @@
 - [x] 验收（2026-10-26）：**业务源码零改动**（`legacy/` 无任何变更）；**符号集合与迁移源构建一致**——Debug 1426 个、Release 1038 个函数与对象符号的名称、大小、类型、绑定、输出段全部相同（Windows xPack GCC 15.2.1 与 Linux Arm GNU 15.2.Rel1 各验证一次）；`.bin` SHA 如预期不同（`.text` 等段因链接顺序有几个字节的对齐填充差异），唯一的符号表差异是 `QuaternionEkf.cpp` 的 FILE 符号（该文件的代码在迁移源中也被 `--gc-sections` 全部回收）；`ctest` 14/14（MSYS2 g++ 16.2、WSL g++ 11.4）；依赖图检查通过（与评审报告 §5.2 一致，迁移期放行的边逐条注明），并做了反向验证；命名检查 0 处
 - [x] 回滚：revert P1 的合并提交即回到 P0.5 状态（`legacy/` 自带的构建仍可用）
 
-### P2 机械搬迁（1:1 项，不改行为，2–3 人日）
+### P2 机械搬迁（1:1 项，不改行为，2–3 人日，✅ 2026-10-26 验收）
 
-- [ ] 从 `legacy/` 逐目录 `git mv`（文件名同时改为 snake_case，头文件保护宏随路径更新）+ include 机械改写（下列来源路径都在 `legacy/` 下）：`Application/Task/{0_imu,1_chassis,2_gimbal,4_communication}`→`app/tasks/`+能力目录；`Libraries/Algorithm|Component`→`src/lib/`（先保留子目录名）；`Libraries/Device`→`src/driver/`（含 `DjiMotorModelMap.hpp`，Q11 默认不移动）；`Libraries/Protocol`→`src/driver/protocol/`；`Platform/Interface`→`src/hal/`；`Platform/STM32H7/DM_MC02`→`platform/st/stm32h7/board_dm/`
-- [ ] 拆分 `cubemx/`（生成物）与 `port/`（手写实现，此阶段仍是原 C 文件）、`board/`（pinmap/能力清单/启动胶水）；`Platform/Interface/Detail/` 暂放 `src/hal/detail/`
-- [ ] 去掉裸头名 include（`Can.hpp`/`Time.hpp` 等）；**删除 `legacy_include`**，此后层边界由构建保证
-- [ ] 验收：构建绿；符号集合对照基线（迁移源构建随搬迁失效，改用 P1 存档的归一化符号表 `docs/ai/decisions/2026-10-26-P1-构建骨架/symbols-{Debug,Release}.txt` 作基准，CI 的 `firmware` 作业同步调整并删除迁移源 SHA 校验）；`git diff -M` 为 rename + include/CMake 机械行（无逻辑改动）；`ctest` 绿；`git log --follow` 可追溯
-- [ ] 回滚：revert P2 分支，P1 基线仍在
+> 移动表、脚本与验证见 [P2 机械搬迁记录](docs/ai/decisions/2026-10-26-P2-机械搬迁/README.md)，规则见 Decision-20261026-08。
+
+- [x] 从 `legacy/` 逐目录 `git mv`（文件名同时改为 snake_case，C++ 头统一 `.hpp`，头文件保护宏随路径更新）+ include 机械改写：`Application/Task/{0_imu,1_chassis,2_gimbal,4_communication}`→`app/tasks/`+`app/chassis`、`app/remote`；`Application/Module/GimbalModule`→`app/gimbal/`（计划未写阶段，1:1 项随 P2 搬）；`Libraries/Algorithm|Component`→`src/lib/`（保留子目录名）；`Libraries/Device`→`src/driver/`（含 `dji_motor_model_map.hpp`，Q11 默认不移动）；`Libraries/Protocol`→`src/driver/protocol/`；`Platform/Interface`→`src/hal/`；`Platform/STM32H7/DM_MC02`→`platform/st/stm32h7/board_dm/`。被生成代码按名字 include 的 `port/Init.h` 保持原名
+- [x] 拆分 `cubemx/`（生成物，含 CubeMX 每次重写的 cmake 文件）与 `port/`（手写实现，仍是 C）；`board/` 暂无手写内容（pinmap/能力清单在 P3a），target 只带链接脚本；`Platform/Interface/Detail/` 暂放 `src/hal/detail/`；迁移源旧构建文件删除
+- [x] 去掉裸头名 include（`Can.hpp`/`Time.hpp` 等）；框架与已搬迁的 app target 不再依赖 `legacy_include`。**`legacy_include` 的删除推迟到 P2.5**：P2.5 的文件（Entry、TaskManager、Imu）仍以 `"Application/..."` 被引用（Decision-20261026-08）
+- [x] 验收（2026-10-26）：构建绿（零告警）；符号集合与 P1 存档一致（Debug 1426、Release 1038，xPack 与 Arm GNU 两套工具链）；112 个固件源文件除 include 目录外的编译选项与 P1 相同；改动分三个提交：纯 `git mv`（323 个文件全部 R100）、include/保护宏改写（只改这两类行）、构建与工具适配；`ctest` 14/14；`git log --follow` 可追溯到迁移源最早的提交（含只有一行的文件）；CI 的 `firmware` 作业改用存档符号表作基准，删除迁移源 SHA 校验
+- [x] 回滚：revert P2 的合并提交，P1 基线仍在
 
 ### P2.5 混合文件拆分搬迁（不改行为，2–4 人日）
 
@@ -71,6 +73,7 @@
 - [ ] `Application/Imu/*` → `app/imu/`（P3b 再拆 `ImuBodyMapping` 与时钟注入）
 - [ ] `Platform/PortKit/*` → `src/utils/`（队列/通知）+ `src/hal/os/`（临界区契约）+ `platform/.../port/critical.c`（实现）
 - [ ] `Port/UsbCdc.{c,h}` 与 USB 生成桩 → `platform/.../port/usb_cdc.c`（边界重划按 Q8，P4 做）
+- [ ] 搬完后删除 `legacy_include`、`legacy_library()` 与 `.clang-tidy` 头文件过滤中的 `legacy/Application` 一段（P2 推迟到此，Decision-20261026-08）；`legacy/` 只剩迁移源 README 与架构图
 - [ ] 验收：构建绿；行为不变（host 对照/实机对照）；`git diff` 只含移位/拆文件/路径；ctest 绿
 - [ ] 回滚：revert P2.5 分支，P2 基线仍在
 
@@ -119,7 +122,7 @@
 
 ## 当前 Agent State
 
-`EXECUTING`（P0、P0.5、P1 均于 2026-10-26 验收，里程碑合并入 `main` 按负责人要求暂缓；P1 根工程构建的固件与迁移源构建的符号集合一致，下一步是 P2 机械搬迁）。
+`EXECUTING`（P0、P0.5、P1、P2 均于 2026-10-26 验收，里程碑合并入 `main` 按负责人要求暂缓；P2 搬迁后固件符号与 P1 存档一致，下一步是 P2.5 混合文件拆分搬迁）。
 状态词表：`REVIEW_PENDING`（等待评审）/ `PLANNING`（方案已批准、编制细节）/ `EXECUTING`（实施中）/ `BLOCKED`（外部阻塞）/ `DONE`（阶段完成）。
 
 ## Before Snapshot
@@ -186,3 +189,5 @@ Q1–Q18 已全部确认（见评审报告 v1.0 §11.1 与 decision.md）。仍�
 | 2026-10-26 | P0.5 | 新增 `tool/ci/naming.py` 与 CI `lint-naming`；`.clang-tidy` 微调（Decision-20261026-05）；C++ 标识符按 ROS 2 命名改名（`2b3fbf8`，自动 2190 处 + 手工修正）与改名后格式化（`0c51793`），均登记于 `.git-blame-ignore-revs`。legacy Debug/Release 与基线逐字节一致，符号地址/大小集合一致，ctest 13/13，命名检查 0 处 | P0.5 验收 |
 | 2026-10-26 | P0.5 | 修复：宿主测试的编译期检查漏改 `GM6020_CURRENT`（旧名不存在导致检查空过），补正向对照 | 已修复 |
 | 2026-10-26 | P1 | 根工程构建骨架（target 按目标结构组织，源码仍在 `legacy/`）；`symbols.py`、`arch_check.py`；CI 改用根工程（`firmware`、`lint-arch`）；target 名去掉项目前缀（Decision-20261026-06、-07）。根工程固件与迁移源符号集合一致（Debug 1426、Release 1038），ctest 14/14，依赖图检查通过 | P1 验收 |
+| 2026-10-26 | P1 | CMake 文件按层合并为 7 个（负责人选定，Decision-20261026-07 第 11 点）；合并前后依赖图与编译命令逐字相同 | 已完成 |
+| 2026-10-26 | P2 | 机械搬迁：323 个文件 `git mv`（R100）+ include/保护宏改写 + 构建与工具适配；GimbalModule 随 P2 搬；`legacy_include` 删除推迟到 P2.5（Decision-20261026-08）。符号与 P1 存档一致，ctest 14/14 | P2 验收 |

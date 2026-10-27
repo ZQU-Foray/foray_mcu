@@ -5,8 +5,8 @@
 
 ## 0. 当前阶段
 
-本仓 **P0（基线与资产恢复）、P0.5（格式与命名统一）、P1（构建骨架）已于 2026-10-26 验收，下一步是 P2（机械搬迁）**：方案已确认（[decision.md](decision.md) Decision-20261025-01 至 -05 均为 Accepted；评审报告 `docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md` v1.0，旧版在 `docs/ai/reviews/archive/`，不再维护）。
-迁移源 ControllerCode `a2cfd16` 原样放在 `legacy/`（基线 tag `baseline/a2cfd16`）；根工程（`CMakeLists.txt`、`CMakePresets.json`）已按目标结构建立 target，源码仍在 `legacy/` 原地编译，P2 起搬出；宿主测试由根工程的 host-tests preset 引入（见 `test/host/README.md`）。target、函数、变量名一律不加项目前缀（Decision-20261026-06）。**按 [plan.md](plan.md) 的阶段顺序推进，不跨阶段混做。**
+本仓 **P0（基线与资产恢复）、P0.5（格式与命名统一）、P1（构建骨架）、P2（机械搬迁）已于 2026-10-26 验收，下一步是 P2.5（混合文件拆分搬迁）**：方案已确认（[decision.md](decision.md) Decision-20261025-01 至 -05 均为 Accepted；评审报告 `docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md` v1.0，旧版在 `docs/ai/reviews/archive/`，不再维护）。
+迁移源 ControllerCode `a2cfd16` 原样放在 `legacy/`（基线 tag `baseline/a2cfd16`）；根工程（`CMakeLists.txt`、`CMakePresets.json`）已按目标结构建立 target，1:1 项源码已搬到 `src/`、`app/`、`platform/`（P2），`legacy/` 只剩 P2.5 的文件；新代码的 include 写成相对层根目录的路径（`"hal/can.hpp"`、`"tasks/imu_task.hpp"`），文件名 snake_case、C++ 头用 `.hpp`（Decision-20261026-08）；宿主测试由根工程的 host-tests preset 引入（见 `test/host/README.md`）。target、函数、变量名一律不加项目前缀（Decision-20261026-06）。**按 [plan.md](plan.md) 的阶段顺序推进，不跨阶段混做。**
 
 ## 1. 语言与格式
 

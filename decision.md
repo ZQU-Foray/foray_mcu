@@ -441,6 +441,68 @@
 
 ---
 
+## Decision-20261026-08（P2 机械搬迁的规则与结果，Accepted）
+
+- **Date**：2026-10-26
+- **Status**：Accepted（按 plan.md P2 执行；移动表、脚本与验证见 `docs/ai/decisions/2026-10-26-P2-机械搬迁/`）
+- **Source**：评审报告 §7.2、§7.2.1、附录 A；Decision-20261026-07
+
+**Decision**：
+
+1. **范围**：按附录 A 把 1:1 项搬出 `legacy/`：
+   - Platform/Interface → `src/hal`（Detail → `src/hal/detail`）；
+   - Libraries/Algorithm、Component → `src/lib`；
+   - Libraries/Device → `src/driver`；Libraries/Protocol → `src/driver/protocol`；
+   - 任务外壳 → `app/tasks`；ChassisController → `app/chassis`；RemoteReceiver → `app/remote`；
+   - DM_MC02 的 CubeMX 生成物 → `platform/st/stm32h7/board_dm/cubemx`；Port → `port`。
+
+   计划外的两处：
+   - `Application/Module/GimbalModule` 计划未写阶段，它是 1:1 项，随 P2 搬到 `app/gimbal`；
+   - 测试与支持文件名一并改为 snake_case。
+
+   留到 P2.5：`Application/{Entry,Imu,Task/TaskManager}`、PortKit、`Port/UsbCdc`。
+2. **文件名**：
+   - 一律 snake_case；
+   - 迁移源 Algorithm 下的 `.h` 是 C++ 头，统一改为 `.hpp`；C 头（`hal/detail/*.h`、port 头）保持 `.h`；
+   - 被 CubeMX 生成代码按名字 include 的头保持原名：`port/Init.h`；P2.5 的 `UsbCdc.h`、`Entry.h` 同理。生成区不手改，改名会让大小写敏感的系统找不到文件。
+3. **include 与保护宏**：
+   - include 一律相对层根目录书写：`src/` 下如 `"hal/can.hpp"`，`app/` 下如 `"tasks/imu_task.hpp"`，测试如 `"support/mock_motor.hpp"`；
+   - 去掉裸头名 include；
+   - `hal/detail` 只能经 `src/` 根引用，其中的 `time.h`、`spi.h` 等与标准库、CubeMX 头同名，不得把该目录本身加入 include 路径；
+   - 保护宏由新的 include 路径大写得到，如 `HAL_DETAIL_CAN_H`。
+   - 改写由 `move.py --rewrite` 完成：按搬迁前的查找顺序解析到具体文件再换写法，只改 include 与保护宏所在的行。
+4. **提交拆分**：
+   - 纯 `git mv` 单独一个提交，323 个文件全部 R100；
+   - include 改写、构建与工具适配各一个提交。
+
+   这样即使是只有一行 include 的文件（`basic_math.cpp`、`fsm.cpp`），改写后合计相似度低于 50%，`git log --follow` 仍能逐提交追溯到迁移源最早的提交。
+5. **迁移源旧构建**：
+   - DM_MC02 的 `CMakeLists.txt`、`CMakePresets.json`（含本机路径）、`cmake/gcc-arm-none-eabi.cmake`，以及 Interface、PortKit 的 `CMakeLists.txt` 删除，由根工程取代；
+   - CubeMX 每次都会重写的 `cmake/stm32cubemx/CMakeLists.txt` 与 `starm-clang.cmake` 随生成区保留（根工程不用，可对照源文件清单）；
+   - CubeMX 再生成时附带产生的旧式构建文件写入 `.gitignore`；
+   - `.clangd` 移到仓库根；`Libraries/README.md` → `src/README.md`，`motor/README.md` 随驱动搬迁，正文保留旧路径并加迁移说明，P3b 更新。
+6. **legacy_include 推迟到 P2.5 删除**（修订 plan.md 与例外 X-11）：P2.5 的文件仍以 `"Application/..."` 被引用，P2 结束时只有它们还需要 `legacy/` include 根。
+   - 框架 target 与已搬迁的 app target 已不再链接 `legacy_include`，依赖图少了 21 条指向它的边；
+   - `.clang-tidy` 头文件过滤只保留 `legacy/Application` 一段，同样到 P2.5。
+7. **工具与 CI**：
+   - `naming.py` 排除 C ABI 头 `src/hal/detail`（X-07）；
+   - `arch_check.py` 规则 9 放行 X-14 的两个构建开关（`IMU_ENABLE_DIAGNOSTICS`、`BMI088_GYRO_BANDWIDTH_REGISTER`），规则 15 跳过生成区；
+   - CI `firmware` 作业删除迁移源构建与基线 SHA 校验，符号对照改用 P1 存档的符号表。
+
+**验证**：
+- 符号与 P1 存档一致：Debug 1426、Release 1038；Windows xPack 与 Linux Arm GNU 各验证一次；
+- 112 个固件源文件除 include 目录外的编译选项与 P1 逐项相同；
+- ctest 14/14（MSYS2 g++ 16.2、WSL g++ 11.4）；
+- 依赖图与 P1 相比只少了指向 `legacy_include` 的边；
+- 命名检查 0 处，格式检查 131 个文件通过，文本扫描通过。
+
+**Alternatives / Rejected**：
+- **搬迁与改写合成一个提交**：小文件的改名识别会失效，`git log --follow` 断链，否决。
+- **把 `Init.h` 也改为 `init.h`，同时手改 `main.c` 的 USER CODE**：违反生成区不手改的规则，否决。等 P3b 的 boot ABI 落地后，生成区不再直接调用 `Port_Init`，届时再处理。
+- **P2 一并搬走 P2.5 的项以便按原计划删除 `legacy_include`**：会把 P2.5 的拆分判断混进机械搬迁，否决。
+
+---
+
 ## 待登记
 
 - 分支保护的具体设置（组织规范 §6.1、§10，负责人在 GitHub 上操作后补记）。
