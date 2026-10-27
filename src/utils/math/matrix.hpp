@@ -1,5 +1,5 @@
-#ifndef LIB_MATH_MATRIX_HPP
-#define LIB_MATH_MATRIX_HPP
+#ifndef UTILS_MATH_MATRIX_HPP
+#define UTILS_MATH_MATRIX_HPP
 
 #include <array>
 #include <cmath>

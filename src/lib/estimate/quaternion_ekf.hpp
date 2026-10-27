@@ -2,8 +2,8 @@
 #define LIB_ESTIMATE_QUATERNION_EKF_HPP
 
 #include "lib/estimate/kalman_filter.hpp"
-#include "lib/math/quaternion.hpp"
-#include "lib/math/vector3.hpp"
+#include "utils/math/quaternion.hpp"
+#include "utils/math/vector3.hpp"
 #include <cstdint>
 
 namespace estimate

@@ -1,7 +1,7 @@
 #ifndef LIB_ESTIMATE_KALMAN_FILTER_HPP
 #define LIB_ESTIMATE_KALMAN_FILTER_HPP
 
-#include "lib/math/matrix.hpp"
+#include "utils/math/matrix.hpp"
 #include <cstddef>
 #include <cstdint>
 

@@ -1,7 +1,7 @@
 #ifndef IMU_ZERO_RATE_BIAS_OBSERVER_HPP
 #define IMU_ZERO_RATE_BIAS_OBSERVER_HPP
 
-#include "lib/math/vector3.hpp"
+#include "utils/math/vector3.hpp"
 #include <cstdint>
 
 namespace application

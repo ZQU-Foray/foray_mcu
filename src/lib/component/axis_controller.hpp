@@ -2,7 +2,7 @@
 #define LIB_COMPONENT_AXIS_CONTROLLER_HPP
 
 #include "lib/control/pid.hpp"
-#include "lib/math/basic_math.hpp"
+#include "utils/math/basic_math.hpp"
 #include <algorithm>
 #include <array>
 #include <atomic>

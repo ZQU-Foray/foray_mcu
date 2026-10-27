@@ -1,5 +1,5 @@
-#ifndef LIB_MATH_BASIC_MATH_HPP
-#define LIB_MATH_BASIC_MATH_HPP
+#ifndef UTILS_MATH_BASIC_MATH_HPP
+#define UTILS_MATH_BASIC_MATH_HPP
 
 #include <cmath>
 #include <cstdint>

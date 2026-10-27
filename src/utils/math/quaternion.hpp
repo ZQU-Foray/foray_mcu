@@ -1,7 +1,7 @@
-#ifndef LIB_MATH_QUATERNION_HPP
-#define LIB_MATH_QUATERNION_HPP
+#ifndef UTILS_MATH_QUATERNION_HPP
+#define UTILS_MATH_QUATERNION_HPP
 
-#include "lib/math/vector3.hpp"
+#include "utils/math/vector3.hpp"
 
 namespace math
 {

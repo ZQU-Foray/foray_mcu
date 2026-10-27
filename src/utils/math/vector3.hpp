@@ -1,5 +1,5 @@
-#ifndef LIB_MATH_VECTOR3_HPP
-#define LIB_MATH_VECTOR3_HPP
+#ifndef UTILS_MATH_VECTOR3_HPP
+#define UTILS_MATH_VECTOR3_HPP
 
 #include <cmath>
 

@@ -1,5 +1,5 @@
-#ifndef LIB_FSM_FSM_HPP
-#define LIB_FSM_FSM_HPP
+#ifndef MIDDLEWARE_FSM_FSM_HPP
+#define MIDDLEWARE_FSM_FSM_HPP
 
 #include <cstdint>
 #include <limits>

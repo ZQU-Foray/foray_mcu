@@ -1,9 +1,9 @@
-#ifndef LIB_SLOPE_SLOPE_HPP
-#define LIB_SLOPE_SLOPE_HPP
+#ifndef LIB_CONTROL_SLOPE_HPP
+#define LIB_CONTROL_SLOPE_HPP
 
 #include <cstdint>
 
-namespace slope
+namespace control
 {
 
 enum class SlopeFirst : uint8_t
@@ -56,6 +56,6 @@ class Slope
     bool initialized_ = false;
 };
 
-} // namespace slope
+} // namespace control
 
 #endif

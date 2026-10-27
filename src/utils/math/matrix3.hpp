@@ -1,5 +1,5 @@
-#ifndef LIB_MATH_MATRIX3_HPP
-#define LIB_MATH_MATRIX3_HPP
+#ifndef UTILS_MATH_MATRIX3_HPP
+#define UTILS_MATH_MATRIX3_HPP
 
 namespace math
 {
@@ -51,4 +51,4 @@ void limit_in_place(Matrix3 &value, double minimum, double maximum) noexcept;
 
 } // namespace math
 
-#endif // LIB_MATH_MATRIX3_HPP
+#endif // UTILS_MATH_MATRIX3_HPP

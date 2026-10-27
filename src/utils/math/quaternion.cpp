@@ -1,4 +1,4 @@
-#include "lib/math/quaternion.hpp"
+#include "utils/math/quaternion.hpp"
 #include <cmath>
 
 namespace math

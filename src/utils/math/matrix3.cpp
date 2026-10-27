@@ -1,4 +1,4 @@
-#include "lib/math/matrix3.hpp"
+#include "utils/math/matrix3.hpp"
 #include <cstddef>
 #include <limits>
 

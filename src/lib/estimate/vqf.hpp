@@ -2,9 +2,9 @@
 #define LIB_ESTIMATE_VQF_HPP
 
 #include "lib/filter/butterworth_low_pass.hpp"
-#include "lib/math/matrix3.hpp"
-#include "lib/math/quaternion.hpp"
-#include "lib/math/vector3.hpp"
+#include "utils/math/matrix3.hpp"
+#include "utils/math/quaternion.hpp"
+#include "utils/math/vector3.hpp"
 #include <cstdint>
 
 namespace estimate

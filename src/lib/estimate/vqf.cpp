@@ -1,5 +1,5 @@
 #include "lib/estimate/vqf.hpp"
-#include "lib/math/basic_math.hpp"
+#include "utils/math/basic_math.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstddef>

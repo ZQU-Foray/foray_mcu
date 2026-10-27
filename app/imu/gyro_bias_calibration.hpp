@@ -1,7 +1,7 @@
 #ifndef IMU_GYRO_BIAS_CALIBRATION_HPP
 #define IMU_GYRO_BIAS_CALIBRATION_HPP
 
-#include "lib/math/vector3.hpp"
+#include "utils/math/vector3.hpp"
 #include <cstdint>
 
 namespace application

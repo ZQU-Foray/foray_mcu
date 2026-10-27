@@ -1,5 +1,5 @@
 #include "lib/estimate/imu_body_mapping.hpp"
-#include "lib/math/basic_math.hpp"
+#include "utils/math/basic_math.hpp"
 
 namespace estimate
 {

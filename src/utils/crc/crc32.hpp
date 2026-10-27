@@ -1,5 +1,5 @@
-#ifndef LIB_CRC_CRC32_HPP
-#define LIB_CRC_CRC32_HPP
+#ifndef UTILS_CRC_CRC32_HPP
+#define UTILS_CRC_CRC32_HPP
 
 #include <cstddef>
 #include <cstdint>

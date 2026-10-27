@@ -1,4 +1,4 @@
-#include "lib/crc/crc32.hpp"
+#include "utils/crc/crc32.hpp"
 #include <array>
 
 namespace crc
