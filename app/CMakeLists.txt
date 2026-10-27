@@ -25,17 +25,17 @@ app_library(app_imu
     imu/imu_diagnostics.hpp
     imu/zero_rate_bias_observer.cpp
     imu/zero_rate_bias_observer.hpp)
-target_link_libraries(app_imu PUBLIC lib_estimate lib_math driver_bmi088 hal)
+target_link_libraries(app_imu PUBLIC lib_estimate utils_math driver_bmi088 hal)
 
 app_library(app_chassis
     chassis/chassis_controller.cpp
     chassis/chassis_controller.hpp)
-target_link_libraries(app_chassis PUBLIC lib_control lib_math driver_motor hal)
+target_link_libraries(app_chassis PUBLIC lib_control utils_math driver_motor hal)
 
 app_library(app_gimbal
     gimbal/gimbal_module.cpp
     gimbal/gimbal_module.hpp)
-target_link_libraries(app_gimbal PUBLIC lib_component lib_control lib_math driver_motor hal)
+target_link_libraries(app_gimbal PUBLIC lib_component lib_control utils_math driver_motor hal)
 
 app_library(app_remote
     remote/remote_receiver.cpp

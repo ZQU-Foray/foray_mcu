@@ -4,11 +4,19 @@
 # 以 src/ 为 include 根：#include "hal/can.hpp"、"driver/bmi088/bmi088.hpp"。
 
 # framework_library(<名称> <源文件与头文件>...)：框架的 STATIC 库，带严格告警。
-#   头文件也列出来，表明它属于哪个 target。迁移期的构建开关见例外 X-14（P3b 收进 profile 后去掉）。
+#   头文件也列出来，表明它属于哪个 target。迁移期的构建开关见例外 X-14（F2、F3 去掉）。
 function(framework_library name)
     add_library(${name} STATIC ${ARGN})
     target_include_directories(${name} PUBLIC "${PROJECT_SOURCE_DIR}/src")
     target_link_libraries(${name} PRIVATE legacy_build_options)
+    enable_strict_warnings(${name})
+endfunction()
+
+# utils_library(<名称> <源文件与头文件>...)：utils 的 STATIC 库，带严格告警。
+#   utils 只依赖标准库，不链接迁移期的构建开关（例外 X-14 不适用于 utils）。
+function(utils_library name)
+    add_library(${name} STATIC ${ARGN})
+    target_include_directories(${name} PUBLIC "${PROJECT_SOURCE_DIR}/src")
     enable_strict_warnings(${name})
 endfunction()
 
@@ -56,41 +64,49 @@ framework_interface(hal_os
 # P3b 落地 boot_init / boot_init_rtos / boot_run（src/boot/boot.h）后，生成区只认它。
 framework_interface(boot)
 
-# ==== utils：零平台工具与并发原语 ====
-# 计数器、最新值邮箱、SPSC 队列（M0+ 上退回临界区实现）。P1 只建立 target；
-# 内容在 P3a 由 PortKit 的队列/通知与现有序号快照写法通用化而来（评审报告 §5.7、§5.8）。
-framework_interface(utils)
+# ==== utils：没有领域含义、哪一层都可能用的基础件（docs/ai/architecture.md §2.3） ====
+# 只依赖标准库，用 utils_library()。每个子目录一个 target：utils/<名> → utils_<名>，命名空间与子目录同名（math::、crc::）。
 
-# ==== lib：纯算法与组件，零平台（评审报告 §5.7）。只依赖标准库与 lib 内部 ====
-# 子目录名即命名空间名、即 target 名的后缀（lib/math → math:: → lib_math；controller 例外为 control，Decision-20261026-09）。
+utils_library(utils_math
+    utils/math/basic_math.cpp
+    utils/math/basic_math.hpp
+    utils/math/matrix.hpp
+    utils/math/matrix3.cpp
+    utils/math/matrix3.hpp
+    utils/math/quaternion.cpp
+    utils/math/quaternion.hpp
+    utils/math/vector3.hpp)
 
-framework_library(lib_math
-    lib/math/basic_math.cpp
-    lib/math/basic_math.hpp
-    lib/math/matrix.hpp
-    lib/math/matrix3.cpp
-    lib/math/matrix3.hpp
-    lib/math/quaternion.cpp
-    lib/math/quaternion.hpp
-    lib/math/vector3.hpp)
+utils_library(utils_crc
+    utils/crc/crc32.cpp
+    utils/crc/crc32.hpp
+    utils/crc/crc8.cpp
+    utils/crc/crc8.hpp)
+
+# ==== middleware：给能力用的运行期机制与服务（docs/ai/architecture.md §2.3） ====
+# 可以依赖 utils 与 hal/os 契约（传输类服务另可依赖 hal）；driver、lib 不得依赖 middleware。
+# 每个子目录一个 target：middleware/<名> → middleware_<名>。
+
+framework_library(middleware_fsm
+    middleware/fsm/fsm.cpp
+    middleware/fsm/fsm.hpp)
+
+# ==== lib：领域算法（docs/ai/architecture.md §2.3）。只依赖标准库、utils 与 lib 内部 ====
+# 子目录名即命名空间名、即 target 名的后缀（lib/control → control:: → lib_control）。
 
 framework_library(lib_control
     lib/control/pid.cpp
-    lib/control/pid.hpp)
-target_link_libraries(lib_control PUBLIC lib_math)
-
-framework_library(lib_crc
-    lib/crc/crc32.cpp
-    lib/crc/crc32.hpp
-    lib/crc/crc8.cpp
-    lib/crc/crc8.hpp)
+    lib/control/pid.hpp
+    lib/control/slope.cpp
+    lib/control/slope.hpp)
+target_link_libraries(lib_control PUBLIC utils_math)
 
 framework_library(lib_filter
     lib/filter/butterworth_low_pass.hpp
     lib/filter/filter.cpp
     lib/filter/filter.hpp)
 
-# 已知结构债：imu_body_mapping 依赖 BMI088 驱动（lib → driver 反向依赖），P3b 改为 POD 入参或迁到 driver/imu
+# 已知结构债：imu_body_mapping 依赖 BMI088 驱动（lib → driver 反向依赖），F3 改为 POD 入参
 # （docs/ai/architecture.md "已知结构债"）。依赖图检查对这条边单独放行。
 framework_library(lib_estimate
     lib/estimate/extended_state_observer.hpp
@@ -101,26 +117,18 @@ framework_library(lib_estimate
     lib/estimate/quaternion_ekf.hpp
     lib/estimate/vqf.cpp
     lib/estimate/vqf.hpp)
-target_link_libraries(lib_estimate PUBLIC lib_math lib_filter driver_bmi088)
-
-framework_library(lib_fsm
-    lib/fsm/fsm.cpp
-    lib/fsm/fsm.hpp)
+target_link_libraries(lib_estimate PUBLIC utils_math lib_filter driver_bmi088)
 
 framework_library(lib_kinematics
     lib/kinematics/kinematics.cpp
     lib/kinematics/kinematics.hpp)
 
-framework_library(lib_slope
-    lib/slope/slope.cpp
-    lib/slope/slope.hpp)
-
 framework_interface(lib_component
     lib/component/axis_controller.hpp)
-target_link_libraries(lib_component INTERFACE lib_control lib_math)
+target_link_libraries(lib_component INTERFACE lib_control utils_math)
 
 # ==== driver：设备驱动与设备协议（评审报告 §5.7） ====
-# 可以依赖 hal、lib 与驱动内的协议；不得依赖 msg、OS、app。
+# 可以依赖 hal、lib、utils 与驱动内的协议；不得依赖 middleware、OS、app。
 
 framework_library(driver_protocol_dji
     driver/protocol/dji/dji_esc.cpp
