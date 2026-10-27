@@ -4,8 +4,6 @@
 # 线程、节拍等任务外壳在 app_tasks，任务表与创建机制在 app_common，只有这两者与 assembly 能看到 RTOS 头（规则 10）。
 # 以 app/ 为 include 根：#include "tasks/imu_task.hpp"、"chassis/chassis_controller.hpp"。
 #
-# 迁移期：app_imu（Application/Imu）与 app_common（Application/Task/TaskManager）的源码仍在 legacy/，
-# 按 "Application/..." 引用，P2.5 搬到 app/imu、app/common。
 # 过渡事实：TaskManager（任务表 + 创建机制）在 app_common 并依赖 app_tasks，P3b 把任务表拆到 config/assembly 后消除。
 set(os_freertos os_freertos_${BOARD_ID})
 
@@ -18,16 +16,15 @@ function(app_library name)
     enable_strict_warnings(${name})
 endfunction()
 
-set(application_dir "${LEGACY_DIR}/Application")
-legacy_library(app_imu
-    "${application_dir}/Imu/AttitudeEstimator.cpp"
-    "${application_dir}/Imu/AttitudeEstimator.hpp"
-    "${application_dir}/Imu/GyroBiasCalibration.cpp"
-    "${application_dir}/Imu/GyroBiasCalibration.hpp"
-    "${application_dir}/Imu/ImuDiagnostics.cpp"
-    "${application_dir}/Imu/ImuDiagnostics.hpp"
-    "${application_dir}/Imu/ZeroRateBiasObserver.cpp"
-    "${application_dir}/Imu/ZeroRateBiasObserver.hpp")
+app_library(app_imu
+    imu/attitude_estimator.cpp
+    imu/attitude_estimator.hpp
+    imu/gyro_bias_calibration.cpp
+    imu/gyro_bias_calibration.hpp
+    imu/imu_diagnostics.cpp
+    imu/imu_diagnostics.hpp
+    imu/zero_rate_bias_observer.cpp
+    imu/zero_rate_bias_observer.hpp)
 target_link_libraries(app_imu PUBLIC lib_estimate lib_math driver_bmi088 hal)
 
 app_library(app_chassis
@@ -57,9 +54,9 @@ target_link_libraries(app_tasks
     PUBLIC app_imu app_chassis app_gimbal driver_bmi088 driver_motor driver_motor_dji hal
     PRIVATE ${os_freertos})
 
-legacy_library(app_common
-    "${application_dir}/Task/TaskManager.cpp"
-    "${application_dir}/Task/TaskManager.hpp")
+app_library(app_common
+    common/task_manager.cpp
+    common/task_manager.hpp)
 target_link_libraries(app_common
     PUBLIC app_tasks hal
     PRIVATE ${os_freertos})

@@ -31,10 +31,9 @@ function(host_test name)
     add_executable(${target} ${ARG_SOURCES})
     enable_strict_warnings(${target})
     target_compile_options(${target} PRIVATE -UNDEBUG)
-    # 测试以 test/host 为根引用支持文件（"support/..."），以 app/ 为根引用产品头文件（"tasks/..."）；
-    # legacy_include 给仍在 legacy/ 的 Application/Imu（P2.5 搬）。
+    # 测试以 test/host 为根引用支持文件（"support/..."），以 app/ 为根引用产品代码（"tasks/..."、"imu/..."）。
     target_include_directories(${target} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/app")
-    target_link_libraries(${target} PRIVATE ${ARG_LINK} legacy_include)
+    target_link_libraries(${target} PRIVATE ${ARG_LINK})
     if(ARG_MOCK_BACKEND)
         target_sources(${target} PRIVATE "${SUPPORT_DIR}/mock_motor.cpp" ${CHASSIS_TASK_SOURCES})
         target_include_directories(${target} BEFORE PRIVATE "${SUPPORT_DIR}/shadow")

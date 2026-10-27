@@ -55,21 +55,19 @@ LAYERS = [
     ("port", r"port_\w+"),
     ("board", r"board_\w+"),
     ("vendor", r"(mx_generated|rtos|usb)_\w+"),
-    ("portkit", r"portkit"),
     ("mock", r"platform_mock"),
     ("test", r"test_\w+"),
-    ("legacy", r"legacy_include|legacy_build_options"),
+    ("legacy", r"legacy_build_options"),
 ]
 FRAMEWORK = {"contract", "hal_detail", "utils", "msg", "lib", "driver", "middleware"}
 PRODUCT = {"firmware", "assembly", "profile", "app", "app_common", "app_tasks"}
-PLATFORM = {"os", "port", "board", "vendor", "portkit", "mock"}
+PLATFORM = {"os", "port", "board", "vendor", "mock"}
 APP = {"app", "app_common", "app_tasks"}
-FORBIDDEN_FOR_APP = {"port", "board", "vendor", "portkit", "assembly"}
+FORBIDDEN_FOR_APP = {"port", "board", "vendor", "assembly"}
 FORBIDDEN_FOR_TEST = {
     "port",
     "board",
     "vendor",
-    "portkit",
     "assembly",
     "os",
     "firmware",
@@ -92,12 +90,11 @@ ALLOWED = {
     "app_tasks": APP_DEPENDENCIES | {"app", "app_common", "os"},
     "app_common": APP_DEPENDENCIES | {"os"},
     "os": set(),
-    "port": {"vendor", "portkit", "contract", "hal_detail", "utils"},
+    "port": {"vendor", "contract", "hal_detail", "utils"},
     "board": {"contract", "hal_detail"},
     "vendor": set(),
-    "portkit": set(),
     "mock": {"contract", "hal_detail", "utils"},
-    "test": FRAMEWORK | {"mock", "app", "app_common", "legacy"},
+    "test": FRAMEWORK | {"mock", "app", "app_common"},
     "legacy": set(),
 }
 
@@ -114,8 +111,9 @@ TRANSITIONAL_EDGES = {
     ): "TaskManager 含任务表，P3b 把任务表拆到 assembly 后消除",
 }
 TRANSITIONAL_TARGETS = {
-    # 生成区接缝：main.c/freertos.c 调用 Application_*（legacy 路径），USB_DEVICE 调用 port 私有 C ABI。
-    "vendor": ({"hal_detail", "legacy"}, "X-01、X-09 生成区接缝，P3b/P4 消除"),
+    # 生成区接缝：USB_DEVICE 调用 port 私有 C ABI（UsbCdc.h 引用 hal/detail）。
+    # main.c/freertos.c 调用 Application_*（X-09）只是 include 路径，由组合根注入，不是依赖图上的边。
+    "vendor": ({"hal_detail"}, "X-01 生成区接缝，P4 消除"),
 }
 
 REQUIRED = {
@@ -256,10 +254,7 @@ def check_graph(path: Path, mode: str) -> list[str]:
             errors.append(
                 f"规则 6：测试 {name} 可以到达 {sorted(closure & FORBIDDEN_FOR_TEST)}"
             )
-        if (
-            layer in {"port", "board", "vendor", "portkit"}
-            and targets[name] != OBJECT_SHAPE
-        ):
+        if layer in {"port", "board", "vendor"} and targets[name] != OBJECT_SHAPE:
             errors.append(
                 f"{name} 必须是 OBJECT 库（覆盖 HAL 弱符号的回调不能放进静态库）"
             )
