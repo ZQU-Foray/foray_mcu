@@ -1,4 +1,5 @@
 # app：RM 业务能力（产品，评审报告 §5.9）。只在固件构建中加入。
+# CMake 文件按层组织：app/ 的全部 target 定义在这里，不在能力子目录里各放一个（Decision-20261026-07）。
 # 能力（imu、chassis、gimbal、remote）各是一个 target，不得依赖 OS 与 platform 实现；
 # 线程、节拍等任务外壳在 app_tasks，任务表与创建机制在 app_common，只有这两者与 assembly 能看到 RTOS 头（规则 10）。
 #
