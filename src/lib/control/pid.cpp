@@ -12,8 +12,7 @@ bool is_finite(float value)
 
 bool is_valid_config(const control::PID::Config &config)
 {
-    const bool mode_valid =
-        config.mode == control::PIDMode::POSITION || config.mode == control::PIDMode::DELTA;
+    const bool mode_valid = config.mode == control::PIDMode::POSITION || config.mode == control::PIDMode::DELTA;
     const bool param_finite = is_finite(config.kp) && is_finite(config.ki) && is_finite(config.kd) &&
                               is_finite(config.kf) && is_finite(config.default_dt) && is_finite(config.maxout) &&
                               is_finite(config.feed_forward_limit) && is_finite(config.integral_limit) &&

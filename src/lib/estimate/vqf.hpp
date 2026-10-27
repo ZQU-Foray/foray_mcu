@@ -55,11 +55,11 @@ class Vqf final
     /** @brief 对外状态快照。 */
     struct State final
     {
-        math::Quaternion quaternion{};         // body → earth，earth 重力沿 +z
-        math::Vector3 gyro_bias_rad_per_sec{}; // 机体系零偏估计
+        math::Quaternion quaternion{};             // body → earth，earth 重力沿 +z
+        math::Vector3 gyro_bias_rad_per_sec{};     // 机体系零偏估计
         float bias_uncertainty_rad_per_sec{0.0F};  // 零偏估计不确定度
-        math::Vector3 euler_radians{};         // ZYX：yaw、pitch、roll
-        math::Vector3 euler_degrees{};         // 同上，单位 degree
+        math::Vector3 euler_radians{};             // ZYX：yaw、pitch、roll
+        math::Vector3 euler_degrees{};             // 同上，单位 degree
         float last_accel_correction_radians{0.0F}; // 最近一次倾角修正的转角（诊断）
         bool rest_detected{false};                 // 最近一次加速度计更新时的静止判定
         bool valid{false};                         // 至少完成一次陀螺更新

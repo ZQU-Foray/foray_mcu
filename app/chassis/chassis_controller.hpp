@@ -44,10 +44,10 @@ class ChassisController final
 
     struct Config final
     {
-        control::PID::Config speed_loop; // 输出轴 rpm → N·m
-        control::PID::Config angle_loop; // 输出轴 deg → rpm
-        float max_torque_newton_meter{0.0F};    // 输出轴力矩总限幅
-        float max_wheel_speed_rpm{0.0F};        // 输出轴转速目标限幅
+        control::PID::Config speed_loop;     // 输出轴 rpm → N·m
+        control::PID::Config angle_loop;     // 输出轴 deg → rpm
+        float max_torque_newton_meter{0.0F}; // 输出轴力矩总限幅
+        float max_wheel_speed_rpm{0.0F};     // 输出轴转速目标限幅
     };
 
     ChassisController() noexcept = default;

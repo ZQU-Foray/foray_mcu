@@ -216,8 +216,8 @@ void GyroBiasCalibration::accumulate(const math::Vector3 &gyro_rad_per_sec, std:
     {
         const double inverse = 1.0 / static_cast<double>(count_);
         const math::Vector3 mean{static_cast<float>(sum_x_ * inverse),
-                                     static_cast<float>(sum_y_ * inverse),
-                                     static_cast<float>(sum_z_ * inverse)};
+                                 static_cast<float>(sum_y_ * inverse),
+                                 static_cast<float>(sum_z_ * inverse)};
         if (std::fabs(mean.x) > config_.maximum_mean_rate_rad_per_sec ||
             std::fabs(mean.y) > config_.maximum_mean_rate_rad_per_sec ||
             std::fabs(mean.z) > config_.maximum_mean_rate_rad_per_sec)
@@ -243,8 +243,8 @@ void GyroBiasCalibration::finalize() noexcept
 
     const double inverse = 1.0 / static_cast<double>(count_);
     const math::Vector3 mean{static_cast<float>(sum_x_ * inverse),
-                                 static_cast<float>(sum_y_ * inverse),
-                                 static_cast<float>(sum_z_ * inverse)};
+                             static_cast<float>(sum_y_ * inverse),
+                             static_cast<float>(sum_z_ * inverse)};
     const math::Vector3 spread{maximum_.x - minimum_.x, maximum_.y - minimum_.y, maximum_.z - minimum_.z};
 
     // 均值超限说明窗口内存在慢速转动，不能当作零偏，重新开始。

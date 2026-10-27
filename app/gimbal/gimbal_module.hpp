@@ -45,8 +45,8 @@ class GimbalModule final
     {
         control::PID::Config speed_loop; // 输出轴 rpm → N·m（Maxout＝电调/热限幅）
         control::PID::Config angle_loop; // 输出轴 deg → rpm（Maxout 被 max_gimbal_speed_rpm 覆盖）
-        float min_angle_deg{0.0F};              // 该轴角度目标下限（机械限位）
-        float max_angle_deg{0.0F};              // 该轴角度目标上限
+        float min_angle_deg{0.0F};       // 该轴角度目标下限（机械限位）
+        float max_angle_deg{0.0F};       // 该轴角度目标上限
     };
 
     /** @brief 模块配置（缺省值不可用：所有字段必须由任务层显式给出）。 */

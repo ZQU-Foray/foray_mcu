@@ -179,9 +179,9 @@ void Vqf::update_gyroscope(const math::Vector3 &gyro_rad_per_sec) noexcept
         const double cosine = std::cos(angle / 2.0);
         const double sine = std::sin(angle / 2.0) / gyro_norm;
         const math::Quaternion step{static_cast<float>(cosine),
-                                        static_cast<float>(sine * static_cast<double>(gyro_no_bias.x)),
-                                        static_cast<float>(sine * static_cast<double>(gyro_no_bias.y)),
-                                        static_cast<float>(sine * static_cast<double>(gyro_no_bias.z))};
+                                    static_cast<float>(sine * static_cast<double>(gyro_no_bias.x)),
+                                    static_cast<float>(sine * static_cast<double>(gyro_no_bias.y)),
+                                    static_cast<float>(sine * static_cast<double>(gyro_no_bias.z))};
         gyro_quat_ = math::multiply(gyro_quat_, step);
         (void)math::normalize(gyro_quat_);
     }
@@ -210,10 +210,9 @@ void Vqf::update_accelerometer(const math::Vector3 &accel_meters_per_sec2) noexc
         rest_accel_low_pass_.filter(accel, accel_lp);
         rest_last_accel_lp_ = math::Vector3{accel_lp[0], accel_lp[1], accel_lp[2]};
 
-        rest_squared_deviations_[1] =
-            math::square(static_cast<double>(accel[0]) - static_cast<double>(accel_lp[0])) +
-            math::square(static_cast<double>(accel[1]) - static_cast<double>(accel_lp[1])) +
-            math::square(static_cast<double>(accel[2]) - static_cast<double>(accel_lp[2]));
+        rest_squared_deviations_[1] = math::square(static_cast<double>(accel[0]) - static_cast<double>(accel_lp[0])) +
+                                      math::square(static_cast<double>(accel[1]) - static_cast<double>(accel_lp[1])) +
+                                      math::square(static_cast<double>(accel[2]) - static_cast<double>(accel_lp[2]));
 
         if (rest_squared_deviations_[1] >= math::square(rest_threshold_acc_))
         {
@@ -356,8 +355,7 @@ void Vqf::update_accelerometer(const math::Vector3 &accel_meters_per_sec2) noexc
         }
 
         // K = P R^T inv(W + R P R^T)
-        const math::Matrix3 gain_transposed =
-            math::multiply_transposed_second(bias_covariance_, rotation_low_passed);
+        const math::Matrix3 gain_transposed = math::multiply_transposed_second(bias_covariance_, rotation_low_passed);
         math::Matrix3 innovation_covariance = math::multiply(rotation_low_passed, gain_transposed);
         innovation_covariance.value[0] += variance[0];
         innovation_covariance.value[4] += variance[1];
@@ -368,7 +366,7 @@ void Vqf::update_accelerometer(const math::Vector3 &accel_meters_per_sec2) noexc
         }
         const math::Matrix3 gain_base =
             math::multiply_transposed_first(rotation_low_passed, innovation_covariance); // R^T inv(...)
-        const math::Matrix3 gain = math::multiply(bias_covariance_, gain_base);      // P R^T inv(...)
+        const math::Matrix3 gain = math::multiply(bias_covariance_, gain_base);          // P R^T inv(...)
 
         gyro_bias_.x += static_cast<float>(gain.value[0] * innovation[0] + gain.value[1] * innovation[1] +
                                            gain.value[2] * innovation[2]);
@@ -378,8 +376,7 @@ void Vqf::update_accelerometer(const math::Vector3 &accel_meters_per_sec2) noexc
                                            gain.value[8] * innovation[2]);
 
         // P = P - K R P
-        const math::Matrix3 update =
-            math::multiply(math::multiply(gain, rotation_low_passed), bias_covariance_);
+        const math::Matrix3 update = math::multiply(math::multiply(gain, rotation_low_passed), bias_covariance_);
         for (std::size_t index = 0U; index < 9U; ++index)
         {
             bias_covariance_.value[index] -= update.value[index];
@@ -523,8 +520,8 @@ Vqf::State Vqf::get_state() const noexcept
     state.gyro_bias_rad_per_sec = gyro_bias_;
     state.euler_radians = math::to_euler_zyx_radians(state.quaternion);
     state.euler_degrees = math::Vector3{math::rad_to_deg(state.euler_radians.x),
-                                            math::rad_to_deg(state.euler_radians.y),
-                                            math::rad_to_deg(state.euler_radians.z)};
+                                        math::rad_to_deg(state.euler_radians.y),
+                                        math::rad_to_deg(state.euler_radians.z)};
     state.last_accel_correction_radians = last_accel_correction_radians_;
     state.rest_detected = rest_detected_;
     state.valid = valid_;

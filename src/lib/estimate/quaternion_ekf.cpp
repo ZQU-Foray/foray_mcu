@@ -119,10 +119,9 @@ void QuaternionEkf::update(const math::Vector3 &gyro_rad_per_sec,
     }
 
     // 静止判据使用上一轮后验零偏修正后的角速度范数。
-    const float corrected_norm =
-        math::norm(math::Vector3{gyro_rad_per_sec.x - filter_.state.at(STATE_BIAS_X_INDEX, 0U),
-                                         gyro_rad_per_sec.y - filter_.state.at(STATE_BIAS_Y_INDEX, 0U),
-                                         gyro_rad_per_sec.z});
+    const float corrected_norm = math::norm(math::Vector3{gyro_rad_per_sec.x - filter_.state.at(STATE_BIAS_X_INDEX, 0U),
+                                                          gyro_rad_per_sec.y - filter_.state.at(STATE_BIAS_Y_INDEX, 0U),
+                                                          gyro_rad_per_sec.z});
     stable_ = (corrected_norm < STABLE_GYRO_NORM) && (accel_norm > REFERENCE_GRAVITY - STABLE_GRAVITY_TOLERANCE) &&
               (accel_norm < REFERENCE_GRAVITY + STABLE_GRAVITY_TOLERANCE);
 
@@ -220,9 +219,9 @@ void QuaternionEkf::linearization_step(Filter &filter, void *context) noexcept
 
     // 先验四元数就地单位化，后续观测矩阵与残差都基于单位四元数。
     math::Quaternion quaternion{filter.predicted_state.at(0U, 0U),
-                                    filter.predicted_state.at(1U, 0U),
-                                    filter.predicted_state.at(2U, 0U),
-                                    filter.predicted_state.at(3U, 0U)};
+                                filter.predicted_state.at(1U, 0U),
+                                filter.predicted_state.at(2U, 0U),
+                                filter.predicted_state.at(3U, 0U)};
     if (!math::normalize(quaternion))
     {
         // 非有限输入：退化为单位四元数，避免把无效值继续传播到观测与残差。
@@ -296,9 +295,9 @@ void QuaternionEkf::correction_step(Filter &filter, void *context) noexcept
 
     // 预测的机体重力方向，用于残差与方向余弦。
     const math::Quaternion quaternion{filter.predicted_state.at(0U, 0U),
-                                          filter.predicted_state.at(1U, 0U),
-                                          filter.predicted_state.at(2U, 0U),
-                                          filter.predicted_state.at(3U, 0U)};
+                                      filter.predicted_state.at(1U, 0U),
+                                      filter.predicted_state.at(2U, 0U),
+                                      filter.predicted_state.at(3U, 0U)};
     const math::Vector3 predicted_gravity = math::rotate_inverse(quaternion, WORLD_GRAVITY_DIRECTION);
     const float gravity_components[3]{predicted_gravity.x, predicted_gravity.y, predicted_gravity.z};
     for (std::size_t index = 0U; index < 3U; ++index)
@@ -414,9 +413,9 @@ void QuaternionEkf::publish_state() noexcept
     State state{};
 
     math::Quaternion quaternion{filter_.filtered_value.at(0U, 0U),
-                                    filter_.filtered_value.at(1U, 0U),
-                                    filter_.filtered_value.at(2U, 0U),
-                                    filter_.filtered_value.at(3U, 0U)};
+                                filter_.filtered_value.at(1U, 0U),
+                                filter_.filtered_value.at(2U, 0U),
+                                filter_.filtered_value.at(3U, 0U)};
     const bool quaternion_finite = math::is_finite(quaternion);
     if (quaternion_finite && !math::normalize(quaternion))
     {
@@ -431,8 +430,8 @@ void QuaternionEkf::publish_state() noexcept
 
     state.euler_radians = math::to_euler_zyx_radians(state.quaternion);
     state.euler_degrees = math::Vector3{math::rad_to_deg(state.euler_radians.x),
-                                            math::rad_to_deg(state.euler_radians.y),
-                                            math::rad_to_deg(state.euler_radians.z)};
+                                        math::rad_to_deg(state.euler_radians.y),
+                                        math::rad_to_deg(state.euler_radians.z)};
 
     // yaw 跨 ±180° 时累计圈数，得到连续角度。
     if (state.euler_degrees.x - yaw_angle_last_ > 180.0F)

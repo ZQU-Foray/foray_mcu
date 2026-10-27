@@ -128,11 +128,11 @@ template <std::size_t AxisCount> class AxisController final
     /** @brief 单轴配置。 */
     struct AxisConfig final
     {
-        control::PID::Config speed_loop; // 输出轴 rpm → N·m（Maxout＝电调/热限幅）
-        control::PID::Config angle_loop; // 输出轴 deg → rpm（Maxout 被 max_speed_rpm 覆盖）
-        TargetClamp clamp{TargetClamp::NONE};   // 角度目标预处理策略
-        float min_target{0.0F};                 // 仅 clamp == ABSOLUTE_RANGE 时校验与使用
-        float max_target{0.0F};                 // 同上
+        control::PID::Config speed_loop;      // 输出轴 rpm → N·m（Maxout＝电调/热限幅）
+        control::PID::Config angle_loop;      // 输出轴 deg → rpm（Maxout 被 max_speed_rpm 覆盖）
+        TargetClamp clamp{TargetClamp::NONE}; // 角度目标预处理策略
+        float min_target{0.0F};               // 仅 clamp == ABSOLUTE_RANGE 时校验与使用
+        float max_target{0.0F};               // 同上
     };
 
     /** @brief 控制器配置。 */
@@ -398,8 +398,7 @@ template <std::size_t AxisCount> class AxisController final
                     reset_axis();
                     continue;
                 }
-                target_rpm =
-                    math::limit(angle_pids_[axis].get_out(), -config_.max_speed_rpm, config_.max_speed_rpm);
+                target_rpm = math::limit(angle_pids_[axis].get_out(), -config_.max_speed_rpm, config_.max_speed_rpm);
             }
 
             if (!speed_pids_[axis].calculate_loop(measurement.speed_rpm, target_rpm, dt))

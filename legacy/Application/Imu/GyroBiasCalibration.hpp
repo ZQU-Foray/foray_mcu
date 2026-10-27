@@ -66,12 +66,12 @@ class GyroBiasCalibration final
     struct Snapshot final
     {
         State state{State::WAITING_FOR_TEMPERATURE};
-        math::Vector3 bias_rad_per_sec{};   // 标定结果
-        math::Vector3 spread_rad_per_sec{}; // 窗口内每轴极差
-        std::uint32_t samples{0U};              // 当前窗口已积累样本数
-        std::uint32_t restarts{0U};             // 窗口因运动/温度被重启的次数
-        std::uint32_t elapsed_ms{0U};           // 累计处于采样状态的时间
-        std::uint32_t temperature_hold_ms{0U};  // 带内温度连续稳定保持的时长
+        math::Vector3 bias_rad_per_sec{};      // 标定结果
+        math::Vector3 spread_rad_per_sec{};    // 窗口内每轴极差
+        std::uint32_t samples{0U};             // 当前窗口已积累样本数
+        std::uint32_t restarts{0U};            // 窗口因运动/温度被重启的次数
+        std::uint32_t elapsed_ms{0U};          // 累计处于采样状态的时间
+        std::uint32_t temperature_hold_ms{0U}; // 带内温度连续稳定保持的时长
         float temperature_celsius{0.0F};
         bool bias_valid{false};
     };
