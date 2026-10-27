@@ -1,9 +1,9 @@
-#ifndef LIB_ALG_SLOPE_SLOPE_HPP
-#define LIB_ALG_SLOPE_SLOPE_HPP
+#ifndef LIB_SLOPE_SLOPE_HPP
+#define LIB_SLOPE_SLOPE_HPP
 
 #include <cstdint>
 
-namespace alg_slope
+namespace slope
 {
 
 enum class SlopeFirst : uint8_t
@@ -56,6 +56,6 @@ class Slope
     bool initialized_ = false;
 };
 
-} // namespace alg_slope
+} // namespace slope
 
 #endif

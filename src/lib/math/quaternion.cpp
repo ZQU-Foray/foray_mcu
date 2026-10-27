@@ -1,7 +1,7 @@
-#include "lib/alg_math/quaternion.hpp"
+#include "lib/math/quaternion.hpp"
 #include <cmath>
 
-namespace alg_math
+namespace math
 {
 
 float norm(const Quaternion &value) noexcept
@@ -11,7 +11,7 @@ float norm(const Quaternion &value) noexcept
 
 bool normalize(Quaternion &value) noexcept
 {
-    const float norm = alg_math::norm(value);
+    const float norm = math::norm(value);
     if (!std::isfinite(norm) || !(norm > 0.0f))
     {
         value = Quaternion{};
@@ -128,4 +128,4 @@ bool is_finite(const Quaternion &value) noexcept
     return std::isfinite(value.w) && std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
 }
 
-} // namespace alg_math
+} // namespace math

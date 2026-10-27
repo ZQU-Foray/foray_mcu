@@ -1,8 +1,8 @@
-#include "lib/alg_math/matrix3.hpp"
+#include "lib/math/matrix3.hpp"
 #include <cstddef>
 #include <limits>
 
-namespace alg_math
+namespace math
 {
 
 namespace
@@ -142,4 +142,4 @@ void limit_in_place(Matrix3 &value, double minimum, double maximum) noexcept
     }
 }
 
-} // namespace alg_math
+} // namespace math

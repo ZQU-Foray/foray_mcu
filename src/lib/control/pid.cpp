@@ -1,5 +1,5 @@
-#include "lib/alg_controller/pid.hpp"
-#include "lib/alg_math/basic_math.hpp"
+#include "lib/control/pid.hpp"
+#include "lib/math/basic_math.hpp"
 #include <cmath>
 
 namespace
@@ -10,10 +10,10 @@ bool is_finite(float value)
     return std::isfinite(value);
 }
 
-bool is_valid_config(const alg_controller::PID::Config &config)
+bool is_valid_config(const control::PID::Config &config)
 {
     const bool mode_valid =
-        config.mode == alg_controller::PIDMode::POSITION || config.mode == alg_controller::PIDMode::DELTA;
+        config.mode == control::PIDMode::POSITION || config.mode == control::PIDMode::DELTA;
     const bool param_finite = is_finite(config.kp) && is_finite(config.ki) && is_finite(config.kd) &&
                               is_finite(config.kf) && is_finite(config.default_dt) && is_finite(config.maxout) &&
                               is_finite(config.feed_forward_limit) && is_finite(config.integral_limit) &&
@@ -29,7 +29,7 @@ bool is_valid_config(const alg_controller::PID::Config &config)
 
 } // namespace
 
-namespace alg_controller
+namespace control
 {
 
 bool PID::init(const Config &config)
@@ -137,7 +137,7 @@ bool PID::calculate_loop(float measure, float target, float dt)
         iout_ += i_term_;
         if (!cfg_.improve.integral_limit)
         {
-            iout_ = alg_math::limit(iout_, -cfg_.integral_limit, cfg_.integral_limit);
+            iout_ = math::limit(iout_, -cfg_.integral_limit, cfg_.integral_limit);
         }
 
         output_ = pout_ + iout_ + dout_ + feed_forward;
@@ -182,7 +182,7 @@ bool PID::calculate_loop(float measure, float target, float dt)
         return false;
     }
 
-    output_ = alg_math::limit(output_, -cfg_.maxout, cfg_.maxout);
+    output_ = math::limit(output_, -cfg_.maxout, cfg_.maxout);
     if (!is_finite(err_) || !is_finite(pout_) || !is_finite(iout_) || !is_finite(dout_) || !is_finite(i_term_) ||
         !is_finite(output_))
     {
@@ -264,7 +264,7 @@ bool PID::set_i_out_max(float integral_limit)
         return false;
     }
     cfg_.integral_limit = integral_limit;
-    iout_ = alg_math::limit(iout_, -integral_limit, integral_limit);
+    iout_ = math::limit(iout_, -integral_limit, integral_limit);
     return true;
 }
 
@@ -275,8 +275,8 @@ bool PID::set_out_max(float maxout)
         return false;
     }
     cfg_.maxout = maxout;
-    output_ = alg_math::limit(output_, -maxout, maxout);
-    last_output_ = alg_math::limit(last_output_, -maxout, maxout);
+    output_ = math::limit(output_, -maxout, maxout);
+    last_output_ = math::limit(last_output_, -maxout, maxout);
     return true;
 }
 
@@ -329,13 +329,13 @@ bool PID::set_integral_error(float iout)
     {
         return false;
     }
-    iout_ = alg_math::limit(iout, -cfg_.integral_limit, cfg_.integral_limit);
+    iout_ = math::limit(iout, -cfg_.integral_limit, cfg_.integral_limit);
     return true;
 }
 
 float PID::feed_forward_term(float target) const
 {
-    return alg_math::limit(cfg_.kf * target, -cfg_.feed_forward_limit, cfg_.feed_forward_limit);
+    return math::limit(cfg_.kf * target, -cfg_.feed_forward_limit, cfg_.feed_forward_limit);
 }
 
 void PID::trapezoid_integral()
@@ -404,4 +404,4 @@ void PID::output_filter()
     output_ = alpha * output_ + (1.0f - alpha) * last_output_;
 }
 
-} // namespace alg_controller
+} // namespace control

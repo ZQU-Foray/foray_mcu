@@ -11,16 +11,16 @@ using Mode = Controller::WheelControlMode;
 // Kept independent of the new config to detect erroneous unit conversions.
 struct Legacy
 {
-    alg_controller::PID speed, angle;
+    control::PID speed, angle;
     Legacy()
     {
-        alg_controller::PID::Config s{};
+        control::PID::Config s{};
         s.kp = 0.02F;
         s.ki = 0.1F;
         s.default_dt = 0.001F;
         s.maxout = 3;
         s.integral_limit = 1.5F;
-        alg_controller::PID::Config a{};
+        control::PID::Config a{};
         a.kp = 4;
         a.default_dt = 0.001F;
         a.maxout = 18000;

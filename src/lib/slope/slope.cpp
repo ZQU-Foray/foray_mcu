@@ -1,4 +1,4 @@
-#include "lib/alg_slope/slope.hpp"
+#include "lib/slope/slope.hpp"
 #include <cmath>
 
 namespace
@@ -28,7 +28,7 @@ bool is_between(float value, float first, float second)
 
 } // namespace
 
-namespace alg_slope
+namespace slope
 {
 
 bool Slope::init(const Config &config)
@@ -166,4 +166,4 @@ bool Slope::is_initialized() const
     return initialized_;
 }
 
-} // namespace alg_slope
+} // namespace slope

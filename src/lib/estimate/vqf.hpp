@@ -1,13 +1,13 @@
-#ifndef LIB_ALG_ESTIMATE_VQF_HPP
-#define LIB_ALG_ESTIMATE_VQF_HPP
+#ifndef LIB_ESTIMATE_VQF_HPP
+#define LIB_ESTIMATE_VQF_HPP
 
-#include "lib/alg_filter/butterworth_low_pass.hpp"
-#include "lib/alg_math/matrix3.hpp"
-#include "lib/alg_math/quaternion.hpp"
-#include "lib/alg_math/vector3.hpp"
+#include "lib/filter/butterworth_low_pass.hpp"
+#include "lib/math/matrix3.hpp"
+#include "lib/math/quaternion.hpp"
+#include "lib/math/vector3.hpp"
 #include <cstdint>
 
-namespace alg_estimate
+namespace estimate
 {
 
 /**
@@ -55,11 +55,11 @@ class Vqf final
     /** @brief 对外状态快照。 */
     struct State final
     {
-        alg_math::Quaternion quaternion{};         // body → earth，earth 重力沿 +z
-        alg_math::Vector3 gyro_bias_rad_per_sec{}; // 机体系零偏估计
+        math::Quaternion quaternion{};         // body → earth，earth 重力沿 +z
+        math::Vector3 gyro_bias_rad_per_sec{}; // 机体系零偏估计
         float bias_uncertainty_rad_per_sec{0.0F};  // 零偏估计不确定度
-        alg_math::Vector3 euler_radians{};         // ZYX：yaw、pitch、roll
-        alg_math::Vector3 euler_degrees{};         // 同上，单位 degree
+        math::Vector3 euler_radians{};         // ZYX：yaw、pitch、roll
+        math::Vector3 euler_degrees{};         // 同上，单位 degree
         float last_accel_correction_radians{0.0F}; // 最近一次倾角修正的转角（诊断）
         bool rest_detected{false};                 // 最近一次加速度计更新时的静止判定
         bool valid{false};                         // 至少完成一次陀螺更新
@@ -95,24 +95,24 @@ class Vqf final
         double gyro_period_seconds{0.0};
         double accel_period_seconds{0.0};
         // 姿态
-        alg_math::Quaternion gyro_quaternion{};
-        alg_math::Quaternion accel_quaternion{};
-        alg_math::Vector3 last_accel_lp{};
+        math::Quaternion gyro_quaternion{};
+        math::Quaternion accel_quaternion{};
+        math::Vector3 last_accel_lp{};
         float last_accel_correction_radians{0.0F};
-        alg_filter::ButterworthLowPass<3U>::InternalState accel_low_pass{};
+        filter::ButterworthLowPass<3U>::InternalState accel_low_pass{};
         // 零偏估计
-        alg_math::Vector3 gyro_bias_rad_per_sec{};
-        alg_math::Matrix3 bias_covariance{};
-        alg_filter::ButterworthLowPass<9U>::InternalState motion_bias_rotation_low_pass{};
-        alg_filter::ButterworthLowPass<2U>::InternalState motion_bias_projection_low_pass{};
+        math::Vector3 gyro_bias_rad_per_sec{};
+        math::Matrix3 bias_covariance{};
+        filter::ButterworthLowPass<9U>::InternalState motion_bias_rotation_low_pass{};
+        filter::ButterworthLowPass<2U>::InternalState motion_bias_projection_low_pass{};
         // 静止判定
         bool rest_detected{false};
         double rest_seconds{0.0};
         double rest_squared_deviations[2]{};
-        alg_math::Vector3 rest_last_gyro_lp{};
-        alg_math::Vector3 rest_last_accel_lp{};
-        alg_filter::ButterworthLowPass<3U>::InternalState rest_gyro_low_pass{};
-        alg_filter::ButterworthLowPass<3U>::InternalState rest_accel_low_pass{};
+        math::Vector3 rest_last_gyro_lp{};
+        math::Vector3 rest_last_accel_lp{};
+        filter::ButterworthLowPass<3U>::InternalState rest_gyro_low_pass{};
+        filter::ButterworthLowPass<3U>::InternalState rest_accel_low_pass{};
         // 计数
         std::uint32_t update_count{0U};
         bool valid{false};
@@ -140,7 +140,7 @@ class Vqf final
    * @param gyro_rad_per_sec 机体系角速度，单位 rad/s。
    * @note 输入非有限时整步被忽略（不做部分更新），避免污染状态。
    */
-    void update_gyroscope(const alg_math::Vector3 &gyro_rad_per_sec) noexcept;
+    void update_gyroscope(const math::Vector3 &gyro_rad_per_sec) noexcept;
 
     /**
    * @brief 加速度计更新步：静止判定的加速度侧、惯性系低通、倾角修正、零偏估计。
@@ -148,14 +148,14 @@ class Vqf final
    * @note 全零样本按"本拍无加速度计数据"处理（本工程正常数据不会全零，
    *       除自由落体极端情形）；输入非有限时整步被忽略。
    */
-    void update_accelerometer(const alg_math::Vector3 &accel_meters_per_sec2) noexcept;
+    void update_accelerometer(const math::Vector3 &accel_meters_per_sec2) noexcept;
 
     /**
    * @brief 便利入口：陀螺与加速度计同周期时一次喂入两路。
    * @note 内部依次执行 `update_gyroscope` 与 `update_accelerometer`；两路周期不同时
    *       必须改用单路入口。
    */
-    void update(const alg_math::Vector3 &gyro_rad_per_sec, const alg_math::Vector3 &accel_meters_per_sec2) noexcept;
+    void update(const math::Vector3 &gyro_rad_per_sec, const math::Vector3 &accel_meters_per_sec2) noexcept;
 
     /** @brief 读取状态快照（含四元数、零偏、零偏不确定度与 ZYX 欧拉角）。 */
     [[nodiscard]] State get_state() const noexcept;
@@ -175,7 +175,7 @@ class Vqf final
    *       即"注入的零偏有 σ 的不确定度"，随后由滤波器继续跟踪残余零偏。
    *       零偏非有限时整次调用被忽略。
    */
-    void set_bias_estimate(const alg_math::Vector3 &bias_rad_per_sec, float uncertainty_rad_per_sec = -1.0F) noexcept;
+    void set_bias_estimate(const math::Vector3 &bias_rad_per_sec, float uncertainty_rad_per_sec = -1.0F) noexcept;
 
     /** @brief 读取完整内部状态（检查点/离线逐段续算/调试）。 */
     [[nodiscard]] InternalState get_internal_state() const noexcept;
@@ -190,7 +190,7 @@ class Vqf final
     [[nodiscard]] bool set_internal_state(const InternalState &state) noexcept;
 
     /** @brief 查询六维姿态四元数（body → earth）。 */
-    [[nodiscard]] alg_math::Quaternion get_quaternion() const noexcept;
+    [[nodiscard]] math::Quaternion get_quaternion() const noexcept;
 
     [[nodiscard]] bool is_initialized() const noexcept
     {
@@ -215,32 +215,32 @@ class Vqf final
     bool motion_bias_est_enabled_{true};
 
     // 姿态状态
-    alg_math::Quaternion gyro_quat_{};  // 角速度积分四元数
-    alg_math::Quaternion accel_quat_{}; // 倾角修正四元数
-    alg_math::Vector3 last_accel_lp_{}; // 最近一次惯性系下低通后的加速度
+    math::Quaternion gyro_quat_{};  // 角速度积分四元数
+    math::Quaternion accel_quat_{}; // 倾角修正四元数
+    math::Vector3 last_accel_lp_{}; // 最近一次惯性系下低通后的加速度
     float last_accel_correction_radians_{0.0F};
-    alg_filter::ButterworthLowPass<3U> accel_low_pass_{}; // 惯性系加速度低通（τ_acc / 加速度计周期）
+    filter::ButterworthLowPass<3U> accel_low_pass_{}; // 惯性系加速度低通（τ_acc / 加速度计周期）
 
     // 零偏估计状态
-    alg_math::Vector3 gyro_bias_{};
-    alg_math::Matrix3 bias_covariance_{};
-    alg_filter::ButterworthLowPass<9U> motion_bias_rotation_low_pass_{};   // R 低通
-    alg_filter::ButterworthLowPass<2U> motion_bias_projection_low_pass_{}; // R·b 的 x/y 低通
+    math::Vector3 gyro_bias_{};
+    math::Matrix3 bias_covariance_{};
+    filter::ButterworthLowPass<9U> motion_bias_rotation_low_pass_{};   // R 低通
+    filter::ButterworthLowPass<2U> motion_bias_projection_low_pass_{}; // R·b 的 x/y 低通
 
     // 静止判定状态
     bool rest_detected_{false};
     double rest_t_{0.0};
     double rest_squared_deviations_[2]{};
-    alg_math::Vector3 rest_last_gyro_lp_{};
-    alg_math::Vector3 rest_last_accel_lp_{};
-    alg_filter::ButterworthLowPass<3U> rest_gyro_low_pass_{};  // τ_rest / 陀螺周期
-    alg_filter::ButterworthLowPass<3U> rest_accel_low_pass_{}; // τ_rest / 加速度计周期
+    math::Vector3 rest_last_gyro_lp_{};
+    math::Vector3 rest_last_accel_lp_{};
+    filter::ButterworthLowPass<3U> rest_gyro_low_pass_{};  // τ_rest / 陀螺周期
+    filter::ButterworthLowPass<3U> rest_accel_low_pass_{}; // τ_rest / 加速度计周期
 
     std::uint32_t update_count_{0U};
     bool initialized_{false};
     bool valid_{false};
 };
 
-} // namespace alg_estimate
+} // namespace estimate
 
-#endif // LIB_ALG_ESTIMATE_VQF_HPP
+#endif // LIB_ESTIMATE_VQF_HPP

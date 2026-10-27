@@ -1,1 +1,1 @@
-#include "lib/alg_math/basic_math.hpp"
+#include "lib/math/basic_math.hpp"

@@ -30,8 +30,8 @@ static_assert(preheat_threshold_for(32.0F) == 30.0F);
 
 bool Bmi088Heater::init() noexcept
 {
-    alg_controller::PID::Config config{};
-    config.mode = alg_controller::PIDMode::POSITION;
+    control::PID::Config config{};
+    config.mode = control::PIDMode::POSITION;
     config.kp = PID_KP;
     config.ki = PID_KI;
     config.kd = PID_KD;

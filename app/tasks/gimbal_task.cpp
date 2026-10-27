@@ -29,14 +29,14 @@ module::GimbalModule::Config GimbalTask::controller_config() noexcept
     config.max_gimbal_speed_rpm = 320.0F;
 
     module::GimbalModule::AxisConfig &yaw = config.axis[0];
-    yaw.speed_loop.mode = alg_controller::PIDMode::POSITION;
+    yaw.speed_loop.mode = control::PIDMode::POSITION;
     yaw.speed_loop.kp = 0.0027F;
     yaw.speed_loop.ki = 0.004F;
     yaw.speed_loop.kf = 0.0F;
     yaw.speed_loop.default_dt = 0.001F;
     yaw.speed_loop.maxout = 2.0F;
     yaw.speed_loop.integral_limit = 1.5F;
-    yaw.angle_loop.mode = alg_controller::PIDMode::POSITION;
+    yaw.angle_loop.mode = control::PIDMode::POSITION;
     yaw.angle_loop.kp = 5.0F;
     yaw.angle_loop.ki = 0.2F;
     yaw.angle_loop.improve.dead_band = 1U;
@@ -46,13 +46,13 @@ module::GimbalModule::Config GimbalTask::controller_config() noexcept
     yaw.max_angle_deg = 100000.0F;
 
     module::GimbalModule::AxisConfig &pitch = config.axis[1];
-    pitch.speed_loop.mode = alg_controller::PIDMode::POSITION;
+    pitch.speed_loop.mode = control::PIDMode::POSITION;
     pitch.speed_loop.kp = 0.1F;
     pitch.speed_loop.ki = 0.0F;
     pitch.speed_loop.default_dt = 0.001F;
     pitch.speed_loop.maxout = 2.2F;
     pitch.speed_loop.integral_limit = 1.5F;
-    pitch.angle_loop.mode = alg_controller::PIDMode::POSITION;
+    pitch.angle_loop.mode = control::PIDMode::POSITION;
     pitch.angle_loop.kp = 0.1F;
     pitch.angle_loop.ki = 0.0F;
     pitch.angle_loop.default_dt = 0.001F;

@@ -1,9 +1,9 @@
-#ifndef LIB_ALG_CONTROLLER_PID_HPP
-#define LIB_ALG_CONTROLLER_PID_HPP
+#ifndef LIB_CONTROL_PID_HPP
+#define LIB_CONTROL_PID_HPP
 
 #include <cstdint>
 
-namespace alg_controller
+namespace control
 {
 
 enum class PIDMode : uint8_t
@@ -129,6 +129,6 @@ class PID
     void output_filter();
 };
 
-} // namespace alg_controller
+} // namespace control
 
 #endif

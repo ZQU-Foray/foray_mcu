@@ -65,55 +65,55 @@ framework_interface(utils)
 # 子目录沿用迁移源的名字（alg_*），P3b 统一为小写分类。
 
 framework_library(lib_math
-    lib/alg_math/basic_math.cpp
-    lib/alg_math/basic_math.hpp
-    lib/alg_math/matrix.hpp
-    lib/alg_math/matrix3.cpp
-    lib/alg_math/matrix3.hpp
-    lib/alg_math/quaternion.cpp
-    lib/alg_math/quaternion.hpp
-    lib/alg_math/vector3.hpp)
+    lib/math/basic_math.cpp
+    lib/math/basic_math.hpp
+    lib/math/matrix.hpp
+    lib/math/matrix3.cpp
+    lib/math/matrix3.hpp
+    lib/math/quaternion.cpp
+    lib/math/quaternion.hpp
+    lib/math/vector3.hpp)
 
 framework_library(lib_control
-    lib/alg_controller/pid.cpp
-    lib/alg_controller/pid.hpp)
+    lib/control/pid.cpp
+    lib/control/pid.hpp)
 target_link_libraries(lib_control PUBLIC lib_math)
 
 framework_library(lib_crc
-    lib/alg_crc/crc32.cpp
-    lib/alg_crc/crc32.hpp
-    lib/alg_crc/crc8.cpp
-    lib/alg_crc/crc8.hpp)
+    lib/crc/crc32.cpp
+    lib/crc/crc32.hpp
+    lib/crc/crc8.cpp
+    lib/crc/crc8.hpp)
 
 framework_library(lib_filter
-    lib/alg_filter/butterworth_low_pass.hpp
-    lib/alg_filter/filter.cpp
-    lib/alg_filter/filter.hpp)
+    lib/filter/butterworth_low_pass.hpp
+    lib/filter/filter.cpp
+    lib/filter/filter.hpp)
 
 # 已知结构债：imu_body_mapping 依赖 BMI088 驱动（lib → driver 反向依赖），P3b 改为 POD 入参或迁到 driver/imu
 # （docs/ai/architecture.md "已知结构债"）。依赖图检查对这条边单独放行。
 framework_library(lib_estimate
-    lib/alg_estimate/extended_state_observer.hpp
-    lib/alg_estimate/imu_body_mapping.cpp
-    lib/alg_estimate/imu_body_mapping.hpp
-    lib/alg_estimate/kalman_filter.hpp
-    lib/alg_estimate/quaternion_ekf.cpp
-    lib/alg_estimate/quaternion_ekf.hpp
-    lib/alg_estimate/vqf.cpp
-    lib/alg_estimate/vqf.hpp)
+    lib/estimate/extended_state_observer.hpp
+    lib/estimate/imu_body_mapping.cpp
+    lib/estimate/imu_body_mapping.hpp
+    lib/estimate/kalman_filter.hpp
+    lib/estimate/quaternion_ekf.cpp
+    lib/estimate/quaternion_ekf.hpp
+    lib/estimate/vqf.cpp
+    lib/estimate/vqf.hpp)
 target_link_libraries(lib_estimate PUBLIC lib_math lib_filter driver_bmi088)
 
 framework_library(lib_fsm
-    lib/alg_fsm/fsm.cpp
-    lib/alg_fsm/fsm.hpp)
+    lib/fsm/fsm.cpp
+    lib/fsm/fsm.hpp)
 
 framework_library(lib_kinematics
-    lib/alg_kinematics/kinematics.cpp
-    lib/alg_kinematics/kinematics.hpp)
+    lib/kinematics/kinematics.cpp
+    lib/kinematics/kinematics.hpp)
 
 framework_library(lib_slope
-    lib/alg_slope/slope.cpp
-    lib/alg_slope/slope.hpp)
+    lib/slope/slope.cpp
+    lib/slope/slope.hpp)
 
 framework_interface(lib_component
     lib/component/axis_controller.hpp)

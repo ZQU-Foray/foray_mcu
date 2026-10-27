@@ -1,11 +1,11 @@
-#ifndef LIB_ALG_MATH_MATRIX_HPP
-#define LIB_ALG_MATH_MATRIX_HPP
+#ifndef LIB_MATH_MATRIX_HPP
+#define LIB_MATH_MATRIX_HPP
 
 #include <array>
 #include <cmath>
 #include <cstddef>
 
-namespace alg_math
+namespace math
 {
 
 /**
@@ -245,6 +245,6 @@ template <std::size_t Rows, std::size_t Columns> struct Matrix final
     }
 };
 
-} // namespace alg_math
+} // namespace math
 
 #endif

@@ -1,10 +1,10 @@
-#ifndef LIB_ALG_CRC_CRC8_HPP
-#define LIB_ALG_CRC_CRC8_HPP
+#ifndef LIB_CRC_CRC8_HPP
+#define LIB_CRC_CRC8_HPP
 
 #include <cstddef>
 #include <cstdint>
 
-namespace alg_crc
+namespace crc
 {
 
 /**
@@ -15,6 +15,6 @@ namespace alg_crc
  */
 uint8_t crc8_calc(const uint8_t *data, size_t len);
 
-} // namespace alg_crc
+} // namespace crc
 
 #endif

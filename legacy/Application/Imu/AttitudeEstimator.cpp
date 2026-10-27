@@ -1,6 +1,6 @@
 #include "Application/Imu/AttitudeEstimator.hpp"
-#include "lib/alg_estimate/imu_body_mapping.hpp"
-#include "lib/alg_estimate/vqf.hpp"
+#include "lib/estimate/imu_body_mapping.hpp"
+#include "lib/estimate/vqf.hpp"
 #include "hal/time.hpp"
 #include <cmath>
 #include <cstddef>
@@ -11,7 +11,7 @@ namespace application
 namespace
 {
 
-alg_estimate::Vqf g_estimator;
+estimate::Vqf g_estimator;
 GyroBiasCalibration g_calibration;
 bool g_ready{false};
 bool g_calibration_injected{false};
@@ -26,7 +26,7 @@ std::uint32_t g_last_gyro_sequence{0U};
 std::uint32_t g_last_accel_sequence{0U};
 std::uint32_t g_last_accel_tick{0U};
 bool g_accel_available{false};
-alg_math::Vector3 g_accel_body{};
+math::Vector3 g_accel_body{};
 
 // 调试器可见存档。写读都走字节拷贝，避免逐字段复制漏项。
 volatile AttitudeEstimator::Output g_output_archive{};
@@ -83,11 +83,11 @@ bool has_uncertain_timing(const device::Bmi088SampleRecord &record)
 
 void publish_output(const device::Bmi088SampleRecord &record)
 {
-    const alg_estimate::Vqf::State state = g_estimator.get_state();
-    const alg_estimate::Vqf::RestObservables rest = g_estimator.get_rest_observables();
+    const estimate::Vqf::State state = g_estimator.get_state();
+    const estimate::Vqf::RestObservables rest = g_estimator.get_rest_observables();
     const GyroBiasCalibration::Snapshot calibration_snapshot = g_calibration.get_snapshot();
-    const bool valid = state.valid && alg_math::is_finite(state.quaternion) &&
-                       alg_math::is_finite(state.gyro_bias_rad_per_sec) && alg_math::is_finite(state.euler_degrees) &&
+    const bool valid = state.valid && math::is_finite(state.quaternion) &&
+                       math::is_finite(state.gyro_bias_rad_per_sec) && math::is_finite(state.euler_degrees) &&
                        std::isfinite(state.bias_uncertainty_rad_per_sec);
 
     if (valid)
@@ -172,10 +172,10 @@ void process_gyroscope(const device::Bmi088SampleRecord &record, float temperatu
     }
 
     float gyro_body[3]{};
-    alg_estimate::gyro_record_to_body(record, gyro_body);
-    const alg_math::Vector3 gyro{gyro_body[0], gyro_body[1], gyro_body[2]};
+    estimate::gyro_record_to_body(record, gyro_body);
+    const math::Vector3 gyro{gyro_body[0], gyro_body[1], gyro_body[2]};
 
-    const alg_math::Vector3 gate_accel = g_accel_available ? g_accel_body : alg_math::Vector3{};
+    const math::Vector3 gate_accel = g_accel_available ? g_accel_body : math::Vector3{};
     g_calibration.process(gyro, gate_accel, temperature_celsius, record.drdy_tick);
     if (!g_calibration_injected && g_calibration.is_bias_valid())
     {
@@ -203,8 +203,8 @@ void process_accelerometer(const device::Bmi088SampleRecord &record) noexcept
     g_last_accel_sequence = record.sequence;
     g_last_accel_tick = record.drdy_tick;
     float accel[3]{};
-    alg_estimate::accel_record_to_body(record, accel);
-    g_accel_body = alg_math::Vector3{accel[0], accel[1], accel[2]};
+    estimate::accel_record_to_body(record, accel);
+    g_accel_body = math::Vector3{accel[0], accel[1], accel[2]};
     g_accel_available = true;
     g_estimator.update_accelerometer(g_accel_body);
     ++g_statistics_archive.accel_consumed;
@@ -218,7 +218,7 @@ bool AttitudeEstimator::init() noexcept
     calibration_config.tick_frequency_hz = platform::Time::tick_frequency_hz();
     g_calibration.init(calibration_config);
 
-    alg_estimate::Vqf::Config config{};
+    estimate::Vqf::Config config{};
     // 532 Hz 带宽下本板静止三轴瞬时偏离高于上游 2°/s 默认门槛；先按板测候选值验收。
     config.rest_threshold_gyr_rad_per_sec = 0.35F;
     // 标定允许的三轴均值不能在 VQF 首次零偏更新时被限幅截断。
@@ -239,7 +239,7 @@ bool AttitudeEstimator::init() noexcept
     g_last_accel_sequence = 0U;
     g_last_accel_tick = 0U;
     g_accel_available = false;
-    g_accel_body = alg_math::Vector3{};
+    g_accel_body = math::Vector3{};
     reset_archives();
     return g_ready;
 }

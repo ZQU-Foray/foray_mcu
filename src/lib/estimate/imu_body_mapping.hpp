@@ -1,5 +1,5 @@
-#ifndef LIB_ALG_ESTIMATE_IMU_BODY_MAPPING_HPP
-#define LIB_ALG_ESTIMATE_IMU_BODY_MAPPING_HPP
+#ifndef LIB_ESTIMATE_IMU_BODY_MAPPING_HPP
+#define LIB_ESTIMATE_IMU_BODY_MAPPING_HPP
 
 #include "driver/bmi088/bmi088_accel.hpp"
 #include "driver/bmi088/bmi088_gyro.hpp"
@@ -7,7 +7,7 @@
 #include <array>
 #include <cstdint>
 
-namespace alg_estimate
+namespace estimate
 {
 
 struct AxisMapping
@@ -97,6 +97,6 @@ void accel_record_to_body(const device::Bmi088SampleRecord &record,
                           float (&body)[3],
                           const AxisMapping &mapping = BMI088_SENSOR_TO_BODY) noexcept;
 
-} // namespace alg_estimate
+} // namespace estimate
 
 #endif

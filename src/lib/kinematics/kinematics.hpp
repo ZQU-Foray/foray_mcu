@@ -1,9 +1,9 @@
-#ifndef LIB_ALG_KINEMATICS_KINEMATICS_HPP
-#define LIB_ALG_KINEMATICS_KINEMATICS_HPP
+#ifndef LIB_KINEMATICS_KINEMATICS_HPP
+#define LIB_KINEMATICS_KINEMATICS_HPP
 
 #include <cstdint>
 
-namespace alg_kinematics
+namespace kinematics
 {
 
 enum class KinematicsMode : uint8_t
@@ -94,9 +94,9 @@ class Kinematics
     bool initialized_ = false;
 };
 
-} // namespace alg_kinematics
+} // namespace kinematics
 
-namespace alg_odometry
+namespace odometry
 {
 
 struct OdometryState
@@ -119,11 +119,11 @@ class Odometry
 
     bool reset(float x, float y, float yaw);
 
-    bool update_velocity(const alg_kinematics::ChassisVelocity &velocity, float dt);
+    bool update_velocity(const kinematics::ChassisVelocity &velocity, float dt);
 
-    bool update_delta(const alg_kinematics::ChassisDelta &delta, float dt);
+    bool update_delta(const kinematics::ChassisDelta &delta, float dt);
 
-    bool update_delta_with_yaw(const alg_kinematics::ChassisDelta &delta, float yaw, float dt);
+    bool update_delta_with_yaw(const kinematics::ChassisDelta &delta, float yaw, float dt);
 
     const OdometryState &get_state() const;
 
@@ -131,6 +131,6 @@ class Odometry
     OdometryState state_{};
 };
 
-} // namespace alg_odometry
+} // namespace odometry
 
 #endif

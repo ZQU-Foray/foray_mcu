@@ -1,11 +1,11 @@
-#ifndef LIB_ALG_MATH_BASIC_MATH_HPP
-#define LIB_ALG_MATH_BASIC_MATH_HPP
+#ifndef LIB_MATH_BASIC_MATH_HPP
+#define LIB_MATH_BASIC_MATH_HPP
 
 #include <cmath>
 #include <cstdint>
 #include <cstring>
 
-namespace alg_math
+namespace math
 {
 
 constexpr float PI = 3.14159265358979323846f;
@@ -110,6 +110,6 @@ inline float inv_sqrt(float x)
     return y;
 }
 
-} // namespace alg_math
+} // namespace math
 
 #endif

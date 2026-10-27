@@ -1,10 +1,10 @@
-#ifndef LIB_ALG_FSM_FSM_HPP
-#define LIB_ALG_FSM_FSM_HPP
+#ifndef LIB_FSM_FSM_HPP
+#define LIB_FSM_FSM_HPP
 
 #include <cstdint>
 #include <limits>
 
-namespace alg_fsm
+namespace fsm
 {
 
 enum class StatusStage : uint8_t
@@ -103,6 +103,6 @@ template <uint8_t StatusMax> inline bool Fsm<StatusMax>::set_status(uint8_t next
     return true;
 }
 
-} // namespace alg_fsm
+} // namespace fsm
 
 #endif

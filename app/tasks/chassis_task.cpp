@@ -28,13 +28,13 @@ chassis::ChassisController::Config ChassisTask::controller_config() noexcept
     // 当前 M2006/C610 整定，全部采用输出轴单位。
     // 旧参数 ratio=36、输出轴 Kt=0.18：速度增益 ×36×0.18、
     // 速度输出/积分限幅 ×0.18、角度增益与限幅 ÷36。
-    config.speed_loop.mode = alg_controller::PIDMode::POSITION;
+    config.speed_loop.mode = control::PIDMode::POSITION;
     config.speed_loop.kp = 0.1296F;
     config.speed_loop.ki = 0.648F;
     config.speed_loop.default_dt = 0.001F;
     config.speed_loop.maxout = 0.54F;
     config.speed_loop.integral_limit = 0.27F;
-    config.angle_loop.mode = alg_controller::PIDMode::POSITION;
+    config.angle_loop.mode = control::PIDMode::POSITION;
     config.angle_loop.kp = 4.0F / 36.0F;
     config.angle_loop.default_dt = 0.001F;
     config.angle_loop.maxout = 500.0F;

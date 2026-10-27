@@ -1,12 +1,12 @@
-#ifndef LIB_ALG_ESTIMATE_QUATERNION_EKF_HPP
-#define LIB_ALG_ESTIMATE_QUATERNION_EKF_HPP
+#ifndef LIB_ESTIMATE_QUATERNION_EKF_HPP
+#define LIB_ESTIMATE_QUATERNION_EKF_HPP
 
-#include "lib/alg_estimate/kalman_filter.hpp"
-#include "lib/alg_math/quaternion.hpp"
-#include "lib/alg_math/vector3.hpp"
+#include "lib/estimate/kalman_filter.hpp"
+#include "lib/math/quaternion.hpp"
+#include "lib/math/vector3.hpp"
 #include <cstdint>
 
-namespace alg_estimate
+namespace estimate
 {
 
 /**
@@ -51,10 +51,10 @@ class QuaternionEkf final
      */
     struct State final
     {
-        alg_math::Quaternion quaternion{};         // 机体系到世界系
-        alg_math::Vector3 gyro_bias_rad_per_sec{}; // 仅 x/y 被估计，z 恒为零
-        alg_math::Vector3 euler_radians{};         // ZYX：yaw、pitch、roll
-        alg_math::Vector3 euler_degrees{};         // 同上，单位 degree
+        math::Quaternion quaternion{};         // 机体系到世界系
+        math::Vector3 gyro_bias_rad_per_sec{}; // 仅 x/y 被估计，z 恒为零
+        math::Vector3 euler_radians{};         // ZYX：yaw、pitch、roll
+        math::Vector3 euler_degrees{};         // 同上，单位 degree
         float yaw_total_degrees = 0.0F;            // 跨 ±180° 累计后的连续 yaw
         float chi_square = 0.0F;                   // 最近一次卡方检验统计量
         float adaptive_gain_scale = 1.0F;          // 最近一次自适应增益缩放
@@ -84,8 +84,8 @@ class QuaternionEkf final
      * @param accel_meters_per_sec2 机体系加速度，单位 m/s^2。
      * @param dt_seconds 距上一次陀螺样本的时间间隔，单位 s。
      */
-    void update(const alg_math::Vector3 &gyro_rad_per_sec,
-                const alg_math::Vector3 &accel_meters_per_sec2,
+    void update(const math::Vector3 &gyro_rad_per_sec,
+                const math::Vector3 &accel_meters_per_sec2,
                 float dt_seconds) noexcept;
 
     /**
@@ -95,13 +95,13 @@ class QuaternionEkf final
      *       修正重复抵消。四元数、协方差与收敛状态保持不变；z 轴没有对应状态，
      *       由调用方在输入侧扣除。非有限输入被忽略。
      */
-    void seed_gyro_bias(const alg_math::Vector3 &bias_rad_per_sec) noexcept;
+    void seed_gyro_bias(const math::Vector3 &bias_rad_per_sec) noexcept;
 
     /**
      * @brief 仅预测，不进行重力观测更新。
      * @note 用于没有可信加速度样本的场合；协方差只做预测，不用旧增益修正。
      */
-    void predict(const alg_math::Vector3 &gyro_rad_per_sec, float dt_seconds) noexcept;
+    void predict(const math::Vector3 &gyro_rad_per_sec, float dt_seconds) noexcept;
 
     [[nodiscard]] State get_state() const noexcept
     {
@@ -134,8 +134,8 @@ class QuaternionEkf final
     static void observation_step(Filter &filter, void *context) noexcept;
     static void correction_step(Filter &filter, void *context) noexcept;
 
-    void advance(const alg_math::Vector3 &gyro_rad_per_sec, float dt_seconds) noexcept;
-    void prepare_prediction(const alg_math::Vector3 &gyro_rad_per_sec, float dt_seconds) noexcept;
+    void advance(const math::Vector3 &gyro_rad_per_sec, float dt_seconds) noexcept;
+    void prepare_prediction(const math::Vector3 &gyro_rad_per_sec, float dt_seconds) noexcept;
     void publish_state() noexcept;
 
     Filter filter_{};
@@ -156,6 +156,6 @@ class QuaternionEkf final
     State state_{};
 };
 
-} // namespace alg_estimate
+} // namespace estimate
 
 #endif

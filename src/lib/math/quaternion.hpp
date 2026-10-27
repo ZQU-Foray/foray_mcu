@@ -1,9 +1,9 @@
-#ifndef LIB_ALG_MATH_QUATERNION_HPP
-#define LIB_ALG_MATH_QUATERNION_HPP
+#ifndef LIB_MATH_QUATERNION_HPP
+#define LIB_MATH_QUATERNION_HPP
 
-#include "lib/alg_math/vector3.hpp"
+#include "lib/math/vector3.hpp"
 
-namespace alg_math
+namespace math
 {
 
 /**
@@ -67,6 +67,6 @@ struct Quaternion final
 /** @brief 四个分量都是有限值时返回 true。 */
 [[nodiscard]] bool is_finite(const Quaternion &value) noexcept;
 
-} // namespace alg_math
+} // namespace math
 
 #endif

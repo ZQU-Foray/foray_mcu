@@ -1,7 +1,7 @@
 #ifndef APPLICATION_IMU_ZERO_RATE_BIAS_OBSERVER_HPP
 #define APPLICATION_IMU_ZERO_RATE_BIAS_OBSERVER_HPP
 
-#include "lib/alg_math/vector3.hpp"
+#include "lib/math/vector3.hpp"
 #include <cstdint>
 
 namespace application
@@ -130,8 +130,8 @@ class ZeroRateBiasObserver final
    * @param accel_meters_per_sec2 最近一次机体系加速度，用于静止判据。
    * @param tick 采样时刻的高精度计数（允许回绕）。
    */
-    void process(const alg_math::Vector3 &gyro_rad_per_sec,
-                 const alg_math::Vector3 &accel_meters_per_sec2,
+    void process(const math::Vector3 &gyro_rad_per_sec,
+                 const math::Vector3 &accel_meters_per_sec2,
                  std::uint32_t tick) noexcept;
 
     [[nodiscard]] Snapshot get_snapshot() const noexcept;

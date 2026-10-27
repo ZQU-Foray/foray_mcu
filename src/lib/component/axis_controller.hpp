@@ -1,8 +1,8 @@
 #ifndef LIB_COMPONENT_AXIS_CONTROLLER_HPP
 #define LIB_COMPONENT_AXIS_CONTROLLER_HPP
 
-#include "lib/alg_controller/pid.hpp"
-#include "lib/alg_math/basic_math.hpp"
+#include "lib/control/pid.hpp"
+#include "lib/math/basic_math.hpp"
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -128,8 +128,8 @@ template <std::size_t AxisCount> class AxisController final
     /** @brief 单轴配置。 */
     struct AxisConfig final
     {
-        alg_controller::PID::Config speed_loop; // 输出轴 rpm → N·m（Maxout＝电调/热限幅）
-        alg_controller::PID::Config angle_loop; // 输出轴 deg → rpm（Maxout 被 max_speed_rpm 覆盖）
+        control::PID::Config speed_loop; // 输出轴 rpm → N·m（Maxout＝电调/热限幅）
+        control::PID::Config angle_loop; // 输出轴 deg → rpm（Maxout 被 max_speed_rpm 覆盖）
         TargetClamp clamp{TargetClamp::NONE};   // 角度目标预处理策略
         float min_target{0.0F};                 // 仅 clamp == ABSOLUTE_RANGE 时校验与使用
         float max_target{0.0F};                 // 同上
@@ -152,7 +152,7 @@ template <std::size_t AxisCount> class AxisController final
    * @return 配置全部有效时返回 true；否则返回 false 且控制器保持未就绪。
    * @note 校验项：总限幅与速度限幅为有限正数；`clamp == ABSOLUTE_RANGE` 的轴必须
    *       有限且 `min_target < max_target`（防止忘配置导致所有目标被静默钳到零）；
-   *       各轴 PID 配置经 alg_controller::PID::Init 校验。两级限幅与执行器能力的比较不在此处，
+   *       各轴 PID 配置经 control::PID::Init 校验。两级限幅与执行器能力的比较不在此处，
    *       由应用层完成（见类注释）。
    * @note 失败时可能已部分初始化 PID（本组件只在启动期调用，失败即不 ready），
    *       为避免事务式初始化的复杂度不做回滚。
@@ -377,7 +377,7 @@ template <std::size_t AxisCount> class AxisController final
             {
                 reset_axis();
                 out_torque_newton_meter[axis] =
-                    alg_math::limit(target, -config_.max_torque_newton_meter, config_.max_torque_newton_meter);
+                    math::limit(target, -config_.max_torque_newton_meter, config_.max_torque_newton_meter);
                 axis_status_[axis] = AxisStatus::TORQUE_OPEN_LOOP;
                 continue;
             }
@@ -386,7 +386,7 @@ template <std::size_t AxisCount> class AxisController final
             if (mode == Mode::SPEED)
             {
                 angle_pids_[axis].reset();
-                target_rpm = alg_math::limit(target, -config_.max_speed_rpm, config_.max_speed_rpm);
+                target_rpm = math::limit(target, -config_.max_speed_rpm, config_.max_speed_rpm);
             }
             else
             {
@@ -399,7 +399,7 @@ template <std::size_t AxisCount> class AxisController final
                     continue;
                 }
                 target_rpm =
-                    alg_math::limit(angle_pids_[axis].get_out(), -config_.max_speed_rpm, config_.max_speed_rpm);
+                    math::limit(angle_pids_[axis].get_out(), -config_.max_speed_rpm, config_.max_speed_rpm);
             }
 
             if (!speed_pids_[axis].calculate_loop(measurement.speed_rpm, target_rpm, dt))
@@ -409,7 +409,7 @@ template <std::size_t AxisCount> class AxisController final
                 reset_axis();
                 continue;
             }
-            out_torque_newton_meter[axis] = alg_math::limit(
+            out_torque_newton_meter[axis] = math::limit(
                 speed_pids_[axis].get_out(), -config_.max_torque_newton_meter, config_.max_torque_newton_meter);
             axis_status_[axis] = AxisStatus::CLOSED_LOOP;
         }
@@ -435,7 +435,7 @@ template <std::size_t AxisCount> class AxisController final
    * @param target_magnitude 该环路目标绝对值上限；为 0 表示目标范围无界，此时只允许 Kf 为 0。
    * @return Kf 为 0，或 `|Kf| × target_magnitude` 不超过前馈独立限幅时返回 true。
    */
-    [[nodiscard]] static bool feed_forward_in_linear_range(const alg_controller::PID::Config &loop_config,
+    [[nodiscard]] static bool feed_forward_in_linear_range(const control::PID::Config &loop_config,
                                                            float target_magnitude) noexcept
     {
         if (loop_config.kf == 0.0F)
@@ -453,15 +453,15 @@ template <std::size_t AxisCount> class AxisController final
         {
             return target;
         }
-        return alg_math::limit(target, config_.axis[axis].min_target, config_.axis[axis].max_target);
+        return math::limit(target, config_.axis[axis].min_target, config_.axis[axis].max_target);
     }
 
     bool ready_{false};
     std::atomic<bool> enabled_{false};
     std::atomic<Mode> mode_{Mode::TORQUE};
     std::array<std::atomic<float>, AxisCount> targets_{};
-    std::array<alg_controller::PID, AxisCount> speed_pids_{};
-    std::array<alg_controller::PID, AxisCount> angle_pids_{};
+    std::array<control::PID, AxisCount> speed_pids_{};
+    std::array<control::PID, AxisCount> angle_pids_{};
     Config config_{};
     ControllerStatus controller_status_{ControllerStatus::NOT_READY};
     std::array<AxisStatus, AxisCount> axis_status_{};

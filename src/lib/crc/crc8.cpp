@@ -1,7 +1,7 @@
-#include "lib/alg_crc/crc8.hpp"
+#include "lib/crc/crc8.hpp"
 #include <array>
 
-namespace alg_crc
+namespace crc
 {
 namespace
 {
@@ -42,4 +42,4 @@ uint8_t crc8_calc(const uint8_t *data, size_t len)
     return crc; // xorout = 0x00，无需再异或
 }
 
-} // namespace alg_crc
+} // namespace crc

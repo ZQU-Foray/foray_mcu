@@ -1,7 +1,7 @@
-#include "lib/alg_crc/crc32.hpp"
+#include "lib/crc/crc32.hpp"
 #include <array>
 
-namespace alg_crc
+namespace crc
 {
 namespace
 {
@@ -42,4 +42,4 @@ uint32_t crc32_calc(const uint8_t *data, size_t len)
     return crc ^ 0xFFFFFFFFU; // xorout = 0xFFFFFFFF
 }
 
-} // namespace alg_crc
+} // namespace crc

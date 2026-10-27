@@ -1,7 +1,7 @@
 #ifndef DRIVER_BMI088_BMI088_HEATER_HPP
 #define DRIVER_BMI088_BMI088_HEATER_HPP
 
-#include "lib/alg_controller/pid.hpp"
+#include "lib/control/pid.hpp"
 #include "driver/bmi088/bmi088_temperature.hpp"
 #include "hal/pwm.hpp"
 #include "hal/time.hpp"
@@ -100,7 +100,7 @@ class Bmi088Heater final
     void disable_output(State next_state) noexcept;
     [[nodiscard]] bool set_duty(std::uint16_t duty_permille) noexcept;
 
-    alg_controller::PID pid_{};
+    control::PID pid_{};
     State state_{State::DISABLED};
     bool initialized_{false};
     bool enabled_{false};

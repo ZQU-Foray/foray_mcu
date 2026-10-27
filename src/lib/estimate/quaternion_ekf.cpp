@@ -1,9 +1,9 @@
-#include "lib/alg_estimate/quaternion_ekf.hpp"
-#include "lib/alg_math/basic_math.hpp"
+#include "lib/estimate/quaternion_ekf.hpp"
+#include "lib/math/basic_math.hpp"
 #include <cmath>
 #include <cstddef>
 
-namespace alg_estimate
+namespace estimate
 {
 
 namespace
@@ -22,7 +22,7 @@ constexpr float BIAS_VARIANCE_LIMIT{1.0e4F};              // 零偏方差限幅�
 constexpr float ORIENTATION_COSINE_REFERENCE{1.5707963F}; // 方向余弦归一化参考，约 π/2
 
 /** 世界系重力方向：静止时机体加速度计测得的比力方向与该方向一致。 */
-constexpr alg_math::Vector3 WORLD_GRAVITY_DIRECTION{0.0F, 0.0F, 1.0F};
+constexpr math::Vector3 WORLD_GRAVITY_DIRECTION{0.0F, 0.0F, 1.0F};
 } // namespace
 
 bool QuaternionEkf::init(const Config &config) noexcept
@@ -100,27 +100,27 @@ void QuaternionEkf::reset() noexcept
     publish_state();
 }
 
-void QuaternionEkf::update(const alg_math::Vector3 &gyro_rad_per_sec,
-                           const alg_math::Vector3 &accel_meters_per_sec2,
+void QuaternionEkf::update(const math::Vector3 &gyro_rad_per_sec,
+                           const math::Vector3 &accel_meters_per_sec2,
                            float dt_seconds) noexcept
 {
-    if (!initialized_ || !std::isfinite(dt_seconds) || !(dt_seconds > 0.0F) || !alg_math::is_finite(gyro_rad_per_sec) ||
-        !alg_math::is_finite(accel_meters_per_sec2))
+    if (!initialized_ || !std::isfinite(dt_seconds) || !(dt_seconds > 0.0F) || !math::is_finite(gyro_rad_per_sec) ||
+        !math::is_finite(accel_meters_per_sec2))
     {
         return;
     }
 
     // 加速度方向作为重力观测向量；范数用于静止判据。
-    alg_math::Vector3 gravity_direction = accel_meters_per_sec2;
-    const float accel_norm = alg_math::norm(gravity_direction);
-    if (!alg_math::normalize(gravity_direction))
+    math::Vector3 gravity_direction = accel_meters_per_sec2;
+    const float accel_norm = math::norm(gravity_direction);
+    if (!math::normalize(gravity_direction))
     {
         return;
     }
 
     // 静止判据使用上一轮后验零偏修正后的角速度范数。
     const float corrected_norm =
-        alg_math::norm(alg_math::Vector3{gyro_rad_per_sec.x - filter_.state.at(STATE_BIAS_X_INDEX, 0U),
+        math::norm(math::Vector3{gyro_rad_per_sec.x - filter_.state.at(STATE_BIAS_X_INDEX, 0U),
                                          gyro_rad_per_sec.y - filter_.state.at(STATE_BIAS_Y_INDEX, 0U),
                                          gyro_rad_per_sec.z});
     stable_ = (corrected_norm < STABLE_GYRO_NORM) && (accel_norm > REFERENCE_GRAVITY - STABLE_GRAVITY_TOLERANCE) &&
@@ -139,7 +139,7 @@ void QuaternionEkf::update(const alg_math::Vector3 &gyro_rad_per_sec,
     publish_state();
 }
 
-void QuaternionEkf::seed_gyro_bias(const alg_math::Vector3 &bias_rad_per_sec) noexcept
+void QuaternionEkf::seed_gyro_bias(const math::Vector3 &bias_rad_per_sec) noexcept
 {
     if (!initialized_ || !std::isfinite(bias_rad_per_sec.x) || !std::isfinite(bias_rad_per_sec.y))
     {
@@ -152,9 +152,9 @@ void QuaternionEkf::seed_gyro_bias(const alg_math::Vector3 &bias_rad_per_sec) no
     publish_state();
 }
 
-void QuaternionEkf::predict(const alg_math::Vector3 &gyro_rad_per_sec, float dt_seconds) noexcept
+void QuaternionEkf::predict(const math::Vector3 &gyro_rad_per_sec, float dt_seconds) noexcept
 {
-    if (!initialized_ || !std::isfinite(dt_seconds) || !(dt_seconds > 0.0F) || !alg_math::is_finite(gyro_rad_per_sec))
+    if (!initialized_ || !std::isfinite(dt_seconds) || !(dt_seconds > 0.0F) || !math::is_finite(gyro_rad_per_sec))
     {
         return;
     }
@@ -176,7 +176,7 @@ void QuaternionEkf::get_covariance_diagonal(float diagonal[6]) const noexcept
     }
 }
 
-void QuaternionEkf::prepare_prediction(const alg_math::Vector3 &gyro_rad_per_sec, float dt_seconds) noexcept
+void QuaternionEkf::prepare_prediction(const math::Vector3 &gyro_rad_per_sec, float dt_seconds) noexcept
 {
     step_seconds_ = dt_seconds;
 
@@ -219,14 +219,14 @@ void QuaternionEkf::linearization_step(Filter &filter, void *context) noexcept
     auto &self = *static_cast<QuaternionEkf *>(context);
 
     // 先验四元数就地单位化，后续观测矩阵与残差都基于单位四元数。
-    alg_math::Quaternion quaternion{filter.predicted_state.at(0U, 0U),
+    math::Quaternion quaternion{filter.predicted_state.at(0U, 0U),
                                     filter.predicted_state.at(1U, 0U),
                                     filter.predicted_state.at(2U, 0U),
                                     filter.predicted_state.at(3U, 0U)};
-    if (!alg_math::normalize(quaternion))
+    if (!math::normalize(quaternion))
     {
         // 非有限输入：退化为单位四元数，避免把无效值继续传播到观测与残差。
-        quaternion = alg_math::Quaternion{};
+        quaternion = math::Quaternion{};
     }
     filter.predicted_state.at(0U, 0U) = quaternion.w;
     filter.predicted_state.at(1U, 0U) = quaternion.x;
@@ -295,11 +295,11 @@ void QuaternionEkf::correction_step(Filter &filter, void *context) noexcept
     }
 
     // 预测的机体重力方向，用于残差与方向余弦。
-    const alg_math::Quaternion quaternion{filter.predicted_state.at(0U, 0U),
+    const math::Quaternion quaternion{filter.predicted_state.at(0U, 0U),
                                           filter.predicted_state.at(1U, 0U),
                                           filter.predicted_state.at(2U, 0U),
                                           filter.predicted_state.at(3U, 0U)};
-    const alg_math::Vector3 predicted_gravity = alg_math::rotate_inverse(quaternion, WORLD_GRAVITY_DIRECTION);
+    const math::Vector3 predicted_gravity = math::rotate_inverse(quaternion, WORLD_GRAVITY_DIRECTION);
     const float gravity_components[3]{predicted_gravity.x, predicted_gravity.y, predicted_gravity.z};
     for (std::size_t index = 0U; index < 3U; ++index)
     {
@@ -413,26 +413,26 @@ void QuaternionEkf::publish_state() noexcept
 {
     State state{};
 
-    alg_math::Quaternion quaternion{filter_.filtered_value.at(0U, 0U),
+    math::Quaternion quaternion{filter_.filtered_value.at(0U, 0U),
                                     filter_.filtered_value.at(1U, 0U),
                                     filter_.filtered_value.at(2U, 0U),
                                     filter_.filtered_value.at(3U, 0U)};
-    const bool quaternion_finite = alg_math::is_finite(quaternion);
-    if (quaternion_finite && !alg_math::normalize(quaternion))
+    const bool quaternion_finite = math::is_finite(quaternion);
+    if (quaternion_finite && !math::normalize(quaternion))
     {
-        state.quaternion = alg_math::Quaternion{};
+        state.quaternion = math::Quaternion{};
     }
     else
     {
-        state.quaternion = quaternion_finite ? quaternion : alg_math::Quaternion{};
+        state.quaternion = quaternion_finite ? quaternion : math::Quaternion{};
     }
-    state.gyro_bias_rad_per_sec = alg_math::Vector3{
+    state.gyro_bias_rad_per_sec = math::Vector3{
         filter_.filtered_value.at(STATE_BIAS_X_INDEX, 0U), filter_.filtered_value.at(STATE_BIAS_Y_INDEX, 0U), 0.0F};
 
-    state.euler_radians = alg_math::to_euler_zyx_radians(state.quaternion);
-    state.euler_degrees = alg_math::Vector3{alg_math::rad_to_deg(state.euler_radians.x),
-                                            alg_math::rad_to_deg(state.euler_radians.y),
-                                            alg_math::rad_to_deg(state.euler_radians.z)};
+    state.euler_radians = math::to_euler_zyx_radians(state.quaternion);
+    state.euler_degrees = math::Vector3{math::rad_to_deg(state.euler_radians.x),
+                                            math::rad_to_deg(state.euler_radians.y),
+                                            math::rad_to_deg(state.euler_radians.z)};
 
     // yaw 跨 ±180° 时累计圈数，得到连续角度。
     if (state.euler_degrees.x - yaw_angle_last_ > 180.0F)
@@ -456,4 +456,4 @@ void QuaternionEkf::publish_state() noexcept
     state_ = state;
 }
 
-} // namespace alg_estimate
+} // namespace estimate

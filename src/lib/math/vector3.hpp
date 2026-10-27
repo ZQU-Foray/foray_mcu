@@ -1,9 +1,9 @@
-#ifndef LIB_ALG_MATH_VECTOR3_HPP
-#define LIB_ALG_MATH_VECTOR3_HPP
+#ifndef LIB_MATH_VECTOR3_HPP
+#define LIB_MATH_VECTOR3_HPP
 
 #include <cmath>
 
-namespace alg_math
+namespace math
 {
 
 /**
@@ -46,7 +46,7 @@ struct Vector3 final
  */
 [[nodiscard]] inline bool normalize(Vector3 &value) noexcept
 {
-    const float norm = alg_math::norm(value);
+    const float norm = math::norm(value);
     if (!std::isfinite(norm) || !(norm > 0.0f))
     {
         value = Vector3{};
@@ -65,6 +65,6 @@ struct Vector3 final
     return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
 }
 
-} // namespace alg_math
+} // namespace math
 
 #endif

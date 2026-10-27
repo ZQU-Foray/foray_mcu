@@ -1,7 +1,7 @@
 #ifndef APPLICATION_IMU_GYRO_BIAS_CALIBRATION_HPP
 #define APPLICATION_IMU_GYRO_BIAS_CALIBRATION_HPP
 
-#include "lib/alg_math/vector3.hpp"
+#include "lib/math/vector3.hpp"
 #include <cstdint>
 
 namespace application
@@ -66,8 +66,8 @@ class GyroBiasCalibration final
     struct Snapshot final
     {
         State state{State::WAITING_FOR_TEMPERATURE};
-        alg_math::Vector3 bias_rad_per_sec{};   // 标定结果
-        alg_math::Vector3 spread_rad_per_sec{}; // 窗口内每轴极差
+        math::Vector3 bias_rad_per_sec{};   // 标定结果
+        math::Vector3 spread_rad_per_sec{}; // 窗口内每轴极差
         std::uint32_t samples{0U};              // 当前窗口已积累样本数
         std::uint32_t restarts{0U};             // 窗口因运动/温度被重启的次数
         std::uint32_t elapsed_ms{0U};           // 累计处于采样状态的时间
@@ -91,8 +91,8 @@ class GyroBiasCalibration final
    * @param temperature_celsius 最近一次温度读数；无有效读数时传 NaN。
    * @param tick 采样时刻的高精度计数（允许回绕）。
    */
-    void process(const alg_math::Vector3 &gyro_rad_per_sec,
-                 const alg_math::Vector3 &accel_meters_per_sec2,
+    void process(const math::Vector3 &gyro_rad_per_sec,
+                 const math::Vector3 &accel_meters_per_sec2,
                  float temperature_celsius,
                  std::uint32_t tick) noexcept;
 
@@ -104,14 +104,14 @@ class GyroBiasCalibration final
         return bias_valid_;
     }
 
-    [[nodiscard]] const alg_math::Vector3 &get_bias_rad_per_sec() const noexcept
+    [[nodiscard]] const math::Vector3 &get_bias_rad_per_sec() const noexcept
     {
         return bias_;
     }
 
   private:
     void restart_window() noexcept;
-    void accumulate(const alg_math::Vector3 &gyro_rad_per_sec, std::uint32_t delta_ticks) noexcept;
+    void accumulate(const math::Vector3 &gyro_rad_per_sec, std::uint32_t delta_ticks) noexcept;
     void finalize() noexcept;
     /** @brief 毫秒换算为 64 位 tick 数，不做 32 位饱和。 */
     [[nodiscard]] std::uint64_t ticks_from_ms(std::uint32_t milliseconds) const noexcept;
@@ -120,13 +120,13 @@ class GyroBiasCalibration final
 
     Config config_{};
     State state_{State::WAITING_FOR_TEMPERATURE};
-    alg_math::Vector3 bias_{};
-    alg_math::Vector3 spread_{};
+    math::Vector3 bias_{};
+    math::Vector3 spread_{};
     double sum_x_{0.0};
     double sum_y_{0.0};
     double sum_z_{0.0};
-    alg_math::Vector3 minimum_{};
-    alg_math::Vector3 maximum_{};
+    math::Vector3 minimum_{};
+    math::Vector3 maximum_{};
     std::uint32_t count_{0U};
     std::uint32_t last_tick_{0U};
     std::uint32_t restarts_{0U};

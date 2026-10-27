@@ -1,7 +1,7 @@
-#ifndef LIB_ALG_MATH_MATRIX3_HPP
-#define LIB_ALG_MATH_MATRIX3_HPP
+#ifndef LIB_MATH_MATRIX3_HPP
+#define LIB_MATH_MATRIX3_HPP
 
-namespace alg_math
+namespace math
 {
 
 /**
@@ -49,6 +49,6 @@ struct Matrix3 final
  */
 void limit_in_place(Matrix3 &value, double minimum, double maximum) noexcept;
 
-} // namespace alg_math
+} // namespace math
 
-#endif // LIB_ALG_MATH_MATRIX3_HPP
+#endif // LIB_MATH_MATRIX3_HPP

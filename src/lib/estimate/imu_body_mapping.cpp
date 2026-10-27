@@ -1,12 +1,12 @@
-#include "lib/alg_estimate/imu_body_mapping.hpp"
-#include "lib/alg_math/basic_math.hpp"
+#include "lib/estimate/imu_body_mapping.hpp"
+#include "lib/math/basic_math.hpp"
 
-namespace alg_estimate
+namespace estimate
 {
 
 float gyro_raw_to_radians_per_second(std::int16_t raw) noexcept
 {
-    return device::Bmi088Gyro::to_dps(raw) * alg_math::DEG_TO_RAD;
+    return device::Bmi088Gyro::to_dps(raw) * math::DEG_TO_RAD;
 }
 
 void map_sensor_vector_to_body(const AxisMapping &mapping, const float (&sensor)[3], float (&body)[3]) noexcept
@@ -39,4 +39,4 @@ void accel_record_to_body(const device::Bmi088SampleRecord &record,
     map_sensor_vector_to_body(mapping, sensor, body);
 }
 
-} // namespace alg_estimate
+} // namespace estimate

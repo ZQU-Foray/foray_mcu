@@ -1,7 +1,7 @@
 #ifndef GIMBAL_GIMBAL_MODULE_HPP
 #define GIMBAL_GIMBAL_MODULE_HPP
 
-#include "lib/alg_controller/pid.hpp"
+#include "lib/control/pid.hpp"
 #include "lib/component/axis_controller.hpp"
 #include <cstddef>
 #include <cstdint>
@@ -14,7 +14,7 @@ namespace application::module
  *
  *   - 本模块 = 决策与计算：配置校验、产品策略（失败/目标钳位/默认模式）、诊断聚合；
  *   - `component::AxisController<2>` = 可复用的执行器骨架（模式、串级、限幅链、状态）；
- *   - `alg_controller::PID` = 纯算法；
+ *   - `control::PID` = 纯算法；
  *   - `GimbalTask` = 外设所有权与 1 ms 节拍（Process/read_state/set_torque），不含业务决策。
  *
  * 模块**零硬件、零 RTOS、零时钟读取**：量测以 `component::AxisMeasurement` 传入，周期由
@@ -43,8 +43,8 @@ class GimbalModule final
     /** @brief 单轴（单电机）配置：每轴一份，互不影响。 */
     struct AxisConfig final
     {
-        alg_controller::PID::Config speed_loop; // 输出轴 rpm → N·m（Maxout＝电调/热限幅）
-        alg_controller::PID::Config angle_loop; // 输出轴 deg → rpm（Maxout 被 max_gimbal_speed_rpm 覆盖）
+        control::PID::Config speed_loop; // 输出轴 rpm → N·m（Maxout＝电调/热限幅）
+        control::PID::Config angle_loop; // 输出轴 deg → rpm（Maxout 被 max_gimbal_speed_rpm 覆盖）
         float min_angle_deg{0.0F};              // 该轴角度目标下限（机械限位）
         float max_angle_deg{0.0F};              // 该轴角度目标上限
     };

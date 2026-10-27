@@ -1,11 +1,11 @@
-#ifndef LIB_ALG_ESTIMATE_EXTENDED_STATE_OBSERVER_HPP
-#define LIB_ALG_ESTIMATE_EXTENDED_STATE_OBSERVER_HPP
+#ifndef LIB_ESTIMATE_EXTENDED_STATE_OBSERVER_HPP
+#define LIB_ESTIMATE_EXTENDED_STATE_OBSERVER_HPP
 
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 
-namespace alg_estimate
+namespace estimate
 {
 
 /** @brief 本组件支持的最大对象阶数（工程选择）：RoboMaster 场景通常 1–4 阶，更高阶请自行实现并校验。 */
@@ -528,6 +528,6 @@ template <std::size_t Order> class ExtendedStateObserver final
     bool bandwidth_valid_{false};
 };
 
-} // namespace alg_estimate
+} // namespace estimate
 
-#endif // LIB_ALG_ESTIMATE_EXTENDED_STATE_OBSERVER_HPP
+#endif // LIB_ESTIMATE_EXTENDED_STATE_OBSERVER_HPP

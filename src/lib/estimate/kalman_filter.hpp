@@ -1,11 +1,11 @@
-#ifndef LIB_ALG_ESTIMATE_KALMAN_FILTER_HPP
-#define LIB_ALG_ESTIMATE_KALMAN_FILTER_HPP
+#ifndef LIB_ESTIMATE_KALMAN_FILTER_HPP
+#define LIB_ESTIMATE_KALMAN_FILTER_HPP
 
-#include "lib/alg_math/matrix.hpp"
+#include "lib/math/matrix.hpp"
 #include <cstddef>
 #include <cstdint>
 
-namespace alg_estimate
+namespace estimate
 {
 
 /**
@@ -56,14 +56,14 @@ template <std::size_t StateDim, std::size_t MeasureDim, std::size_t ControlDim =
     // 控制维数为零时仍然保留 1 维的存储，避免出现零长度矩阵类型；此时不参与任何运算。
     static constexpr std::size_t CONTROL_STORAGE{ControlDim > 0U ? ControlDim : 1U};
 
-    using StateVector = alg_math::Matrix<StateDim, 1U>;
-    using StateMatrix = alg_math::Matrix<StateDim, StateDim>;
-    using MeasureVector = alg_math::Matrix<MeasureDim, 1U>;
-    using MeasureMatrix = alg_math::Matrix<MeasureDim, MeasureDim>;
-    using MeasurementMatrix = alg_math::Matrix<MeasureDim, StateDim>;
-    using GainMatrix = alg_math::Matrix<StateDim, MeasureDim>;
-    using ControlVector = alg_math::Matrix<CONTROL_STORAGE, 1U>;
-    using ControlInputMatrix = alg_math::Matrix<StateDim, CONTROL_STORAGE>;
+    using StateVector = math::Matrix<StateDim, 1U>;
+    using StateMatrix = math::Matrix<StateDim, StateDim>;
+    using MeasureVector = math::Matrix<MeasureDim, 1U>;
+    using MeasureMatrix = math::Matrix<MeasureDim, MeasureDim>;
+    using MeasurementMatrix = math::Matrix<MeasureDim, StateDim>;
+    using GainMatrix = math::Matrix<StateDim, MeasureDim>;
+    using ControlVector = math::Matrix<CONTROL_STORAGE, 1U>;
+    using ControlInputMatrix = math::Matrix<StateDim, CONTROL_STORAGE>;
 
     /**
      * @brief 用户步骤函数指针，context 在注册时给出。
@@ -402,6 +402,6 @@ template <std::size_t StateDim, std::size_t MeasureDim, std::size_t ControlDim =
     KalmanMatrixStatus status_{KalmanMatrixStatus::SUCCESS};
 };
 
-} // namespace alg_estimate
+} // namespace estimate
 
 #endif

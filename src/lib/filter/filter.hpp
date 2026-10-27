@@ -1,9 +1,9 @@
-#ifndef LIB_ALG_FILTER_FILTER_HPP
-#define LIB_ALG_FILTER_FILTER_HPP
+#ifndef LIB_FILTER_FILTER_HPP
+#define LIB_FILTER_FILTER_HPP
 
 #include <cstdint>
 
-namespace alg_filter
+namespace filter
 {
 
 class ButterworthFilter
@@ -147,6 +147,6 @@ class AverageFilter
     uint32_t count_ = 0; // 样本数
 };
 
-} // namespace alg_filter
+} // namespace filter
 
 #endif

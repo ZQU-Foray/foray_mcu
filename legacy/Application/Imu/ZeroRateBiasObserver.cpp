@@ -71,8 +71,8 @@ void ZeroRateBiasObserver::fold_block() noexcept
     block_accel_sum_squares_ = 0.0F;
 }
 
-void ZeroRateBiasObserver::process(const alg_math::Vector3 &gyro_rad_per_sec,
-                                   const alg_math::Vector3 &accel_meters_per_sec2,
+void ZeroRateBiasObserver::process(const math::Vector3 &gyro_rad_per_sec,
+                                   const math::Vector3 &accel_meters_per_sec2,
                                    std::uint32_t tick) noexcept
 {
     if (config_.window_samples == 0U || config_.tick_frequency_hz == 0U)
@@ -93,7 +93,7 @@ void ZeroRateBiasObserver::process(const alg_math::Vector3 &gyro_rad_per_sec,
         variance_ = config_.maximum_variance_rad_per_sec2;
     }
 
-    if (alg_math::is_finite(gyro_rad_per_sec) && alg_math::is_finite(accel_meters_per_sec2))
+    if (math::is_finite(gyro_rad_per_sec) && math::is_finite(accel_meters_per_sec2))
     {
         // 热路径只用单精度累加当前子块；双精度总量在子块满时才更新。
         const float axes[3]{gyro_rad_per_sec.x, gyro_rad_per_sec.y, gyro_rad_per_sec.z};
@@ -107,7 +107,7 @@ void ZeroRateBiasObserver::process(const alg_math::Vector3 &gyro_rad_per_sec,
                 window_valid_ = false;
             }
         }
-        const float accel_norm = alg_math::norm(accel_meters_per_sec2);
+        const float accel_norm = math::norm(accel_meters_per_sec2);
         block_accel_sum_ += accel_norm;
         block_accel_sum_squares_ += accel_norm * accel_norm;
     }

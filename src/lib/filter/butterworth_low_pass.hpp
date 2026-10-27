@@ -1,11 +1,11 @@
-#ifndef LIB_ALG_FILTER_BUTTERWORTH_LOW_PASS_HPP
-#define LIB_ALG_FILTER_BUTTERWORTH_LOW_PASS_HPP
+#ifndef LIB_FILTER_BUTTERWORTH_LOW_PASS_HPP
+#define LIB_FILTER_BUTTERWORTH_LOW_PASS_HPP
 
 #include <cmath>
 #include <cstddef>
 #include <limits>
 
-namespace alg_filter
+namespace filter
 {
 
 /**
@@ -300,6 +300,6 @@ template <std::size_t Channels> class ButterworthLowPass final
     bool priming_{true};
 };
 
-} // namespace alg_filter
+} // namespace filter
 
-#endif // LIB_ALG_FILTER_BUTTERWORTH_LOW_PASS_HPP
+#endif // LIB_FILTER_BUTTERWORTH_LOW_PASS_HPP

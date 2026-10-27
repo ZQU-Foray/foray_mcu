@@ -19,8 +19,8 @@ void GyroBiasCalibration::init(const Config &config) noexcept
 void GyroBiasCalibration::reset() noexcept
 {
     state_ = State::WAITING_FOR_TEMPERATURE;
-    bias_ = alg_math::Vector3{};
-    spread_ = alg_math::Vector3{};
+    bias_ = math::Vector3{};
+    spread_ = math::Vector3{};
     restart_window();
     restarts_ = 0U; // 必须在 restart_window 之后清零，否则复位本身会被计成一次重启
     sampling_ticks_ = 0U;
@@ -43,8 +43,8 @@ void GyroBiasCalibration::restart_window() noexcept
     sum_x_ = 0.0;
     sum_y_ = 0.0;
     sum_z_ = 0.0;
-    minimum_ = alg_math::Vector3{};
-    maximum_ = alg_math::Vector3{};
+    minimum_ = math::Vector3{};
+    maximum_ = math::Vector3{};
     count_ = 0U;
     window_ticks_ = 0U;
 }
@@ -57,8 +57,8 @@ std::uint64_t GyroBiasCalibration::ticks_from_ms(std::uint32_t milliseconds) con
            MILLISECONDS_PER_SECOND;
 }
 
-void GyroBiasCalibration::process(const alg_math::Vector3 &gyro_rad_per_sec,
-                                  const alg_math::Vector3 &accel_meters_per_sec2,
+void GyroBiasCalibration::process(const math::Vector3 &gyro_rad_per_sec,
+                                  const math::Vector3 &accel_meters_per_sec2,
                                   float temperature_celsius,
                                   std::uint32_t tick) noexcept
 {
@@ -143,8 +143,8 @@ void GyroBiasCalibration::process(const alg_math::Vector3 &gyro_rad_per_sec,
     }
 
     // 静止门控：加速度范数必须接近重力。
-    const float accel_norm = alg_math::norm(accel_meters_per_sec2);
-    if (!alg_math::is_finite(accel_meters_per_sec2) ||
+    const float accel_norm = math::norm(accel_meters_per_sec2);
+    if (!math::is_finite(accel_meters_per_sec2) ||
         std::fabs(accel_norm - REFERENCE_GRAVITY_MPS2) > config_.maximum_accel_norm_error_mps2)
     {
         restart_window();
@@ -154,9 +154,9 @@ void GyroBiasCalibration::process(const alg_math::Vector3 &gyro_rad_per_sec,
     accumulate(gyro_rad_per_sec, delta_ticks);
 }
 
-void GyroBiasCalibration::accumulate(const alg_math::Vector3 &gyro_rad_per_sec, std::uint32_t delta_ticks) noexcept
+void GyroBiasCalibration::accumulate(const math::Vector3 &gyro_rad_per_sec, std::uint32_t delta_ticks) noexcept
 {
-    if (!alg_math::is_finite(gyro_rad_per_sec))
+    if (!math::is_finite(gyro_rad_per_sec))
     {
         restart_window();
         return;
@@ -203,7 +203,7 @@ void GyroBiasCalibration::accumulate(const alg_math::Vector3 &gyro_rad_per_sec, 
 
     // 每个样本都检查极差：被碰或振动必须在下一个样本就重启窗口，
     // 否则短促扰动会被记进窗口，只能等到周期检查或收尾时才被剔除。
-    const alg_math::Vector3 spread{maximum_.x - minimum_.x, maximum_.y - minimum_.y, maximum_.z - minimum_.z};
+    const math::Vector3 spread{maximum_.x - minimum_.x, maximum_.y - minimum_.y, maximum_.z - minimum_.z};
     if (spread.x > config_.maximum_spread_rad_per_sec || spread.y > config_.maximum_spread_rad_per_sec ||
         spread.z > config_.maximum_spread_rad_per_sec)
     {
@@ -215,7 +215,7 @@ void GyroBiasCalibration::accumulate(const alg_math::Vector3 &gyro_rad_per_sec, 
     if ((count_ % PARTIAL_CHECK_INTERVAL) == 0U)
     {
         const double inverse = 1.0 / static_cast<double>(count_);
-        const alg_math::Vector3 mean{static_cast<float>(sum_x_ * inverse),
+        const math::Vector3 mean{static_cast<float>(sum_x_ * inverse),
                                      static_cast<float>(sum_y_ * inverse),
                                      static_cast<float>(sum_z_ * inverse)};
         if (std::fabs(mean.x) > config_.maximum_mean_rate_rad_per_sec ||
@@ -242,13 +242,13 @@ void GyroBiasCalibration::finalize() noexcept
     }
 
     const double inverse = 1.0 / static_cast<double>(count_);
-    const alg_math::Vector3 mean{static_cast<float>(sum_x_ * inverse),
+    const math::Vector3 mean{static_cast<float>(sum_x_ * inverse),
                                  static_cast<float>(sum_y_ * inverse),
                                  static_cast<float>(sum_z_ * inverse)};
-    const alg_math::Vector3 spread{maximum_.x - minimum_.x, maximum_.y - minimum_.y, maximum_.z - minimum_.z};
+    const math::Vector3 spread{maximum_.x - minimum_.x, maximum_.y - minimum_.y, maximum_.z - minimum_.z};
 
     // 均值超限说明窗口内存在慢速转动，不能当作零偏，重新开始。
-    if (!alg_math::is_finite(mean) || std::fabs(mean.x) > config_.maximum_mean_rate_rad_per_sec ||
+    if (!math::is_finite(mean) || std::fabs(mean.x) > config_.maximum_mean_rate_rad_per_sec ||
         std::fabs(mean.y) > config_.maximum_mean_rate_rad_per_sec ||
         std::fabs(mean.z) > config_.maximum_mean_rate_rad_per_sec || spread.x > config_.maximum_spread_rad_per_sec ||
         spread.y > config_.maximum_spread_rad_per_sec || spread.z > config_.maximum_spread_rad_per_sec)

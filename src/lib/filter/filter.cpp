@@ -1,8 +1,8 @@
-#include "lib/alg_filter/filter.hpp"
+#include "lib/filter/filter.hpp"
 #include <cmath>
 #include <limits>
 
-namespace alg_filter
+namespace filter
 {
 namespace
 {
@@ -343,4 +343,4 @@ void AverageFilter::reset()
     count_ = 0;
 }
 
-} // namespace alg_filter
+} // namespace filter

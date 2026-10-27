@@ -1,4 +1,4 @@
-#include "lib/alg_kinematics/kinematics.hpp"
+#include "lib/kinematics/kinematics.hpp"
 #include <cmath>
 
 namespace
@@ -7,29 +7,29 @@ namespace
 constexpr float TWO_PI = 6.28318530717958647692f;
 constexpr float QUARTER = 0.25f;
 
-constexpr uint8_t WHEEL_M1 = static_cast<uint8_t>(alg_kinematics::WheelIndex::M1);
-constexpr uint8_t WHEEL_M2 = static_cast<uint8_t>(alg_kinematics::WheelIndex::M2);
-constexpr uint8_t WHEEL_M3 = static_cast<uint8_t>(alg_kinematics::WheelIndex::M3);
-constexpr uint8_t WHEEL_M4 = static_cast<uint8_t>(alg_kinematics::WheelIndex::M4);
+constexpr uint8_t WHEEL_M1 = static_cast<uint8_t>(kinematics::WheelIndex::M1);
+constexpr uint8_t WHEEL_M2 = static_cast<uint8_t>(kinematics::WheelIndex::M2);
+constexpr uint8_t WHEEL_M3 = static_cast<uint8_t>(kinematics::WheelIndex::M3);
+constexpr uint8_t WHEEL_M4 = static_cast<uint8_t>(kinematics::WheelIndex::M4);
 
 bool is_finite(float value)
 {
     return std::isfinite(value);
 }
 
-bool is_finite(const alg_kinematics::ChassisVelocity &value)
+bool is_finite(const kinematics::ChassisVelocity &value)
 {
     return is_finite(value.vx) && is_finite(value.vy) && is_finite(value.wz);
 }
 
-bool is_finite(const alg_kinematics::ChassisDelta &value)
+bool is_finite(const kinematics::ChassisDelta &value)
 {
     return is_finite(value.dx) && is_finite(value.dy) && is_finite(value.d_yaw);
 }
 
-bool is_finite(const alg_kinematics::WheelRpm &value)
+bool is_finite(const kinematics::WheelRpm &value)
 {
-    for (uint8_t i = 0; i < alg_kinematics::Kinematics::WHEEL_COUNT; i++)
+    for (uint8_t i = 0; i < kinematics::Kinematics::WHEEL_COUNT; i++)
     {
         if (!is_finite(value.value[i]))
         {
@@ -40,9 +40,9 @@ bool is_finite(const alg_kinematics::WheelRpm &value)
     return true;
 }
 
-bool is_finite(const alg_kinematics::WheelDelta &value)
+bool is_finite(const kinematics::WheelDelta &value)
 {
-    for (uint8_t i = 0; i < alg_kinematics::Kinematics::WHEEL_COUNT; i++)
+    for (uint8_t i = 0; i < kinematics::Kinematics::WHEEL_COUNT; i++)
     {
         if (!is_finite(value.value[i]))
         {
@@ -53,7 +53,7 @@ bool is_finite(const alg_kinematics::WheelDelta &value)
     return true;
 }
 
-bool is_finite(const alg_odometry::OdometryState &value)
+bool is_finite(const odometry::OdometryState &value)
 {
     return is_finite(value.x) && is_finite(value.y) && is_finite(value.yaw) && is_finite(value.vx) &&
            is_finite(value.vy) && is_finite(value.wz);
@@ -70,7 +70,7 @@ void body_to_world(float body_x, float body_y, float yaw, float &world_x, float 
 
 } // namespace
 
-namespace alg_kinematics
+namespace kinematics
 {
 
 bool Kinematics::init(const Config &config)
@@ -280,9 +280,9 @@ bool Kinematics::is_initialized() const
     return initialized_;
 }
 
-} // namespace alg_kinematics
+} // namespace kinematics
 
-namespace alg_odometry
+namespace odometry
 {
 
 void Odometry::reset()
@@ -304,14 +304,14 @@ bool Odometry::reset(float x, float y, float yaw)
     return true;
 }
 
-bool Odometry::update_velocity(const alg_kinematics::ChassisVelocity &velocity, float dt)
+bool Odometry::update_velocity(const kinematics::ChassisVelocity &velocity, float dt)
 {
     if (!is_finite(velocity) || !is_finite(dt) || dt <= 0.0f)
     {
         return false;
     }
 
-    const alg_kinematics::ChassisDelta delta = {
+    const kinematics::ChassisDelta delta = {
         velocity.vx * dt,
         velocity.vy * dt,
         velocity.wz * dt,
@@ -320,7 +320,7 @@ bool Odometry::update_velocity(const alg_kinematics::ChassisVelocity &velocity, 
     return update_delta(delta, dt);
 }
 
-bool Odometry::update_delta(const alg_kinematics::ChassisDelta &delta, float dt)
+bool Odometry::update_delta(const kinematics::ChassisDelta &delta, float dt)
 {
     if (!is_finite(state_) || !is_finite(delta) || !is_finite(dt) || dt <= 0.0f)
     {
@@ -349,7 +349,7 @@ bool Odometry::update_delta(const alg_kinematics::ChassisDelta &delta, float dt)
     return true;
 }
 
-bool Odometry::update_delta_with_yaw(const alg_kinematics::ChassisDelta &delta, float yaw, float dt)
+bool Odometry::update_delta_with_yaw(const kinematics::ChassisDelta &delta, float yaw, float dt)
 {
     if (!is_finite(state_) || !is_finite(delta) || !is_finite(yaw) || !is_finite(dt) || dt <= 0.0f)
     {
@@ -382,4 +382,4 @@ const OdometryState &Odometry::get_state() const
     return state_;
 }
 
-} // namespace alg_odometry
+} // namespace odometry
