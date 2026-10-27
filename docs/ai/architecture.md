@@ -46,7 +46,8 @@ foray_mcu/
 │   │   └── os/               OS 契约：临界区、单调时基、信号（等待/唤醒）
 │   ├── boot/                 启动入口 boot.h（extern "C"）：生成区只调它
 │   ├── utils/                无领域含义的基础件：spsc_queue、latest_value、fsm、crc
-│   ├── topic/                topic 机制：最新值、单发布者、可在中断里发布、可阻塞等待
+│   ├── middleware/           系统服务：建立在契约与基础件之上，供能力使用
+│   │   └── topic/            topic 机制：最新值、单发布者、可在中断里发布、可阻塞等待
 │   ├── lib/                  领域算法：math、control（pid、slope）、estimate、filter、kinematics、component
 │   ├── driver/               设备驱动与设备协议：bmi088、motor（dji）、buzzer、ws2812、protocol/{dji,sbus}
 │   └── third_party/          vendor 进来的外部生成头（foray_interfaces 的 lower_link.hpp）
@@ -80,7 +81,7 @@ foray_mcu/
    - 没有领域含义、哪一层都可能用（容器、并发原语、状态机、校验）→ `src/utils/`；
    - 领域算法（数学、控制、估计、滤波、运动学、执行器骨架）→ `src/lib/`；
    - 设备驱动与设备协议 → `src/driver/`；
-   - 发布/订阅机制 → `src/topic/`（只有机制，不含任何具体 topic）。
+   - 供能力使用的系统服务（发布/订阅；将来的调试遥测、参数存储、链路传输）→ `src/middleware/<服务>/`。topic 只有机制，不含任何具体 topic。
 
    只有一个产品用的，留在 `app/`，不为尚未出现的项目预先抽象。
 6. **只为测试而存在？** → `test/`。**构建之外的工具**（烧录、调试、生成、检查）→ `tool/`。
@@ -93,19 +94,21 @@ foray_mcu/
 | `hal/os/` | 临界区、单调时基、信号（§3.2） | 标准库 | 同上 |
 | `boot/` | 启动入口声明（§3.3） | 标准库 | 同上 |
 | `utils/` | SPSC 队列、最新值邮箱（seqlock）、状态机、CRC | 标准库 | 其他所有层 |
-| `topic/` | 最新值发布/订阅机制（§3.4） | `utils`、`hal/os` | `hal` 外设契约、`lib`、`driver` |
-| `lib/` | 领域算法；层内无环（`math` ← `control`、`filter`、`estimate`、`kinematics`；`component` → `control`） | 标准库、`utils`、`lib` 内部 | `hal`、`driver`、`topic` |
-| `driver/` | 设备驱动与设备协议 | `hal`、`hal/os`、`lib`、`utils`、驱动内部 | `topic`、`app`、RTOS |
+| `middleware/` | 系统服务：`topic`（§3.4）；将来按需加调试遥测、参数存储、链路传输，新增先登记 | `utils`、`hal/os`、中间件内部（无环）；传输类服务另可依赖 `hal` | `driver`、`lib`、`app`、RTOS |
+| `lib/` | 领域算法；层内无环（`math` ← `control`、`filter`、`estimate`、`kinematics`；`component` → `control`） | 标准库、`utils`、`lib` 内部 | `hal`、`driver`、`middleware` |
+| `driver/` | 设备驱动与设备协议 | `hal`、`hal/os`、`lib`、`utils`、驱动内部 | `middleware`、`app`、RTOS |
 | `third_party/` | vendor 的外部生成头，固定版本 + sha256 | 标准库 | 手工修改 |
 
-驱动不发布 topic：驱动要能脱离本产品的 topic 清单复用，由能力把驱动的数据发布出去。
+- 驱动不发布 topic：驱动要能脱离本产品的 topic 清单复用，由能力把驱动的数据发布出去。
+- topic 只依赖 `utils` 与 `hal/os`，裸机与宿主测试都能用。
+- `middleware` 只收与产品无关、给能力用的运行期服务。硬件契约、无领域基础件、算法、设备驱动各有其层，不放这里，避免它变成杂物间。
 
 ### 2.4 产品（`app/`、`config/`）
 
 | 位置 | 内容 | 可以依赖 | 不得依赖 |
 |---|---|---|---|
-| `app/topics/` | 全部 topic 的消息类型与实例（§3.4） | `topic`、标准库 | 能力实现、RTOS、`lib` 类型（消息只用标准标量与定长数组） |
-| `app/<capability>/` | 能力实现（§3.5） | `hal`、`hal/os`、`utils`、`topic`、`lib`、`driver`、`app/topics` | RTOS、`platform`（含 `board.hpp`）、`config`、其他能力 |
+| `app/topics/` | 全部 topic 的消息类型与实例（§3.4） | `middleware/topic`、标准库 | 能力实现、RTOS、`lib` 类型（消息只用标准标量与定长数组） |
+| `app/<capability>/` | 能力实现（§3.5） | `hal`、`hal/os`、`utils`、`middleware`、`lib`、`driver`、`app/topics` | RTOS、`platform`（含 `board.hpp`）、`config`、其他能力 |
 | `app/common/` | 任务运行器 | FreeRTOS 原生 API（`os_freertos_<board>`）、`hal/os` | 能力实现、`platform` 实现 |
 | `config/profiles/` | `profile.cmake` 与 `params.hpp`（§3.6） | 能力的配置类型头、标准库 | 任何逻辑代码 |
 | `config/assembly/` | 组合根（§3.6） | 全部能力、`app/common`、profile、`board.hpp`、`boot`、`os_freertos_<board>` | 被固件以外的任何 target 依赖 |
@@ -155,7 +158,7 @@ void boot_run(void);        // 默认任务：留给 assembly 的周期工作（
 - `src/boot/boot.h` 用 `extern "C"` 声明，实现在 `config/assembly`。
 - CubeMX 生成的 `main.c`、`freertos.c` 只在 USER CODE 区调用这三个函数。CubeMX 再生成时会保留 USER CODE 区；这是生成区唯一允许的手工内容（§6）。
 
-### 3.4 topic
+### 3.4 topic（`src/middleware/topic`）
 
 **语义**：
 
@@ -244,8 +247,8 @@ EXECUTABLE  firmware_<profile>
  │   ├─ INTERFACE boot                  src/boot
  │   ├─ STATIC    app_common            app/common → os_freertos_<board>、hal_os
  │   ├─ STATIC    app_<capability>      app/<capability>
- │   │   ├─ INTERFACE app_topics        app/topics → topic
- │   │   ├─ 库       topic              src/topic → utils、hal_os
+ │   │   ├─ INTERFACE app_topics        app/topics → middleware_topic
+ │   │   ├─ 库       middleware_topic   src/middleware/topic → utils、hal_os
  │   │   ├─ STATIC  driver_<device>     src/driver → hal、hal_os、lib、utils
  │   │   ├─ STATIC  lib_<pkg>           src/lib → utils
  │   │   ├─ 库       utils              src/utils
@@ -308,7 +311,7 @@ EXECUTABLE  firmware_<profile>
 
 | 目录 | 白名单 |
 |---|---|
-| `src/` | `hal`（含 `os`）、`boot`、`utils`、`topic`、`lib`、`driver`、`third_party` |
+| `src/` | `hal`（含 `os`）、`boot`、`utils`、`middleware`、`lib`、`driver`、`third_party` |
 | `app/` | `topics`、`common`、`imu`、`chassis`、`gimbal`、`remote`、`launch`、`link`（新增能力先登记） |
 | `platform/` | `mock` 与各板标识（`dm_mc02`；F407 C 板在阶段 B 加入） |
 | `config/` | `profiles`、`assembly` |

@@ -21,7 +21,7 @@ RoboMaster 多兵种、多开发板的 MCU 下位机固件。本仓以 `Controll
 | `app/` | 业务能力：imu / chassis / gimbal / remote / launch / link …，**每个能力一个 target**，只提供 init/step、零 RTOS；`topics/` 集中定义产品的全部 topic；`common/` 是任务运行器 | → `src/`；能力之间只经 topic；**禁止**依赖 `platform/` 与 `config/` |
 | `config/` | `profiles/<兵种>_<板>/`：选板、选能力（`profile.cmake`）与 constexpr 参数（`params.hpp`）；`assembly/`：组合根（构造对象、注入参数、任务表、启动入口） | `assembly` → `profile` + `app` + `platform/<板>/board`；只有固件链接 assembly |
 | `platform/` | 按板一级：`<板>/{cubemx,port,board}`；`mock/` 供宿主测试 | → `src/hal` 契约（用 C++ 实现）；**禁止**依赖 app/config；**禁止**把 HAL/CMSIS/FreeRTOS 类型放进公共头 |
-| `src/` | 通用框架：`hal`（硬件契约 + `os`）、`boot`、`utils`（无领域含义的基础件）、`topic`（发布/订阅机制）、`lib`（领域算法）、`driver`（设备与设备协议）、`third_party` | 层内依赖见架构 v2 §2.3；**禁止**依赖 platform/app/config/RTOS/HAL；必须能独立构建、能裸机构建 |
+| `src/` | 通用框架：`hal`（硬件契约 + `os`）、`boot`、`utils`（无领域含义的基础件）、`middleware`（系统服务，现有 topic 发布/订阅机制）、`lib`（领域算法）、`driver`（设备与设备协议）、`third_party` | 层内依赖见架构 v2 §2.3；**禁止**依赖 platform/app/config/RTOS/HAL；必须能独立构建、能裸机构建 |
 | `test/` | 宿主单元/集成测试（ctest），链接 `platform/mock`；**必须入库** | → 被测 target + `platform/mock`；**不进固件链接图** |
 | `tool/` | 烧录、调试、数据回放、代码生成、CI 脚本 | 无构建期依赖；不得再被 `.gitignore` 排除 |
 | `docs/` | 架构、评审、迁移、决策与证据链 | — |

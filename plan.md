@@ -87,7 +87,7 @@
 
 - [ ] `src/utils`：`spsc_queue`（由 PortKit 的队列改写，acquire/release，不用原子读改写）、`latest_value`（单写者 seqlock）；`fsm`、`crc` 从 `src/lib` 移入，`crc` 补 crc16（裁判系统用）；`slope` 移到 `src/lib/control`
 - [ ] `src/hal/os` 契约定稿：`CriticalSection`、单调时基、`Signal`（等待/唤醒，中断里可唤醒）；`platform/mock` 实现（宿主线程，测试控制时间）
-- [ ] `src/topic`：最新值、单发布者、中断里可发布、阻塞等待、观测计数（架构 v2 §3.4）；`app/topics` 目录与清单约定
+- [ ] `src/middleware/topic`（target `middleware_topic`）：最新值、单发布者、中断里可发布、阻塞等待、观测计数（架构 v2 §3.4）；`app/topics` 目录与清单约定
 - [ ] 宿主测试：utils 与 topic 的单元测试，含多线程压力（发布线程 × 订阅线程、模拟中断发布、等待超时、单发布者检查）
 - [ ] CI：框架独立构建（只配置 `src` + `platform/mock`，无 RTOS 头）；文本扫描加入规则 13、17
 - [ ] 验收：宿主测试全绿；框架独立构建绿；现有固件仍可构建（F1 只新增，不改旧代码的行为）

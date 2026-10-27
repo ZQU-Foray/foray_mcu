@@ -74,7 +74,7 @@ foray_mcu/
 - CMake 文件按层组织：手写的 `CMakeLists.txt` 共 7 个（根、`src/`、`app/`、`config/`、每块板一个、`platform/mock`、`test/host`），一层的全部 target 定义在该层的文件里（Decision-20261026-07）；
 - 根工程按目标结构组织 target，固件 `firmware_baseline` 的符号集合与迁移源一致（P1、P2 验收）；
 - 源码已全部搬出 `legacy/`（P2、P2.5），`legacy/` 只剩迁移源 README 与架构图；迁移期过渡件只剩 `hal_detail`（F2）与 `legacy_build_options`（F2、F3）；
-- `src/boot`、`src/utils`（target 已建，暂无代码）；`src/topic`、`app/topics`、按板一级的 `platform/dm_mc02` 等按架构 v2 在 F1、F2 建立。
+- `src/boot`、`src/utils`（target 已建，暂无代码）；`src/middleware/topic`、`app/topics`、按板一级的 `platform/dm_mc02` 等按架构 v2 在 F1、F2 建立。
 
 ## 目标结构（架构 v2，Decision-20261027-01）
 
@@ -92,7 +92,8 @@ foray_mcu/
 │   │   └── os/                   OS 契约：临界区、单调时基、信号（F1）
 │   ├── boot/                     启动入口 boot.h：boot_init / boot_init_rtos / boot_run（F2）
 │   ├── utils/                    无领域含义的基础件：spsc_queue、latest_value、fsm、crc（F1）
-│   ├── topic/                    topic 机制：最新值、单发布者、中断发布、阻塞等待（F1）
+│   ├── middleware/               系统服务：topic（F1）；将来按需加调试遥测、参数存储、链路传输
+│   │   └── topic/                topic 机制：最新值、单发布者、中断发布、阻塞等待
 │   ├── lib/                      领域算法：math、control（pid、slope）、estimate、filter、kinematics、component
 │   ├── driver/                   设备驱动与设备协议：bmi088、motor/dji、buzzer、ws2812、protocol/{dji,sbus}（F3 适配 hal v1）
 │   └── third_party/              vendor 生成头：foray_interfaces/generated/lower_link.hpp + 版本/sha256（阶段 A）
@@ -147,7 +148,7 @@ foray_mcu/
 |---|---|---|
 | 迁移源 README 与架构图 | `legacy/` | ⛔ 只读（源码已在 P2、P2.5 全部搬出） |
 | 无领域含义的基础件 | `src/utils/` | 🟡 F1（现有 `lib/fsm`、`lib/crc` 移入；PortKit 队列改写） |
-| topic 机制 / 产品的 topic 清单 | `src/topic/` / `app/topics/` | 🟡 F1 |
+| topic 机制 / 产品的 topic 清单 | `src/middleware/topic/` / `app/topics/` | 🟡 F1 |
 | OS 契约 | `src/hal/os/` | 📄 草案与宿主替身（P1）；定稿与 `Signal` 在 F1，port 实现在 F2 |
 | 硬件契约 v1 | `src/hal/` | 🟡 F2（现为旧契约 + `src/hal/detail` C 接口，F2 删除） |
 | 启动入口 | `src/boot/` | 🟡 F2（现为 `config/assembly` 的 `Application_*`，例外 X-09） |
