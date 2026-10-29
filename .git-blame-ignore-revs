@@ -24,3 +24,6 @@ bdada620ad7078153416bdb01254b449106fb8f8
 
 # F1 第 1 步 改写 include、保护宏与命名空间（refactor: e98b581，只改这三类行）
 e98b581b6478f38c27b0df46aac47fcbd5ec479a
+
+# F1 template 声明单独一行后重新格式化（style: 743de06，Decision-20261028-01）
+743de0676593c0cf8bd2db53bf2449947350598b
