@@ -687,6 +687,30 @@
 
 ---
 
+## Decision-20261028-01（template 声明单独一行，Accepted）
+
+- **Date**：2026-10-28
+- **Status**：Accepted（负责人决定）
+- **Source**：负责人在 F1 编写 `spsc_queue` 时提出；修订 Decision-20261025-04 第 2 点（根 `.clang-format` 原样沿用历史配置）
+
+**Context**：根 `.clang-format` 基于 LLVM 风格，`AlwaysBreakTemplateDeclarations` 取默认值 `MultiLine`：模板声明与后面的类或函数能放进一行（行宽 120）时合并成一行，如 `template <typename T, std::size_t Capacity> class SpscQueue`，放不下时才换行。同一个文件里两种写法混用，模板参数与类名、函数名挤在一行，不好读。
+
+**Decision**：
+
+1. `.clang-format` 增加 `AlwaysBreakTemplateDeclarations: Yes`：`template <...>` 总是单独一行，类、函数、成员模板、前置声明与 `template <>` 特化都适用。clang-format 19 起该选项改名为 `BreakTemplateDeclarations`，旧名仍可用；本仓固定 18.1.8，用旧名。
+2. 已有代码按新配置重新格式化，单独一个 `style` 提交，登记在 `.git-blame-ignore-revs`。
+3. 组织规则（4 空格、LF、UTF-8、文件末尾换行）不涉及模板换行，不冲突。
+
+**验证**：
+- 重新格式化 12 个已跟踪文件，拆开 25 处模板声明；去掉全部空白后与改动前相同，只改了换行；
+- 格式检查 131 个文件通过；宿主 ctest 14/14。
+
+**Alternatives / Rejected**：
+- **保持默认 `MultiLine`**：短声明并成一行、长声明换行，同一文件里写法不统一。否决。
+- **只在新代码里手动换行**：clang-format 会把它合并回去，CI 的格式检查不通过。否决。
+
+---
+
 ## 待登记
 
 - 分支保护的具体设置（组织规范 §6.1、§10，负责人在 GitHub 上操作后补记）。

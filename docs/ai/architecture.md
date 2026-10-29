@@ -418,6 +418,7 @@ EXECUTABLE  firmware_<profile>
 ### 9.4 格式（组织规则，由根目录 `.clang-format` 执行）
 
 - 4 空格缩进、LF、UTF-8、文件末尾保留一个换行；Allman 大括号、行宽 120、指针靠右。
+- `template <...>` 总是单独一行，类、函数、成员模板、前置声明与 `template <>` 特化都适用（Decision-20261028-01）。
 - clang-format 与 clang-tidy 统一用 18（CI 固定 18.1.8）。
 - 生成区与厂商代码不格式化，范围由 `tool/ci/format.py` 定义（Decision-20261026-04）。
 - 格式化与改名必须各自单独提交，提交号写入 `.git-blame-ignore-revs`。

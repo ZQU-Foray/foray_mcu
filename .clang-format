@@ -2,6 +2,7 @@
 # 组织规则（.github/CONTRIBUTING.md「代码风格」）：4 空格缩进、LF、UTF-8、文件末尾保留一个换行。
 # 来源：ControllerCode 454201f^ 的 Libraries/Algorithm/.clang-format，原样沿用（历史中唯一缩进为 4 的配置），
 # 只追加文件末尾的 LineEnding 与 InsertNewlineAtEOF 两项，用来落实组织的 LF 与末尾换行要求。
+# 2026-10-28 追加 AlwaysBreakTemplateDeclarations: Yes：template 声明总是单独一行（Decision-20261028-01）。
 # CubeMX 生成区与厂商代码不参与格式化；手写代码在 P0.5 一次性格式化，见评审报告 §5.12。
 BasedOnStyle: LLVM
 Language: Cpp
@@ -14,6 +15,8 @@ BreakBeforeBraces: Allman
 AllowShortIfStatementsOnASingleLine: Never
 AllowShortLoopsOnASingleLine: false
 AllowShortFunctionsOnASingleLine: Empty
+# clang-format 19 起改名为 BreakTemplateDeclarations，旧名仍可用；本仓固定 18.1.8，用旧名
+AlwaysBreakTemplateDeclarations: Yes
 
 PointerAlignment: Right
 AlignConsecutiveDeclarations: false
