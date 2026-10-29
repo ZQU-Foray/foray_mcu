@@ -65,7 +65,8 @@ framework_interface(hal_os
 framework_interface(boot)
 
 # ==== utils：没有领域含义、哪一层都可能用的基础件（docs/ai/architecture.md §2.3） ====
-# 只依赖标准库，用 utils_library()。每个子目录一个 target：utils/<名> → utils_<名>，命名空间与子目录同名（math::、crc::）。
+# 只依赖标准库，用 utils_library()；只有头文件的用 framework_interface()（同样不链接迁移期构建开关）。
+# 每个子目录一个 target：utils/<名> → utils_<名>，命名空间与子目录同名（math::、crc::、concurrency::）。
 
 utils_library(utils_math
     utils/math/basic_math.cpp
@@ -84,6 +85,12 @@ utils_library(utils_crc
     utils/crc/crc32.hpp
     utils/crc/crc8.cpp
     utils/crc/crc8.hpp)
+
+# 并发原语：单生产者单消费者队列、单写者最新值邮箱（seqlock）。只用原子读写与内存屏障，
+# 不用原子读改写（规则 13），Cortex-M0+ 也能用（Decision-20261029-01）。
+framework_interface(utils_concurrency
+    utils/concurrency/latest_value.hpp
+    utils/concurrency/spsc_queue.hpp)
 
 # ==== middleware：给能力用的运行期机制与服务（docs/ai/architecture.md §2.3） ====
 # 可以依赖 utils 与 hal/os 契约（传输类服务另可依赖 hal）；driver、lib 不得依赖 middleware。

@@ -37,9 +37,13 @@ CI 的 `host-tests` 作业（`.github/workflows/ci.yml`）在 GitHub Actions 的
 | `bmi088_acquisition` | `unit/imu_acquisition/bmi088_acquisition_test.cpp` | `driver_bmi088`；测试源码直接 `#include` 了 `imu/imu_diagnostics.cpp`（`app/imu/`） |
 | `hal_os_mock` | `unit/hal_os/mock_os_test.cpp` | `platform_mock`（hal_os 的宿主替身：时基、临界区嵌套） |
 | `crc16` | `unit/crc/crc16_test.cpp` | `utils_crc`（CRC-16/MCRF4XX：标准校验值、与逐位实现对照、裁判系统帧尾的小端约定） |
+| `spsc_queue` | `unit/concurrency/spsc_queue_test.cpp` | `utils_concurrency`（SPSC 队列：空与满、下标绕回、批量截断与绕回、`clear`、容量 1、计数器跨过 2^32；生产者、消费者、旁观者三线程压力；`-O2`） |
+| `latest_value` | `unit/concurrency/latest_value_test.cpp` | `utils_concurrency`（最新值邮箱：初值、覆盖、大小不是 4 的倍数、版本号按 2^31 回绕；一写三读的一致性压力；`-O2`） |
 | `chassis_controller` | `integration/chassis/chassis_controller_test.cpp` | `lib_control`；直接编译 `app/chassis/chassis_controller.cpp`、`app/tasks/chassis_task.cpp`（模拟电机） |
 | `controller_equivalence` | `integration/chassis/controller_equivalence_test.cpp` | 同上 |
 | `mock_normal` / `mock_read_failure` / `mock_command_failure` / `mock_init_failure` | `integration/chassis/chassis_mock_test.cpp` | 同上，按场景参数运行 |
+
+并发测试（`spsc_queue`、`latest_value`）可以加 `-fsanitize=thread` 在本地用 ThreadSanitizer 运行，CI 不跑。两个测试的回绕部分分别要读写 2^32 个字节、写 2^31 次，用 ThreadSanitizer 跑时先把轮数改小。WSL 上 ThreadSanitizer 程序启动即报 "unexpected memory mapping" 时，用 `setarch $(uname -m) -R ./test_xxx` 运行。
 
 配置阶段另有两类断言，失败会直接中止配置：
 
@@ -51,7 +55,7 @@ CI 的 `host-tests` 作业（`.github/workflows/ci.yml`）在 GitHub Actions 的
 ```text
 test/host/
 ├── CMakeLists.txt
-├── unit/{protocol,motor,imu_acquisition,hal_os,crc}/ 单元测试
+├── unit/{protocol,motor,imu_acquisition,hal_os,crc,concurrency}/ 单元测试
 ├── integration/chassis/                     底盘任务 + 控制器 + 模拟电机
 └── support/                                 测试替身
     ├── dji_platform_stub.hpp                CAN/时基 C ABI 桩
@@ -64,6 +68,7 @@ test/host/
 
 ## 来源与适配记录
 
+> F1（2026-10-28、10-29）：新增 `crc16`、`spsc_queue`、`latest_value`，测 F1 新写的 utils 代码，不来自 `fd1edbb`。
 > P2.5（2026-10-26）：`Application/Imu` 搬到 `app/imu/` 后，测试改为 `#include "imu/imu_diagnostics.cpp"`，不再链接 `legacy_include`（Decision-20261026-10）。
 > P2（2026-10-26）：测试与支持文件名改为 snake_case，影子头随被替换的头文件改到 `shadow/driver/...`；include 改为相对层根目录的写法（Decision-20261026-08）。
 > P1（2026-10-26）：宿主测试改由根工程引入，`foray_host_test()` 改名为 `host_test()`（Decision-20261026-06），框架单元测试改为链接被测 target，新增 `hal_os_mock`。

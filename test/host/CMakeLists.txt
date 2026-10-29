@@ -76,6 +76,15 @@ host_test(hal_os_mock
 host_test(crc16
     SOURCES unit/crc/crc16_test.cpp
     LINK utils_crc)
+# 并发原语：含多线程压力与计数器回绕，用 -O2（编译器重排更激进，回绕测试也快得多）。
+host_test(spsc_queue
+    SOURCES unit/concurrency/spsc_queue_test.cpp
+    LINK utils_concurrency Threads::Threads)
+host_test(latest_value
+    SOURCES unit/concurrency/latest_value_test.cpp
+    LINK utils_concurrency Threads::Threads)
+target_compile_options(test_spsc_queue PRIVATE -O2)
+target_compile_options(test_latest_value PRIVATE -O2)
 
 # ---- 集成测试（底盘任务 + 控制器 + 模拟电机） ----
 host_test(chassis_controller MOCK_BACKEND
