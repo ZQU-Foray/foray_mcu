@@ -27,7 +27,8 @@ namespace filter
  *
  * @tparam Channels 通道数（一次 `Filter` 调用同时处理的轴数）。取 2、3、9 等值。
  */
-template <std::size_t Channels> class ButterworthLowPass final
+template <std::size_t Channels>
+class ButterworthLowPass final
 {
     static_assert(Channels >= 2U, "初始化阶段按上游语义组织状态，要求至少两个通道");
 

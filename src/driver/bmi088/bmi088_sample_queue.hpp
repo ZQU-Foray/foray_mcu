@@ -35,7 +35,8 @@ static_assert(sizeof(Bmi088SampleRecord) == 32U);
 
 // 单任务属主，非 ISR/RTOS 并发队列。溢出丢弃最新，
 // 使慢消费者能察觉丢失，而不是悄悄覆盖旧数据。
-template <std::size_t Capacity = 32U> class Bmi088SampleQueue final
+template <std::size_t Capacity = 32U>
+class Bmi088SampleQueue final
 {
   public:
     static_assert(Capacity > 0U);

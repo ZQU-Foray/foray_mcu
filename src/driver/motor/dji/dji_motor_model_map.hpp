@@ -29,7 +29,8 @@ template <std::size_t N>
 
 // DJI 型号映射：任务包含本头即选定 DJI 品牌；更换品牌只需包含对应品牌的
 // 映射头并改用其型号。默认减速比为型号原生减速箱参数。
-template <> struct MotorAdapterFor<MotorModel::M2006>
+template <>
+struct MotorAdapterFor<MotorModel::M2006>
 {
     using Adapter = DjiMotorAdapter;
     static constexpr std::size_t MAXIMUM_MOTORS{DjiMotor::Profile::c610().dialect.maximum_device_count};
@@ -41,7 +42,8 @@ template <> struct MotorAdapterFor<MotorModel::M2006>
     }
 };
 
-template <> struct MotorAdapterFor<MotorModel::M3508>
+template <>
+struct MotorAdapterFor<MotorModel::M3508>
 {
     using Adapter = DjiMotorAdapter;
     static constexpr std::size_t MAXIMUM_MOTORS{DjiMotor::Profile::c620().dialect.maximum_device_count};
@@ -53,7 +55,8 @@ template <> struct MotorAdapterFor<MotorModel::M3508>
     }
 };
 
-template <> struct MotorAdapterFor<MotorModel::GM6020_CURRENT>
+template <>
+struct MotorAdapterFor<MotorModel::GM6020_CURRENT>
 {
     using Adapter = DjiMotorAdapter;
     static constexpr std::size_t MAXIMUM_MOTORS{DjiMotor::Profile::gm6020_current().dialect.maximum_device_count};

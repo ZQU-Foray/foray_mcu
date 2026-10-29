@@ -16,7 +16,8 @@ namespace math
  * @note 所有运算都是纯函数（返回新矩阵），因此不存在输入输出重叠的问题；
  *       需要就地修改时显式赋值。序列化时按行优先展平访问 Data()。
  */
-template <std::size_t Rows, std::size_t Columns> struct Matrix final
+template <std::size_t Rows, std::size_t Columns>
+struct Matrix final
 {
     static_assert(Rows > 0U, "矩阵行数必须大于零");
     static_assert(Columns > 0U, "矩阵列数必须大于零");

@@ -19,7 +19,8 @@ struct StatusInfo
     uint32_t count_time;
 };
 
-template <uint8_t StatusMax = 10> class Fsm
+template <uint8_t StatusMax = 10>
+class Fsm
 {
     static_assert(StatusMax > 0, "StatusMax must be greater than zero");
 
@@ -41,7 +42,8 @@ template <uint8_t StatusMax = 10> class Fsm
     bool initialized_ = false;
 };
 
-template <uint8_t StatusMax> bool Fsm<StatusMax>::init(uint8_t now_status_serial)
+template <uint8_t StatusMax>
+bool Fsm<StatusMax>::init(uint8_t now_status_serial)
 {
     if (now_status_serial >= StatusMax)
     {
@@ -61,7 +63,8 @@ template <uint8_t StatusMax> bool Fsm<StatusMax>::init(uint8_t now_status_serial
     return true;
 }
 
-template <uint8_t StatusMax> void Fsm<StatusMax>::calculate_loop()
+template <uint8_t StatusMax>
+void Fsm<StatusMax>::calculate_loop()
 {
     if (!initialized_ || now_status_serial_ >= StatusMax)
     {
@@ -76,17 +79,20 @@ template <uint8_t StatusMax> void Fsm<StatusMax>::calculate_loop()
     // 自行编写状态转移
 }
 
-template <uint8_t StatusMax> inline uint8_t Fsm<StatusMax>::get_now_status_serial() const
+template <uint8_t StatusMax>
+inline uint8_t Fsm<StatusMax>::get_now_status_serial() const
 {
     return (now_status_serial_);
 }
 
-template <uint8_t StatusMax> inline bool Fsm<StatusMax>::is_initialized() const
+template <uint8_t StatusMax>
+inline bool Fsm<StatusMax>::is_initialized() const
 {
     return (initialized_);
 }
 
-template <uint8_t StatusMax> inline bool Fsm<StatusMax>::set_status(uint8_t next_status_serial)
+template <uint8_t StatusMax>
+inline bool Fsm<StatusMax>::set_status(uint8_t next_status_serial)
 {
     if (!initialized_ || now_status_serial_ >= StatusMax || next_status_serial >= StatusMax)
     {

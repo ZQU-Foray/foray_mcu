@@ -75,7 +75,8 @@ inline constexpr std::size_t EXTENDED_STATE_OBSERVER_MAX_ORDER{10U};
  * @tparam Order 对象阶数 n，须满足 1 ≤ Order ≤ EXTENDED_STATE_OBSERVER_MAX_ORDER
  *               （本组件支持的最大阶数，工程选择而非普适稳定上限）。
  */
-template <std::size_t Order> class ExtendedStateObserver final
+template <std::size_t Order>
+class ExtendedStateObserver final
 {
     static_assert(Order >= 1U, "ESO 阶数必须大于等于 1");
     static_assert(Order <= EXTENDED_STATE_OBSERVER_MAX_ORDER,
@@ -402,7 +403,8 @@ template <std::size_t Order> class ExtendedStateObserver final
     }
 
     /** @brief 编译期下标读取状态估计（0 … Order−1，对应 z₁ … zₙ），越界编译期报错。 */
-    template <std::size_t Index> [[nodiscard]] float get_state() const noexcept
+    template <std::size_t Index>
+    [[nodiscard]] float get_state() const noexcept
     {
         static_assert(Index < Order, "状态下标越界");
         return states_[Index];

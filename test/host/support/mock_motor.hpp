@@ -65,7 +65,8 @@ template <std::size_t N>
 }
 
 // 测试映射：仅经 Support 包含路径可见（拦截生产的 DJI 映射头）。
-template <> struct MotorAdapterFor<MotorModel::M2006>
+template <>
+struct MotorAdapterFor<MotorModel::M2006>
 {
     using Adapter = mock::Adapter;
     static constexpr std::size_t MAXIMUM_MOTORS{mock::Adapter::MAXIMUM_MOTORS};
@@ -77,7 +78,8 @@ template <> struct MotorAdapterFor<MotorModel::M2006>
     }
 };
 
-template <> struct MotorAdapterFor<MotorModel::M3508>
+template <>
+struct MotorAdapterFor<MotorModel::M3508>
 {
     using Adapter = mock::Adapter;
     static constexpr std::size_t MAXIMUM_MOTORS{mock::Adapter::MAXIMUM_MOTORS};
@@ -89,7 +91,8 @@ template <> struct MotorAdapterFor<MotorModel::M3508>
     }
 };
 
-template <> struct MotorAdapterFor<MotorModel::GM6020_CURRENT>
+template <>
+struct MotorAdapterFor<MotorModel::GM6020_CURRENT>
 {
     using Adapter = mock::Adapter;
     static constexpr std::size_t MAXIMUM_MOTORS{mock::Adapter::MAXIMUM_MOTORS};

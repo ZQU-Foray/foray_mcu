@@ -30,7 +30,8 @@ constexpr float deg_to_rad(float deg)
  * @param max 最大值
  * @return 限幅后的输出值
  */
-template <typename Type> Type limit(Type x, Type min, Type max)
+template <typename Type>
+Type limit(Type x, Type min, Type max)
 {
     if (x < min)
     {
@@ -49,7 +50,8 @@ template <typename Type> Type limit(Type x, Type min, Type max)
  * @param x 传入数据
  * @return x 的平方
  */
-template <typename Type> constexpr Type square(Type x)
+template <typename Type>
+constexpr Type square(Type x)
 {
     return x * x;
 }
@@ -62,7 +64,8 @@ template <typename Type> constexpr Type square(Type x)
  * @param max 最大值
  * @return 限幅后的输出值
  */
-template <typename Type> Type limit_in_place(Type &x, Type min, Type max)
+template <typename Type>
+Type limit_in_place(Type &x, Type min, Type max)
 {
     if (x < min)
     {
@@ -81,7 +84,8 @@ template <typename Type> Type limit_in_place(Type &x, Type min, Type max)
  * @param x 传入数据
  * @return Type x的绝对值
  */
-template <typename Type> Type abs(Type x)
+template <typename Type>
+Type abs(Type x)
 {
     return ((x > 0) ? x : -x);
 }

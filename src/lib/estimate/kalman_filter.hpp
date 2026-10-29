@@ -42,7 +42,8 @@ enum class KalmanMatrixStatus : std::int8_t
  * @tparam MeasureDim 量测维数容量，必须大于零。
  * @tparam ControlDim 控制维数，取 0 表示没有控制输入。
  */
-template <std::size_t StateDim, std::size_t MeasureDim, std::size_t ControlDim = 0U> class KalmanFilter final
+template <std::size_t StateDim, std::size_t MeasureDim, std::size_t ControlDim = 0U>
+class KalmanFilter final
 {
     static_assert(StateDim > 0U, "状态维数必须大于零");
     static_assert(MeasureDim > 0U, "量测维数必须大于零");

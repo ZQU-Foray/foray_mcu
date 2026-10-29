@@ -20,7 +20,8 @@ namespace device
  *       - template <N> make_config(channel, connections)：把品牌默认参数
  *         （电调档案、型号原生减速比等）装配为 Adapter::Config。
  */
-template <MotorModel Model> struct MotorAdapterFor;
+template <MotorModel Model>
+struct MotorAdapterFor;
 
 namespace detail
 {
@@ -35,7 +36,8 @@ inline std::array<const void *, CAN_PORT_CHANNEL_COUNT> g_motor_channel_owners{}
  *       （含同型号）占用时 Init 失败，失败实例不占用通道。
  *       输出为型号原生输出轴单位；外接传动不包含在型号档案内。
  */
-template <MotorModel Model, std::size_t N> class MotorGroup final
+template <MotorModel Model, std::size_t N>
+class MotorGroup final
 {
     static_assert(N > 0U, "电机组数量必须为正");
     using Mapping = MotorAdapterFor<Model>;

@@ -76,7 +76,8 @@ class FictionalAdapter final
 
 namespace device
 {
-template <> struct MotorAdapterFor<K_FICTIONAL_MODEL>
+template <>
+struct MotorAdapterFor<K_FICTIONAL_MODEL>
 {
     using Adapter = FictionalAdapter;
     static constexpr std::size_t MAXIMUM_MOTORS{FictionalAdapter::MAXIMUM_MOTORS};

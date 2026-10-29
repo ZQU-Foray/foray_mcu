@@ -116,7 +116,8 @@ struct AxisMeasurement final
  *
  * @tparam AxisCount 轴数（底盘 4、云台 2），编译期固定，无动态分配。
  */
-template <std::size_t AxisCount> class AxisController final
+template <std::size_t AxisCount>
+class AxisController final
 {
     static_assert(AxisCount > 0U, "轴数必须大于零");
     static_assert(std::atomic<float>::is_always_lock_free, "轴目标需要使用无锁的 float 原子变量");
