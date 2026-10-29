@@ -20,7 +20,7 @@ Windows 上用 MSYS2 UCRT64 的 gcc/g++：在 `CMakeUserPresets.json`（不入�
 
 CI 的 `host-tests` 作业（`.github/workflows/ci.yml`）在 GitHub Actions 的 Ubuntu 上运行同样的三条命令，并检查宿主构建的依赖图。
 
-已验证环境（2026-10-26，14/14 通过）：WSL Ubuntu 22.04 + g++ 11.4.0 + CMake 3.31.6；Windows + MSYS2 UCRT64 g++ 16.2.0 + CMake 4.4.4。
+已验证环境：WSL Ubuntu 22.04 + g++ 11.4.0 + CMake 3.31.6（2026-10-29，17/17 通过）；Windows + MSYS2 UCRT64 g++ 16.2.0 + CMake 4.4.4（2026-10-26，14/14 通过；F1 新增的 `spsc_queue`、`latest_value` 于 2026-10-29 用同一编译器直接编译运行通过）。
 
 ## 测试清单
 

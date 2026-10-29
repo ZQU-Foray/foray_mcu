@@ -86,11 +86,11 @@
 ### F1 框架基础件（宿主可测，纯新增，4–6 人日）
 
 - [x] 第 1 步 归类调整（2026-10-27，Decision-20261027-02）：`crc`、`math` → `src/utils`（target `utils_crc`、`utils_math`，用 `utils_library()`，不带迁移期构建开关）；`fsm` → `src/middleware/fsm`（负责人决定）；`slope` 并入 `src/lib/control`（命名空间 `control`）；依赖图检查加入 lib → utils，middleware 按架构 v2 收紧
-- [ ] `src/utils`：`spsc_queue`（由 PortKit 的队列改写，acquire/release，不用原子读改写）、`latest_value`（单写者 seqlock）；`crc` 补 crc16（裁判系统用）
+- [x] 第 2 步 `src/utils` 补齐（2026-10-29，Decision-20261029-01）：并发原语放 `src/utils/concurrency`（target `utils_concurrency`，只有头文件）——`SpscQueue`（由 PortKit 的队列改写，acquire/release，不用原子读改写）、`LatestValue`（单写者 seqlock）；`crc` 补 crc16（CRC-16/MCRF4XX，裁判系统帧尾）；宿主测试 `spsc_queue`、`latest_value`、`crc16`
 - [ ] `src/hal/os` 契约定稿：`CriticalSection`、单调时基、`Signal`（等待/唤醒，中断里可唤醒）；`platform/mock` 实现（宿主线程，测试控制时间）
-- [ ] `src/middleware/topic`（target `middleware_topic`）：最新值、单发布者、中断里可发布、阻塞等待、观测计数（架构 v2 §3.4）；`app/topics` 目录与清单约定
-- [ ] 宿主测试：utils 与 topic 的单元测试，含多线程压力（发布线程 × 订阅线程、模拟中断发布、等待超时、单发布者检查）
-- [ ] CI：框架独立构建（只配置 `src` + `platform/mock`，无 RTOS 头）；文本扫描加入规则 13、17
+- [ ] `src/middleware/topic`（target `middleware_topic`）：最新值、单发布者、中断里可发布、阻塞等待、观测计数（架构 v2 §3.4）；`app/topics` 目录与清单约定；先决定 seqlock 读写竞态的处理（Decision-20261029-02，Proposed）
+- [ ] 宿主测试：utils 与 topic 的单元测试，含多线程压力（发布线程 × 订阅线程、模拟中断发布、等待超时、单发布者检查）。utils 部分已完成（第 2 步）
+- [ ] CI：框架独立构建（只配置 `src` + `platform/mock`，无 RTOS 头）；文本扫描加入规则 13、17；Cortex-M0+ 编译 utils 与 topic，检查不出现 `__atomic_*`、`__sync_*` 库调用（代替 `is_always_lock_free` 的静态检查，Decision-20261029-01）
 - [ ] 验收：宿主测试全绿；框架独立构建绿；现有固件仍可构建（F1 只新增，不改旧代码的行为）
 
 ### F2 契约 v1 与 DM-MC02 板级（6–10 人日）
@@ -230,3 +230,5 @@ Q1–Q18 已全部确认（见评审报告 v1.0 §11.1 与 decision.md）。仍�
 | 2026-10-26 | P2.5 | 搬迁 `legacy/` 剩余 16 个源码文件（R100）+ include/保护宏改写 + 构建与工具适配；PortKit 整体并入 port，拆分推迟到 P3a；删除 `legacy_include`、`legacy_library()`、`portkit`（X-11、X-12、X-15 关闭，Decision-20261026-10）。符号一致，搬迁文件的目标文件逐项相同，ctest 14/14 | P2.5 验收 |
 | 2026-10-27 | v2 | 迁移方式改为按负责人骨架重建（Decision-20261027-01）：`docs/ai/architecture.md` 重写为 v2；原 P3a–P5 改为 F1–F4（框架）、A（能力）、B（F407）、E（提取） | 待审阅 |
 | 2026-10-27 | F1 | 第 1 步：crc、math 移入 `src/utils`，fsm 移入 `src/middleware`，slope 并入 `lib/control`（Decision-20261027-02）。纯移动、改写、构建三个提交；ctest 14/14，固件符号与 P1 存档一致 | 已完成 |
+| 2026-10-28 | F1 | template 声明单独一行（Decision-20261028-01）：配置、格式化、登记 blame 忽略三个提交 | 已完成 |
+| 2026-10-29 | F1 | 第 2 步：crc16；`utils_concurrency`（`SpscQueue`、`LatestValue`）（Decision-20261029-01）。ctest 17/17，ThreadSanitizer 无报告，M0+/M4/M7 无原子读改写库调用，固件符号与 P1 存档一致。发现 seqlock 读写竞态在任务之间同样存在，登记为待定决策（Decision-20261029-02） | 已完成 |

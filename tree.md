@@ -48,7 +48,7 @@ foray_mcu/
 ├── legacy/                   迁移源的 README 与既有架构图（源码已在 P2、P2.5 全部搬出）
 │   ├── .docs/images/         既有架构图
 │   └── README.md
-├── test/host/                宿主测试（由根工程 host-tests preset 引入，14 项 ctest；来源 fd1edbb，见 test/host/README.md）
+├── test/host/                宿主测试（由根工程 host-tests preset 引入，17 项 ctest；来源 fd1edbb，见 test/host/README.md）
 ├── test/data/imu/            真实 IMU 数据（原固件静态陀螺采集 ×2）
 ├── test/data/heater/         原固件加热冷启动曲线（L6 重做的验收下限）
 ├── tool/debug/               SWD 只读轮询、IMU 采集与加热日志解码（Python）
@@ -93,7 +93,7 @@ foray_mcu/
 │   ├── hal/                      硬件契约（C++ 自由函数 + 不透明句柄）：can、spi、uart、gpio、pwm、time、usb_cdc（F2）
 │   │   └── os/                   OS 契约：临界区、单调时基、信号（F1）
 │   ├── boot/                     启动入口 boot.h：boot_init / boot_init_rtos / boot_run（F2）
-│   ├── utils/                    无领域含义的基础件：math、crc；spsc_queue、latest_value（F1）
+│   ├── utils/                    无领域含义的基础件：math、crc、concurrency（spsc_queue、latest_value）
 │   ├── middleware/               给能力用的运行期机制与服务：topic（F1）、fsm；将来按需加调试遥测、参数存储、链路传输
 │   │   ├── topic/                topic 机制：最新值、单发布者、中断发布、阻塞等待
 │   │   └── fsm/                  通用状态机
@@ -150,7 +150,7 @@ foray_mcu/
 | 要找什么 | 去哪（目标位置） | 当前状态 |
 |---|---|---|
 | 迁移源 README 与架构图 | `legacy/` | ⛔ 只读（源码已在 P2、P2.5 全部搬出） |
-| 无领域含义的基础件 | `src/utils/` | ✅ math、crc 已移入（F1 第 1 步）；🟡 spsc_queue、latest_value（F1） |
+| 无领域含义的基础件 | `src/utils/` | ✅ math、crc 已移入（F1 第 1 步）；crc16、concurrency（spsc_queue、latest_value）已完成（F1 第 2 步） |
 | topic 机制 / 产品的 topic 清单 | `src/middleware/topic/` / `app/topics/` | 🟡 F1 |
 | OS 契约 | `src/hal/os/` | 📄 草案与宿主替身（P1）；定稿与 `Signal` 在 F1，port 实现在 F2 |
 | 硬件契约 v1 | `src/hal/` | 🟡 F2（现为旧契约 + `src/hal/detail` C 接口，F2 删除） |
@@ -161,7 +161,7 @@ foray_mcu/
 | 任务运行器 | `app/common/` | 🟡 F2（现为旧 TaskManager） |
 | 能力 | `app/<capability>/` | ⏳ 阶段 A 重建（现有旧代码 F2 归档到 tag `archive/pre-rebuild`） |
 | profile 与组合根 | `config/profiles/<兵种>_<板>/`、`config/assembly/<profile>.cpp` | 🟡 F2 建 `bringup_dm_mc02`；兵种 profile 在阶段 A |
-| 宿主测试 | `test/host/` | ✅ 由根工程引入（14 项全绿）；随 F1–F3 扩充，依赖旧 app 的测试在 F2 归档 |
+| 宿主测试 | `test/host/` | ✅ 由根工程引入（17 项全绿）；随 F1–F3 扩充，依赖旧 app 的测试在 F2 归档 |
 | 组织合规件 | `.foray-layer`、`CODEOWNERS`、`.github/workflows/ci.yml` | ✅ 已落地 |
 | 链路协议生成头 | `src/third_party/foray_interfaces/generated/lower_link.hpp` | ⏳ 阶段 A（链路能力） |
 | 架构判据 | `docs/ai/architecture.md` | 📄 v2（2026-10-27，待审阅） |
@@ -181,7 +181,7 @@ foray_mcu/
 | `Libraries/Algorithm/*`、`Component/*` | `src/lib/`；math、crc → `src/utils/`，fsm → `src/middleware/`，slope → `src/lib/control`（F1 第 1 步） |
 | `Libraries/Device/*`、`Protocol/*` | `src/driver/`，F3 适配 hal v1 |
 | `Platform/Interface/*.hpp` + `Detail/*.h` | 由 `src/hal` 契约 v1 取代（F2） |
-| `Platform/PortKit/*` | 队列 → `src/utils/spsc_queue`（F1）；临界区 → `src/hal/os` 契约 + port 实现（F1、F2） |
+| `Platform/PortKit/*` | 队列 → `src/utils/concurrency/spsc_queue.hpp`（F1 ✅）；临界区 → `src/hal/os` 契约 + port 实现（F1、F2） |
 | `Platform/STM32H7/DM_MC02/{Core,Drivers,Middlewares,USB_DEVICE,startup,.ld,.ioc}` | `platform/dm_mc02/cubemx/`（F2 起按板一级） |
 | `Platform/STM32H7/DM_MC02/Port/*` | `platform/dm_mc02/port/`，F2 用 C++ 重写 |
 | `Tests/`（历史，`fd1edbb`） | `test/host/` |

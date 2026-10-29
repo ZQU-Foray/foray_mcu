@@ -711,6 +711,73 @@
 
 ---
 
+## Decision-20261029-01（utils 并发原语放 src/utils/concurrency，Accepted）
+
+- **Date**：2026-10-29
+- **Status**：Accepted（目录 `concurrency` 由负责人建立，AI 建议保留；`latest_value` 的实现由 AI 按负责人的骨架补齐）
+- **Source**：plan.md F1"`src/utils`：spsc_queue、latest_value"；修订架构 v2 §2.1、tree.md 中 `src/utils/spsc_queue` 的写法
+
+**Context**：架构 v2 与 tree.md 把 F1 的并发原语写成 `spsc_queue`、`latest_value` 两项，没有定目录。负责人编写队列时建了 `src/utils/concurrency/`。按 Decision-20261027-02，utils 每个子目录一个 target，命名空间与子目录同名。
+
+**Decision**：
+
+1. 并发原语放 `src/utils/concurrency/`，命名空间 `concurrency`，target `utils_concurrency`：
+   - `SpscQueue<T, Capacity>`（`spsc_queue.hpp`）：单生产者、单消费者环形队列，由 PortKit 的队列改写，acquire/release，不依赖 CMSIS；容量是 2 的幂，不超过 2^31；
+   - `LatestValue<T>`（`latest_value.hpp`）：单写者、多读者的最新值邮箱（seqlock）。数据按 32 位字做 relaxed 原子读写，用内存屏障排序（Boehm 2012 的写法），读写同时发生也不是数据竞争，ThreadSanitizer 不会误报。版本号 31 位，按 2^31 回绕，求差用 `VERSION_MASK`；
+   - 读者不能在写入中途抢占写者，见 Decision-20261029-02。
+2. **不用原子读改写**（规则 13），只用原子读、原子写与内存屏障。也不用 `static_assert(is_always_lock_free)`：它要求全部原子操作都无锁，Cortex-M0+ 没有 LDREX/STREX，GCC 在那里报 false。实测 M0+、M4、M7 上的原子读写都是单条 LDR/STR 加 DMB，没有库调用。这条约束改由 CI 检查"Cortex-M0+ 编译后不出现 `__atomic_*`、`__sync_*` 库调用"，随 F1 的 CI 项加入。
+3. **只有头文件**：用现有的 `framework_interface()` 建 INTERFACE 库。它不链接迁移期构建开关，符合 utils"只依赖标准库"，所以不新增辅助函数。头文件的告警由使用方的编译检查（宿主测试带 `-Werror`）。依赖图检查已按 `utils_\w+` 归类，脚本不用改。
+4. **宿主测试**：`spsc_queue`、`latest_value`，含多线程压力与计数器回绕，用 `-O2`。ThreadSanitizer 只在本地跑，CI 不跑。
+
+**验证**：
+- 宿主 ctest 17/17（WSL g++ 11.4）；两个并发测试另用 MSYS2 g++ 16.2 加 `-Werror` 编译运行通过；
+- ThreadSanitizer 无报告；
+- 反向验证，每一项都被测试抓到：
+  - 读者去掉第二次比对、写者不先写奇数：压力测试报出数十万次不一致；
+  - 数据改成普通 `memcpy`：ThreadSanitizer 报数据竞争；
+  - 队列的 `size()` 改成不处理回绕的写法：回绕测试失败；
+- 交叉编译：Cortex-M0+/M4/M7 × `-O0`/`-Os`/`-O2` 加 `-Werror` 通过，没有 `__atomic_*`、`__sync_*` 库调用；全局对象放在 `.bss`，不需要运行期初始化（topic 要求常量初始化）；
+- 格式、命名（0 处）、文本扫描、两张依赖图检查通过；固件 Debug/Release 构建通过，符号与 P1 存档一致（1426、1038）。
+
+**Alternatives / Rejected**：
+- **按 tree.md 分成 `utils/spsc_queue/`、`utils/latest_value/`**：变成两个各只有一个头文件的 target，命名空间也要各取一个名字。否决。
+- **新增 `utils_interface()`**：与 `framework_interface()` 完全相同。否决。
+
+---
+
+## Decision-20261029-02（seqlock 的读写竞态与 topic 发布，Proposed）
+
+- **Date**：2026-10-29
+- **Status**：Proposed（待负责人在 F1 第 5 步做 topic 时决定）
+- **Source**：编写 `LatestValue` 时发现；补充架构 v2 §3.4"中断里不订阅"的理由
+
+**Context**：
+
+- `LatestValue` 的读者遇到写入中途（序号是奇数），或拷贝期间有新的写入（前后两次序号不同），会重试，直到读到一份完整的数据。
+- 写者打断读者没有问题：读者恢复运行后发现序号变了，重读一次即可。
+- 反过来不行。单核上，读者在写入中途抢占写者后，写者要等读者让出 CPU 才能写完，而读者在等写者写完：读者无限重试，系统卡死。
+- 架构 v2 §3.4 只考虑了中断："中断不能等被它打断的写端完成，所以中断里不订阅"。同样的问题也出在任务之间：
+  - **高优先级任务读低优先级任务发布的 topic 会卡死**，如控制任务读低频的裁判系统数据；
+  - 优先级相同时，时间片轮转会让读者空转一个时间片后写者继续，不会卡死，但浪费时间。
+- 只有读者恰好在写入的几十个时钟周期里抢占写者才会触发。测试很难覆盖，现场表现为偶发卡死。
+- 跨核共享（如 AM26x 的两个核）不在本决策范围。
+
+**可选方案**：
+
+1. **topic 发布时用 `hal::os::CriticalSection` 包住 `write`（AI 建议）**：
+   - 写入期间不会被任何读者打断，上面的限制全部消失，在中断里读也安全（中断里仍不能阻塞等待）；
+   - 代价：每次发布关一次中断，时长等于一次消息拷贝。可以给消息大小设上限（如 `static_assert(sizeof(T) <= 64)`）来限制关中断的时长，数值 F2 在板上实测后定；
+   - 依赖：`CriticalSection` 可以在中断里用、可以嵌套（P1 草案已经这样约定）。如果它只屏蔽 RTOS 管理的中断（BASEPRI），优先级高于阈值的中断既不能发布也不能读 topic；这一点在 hal/os 定稿时一并确定。
+2. **规定优先级**：每个 topic 的发布者优先级必须高于全部订阅者，中断里不订阅。
+   - 不需要关中断；
+   - 编译期查不出来。任务表或优先级一改就可能静默违反，后果是偶发卡死。
+3. **读者重试若干次后让出 CPU**：`hal/os` 要增加"让出"操作；仍会空转，最坏延迟不确定。
+4. **多缓冲**：读者不用重试。但三缓冲的交换要用原子读改写，规则 13 不允许；改成每个读者各有一个槽位，内存与复杂度都更高。
+
+**决定之前**：`LatestValue` 的类注释写明了这个限制；架构 §3.4 指向本决策；topic 按决定的结果实现。
+
+---
+
 ## 待登记
 
 - 分支保护的具体设置（组织规范 §6.1、§10，负责人在 GitHub 上操作后补记）。

@@ -1,6 +1,6 @@
 # 架构判据与依赖规则（foray_mcu）
 
-> **状态**：v2.1（2026-10-27）。v2.0 见 Decision-20261027-01；v2.1 随 F1 第 1 步更新 utils、middleware、lib 的归类：math 进 utils，fsm 进 middleware（Decision-20261027-02）。v2 按负责人的骨架重写：迁移方式从"改造迁移源"改为"按新骨架重建，迁移源只作参考与零件来源"。v1.0–v1.4（P0–P2.5）见 git 历史与 decision.md。
+> **状态**：v2.2（2026-10-29）。v2.0 见 Decision-20261027-01；v2.1 随 F1 第 1 步更新 utils、middleware、lib 的归类：math 进 utils，fsm 进 middleware（Decision-20261027-02）；v2.2 随 F1 第 2 步加入 utils 的并发原语 `concurrency`（Decision-20261029-01），§3.4 补充 seqlock 的读写竞态（Decision-20261029-02，待定）。v2 按负责人的骨架重写：迁移方式从"改造迁移源"改为"按新骨架重建，迁移源只作参考与零件来源"。v1.0–v1.4（P0–P2.5）见 git 历史与 decision.md。
 > **权威来源**：[decision.md](../../decision.md) 中的 Accepted 条目，v2 起以 Decision-20261027-01 为准。[评审报告 v1.0](reviews/2026-10-25-foray_mcu-架构评审报告.md) 是历史记录，与本文件冲突的部分以本文件为准。
 > **修改流程**：新增或修改规则、例外、白名单，先在 decision.md 登记，再改本文件和对应的 CI 检查（§10）。
 
@@ -45,7 +45,7 @@ foray_mcu/
 │   ├── hal/                  硬件契约（C++ 头）：can、spi、uart、gpio、pwm、time、usb_cdc
 │   │   └── os/               OS 契约：临界区、单调时基、信号（等待/唤醒）
 │   ├── boot/                 启动入口 boot.h（extern "C"）：生成区只调它
-│   ├── utils/                无领域含义的基础件：math、crc；F1 加入 spsc_queue、latest_value
+│   ├── utils/                无领域含义的基础件：math、crc、concurrency（SPSC 队列、最新值邮箱）
 │   ├── middleware/           给能力用的运行期机制与服务：建立在契约与基础件之上
 │   │   ├── topic/            topic 机制：最新值、单发布者、可在中断里发布、可阻塞等待
 │   │   └── fsm/              通用状态机
@@ -94,7 +94,7 @@ foray_mcu/
 | `hal/` | 硬件资源契约（§3.1） | 标准库、`hal/os` | 厂商头、RTOS、其他层 |
 | `hal/os/` | 临界区、单调时基、信号（§3.2） | 标准库 | 同上 |
 | `boot/` | 启动入口声明（§3.3） | 标准库 | 同上 |
-| `utils/` | 数学（向量、四元数、矩阵）、CRC；F1 加入 SPSC 队列、最新值邮箱（seqlock）。每个子目录一个 target `utils_<名>` | 标准库 | 其他所有层（包括迁移期的构建开关 `legacy_build_options`） |
+| `utils/` | 数学（向量、四元数、矩阵）、CRC、并发原语（`concurrency`：SPSC 队列、最新值邮箱 seqlock）。每个子目录一个 target `utils_<名>` | 标准库 | 其他所有层（包括迁移期的构建开关 `legacy_build_options`） |
 | `middleware/` | 给能力用的运行期机制与服务：`topic`（§3.4）、`fsm`（通用状态机）；将来按需加调试遥测、参数存储、链路传输，新增先登记 | `utils`、`hal/os`、中间件内部（无环）；传输类服务另可依赖 `hal` | `driver`、`lib`、`app`、RTOS |
 | `lib/` | 领域算法；层内无环（`component` → `control`）；数学基础在 `utils/math` | 标准库、`utils`、`lib` 内部 | `hal`、`driver`、`middleware` |
 | `driver/` | 设备驱动与设备协议 | `hal`、`hal/os`、`lib`、`utils`、驱动内部 | `middleware`、`app`、RTOS |
@@ -168,15 +168,15 @@ void boot_run(void);        // 默认任务：留给 assembly 的周期工作（
 |---|---|
 | 数据 | 每个 topic 一种消息类型；发布覆盖旧值，订阅者读最新一份。不排队，不保证每条都收到；丢了几次可以观测 |
 | 发布者 | 每个 topic 只有一个发布者。取得发布句柄的操作每个 topic 只能成功一次，在初始化阶段完成，失败则 `boot_init()` 失败 |
-| 中断 | 允许在中断里发布；中断里不订阅 |
+| 中断 | 允许在中断里发布；中断里不订阅（理由见下方"读写竞态"） |
 | 订阅 | `update(msg) -> bool`：有新数据才拷贝；`wait(msg, timeout) -> bool`：阻塞到下一次发布 |
 | 消息 | 可平凡拷贝（`static_assert`），只用标准整数、浮点、`bool` 与定长数组，尽量小 |
 | 观测 | 每个 topic 的发布次数、最后发布时刻；每个订阅者的丢失次数。调试通道可以列出全部 topic |
 | 不做 | 队列、多发布者、运行期发现、回调式订阅（回调会在发布者的上下文里执行，中断里不可控） |
 
 **实现要点**：
-- 存储用单写者 seqlock：只用普通读写与内存屏障，没有原子读改写，Cortex-M0+ 也能用（规则 13）。
-- 读端遇到写入中途会重试。中断不能等被它打断的写端完成，所以中断里不订阅。
+- 存储用单写者 seqlock（`utils/concurrency` 的 `LatestValue`）：只用原子读写与内存屏障，没有原子读改写，Cortex-M0+ 也能用（规则 13）。
+- **读写竞态**：读端遇到写入中途会重试，直到写端写完，所以读端不能在写入中途抢占写端，否则单核上写端再也轮不到运行，读端无限重试。中断读任务发布的 topic 是一种情况；高优先级任务读低优先级任务发布的 topic 是另一种，同样会卡死。处理方式待定（Decision-20261029-02，Proposed），AI 建议发布时用 `hal::os::CriticalSection` 包住写入。决定之前：中断里不订阅，订阅者的优先级不高于发布者。
 - 等待槽数量是编译期常量；订阅者用自己的 `hal::os::Signal` 注册，发布时逐个通知。
 - topic 对象常量初始化，不依赖全局构造顺序。
 
@@ -253,7 +253,7 @@ EXECUTABLE  firmware_<profile>
  │   │   ├─ 库       middleware_topic   src/middleware/topic → utils、hal_os
  │   │   ├─ STATIC  driver_<device>     src/driver → hal、hal_os、lib、utils
  │   │   ├─ STATIC  lib_<pkg>           src/lib → utils
- │   │   ├─ STATIC  utils_<名>          src/utils（只依赖标准库）
+ │   │   ├─ STATIC  utils_<名>          src/utils（只依赖标准库；只有头文件的是 INTERFACE，如 utils_concurrency）
  │   │   └─ INTERFACE hal、hal_os        src/hal（实现在 port）
  │   ├─ INTERFACE os_freertos_<board>   FreeRTOS 头（只对 app_common、assembly 可见）
  │   └─ OBJECT    board_<board>         platform/<board>/board（board.hpp、链接脚本）
