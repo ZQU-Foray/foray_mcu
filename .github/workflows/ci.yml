@@ -1,14 +1,15 @@
 # 复制自组织 CI 模板：ZQU-Foray/.github → workflows/ci-template.yml
 #
-# 本仓的调整（见 decision.md Decision-20261026-01）：
+# 本仓的调整（见 decision.md Decision-20261026-01 及之后的 CI 相关决策）：
 #   - lint-c 改为由 tool/ci/format.py 全量检查：范围是手写 C/C++，排除 CubeMX 生成区、
 #     厂商代码与 vendor 生成头（P0.5 一次性格式化之后，Decision-20261026-04）。
 #   - 新增 lint-naming：tool/ci/naming.py 全量检查 C++ 命名（clang-tidy，P0.5 改名之后，
-#     Decision-20261026-05）。
-#   - 新增 host-tests：test/host 宿主测试（ctest）。
-#   - 新增 firmware-legacy：用与基线相同版本的 xPack GCC 构建 legacy/ 固件，
-#     Release 镜像必须与基线 SHA-256 逐字节一致；Debug 镜像内含工具链安装路径，
-#     换机器 SHA 必然不同，只要求构建成功。
+#     Decision-20261026-05）；P1 起编译数据库来自根工程的三个 preset。
+#   - 新增 lint-arch：tool/ci/arch_check.py 的文本扫描（依赖规则 3、8、9、12、15，P1 起）。
+#   - 新增 host-tests：根工程 host-tests preset 的宿主测试（ctest）与宿主依赖图检查。
+#   - 新增 firmware：根工程构建固件（arm-debug、arm-release），与迁移源的符号集合比较
+#     （名称、大小、类型，P1–P2.5 的判据），并检查固件依赖图（Decision-20261026-07）；
+#     P2 起迁移源构建随搬迁失效，基准改为 P1 存档的符号表，迁移源基线 SHA 校验删除（Decision-20261026-08）。
 #   - 删除 build-ros2：本仓是 MCU 固件，不是 ROS 2 工作空间。
 #
 # 设计原则沿用模板：没有适用文件就跳过；存量不合规代码不让 CI 长期红灯，新代码不放过。
@@ -118,48 +119,38 @@ jobs:
       - name: 安装 clang-tidy
         run: pip install "clang-tidy==${CLANG_TIDY_VERSION}" "pyyaml==6.0.2"
 
-      - name: 缓存 xPack GCC
-        id: cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ runner.temp }}/xpack-arm-none-eabi-gcc-${{ env.XPACK_GCC_VERSION }}
-          key: xpack-arm-none-eabi-gcc-${{ env.XPACK_GCC_VERSION }}-linux-x64
-
-      - name: 下载并校验 xPack GCC
-        if: steps.cache.outputs.cache-hit != 'true'
-        shell: bash
-        run: |
-          url="https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v${XPACK_GCC_VERSION}/xpack-arm-none-eabi-gcc-${XPACK_GCC_VERSION}-linux-x64.tar.gz"
-          curl -fsSL -o "$RUNNER_TEMP/gcc.tar.gz" "$url"
-          echo "${XPACK_GCC_SHA256}  $RUNNER_TEMP/gcc.tar.gz" | sha256sum -c -
-          tar -xzf "$RUNNER_TEMP/gcc.tar.gz" -C "$RUNNER_TEMP"
-          rm "$RUNNER_TEMP/gcc.tar.gz"
-
-      - name: 安装 Ninja
-        shell: bash
-        run: command -v ninja >/dev/null || { sudo apt-get update -q && sudo apt-get install -y -q ninja-build; }
+      - name: 安装 Arm GNU 工具链
+        uses: ./.github/actions/setup-arm-gcc
 
       - name: 生成编译数据库
-        shell: bash
         run: |
-          gcc_root="$RUNNER_TEMP/xpack-arm-none-eabi-gcc-${XPACK_GCC_VERSION}"
-          src=legacy/Platform/STM32H7/DM_MC02
-          for cfg in Debug Release; do
-            cmake -S "$src" -B "build/legacy/$cfg" -G Ninja \
-              -DCMAKE_BUILD_TYPE="$cfg" \
-              -DCMAKE_TOOLCHAIN_FILE="$PWD/$src/cmake/gcc-arm-none-eabi.cmake" \
-              -DARM_GCC_ROOT="$gcc_root"
-          done
-          cmake -S test/host -B build/host-tests -G Ninja -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          cmake --preset arm-debug
+          cmake --preset arm-release
+          cmake --preset host-tests
 
       - name: 命名检查（全量）
         shell: bash
         run: |
           if ! python tool/ci/naming.py --check \
-               -p build/legacy/Debug -p build/legacy/Release -p build/host-tests; then
-            echo "::error::C++ 命名不符合 .clang-tidy。本地生成同样三个编译数据库后执行 python tool/ci/naming.py --fix（clang-tidy ${CLANG_TIDY_VERSION}），模板与注释里的遗漏需手工补齐。"
+               -p build/arm-debug -p build/arm-release -p build/host-tests; then
+            echo "::error::C++ 命名不符合 .clang-tidy。本地生成三个 preset 的编译数据库后执行 python tool/ci/naming.py --fix（clang-tidy ${CLANG_TIDY_VERSION}），模板与注释里的遗漏需手工补齐。"
             exit 1
           fi
+
+  # ---- 架构文本扫描（本仓新增） ----
+  # 依赖规则中靠文本检查的部分（docs/ai/architecture.md §4.2）；依赖图检查在 host-tests 与 firmware 作业中。
+  lint-arch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 文本扫描（规则 3、8、9、12、15）
+        run: python tool/ci/arch_check.py scan
 
   # ---- Python 测试（模板原样） ----
   test-python:
@@ -212,73 +203,66 @@ jobs:
           cmake --version | head -1
 
       - name: 配置
-        run: cmake -S test/host -B build/host-tests -G Ninja
+        run: cmake --preset host-tests --graphviz=build/host-tests/graph/targets.dot
+
+      - name: 依赖图检查（宿主）
+        run: python3 tool/ci/arch_check.py graph build/host-tests/graph/targets.dot --mode host
 
       - name: 构建
-        run: cmake --build build/host-tests
+        run: cmake --build --preset host-tests
 
       - name: 测试
-        run: ctest --test-dir build/host-tests --output-on-failure
+        run: ctest --preset host-tests
 
-  # ---- legacy 固件构建与基线对照（本仓新增） ----
-  # P0–P0.5 期间 legacy/ 只允许机械操作，Release 镜像必须与基线逐字节一致；
-  # P1 起改为由根工程构建，对照判据改为符号名与大小集合（见基线对照文档 §4）。
-  firmware-legacy:
+  # ---- 固件构建、符号对照与依赖图检查（本仓新增） ----
+  # P1–P2.5 只搬结构、不改行为：根工程固件的函数与对象符号（名称、大小、类型、绑定、输出段）
+  # 必须与迁移源一致（链接顺序会变，镜像 SHA 不作判据，见评审报告 §7.3）。P2 起迁移源构建已随搬迁失效，
+  # 基准为 P1 存档的归一化符号表（docs/ai/decisions/2026-10-26-P1-构建骨架/symbols-*.txt）；
+  # 此后只改名、不改行为的提交把改名表登记在 renames 中，比较前换算基准里的名字。
+  firmware:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: 缓存 xPack GCC
-        id: cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ runner.temp }}/xpack-arm-none-eabi-gcc-${{ env.XPACK_GCC_VERSION }}
-          key: xpack-arm-none-eabi-gcc-${{ env.XPACK_GCC_VERSION }}-linux-x64
+      - name: 安装 Arm GNU 工具链
+        uses: ./.github/actions/setup-arm-gcc
 
-      - name: 下载并校验 xPack GCC
-        if: steps.cache.outputs.cache-hit != 'true'
+      - name: 构建固件（arm-debug 与 arm-release）
         shell: bash
         run: |
-          url="https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v${XPACK_GCC_VERSION}/xpack-arm-none-eabi-gcc-${XPACK_GCC_VERSION}-linux-x64.tar.gz"
-          curl -fsSL -o "$RUNNER_TEMP/gcc.tar.gz" "$url"
-          echo "${XPACK_GCC_SHA256}  $RUNNER_TEMP/gcc.tar.gz" | sha256sum -c -
-          tar -xzf "$RUNNER_TEMP/gcc.tar.gz" -C "$RUNNER_TEMP"
-          rm "$RUNNER_TEMP/gcc.tar.gz"
+          cmake --preset arm-debug --graphviz=build/arm-debug/graph/targets.dot
+          cmake --build --preset arm-debug
+          cmake --preset arm-release
+          cmake --build --preset arm-release
 
-      - name: 安装 Ninja
-        shell: bash
-        run: command -v ninja >/dev/null || { sudo apt-get update -q && sudo apt-get install -y -q ninja-build; }
+      - name: 依赖图检查（固件）
+        run: python3 tool/ci/arch_check.py graph build/arm-debug/graph/targets.dot --mode firmware
 
-      - name: 构建 Debug 与 Release
+      - name: 符号对照（与存档的迁移源符号表）
         shell: bash
         run: |
-          gcc_root="$RUNNER_TEMP/xpack-arm-none-eabi-gcc-${XPACK_GCC_VERSION}"
-          "$gcc_root/bin/arm-none-eabi-gcc" --version | head -1
-          src=legacy/Platform/STM32H7/DM_MC02
+          readelf="$ARM_GCC_ROOT/bin/arm-none-eabi-readelf"
+          archive="docs/ai/decisions/2026-10-26-P1-构建骨架"
+          renames=(--renames "docs/ai/decisions/2026-10-26-P2.5-去掉alg前缀/改名表.tsv")
+          status=0
           for cfg in Debug Release; do
-            cmake -S "$src" -B "build/legacy/$cfg" -G Ninja \
-              -DCMAKE_BUILD_TYPE="$cfg" \
-              -DCMAKE_TOOLCHAIN_FILE="$PWD/$src/cmake/gcc-arm-none-eabi.cmake" \
-              -DARM_GCC_ROOT="$gcc_root"
-            cmake --build "build/legacy/$cfg"
+            preset="arm-$(echo "$cfg" | tr '[:upper:]' '[:lower:]')"
+            echo "== $cfg"
+            python3 tool/ci/symbols.py --readelf "$readelf" compare "${renames[@]}" \
+              "$archive/symbols-$cfg.txt" "build/$preset/firmware_baseline.elf" || status=1
+            sha256sum "build/$preset/firmware_baseline.bin"
           done
-
-      - name: 对照基线（Release 逐字节一致）
-        shell: bash
-        run: |
-          cd build/legacy
-          grep ' Release/mc02_cpp.bin$' "$GITHUB_WORKSPACE/docs/ai/decisions/baseline-a2cfd16/SHA256SUMS" | sha256sum -c -
-          echo "Debug（只供参考，镜像内含工具链安装路径）："
-          sha256sum Debug/mc02_cpp.bin
+          exit $status
 
       - name: 上传构建产物
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: firmware-legacy
+          name: firmware
           path: |
-            build/legacy/*/mc02_cpp.elf
-            build/legacy/*/mc02_cpp.bin
-            build/legacy/*/mc02_cpp.map
+            build/arm-*/firmware_*.elf
+            build/arm-*/firmware_*.bin
+            build/arm-*/firmware_*.hex
+            build/arm-*/firmware_*.map
           if-no-files-found: ignore
           retention-days: 14

@@ -8,9 +8,9 @@
 # 执行与检查用 tool/ci/naming.py（汇总多个编译数据库的修正后统一写回），见 decision.md Decision-20261026-05。
 Checks: '-*,readability-identifier-naming'
 WarningsAsErrors: ''
-# 头文件过滤：路径分隔符兼容 / 与 \（Windows）；迁移源的 include 目录写成 DM_MC02/../../..，
-# clang 看到的头文件路径不做规范化，所以 legacy 下的目录也要接受以 ../ 开头的写法。
-HeaderFilterRegex: '[/\\](app|config|src|test)[/\\]|[/\\](legacy|\.\.)[/\\](Application|Libraries)[/\\]|[/\\](legacy|\.\.)[/\\]Platform[/\\]Interface[/\\][A-Za-z0-9_]+\.hpp$'
+# 头文件过滤：路径分隔符兼容 / 与 \（Windows）。
+# src/hal/detail 下的 C ABI 头也在 src/ 内，由 tool/ci/naming.py 排除（不按 C++ 规则改名，例外 X-07）。
+HeaderFilterRegex: '[/\\](app|config|src|test)[/\\]'
 CheckOptions:
   # ---- 命名空间 ----
   - key: readability-identifier-naming.NamespaceCase

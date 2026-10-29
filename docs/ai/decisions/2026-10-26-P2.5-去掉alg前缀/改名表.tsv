@@ -1,0 +1,11 @@
+# 命名空间改名表（Decision-20261026-09）：旧名<TAB>新名。
+# 目录同名改动（odometry 只是命名空间）；tool/ci/symbols.py compare --renames 用它换算 P1 存档中的符号名。
+alg_controller	control
+alg_crc	crc
+alg_estimate	estimate
+alg_filter	filter
+alg_fsm	fsm
+alg_kinematics	kinematics
+alg_math	math
+alg_odometry	odometry
+alg_slope	slope

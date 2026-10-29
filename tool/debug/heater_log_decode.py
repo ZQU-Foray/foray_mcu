@@ -4,7 +4,7 @@
 日志中应包含三个区域（顺序可用参数指定）：
 - DWT_CYCCNT（0xE0001004，1 个字）：时间基准；
 - 加热器对象（Bmi088Heater，40 个字 = 160 字节）：尾部成员布局与
-  legacy/Libraries/Device/bmi088/Bmi088Heater.hpp 一致（偏移 128 起：
+  src/driver/bmi088/bmi088_heater.hpp（迁移前为 Libraries/Device/bmi088/Bmi088Heater.hpp）一致（偏移 128 起：
   状态与标志、目标温度、当前温度、占空比、温度读取次数、两个时间戳）；
   偏移 0–127 在 a2cfd16 中是 PID 对象，在原固件中布局不同，原样输出为
   w00–w31（按 float 解释）；

@@ -1,9 +1,9 @@
-#include "Libraries/Device/bmi088/Bmi088.hpp"
-#include "Application/Task/0_imu/ImuDataReadyMailbox.hpp"
+#include "driver/bmi088/bmi088.hpp"
+#include "tasks/imu_data_ready_mailbox.hpp"
 // Include the recorder in this test translation unit to inspect its private
 // frozen debugger ABI without adding a production-facing test interface.
 #define IMU_ENABLE_DIAGNOSTICS
-#include "Application/Imu/ImuDiagnostics.cpp"
+#include "imu/imu_diagnostics.cpp"
 #include <cassert>
 #include <cstring>
 #include <iostream>

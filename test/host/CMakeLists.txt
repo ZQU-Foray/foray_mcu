@@ -1,123 +1,127 @@
-# 宿主测试（P0 独立工程）
+# 宿主测试：由根工程在宿主构建中引入（cmake --preset host-tests），用 ctest 运行。
 #
-# 在宿主机上编译 legacy/ 中的被测源码，用 ctest 运行。P0 还没有根 CMakeLists，
-# 所以这里是独立工程；P1 建根工程后改由根工程引入，被测源码路径随 P2 搬迁更新。
+#   cmake --preset host-tests
+#   cmake --build --preset host-tests
+#   ctest --preset host-tests
 #
-#   cmake -S test/host -B build/host-tests -G Ninja
-#   cmake --build build/host-tests
-#   ctest --test-dir build/host-tests --output-on-failure
-#
+# 测框架代码的单元测试直接链接框架 target（src/ 的 lib_*、driver_*）与 platform_mock；
+# 测产品代码（app）的集成测试要用影子头替换 DJI 映射与 cmsis_os2.h，仍在测试里直接编译 app 源码，
+# 路径随 P2/P2.5 搬迁更新（P3b 建立能力 target 的测试接缝后改为链接）。
 # 测试来源：ControllerCode 提交 fd1edbb 的 Tests/，适配记录见 README.md。
-cmake_minimum_required(VERSION 3.22)
-project(foray_mcu_host_tests LANGUAGES CXX)
-
-if(NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    message(FATAL_ERROR "宿主测试需要 GCC 或 Clang（当前为 ${CMAKE_CXX_COMPILER_ID}）")
-endif()
-
-# 与固件工程一致：C++17，不开 GNU 扩展。
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
-
-enable_testing()
 find_package(Threads REQUIRED)
 
-get_filename_component(LEGACY_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../legacy" ABSOLUTE)
 set(SUPPORT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/support")
 
-# ---- 被测源码（显式列出；P2 搬迁时同步更新路径） ----
-set(DJI_PROTOCOL_SOURCES
-    "${LEGACY_ROOT}/Libraries/Protocol/dji/DjiEsc.cpp")
-set(DJI_MOTOR_SOURCES
-    "${LEGACY_ROOT}/Libraries/Device/motor/dji/DjiMotor.cpp"
-    ${DJI_PROTOCOL_SOURCES})
-set(DJI_ADAPTER_SOURCES
-    "${LEGACY_ROOT}/Libraries/Device/motor/dji/DjiMotorAdapter.cpp"
-    ${DJI_MOTOR_SOURCES})
-set(CHASSIS_CONTROL_SOURCES
-    "${LEGACY_ROOT}/Application/Task/1_chassis/ChassisController.cpp"
-    "${LEGACY_ROOT}/Libraries/Algorithm/alg_controller/Pid.cpp")
+# ---- 在测试里直接编译的产品代码（例外 X-10，P3b 改为链接能力 target） ----
+set(CHASSIS_CONTROLLER_SOURCES
+    "${PROJECT_SOURCE_DIR}/app/chassis/chassis_controller.cpp")
 set(CHASSIS_TASK_SOURCES
-    "${LEGACY_ROOT}/Application/Task/1_chassis/ChassisTask.cpp")
-set(BMI088_SOURCES
-    "${LEGACY_ROOT}/Libraries/Device/bmi088/Bmi088.cpp"
-    "${LEGACY_ROOT}/Libraries/Device/bmi088/Bmi088Accel.cpp"
-    "${LEGACY_ROOT}/Libraries/Device/bmi088/Bmi088Gyro.cpp"
-    "${LEGACY_ROOT}/Libraries/Device/bmi088/Bmi088Temperature.cpp")
+    "${PROJECT_SOURCE_DIR}/app/tasks/chassis_task.cpp")
 
-# foray_host_test(<名称> [MOCK_BACKEND] [NO_TEST] SOURCES <源文件>...)
-#   MOCK_BACKEND：额外链接模拟电机适配器与生产 ChassisTask，并把 support/shadow
+# host_test(<名称> [MOCK_BACKEND] [NO_TEST] SOURCES <源文件>... [LINK <target>...])
+#   可执行文件为 test_<名称>，ctest 名称为 <名称>。
+#   LINK：链接的被测 target（框架库、platform_mock）。
+#   MOCK_BACKEND：额外编译模拟电机适配器与生产 ChassisTask，并把 support/shadow
 #                 放在 include 路径最前，用同名影子头拦截生产的 DJI 映射头与
 #                 cmsis_os2.h（生产任务代码不改、不加测试开关）。
 #   NO_TEST：只建可执行文件，由调用方自行登记测试（用于带参数的场景测试）。
-function(foray_host_test name)
-    cmake_parse_arguments(PARSE_ARGV 1 ARG "MOCK_BACKEND;NO_TEST" "" "SOURCES")
-    add_executable(${name} ${ARG_SOURCES})
-    target_compile_options(${name} PRIVATE -Wall -Wextra -Werror -UNDEBUG)
-    target_include_directories(${name} PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}"
-        "${LEGACY_ROOT}")
+function(host_test name)
+    cmake_parse_arguments(PARSE_ARGV 1 ARG "MOCK_BACKEND;NO_TEST" "" "SOURCES;LINK")
+    set(target test_${name})
+    add_executable(${target} ${ARG_SOURCES})
+    enable_strict_warnings(${target})
+    target_compile_options(${target} PRIVATE -UNDEBUG)
+    # 测试以 test/host 为根引用支持文件（"support/..."），以 app/ 为根引用产品代码（"tasks/..."、"imu/..."）。
+    target_include_directories(${target} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/app")
+    target_link_libraries(${target} PRIVATE ${ARG_LINK})
     if(ARG_MOCK_BACKEND)
-        target_sources(${name} PRIVATE "${SUPPORT_DIR}/MockMotor.cpp" ${CHASSIS_TASK_SOURCES})
-        target_include_directories(${name} BEFORE PRIVATE "${SUPPORT_DIR}/shadow")
+        target_sources(${target} PRIVATE "${SUPPORT_DIR}/mock_motor.cpp" ${CHASSIS_TASK_SOURCES})
+        target_include_directories(${target} BEFORE PRIVATE "${SUPPORT_DIR}/shadow")
+        target_link_libraries(${target} PRIVATE driver_motor)
     endif()
     if(NOT ARG_NO_TEST)
-        add_test(NAME ${name} COMMAND ${name})
+        add_test(NAME ${name} COMMAND ${target})
     endif()
 endfunction()
 
-# ---- 单元测试 ----
-foray_host_test(dji_protocol SOURCES
-    unit/protocol/DjiEscTest.cpp ${DJI_PROTOCOL_SOURCES})
-foray_host_test(dji_motor SOURCES
-    unit/motor/DjiMotorTest.cpp ${DJI_MOTOR_SOURCES})
-foray_host_test(dji_adapter SOURCES
-    unit/motor/DjiMotorAdapterTest.cpp ${DJI_ADAPTER_SOURCES})
-foray_host_test(angle_wrap SOURCES
-    unit/motor/AngleWrapTest.cpp ${DJI_MOTOR_SOURCES})
-foray_host_test(motor_group SOURCES
-    unit/motor/MotorGroupTest.cpp ${DJI_ADAPTER_SOURCES})
-foray_host_test(brand_extension SOURCES
-    unit/motor/BrandExtensionTest.cpp)
-foray_host_test(bmi088_acquisition SOURCES
-    unit/imu_acquisition/bmi088_acquisition_test.cpp ${BMI088_SOURCES})
+# ---- 单元测试（框架） ----
+host_test(dji_protocol
+    SOURCES unit/protocol/dji_esc_test.cpp
+    LINK driver_protocol_dji)
+host_test(dji_motor
+    SOURCES unit/motor/dji_motor_test.cpp
+    LINK driver_motor_dji)
+host_test(dji_adapter
+    SOURCES unit/motor/dji_motor_adapter_test.cpp
+    LINK driver_motor_dji)
+host_test(angle_wrap
+    SOURCES unit/motor/angle_wrap_test.cpp
+    LINK driver_motor_dji)
+host_test(motor_group
+    SOURCES unit/motor/motor_group_test.cpp
+    LINK driver_motor_dji)
+host_test(brand_extension
+    SOURCES unit/motor/brand_extension_test.cpp
+    LINK driver_motor)
+# 测试直接 #include 了 app 的 ImuDiagnostics.cpp（访问其内部状态），因此也看得到 app 头文件。
+host_test(bmi088_acquisition
+    SOURCES unit/imu_acquisition/bmi088_acquisition_test.cpp
+    LINK driver_bmi088)
 # 含并发生产者场景，沿用历史的 -O2。
-target_compile_options(bmi088_acquisition PRIVATE -O2)
-target_link_libraries(bmi088_acquisition PRIVATE Threads::Threads)
+target_compile_options(test_bmi088_acquisition PRIVATE -O2)
+target_link_libraries(test_bmi088_acquisition PRIVATE Threads::Threads)
+host_test(hal_os_mock
+    SOURCES unit/hal_os/mock_os_test.cpp
+    LINK platform_mock)
+host_test(crc16
+    SOURCES unit/crc/crc16_test.cpp
+    LINK utils_crc)
+# 并发原语：含多线程压力与计数器回绕，用 -O2（编译器重排更激进，回绕测试也快得多）。
+host_test(spsc_queue
+    SOURCES unit/concurrency/spsc_queue_test.cpp
+    LINK utils_concurrency Threads::Threads)
+host_test(latest_value
+    SOURCES unit/concurrency/latest_value_test.cpp
+    LINK utils_concurrency Threads::Threads)
+target_compile_options(test_spsc_queue PRIVATE -O2)
+target_compile_options(test_latest_value PRIVATE -O2)
 
 # ---- 集成测试（底盘任务 + 控制器 + 模拟电机） ----
-foray_host_test(chassis_controller MOCK_BACKEND SOURCES
-    integration/chassis/ChassisControllerTest.cpp
-    "${SUPPORT_DIR}/TaskRuntimeStub.cpp"
-    ${CHASSIS_CONTROL_SOURCES})
-foray_host_test(controller_equivalence MOCK_BACKEND SOURCES
-    integration/chassis/ControllerEquivalenceTest.cpp
-    "${SUPPORT_DIR}/TaskRuntimeStub.cpp"
-    ${CHASSIS_CONTROL_SOURCES})
-foray_host_test(chassis_mock MOCK_BACKEND NO_TEST SOURCES
-    integration/chassis/ChassisMockTest.cpp
-    ${CHASSIS_CONTROL_SOURCES})
+host_test(chassis_controller MOCK_BACKEND
+    SOURCES integration/chassis/chassis_controller_test.cpp
+            "${SUPPORT_DIR}/task_runtime_stub.cpp"
+            ${CHASSIS_CONTROLLER_SOURCES}
+    LINK lib_control)
+host_test(controller_equivalence MOCK_BACKEND
+    SOURCES integration/chassis/controller_equivalence_test.cpp
+            "${SUPPORT_DIR}/task_runtime_stub.cpp"
+            ${CHASSIS_CONTROLLER_SOURCES}
+    LINK lib_control)
+host_test(chassis_mock MOCK_BACKEND NO_TEST
+    SOURCES integration/chassis/chassis_mock_test.cpp
+            ${CHASSIS_CONTROLLER_SOURCES}
+    LINK lib_control)
 foreach(scenario IN ITEMS normal read_failure command_failure init_failure)
-    add_test(NAME mock_${scenario} COMMAND chassis_mock ${scenario})
+    add_test(NAME mock_${scenario} COMMAND test_chassis_mock ${scenario})
 endforeach()
 
 # ---- 架构断言：任务层与通用电机头不得引用具体电机协议、适配器或驱动 ----
 # 任务允许声明通用型号、电机组与品牌映射包含（装配选择）。清单显式列出，
 # 任一文件缺失即报错，提醒搬迁时同步更新；文件改动后会自动重新配置。
 set(MOTOR_BOUNDARY_FILES
-    "${LEGACY_ROOT}/Application/Task/1_chassis/ChassisController.hpp"
-    "${LEGACY_ROOT}/Application/Task/1_chassis/ChassisController.cpp"
-    "${LEGACY_ROOT}/Application/Task/1_chassis/ChassisTask.hpp"
-    "${LEGACY_ROOT}/Application/Task/1_chassis/ChassisTask.cpp"
-    "${LEGACY_ROOT}/Libraries/Device/motor/Motor.hpp"
-    "${LEGACY_ROOT}/Libraries/Device/motor/MotorGroup.hpp")
+    "${PROJECT_SOURCE_DIR}/app/chassis/chassis_controller.hpp"
+    "${PROJECT_SOURCE_DIR}/app/chassis/chassis_controller.cpp"
+    "${PROJECT_SOURCE_DIR}/app/tasks/chassis_task.hpp"
+    "${PROJECT_SOURCE_DIR}/app/tasks/chassis_task.cpp"
+    "${PROJECT_SOURCE_DIR}/src/driver/motor/motor.hpp"
+    "${PROJECT_SOURCE_DIR}/src/driver/motor/motor_group.hpp")
 foreach(source IN LISTS MOTOR_BOUNDARY_FILES)
     if(NOT EXISTS "${source}")
         message(FATAL_ERROR "边界检查清单中的文件不存在：${source}")
     endif()
     file(READ "${source}" body)
-    if(body MATCHES "DjiEsc|DjiMotorAdapter|DjiMotorBackend|DjiMotor\\.hpp|DjiMotor\\.cpp")
+    # 类名与（P2 改名后的）文件名都要拦：DjiEsc、DjiMotorAdapter、dji_esc.hpp、dji_motor.hpp 等。
+    if(body MATCHES "DjiEsc|DjiMotorAdapter|DjiMotorBackend|dji_esc|dji_motor\\.(hpp|cpp)|dji_motor_adapter")
         message(FATAL_ERROR "具体电机实现泄漏到 ${source}")
     endif()
 endforeach()
@@ -126,7 +130,7 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${MOTOR_BOUNDARY_
 # ---- 编译期断言：电机数量与型号在编译期校验 ----
 # 预期编译失败是验收内容，不是工程错误。每次配置都重新检查，不沿用缓存结果。
 include(CheckCXXSourceCompiles)
-set(CMAKE_REQUIRED_INCLUDES "${LEGACY_ROOT}")
+set(CMAKE_REQUIRED_INCLUDES "${PROJECT_SOURCE_DIR}/src")
 
 # check_motor_code(<结果变量> <应能编译：TRUE|FALSE> <源码>)
 function(check_motor_code result should_compile code)
@@ -139,8 +143,8 @@ function(check_motor_code result should_compile code)
     endif()
 endfunction()
 
-set(DJI_MAPPING_INCLUDE "#include <Libraries/Device/motor/dji/DjiMotorModelMap.hpp>")
-set(MOTOR_GROUP_INCLUDE "#include <Libraries/Device/motor/MotorGroup.hpp>")
+set(DJI_MAPPING_INCLUDE "#include <driver/motor/dji/dji_motor_model_map.hpp>")
+set(MOTOR_GROUP_INCLUDE "#include <driver/motor/motor_group.hpp>")
 
 # 对照：头文件本身可编译，保证下面"应被拒绝"的检查不是因为无关错误而失败。
 check_motor_code(MOTOR_GROUP_HEADERS_COMPILE TRUE
@@ -154,10 +158,12 @@ function(check_motor_group result should_compile model count)
 static_assert(sizeof(device::MotorGroup<${model}, ${count}>) > 0);
 int main() {}")
 endfunction()
+# 每个被拒绝的型号都配一个能编译的对照，保证"被拒绝"来自数量检查，而不是型号名写错。
 check_motor_group(MOTOR_GROUP_VALID TRUE device::MotorModel::M2006 4)
 check_motor_group(MOTOR_ZERO_COMPILES FALSE device::MotorModel::M2006 0)
 check_motor_group(MOTOR_NINE_COMPILES FALSE device::MotorModel::M2006 9)
-check_motor_group(GIMBAL_EIGHT_COMPILES FALSE device::MotorModel::GM6020Current 8)
+check_motor_group(GIMBAL_GROUP_VALID TRUE device::MotorModel::GM6020_CURRENT 4)
+check_motor_group(GIMBAL_EIGHT_COMPILES FALSE device::MotorModel::GM6020_CURRENT 8)
 # 未映射型号：即使已包含 DJI 映射，255 仍无特化，必须在编译期拒绝。
 check_motor_group(UNKNOWN_MODEL_COMPILES FALSE "static_cast<device::MotorModel>(255)" 1)
 # 未包含任何品牌映射时，合法型号同样无法实例化（映射是唯一入口）。

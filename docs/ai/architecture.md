@@ -1,295 +1,430 @@
 # 架构判据与依赖规则（foray_mcu）
 
-> **状态**：v1（2026-10-26，P0 创建；负责人评审即 PR 合并后生效，Decision-20261026-02）。本文件是"一段代码该放哪一层、能依赖谁"的唯一人读入口，供人工评审与 AI 代理使用。
-> **权威来源**：[评审报告 v1.0](reviews/2026-10-25-foray_mcu-架构评审报告.md) §3.2–§3.3、§5，以及 [decision.md](../../decision.md) 中的 Accepted 条目。本文件与它们冲突时以后者为准，并同步修正本文件。
-> **修改流程**：新增或修改规则、例外、白名单，先在 decision.md 登记，再改本文件和对应的 CI 检查（§9）。
+> **状态**：v2.2（2026-10-29）。v2.0 见 Decision-20261027-01；v2.1 随 F1 第 1 步更新 utils、middleware、lib 的归类：math 进 utils，fsm 进 middleware（Decision-20261027-02）；v2.2 随 F1 第 2 步加入 utils 的并发原语 `concurrency`（Decision-20261029-01），§3.4 补充 seqlock 的读写竞态（Decision-20261029-02，待定）。v2 按负责人的骨架重写：迁移方式从"改造迁移源"改为"按新骨架重建，迁移源只作参考与零件来源"。v1.0–v1.4（P0–P2.5）见 git 历史与 decision.md。
+> **权威来源**：[decision.md](../../decision.md) 中的 Accepted 条目，v2 起以 Decision-20261027-01 为准。[评审报告 v1.0](reviews/2026-10-25-foray_mcu-架构评审报告.md) 是历史记录，与本文件冲突的部分以本文件为准。
+> **修改流程**：新增或修改规则、例外、白名单，先在 decision.md 登记，再改本文件和对应的 CI 检查（§10）。
 
 ## 0. 怎么用
 
-- **写新代码前**：按 §2 判定位置，按 §4 核对依赖。
-- **评审 PR**：对照 §4 的规则表和 §6 的例外登记。违反规则又不在例外表里的改动，不合并。
-- **现阶段（P0）**：新结构代码还没有，`legacy/` 是冻结的迁移源（只允许机械操作）。规则大多从 P1 起由构建和 CI 执行，每条的生效阶段见 §4；当前 CI 已执行的检查见 §4.3。
+- **写新代码前**：按 §2 判定位置，按 §3 的机制写，按 §5 核对依赖。
+- **评审 PR**：对照 §5 的规则表和 §7 的例外登记。违反规则又不在例外表里的改动，不合并。
+- **现阶段**：P0–P2.5 已完成（源码已搬出 `legacy/`）；下一步是 F1 框架基础件（[plan.md](../../plan.md)）。现有代码中不符合本文件的部分（`hal/detail` 的 C 接口、旧任务外壳、`Application_*` 入口等）登记在 §7，按到期阶段清理，不再为它们调整新设计。
 
-## 1. 术语
+## 1. 原则与术语
+
+### 1.1 原则
+
+1. **以负责人的骨架为准重建**。迁移源只作参考与零件来源：写得好的算法和驱动（PID、VQF、EKF、BMI088、DJI 电机协议等）直接搬来，按新契约适配；不为保持旧结构做妥协。
+2. **先框架，后能力**。框架（`src/` + `platform/` + `cmake/`）建成并验证好用之后，再在其上重建能力；F407 C 板在 DM-MC02 重建完成后再做。
+3. **按模块验证**。宿主单元测试、`test/data` 录制数据回放、实机检查清单。"与旧固件逐符号一致"的判据只用到 P2.5。
+4. **框架不含产品**。`src/`、`platform/`、`cmake/` 不引用 `app/`、`config/`。框架要能给其他小项目（如 MSPM0 裸机）复用。
+5. **静态与确定性**。无堆分配；C++17，`-fno-rtti -fno-exceptions -fno-threadsafe-statics`；热路径不用虚函数。
+
+### 1.2 术语
 
 | 术语 | 含义 |
 |---|---|
-| 框架 | `src/` + `platform/` + `cmake/`：与产品无关，能独立构建、能裸机构建，供其他小项目复用 |
+| 框架 | `src/` + `platform/` + `cmake/`：与产品无关，能独立构建，能裸机构建 |
 | 产品 | `app/` + `config/`：本仓的 RM 下位机固件 |
-| 能力（capability） | 一类行为，如 imu、chassis、gimbal、remote、link、launch。一个能力对应一个 target |
-| profile | 一台具体机器人：用哪块板、哪些能力、什么参数，只含数据。兵种（`robot_type`）是 profile 的属性 |
-| assembly（组合根） | 按 profile 构造对象、建任务表、注入参数、实现启动入口；只被最终固件链接 |
-| 契约 | `src/hal`（硬件资源）、`src/hal/os`（临界区 + 时基）、`src/boot`（启动入口）中的接口头 |
-| port | 某块板对契约的手写实现，可以直接使用厂商 HAL |
-| board | 某块板的引脚、时钟、能力常量、设备 ID、上电初始化、链接脚本 overlay |
-| 生成区 | CubeMX 产生的文件（`cubemx/`）：只能重新生成，不能手改 |
+| 能力（capability） | 一类行为，如 imu、chassis、gimbal、remote、launch、link。一个能力对应一个 target |
+| topic | 一种数据的发布/订阅通道：最新值语义，单发布者（§3.4） |
+| profile | 兵种 × 板：用哪块板、链接哪些能力、什么参数。只含数据 |
+| assembly（组合根） | 按 profile 构造对象、注入参数、定义任务表、实现启动入口；只被最终固件链接 |
+| 契约 | `src/hal`（硬件资源）、`src/hal/os`（临界区、时基、信号）、`src/boot`（启动入口）中的接口头 |
+| port | 某块板对契约的 C++ 实现，可以直接使用厂商 HAL |
+| board | 某块板的物理资源句柄、能力常量、引脚、链接脚本 overlay |
+| 生成区 | CubeMX 产生的文件（`cubemx/`）：只能重新生成；USER CODE 区只允许写启动入口调用（§6） |
 
-## 2. 分层判据：代码放哪里
+## 2. 目录与分层
 
-### 2.1 按顺序问六个问题
+### 2.1 目录总览
 
-第一个回答"是"的问题决定位置：
+```text
+foray_mcu/
+├── src/                      框架：与产品、板都无关；零 RTOS；只靠 platform/mock 就能在宿主机构建
+│   ├── hal/                  硬件契约（C++ 头）：can、spi、uart、gpio、pwm、time、usb_cdc
+│   │   └── os/               OS 契约：临界区、单调时基、信号（等待/唤醒）
+│   ├── boot/                 启动入口 boot.h（extern "C"）：生成区只调它
+│   ├── utils/                无领域含义的基础件：math、crc、concurrency（SPSC 队列、最新值邮箱）
+│   ├── middleware/           给能力用的运行期机制与服务：建立在契约与基础件之上
+│   │   ├── topic/            topic 机制：最新值、单发布者、可在中断里发布、可阻塞等待
+│   │   └── fsm/              通用状态机
+│   ├── lib/                  领域算法：control（pid、slope）、estimate、filter、kinematics、component
+│   ├── driver/               设备驱动与设备协议：bmi088、motor（dji）、buzzer、ws2812、protocol/{dji,sbus}
+│   └── third_party/          vendor 进来的外部生成头（foray_interfaces 的 lower_link.hpp）
+├── platform/                 按板一级
+│   ├── dm_mc02/              DM-MC02（STM32H723）：board.cmake + CMakeLists.txt
+│   │   ├── cubemx/           CubeMX 生成物（冻结）
+│   │   ├── port/             hal 与 hal/os 的 C++ 实现、HAL 回调
+│   │   └── board/            board.hpp：物理资源句柄、能力常量；链接脚本 overlay
+│   └── mock/                 hal 与 hal/os 的宿主替身：测试控制时间、注入外设输入、检查输出
+├── app/                      产品：RM 能力
+│   ├── topics/               本产品全部 topic 的清单（消息类型 + topic 实例），集中一处
+│   ├── common/               任务运行器（FreeRTOS 原生 API）
+│   └── <capability>/         imu、chassis、gimbal、remote、launch、link……（框架验收后重建）
+├── config/
+│   ├── profiles/<兵种>_<板>/   profile.cmake（选板、选能力）+ params.hpp（constexpr 参数）
+│   └── assembly/             组合根：每个 profile 一个源文件
+├── test/host/、test/data/    宿主测试、录制数据
+├── tool/                     烧录、调试、CI 检查；将来的 topic 清单生成器
+└── docs/
+```
 
-1. **是 CubeMX 或厂商产生的文件吗？** → `platform/<vendor>/<mcu>/<board>/cubemx/`，只能重新生成；厂商库同理，不手改。
-2. **直接调用厂商 HAL、寄存器或 RTOS 实现吗？** → 实现契约的代码放 `port/`；引脚、时钟、能力常量、设备 ID、上电初始化放 `board/`。
-3. **描述的是"某一台机器人"吗**（用哪块板、哪些能力、什么参数）？→ 数据放 `config/profiles/<profile>/`；对象构造、任务表、参数注入、启动入口的实现放 `config/assembly/`。
-4. **是 RM 专用的行为吗**（底盘、云台、发射、遥控、上位机链路业务）？→ `app/<capability>/`；线程、节拍、外设独占这类任务外壳放 `app/tasks/` 或 `app/common/`。
-5. **与板和产品都无关，并且至少两个产品真的会用吗？** → `src/` 的对应子层（§2.3）。只有一个产品用的，留在 `app/`，不为尚未出现的项目预先抽象。
+### 2.2 代码放哪里
+
+按顺序问，第一个回答"是"的问题决定位置：
+
+1. **是 CubeMX 或厂商产生的吗？** → `platform/<board>/cubemx/`，只能重新生成；厂商库同理，不手改。
+2. **直接调用厂商 HAL、寄存器或 RTOS 实现吗？** → 实现契约的放 `platform/<board>/port/`；板的物理资源、能力常量、引脚放 `platform/<board>/board/`。
+3. **描述某个兵种 × 板吗**（用哪些能力、什么参数）？→ 数据放 `config/profiles/`；对象构造、参数注入、任务表、启动入口的实现放 `config/assembly/`。
+4. **是 RM 专用的吗？** → 行为放 `app/<capability>/`；产品的 topic 定义放 `app/topics/`；线程与调度机制放 `app/common/`。
+5. **与产品和板都无关吗？**
+   - 没有领域含义、哪一层都可能用（数学、容器、并发原语、校验）→ `src/utils/`；
+   - 领域算法（控制、估计、滤波、运动学、执行器骨架）→ `src/lib/`；
+   - 设备驱动与设备协议 → `src/driver/`；
+   - 给能力用的运行期机制与服务（发布/订阅、状态机；将来的调试遥测、参数存储、链路传输）→ `src/middleware/<名>/`。topic 只有机制，不含任何具体 topic。
+
+   只有一个产品用的，留在 `app/`，不为尚未出现的项目预先抽象。
 6. **只为测试而存在？** → `test/`。**构建之外的工具**（烧录、调试、生成、检查）→ `tool/`。
 
-### 2.2 一级目录
+### 2.3 框架（`src/`）子层
 
-| 目录 | 回答的问题 | 可以依赖 | 不得依赖 |
+| 子层 | 内容 | 可以依赖 | 不得依赖 |
 |---|---|---|---|
-| `app/` | 一类能力或行为怎么实现 | `src` 的契约与公共库；本层 `app/common` | `platform` 的实现与生成区；`config/assembly`；其他能力的内部实现（跨能力只经 `msg` 或契约） |
-| `config/` | 一台具体机器人用哪些能力、什么参数、装在哪块板 | `app`（只有 assembly 链接）；`platform/board`（板能力） | 实现算法、协议或驱动；`profiles` 不得 include 任何代码头 |
-| `platform/` | 某块板如何把契约落到 HAL 或寄存器；CubeMX 生成了什么 | `src/hal`、`src/hal/os` 契约；厂商 HAL、FreeRTOS、USB 栈、CMSIS | `app`、`config` 的任何头（boot 契约除外）；在公共头里暴露 HAL 类型 |
-| `src/` | 与产品和板都无关的通用框架 | 层内白名单（§2.3）；标准库 | `platform` 实现、`app`、`config`、RTOS 与 HAL 头（`hal/os` 契约除外） |
-| `test/` | 契约与行为能否脱离硬件验证 | 被测 target + `platform/mock` + ctest | 真实 port 与生成区；**不得进入固件链接图** |
-| `tool/` | 烧录、调试、生成、检查怎么做 | 无构建期依赖 | 成为固件构建的必需步骤；被 `.gitignore` 忽略 |
-| `docs/` | 分层判据、决策、证据链 | — | 与代码或 CI 规则不一致 |
+| `hal/` | 硬件资源契约（§3.1） | 标准库、`hal/os` | 厂商头、RTOS、其他层 |
+| `hal/os/` | 临界区、单调时基、信号（§3.2） | 标准库 | 同上 |
+| `boot/` | 启动入口声明（§3.3） | 标准库 | 同上 |
+| `utils/` | 数学（向量、四元数、矩阵）、CRC、并发原语（`concurrency`：SPSC 队列、最新值邮箱 seqlock）。每个子目录一个 target `utils_<名>` | 标准库 | 其他所有层（包括迁移期的构建开关 `legacy_build_options`） |
+| `middleware/` | 给能力用的运行期机制与服务：`topic`（§3.4）、`fsm`（通用状态机）；将来按需加调试遥测、参数存储、链路传输，新增先登记 | `utils`、`hal/os`、中间件内部（无环）；传输类服务另可依赖 `hal` | `driver`、`lib`、`app`、RTOS |
+| `lib/` | 领域算法；层内无环（`component` → `control`）；数学基础在 `utils/math` | 标准库、`utils`、`lib` 内部 | `hal`、`driver`、`middleware` |
+| `driver/` | 设备驱动与设备协议 | `hal`、`hal/os`、`lib`、`utils`、驱动内部 | `middleware`、`app`、RTOS |
+| `third_party/` | vendor 的外部生成头，固定版本 + sha256 | 标准库 | 手工修改 |
 
-### 2.3 子层依赖
+- 驱动不发布 topic：驱动要能脱离本产品的 topic 清单复用，由能力把驱动的数据发布出去。
+- topic 只依赖 `utils` 与 `hal/os`，裸机与宿主测试都能用。
+- `middleware` 只收与产品无关、给能力用的运行期机制与服务（topic、状态机等）。硬件契约、无领域基础件、算法、设备驱动各有其层，不放这里，避免它变成杂物间。
+- driver 与 lib 不依赖 middleware：状态机是给能力组织模式与流程用的；驱动内部的少量状态自己处理（Decision-20261027-02）。
 
-框架（`src/`）：
+### 2.4 产品（`app/`、`config/`）
 
-| 子层 | 回答的问题 | 可以依赖 | 不得依赖 |
+| 位置 | 内容 | 可以依赖 | 不得依赖 |
 |---|---|---|---|
-| `hal/` | 硬件资源的 C++ 契约（can、gpio、pwm、spi、time、uart、usb_cdc） | 标准库 | 其他层、OS、厂商头 |
-| `hal/os/` | 最小 OS 契约：RAII 临界区守卫 + 单调时基（可选忙等延时） | 标准库 | 同上 |
-| `boot/` | 生成区可以调用的启动入口（`extern "C"` 声明） | 标准库 | 同上 |
-| `lib/` | 纯算法与组件（数学、控制、估计、滤波、运动学、状态机、CRC、斜坡） | 标准库、`lib` 内部 | `hal`、`driver`、`msg`、OS |
-| `utils/` | 零平台工具与并发原语（计数器、最新值邮箱、SPSC 队列） | 标准库 | `hal`、`lib`、`driver`、OS |
-| `driver/` | 设备驱动与设备协议 | `hal`、`lib`、驱动内协议 | `msg`、OS、`app` |
-| `msg/` | 最新值邮箱 / SPSC 队列（v1）；topic 在 P3b 之后按需引入 | `utils`、`hal/os` 契约 | `driver`、`app` |
-| `middleware/` | 链路适配等跨模块服务 | `msg`、`hal`、`lib`；链路适配可以依赖 `driver` | `app` |
-| `third_party/` | vendor 进来的外部生成头（`foray_interfaces` 的 `lower_link.hpp`） | 标准库 | 手工修改 |
+| `app/topics/` | 全部 topic 的消息类型与实例（§3.4） | `middleware/topic`、标准库 | 能力实现、RTOS、`lib` 类型（消息只用标准标量与定长数组） |
+| `app/<capability>/` | 能力实现（§3.5） | `hal`、`hal/os`、`utils`、`middleware`、`lib`、`driver`、`app/topics` | RTOS、`platform`（含 `board.hpp`）、`config`、其他能力 |
+| `app/common/` | 任务运行器 | FreeRTOS 原生 API（`os_freertos_<board>`）、`hal/os` | 能力实现、`platform` 实现 |
+| `config/profiles/` | `profile.cmake` 与 `params.hpp`（§3.6） | 能力的配置类型头、标准库 | 任何逻辑代码 |
+| `config/assembly/` | 组合根（§3.6） | 全部能力、`app/common`、profile、`board.hpp`、`boot`、`os_freertos_<board>` | 被固件以外的任何 target 依赖 |
 
-产品（`app/`）：
+## 3. 关键机制
 
-| 子层 | 可以依赖 | 不得依赖 |
-|---|---|---|
-| `app/<capability>` | `lib`、`driver`、`msg`、`middleware`、`hal` | OS、`platform` 实现、`config/assembly` |
-| `app/tasks`、`app/common` | 上面全部 + `foray_os_freertos_<board>`（迁移期可用 `cmsis_os2.h`，终态用 FreeRTOS 原生 API） | `platform` 实现、`config/assembly` |
+### 3.1 硬件契约 `src/hal`
 
-契约头（`hal`、`hal/os`、`boot`）里的类型只用 `enum class`、POD 结构与不透明 ID/句柄，不暴露厂商或 RTOS 类型。
+- **风格**：命名空间 + 自由函数 + 不透明句柄，链接期绑定。一次构建只链接一块板的 port，没有虚函数，没有运行期分派。示意（F2 定稿）：
 
-### 2.4 容易放错的几类代码
+  ```cpp
+  namespace hal::can
+  {
+  struct Bus
+  {
+      std::uint8_t index;  // 不透明句柄，值由 board.hpp 提供
+  };
+  enum class SendResult : std::uint8_t { QUEUED, QUEUE_FULL, NOT_READY, BUS_OFF, INVALID_ARGUMENT };
+  SendResult send(Bus bus, const Frame &frame) noexcept;
+  bool receive(Bus bus, Frame &frame) noexcept;  // 从 port 的接收队列取一帧
+  void set_receive_notification(Bus bus, Notification notification, void *context) noexcept;
+  }
+  ```
 
-- **型号固有参数与整车选择**（Q11）：电机、电调型号的厂商固有参数（电调档案、原生减速比）属于驱动层，`DjiMotorModelMap` 留在 `src/driver/motor/dji`；整车选哪个型号、接哪路 CAN、用什么 ID、增益与限幅，属于 `config`（profile 数据，assembly 注入）。
-- **板级逻辑设备**：公共契约头不枚举"这台机器人有哪些设备"，只定义 API 和不透明 ID 类型；ID 常量由 `platform/*/board` 的头提供，驱动经 `Config` 接收，由 assembly 注入（P3a 落地）。
-- **能力裁剪**：用 target 组合表达（assembly 只链接 profile 列出的能力，未链接的能力不进镜像），不用 `#if`。模块内部的差异用 `constexpr bool`、依赖注入或非虚接口表达。
-- **新兵种、新行为、新板**：新兵种 = 新 profile（既有能力重组 + 参数）；新行为 = 新能力 target；新板 = 新 `platform` board。都不复制已有代码目录。
-- **线程、队列、事件**：不进框架，只出现在 `app/tasks`、`app/common` 与 `config/assembly`。框架需要互斥或时间时只经 `src/hal/os`。
-- **PortKit 的去向**：队列和通知 → `src/utils`；临界区契约 → `src/hal/os`；CMSIS 实现 → `platform/.../port`。
-- **链路协议**：只用 vendor 的 `lower_link.hpp`，`app/` 与 `src/` 中不得手写帧或 CRC。
+- **设备不进契约**：契约头不枚举"这台车有哪些设备"。`platform/<board>/board/board.hpp` 给出物理资源句柄（如 `board::CAN_1`、`board::SPI_IMU`）。整车用哪个资源、接哪个设备，由 profile 决定，assembly 注入驱动的 `Config`。
+- **能力分级**：每个外设接口分必选与可选。可选能力由 `board.hpp` 的 `constexpr` 常量声明（如 `board::SPI_ASYNC`），使用方用 `static_assert` 检查或提供回退，不留到运行期才发现。
+- **类型**：只用 `enum class`、POD 结构与句柄，不出现厂商或 RTOS 类型。每个函数注明能否在中断里调用；每个回调注明在什么上下文执行。
+- **初始化**：`hal::init()` 由 port 实现，assembly 在 `boot_init()` 里调用；生成区不直接调用 port。
+- 现有的 `src/hal/detail`（C 接口）和 `platform::Can` 这类包装类在 F2 删除。
 
-## 3. target 依赖图（目标态）
+### 3.2 OS 契约 `src/hal/os`
+
+- `CriticalSection`：RAII 守卫，构造时关中断并保存状态，析构时恢复，可嵌套。
+- 单调时基：`now_ticks()`、`tick_frequency_hz()`，以及换算辅助。
+- `Signal`：二值信号。`wait(timeout)` 在任务上下文阻塞；`notify()` 在任务或中断上下文都可调用，由实现区分上下文。topic 的阻塞等待用它实现。
+- 实现：`platform/<board>/port`（FreeRTOS 任务通知；裸机板用标志位 + WFI）与 `platform/mock`（宿主线程，测试可控制时间）。
+- 线程、队列、事件组不进框架。
+
+### 3.3 启动入口 `src/boot`
+
+```c
+bool boot_init(void);       // main.c：外设初始化后、内核初始化前
+bool boot_init_rtos(void);  // freertos.c：创建任务
+void boot_run(void);        // 默认任务：留给 assembly 的周期工作（可为空）
+```
+
+- `src/boot/boot.h` 用 `extern "C"` 声明，实现在 `config/assembly`。
+- CubeMX 生成的 `main.c`、`freertos.c` 只在 USER CODE 区调用这三个函数。CubeMX 再生成时会保留 USER CODE 区；这是生成区唯一允许的手工内容（§6）。
+
+### 3.4 topic（`src/middleware/topic`）
+
+**语义**：
+
+| 项 | 规定 |
+|---|---|
+| 数据 | 每个 topic 一种消息类型；发布覆盖旧值，订阅者读最新一份。不排队，不保证每条都收到；丢了几次可以观测 |
+| 发布者 | 每个 topic 只有一个发布者。取得发布句柄的操作每个 topic 只能成功一次，在初始化阶段完成，失败则 `boot_init()` 失败 |
+| 中断 | 允许在中断里发布；中断里不订阅（理由见下方"读写竞态"） |
+| 订阅 | `update(msg) -> bool`：有新数据才拷贝；`wait(msg, timeout) -> bool`：阻塞到下一次发布 |
+| 消息 | 可平凡拷贝（`static_assert`），只用标准整数、浮点、`bool` 与定长数组，尽量小 |
+| 观测 | 每个 topic 的发布次数、最后发布时刻；每个订阅者的丢失次数。调试通道可以列出全部 topic |
+| 不做 | 队列、多发布者、运行期发现、回调式订阅（回调会在发布者的上下文里执行，中断里不可控） |
+
+**实现要点**：
+- 存储用单写者 seqlock（`utils/concurrency` 的 `LatestValue`）：只用原子读写与内存屏障，没有原子读改写，Cortex-M0+ 也能用（规则 13）。
+- **读写竞态**：读端遇到写入中途会重试，直到写端写完，所以读端不能在写入中途抢占写端，否则单核上写端再也轮不到运行，读端无限重试。中断读任务发布的 topic 是一种情况；高优先级任务读低优先级任务发布的 topic 是另一种，同样会卡死。处理方式待定（Decision-20261029-02，Proposed），AI 建议发布时用 `hal::os::CriticalSection` 包住写入。决定之前：中断里不订阅，订阅者的优先级不高于发布者。
+- 等待槽数量是编译期常量；订阅者用自己的 `hal::os::Signal` 注册，发布时逐个通知。
+- topic 对象常量初始化，不依赖全局构造顺序。
+
+**清单**：
+- 产品的全部 topic 集中定义在 `app/topics/`，按发布者所属的能力分文件、分命名空间。
+- topic 的单位是"一种数据"，归发布它的能力所有。一个能力可以发布多个 topic（如 `topics::imu::attitude`、`topics::imu::raw`），也可以订阅任何 topic。
+- 框架验证好用之后，清单改为从描述文件生成（生成器放 `tool/`）。
+
+  ```cpp
+  // app/topics/imu.hpp（示意）
+  namespace topics::imu
+  {
+  struct Attitude
+  {
+      float quaternion[4];
+      float euler_rad[3];
+      std::uint32_t timestamp_ticks;
+  };
+  inline topic::Topic<Attitude> attitude{"imu.attitude"};  // Topic 的构造函数是 constexpr，保证常量初始化
+  }
+  ```
+
+**多个来源**：同一种数据有多个来源时（如遥控和上位机都能给云台指令），加一个仲裁能力：订阅各来源的 topic，按优先级与超时发布唯一的指令 topic。优先级规则因此显式、可测。
+
+### 3.5 能力与任务
+
+**能力**：
+- 每个能力是一个 target `app_<capability>`。对外提供：
+  - `Config`：POD，包含参数与驱动对象引用；
+  - `init(const Config &) -> bool`；
+  - `step(now)`。
+- 输入输出只经 topic 与注入的驱动对象。能力零 RTOS，宿主测试直接调用 `step()`。
+- 能力之间不 include 彼此的头，共享的只有 `app/topics`。
+
+**任务**：
+- 任务表在 assembly。每个任务包含：名称、栈大小、优先级、触发方式（周期 N 个 tick，或等待某个 topic），以及按顺序调用的 `step` 列表。
+- `app/common` 的任务运行器按表创建 FreeRTOS 任务（原生 API），并巡检栈水位。
+- 中断里只做"取数据 + 发布 topic"，计算放在任务里。
+
+### 3.6 profile 与组合根
+
+- **profile = 兵种 × 板**，目录 `config/profiles/<兵种>_<板>/`。一个兵种只有一台车，不需要单车覆盖。
+  - `profile.cmake`：`PROFILE_ID`、`BOARD`、`CAPABILITIES`（链接哪些能力 target）。
+  - `params.hpp`：`constexpr` 参数（PID、电机型号与 ID、机械尺寸、IMU 安装方向等）。可以 include 能力的配置类型头，只含数据。
+- 唯一的构建开关是 `-DPROFILE=<名称>`。
+- **assembly**：每个 profile 一个源文件 `config/assembly/<profile>.cpp`（出现第二个 profile 后再抽公共部分）。它负责：
+  - 构造驱动与能力对象；
+  - 把 board 句柄与 params 注入 `Config`；
+  - 定义任务表；
+  - 实现启动入口。
+- **能力裁剪**：profile 不链接某个能力，它就不进镜像。不用 `#if`。
+- **框架验证**用 `bringup_dm_mc02` profile：不含 RM 能力，只演示并检查框架（plan.md F2–F4）。
+
+### 3.7 板级 `platform/<board>/`
+
+- 按板一级，目录名即板标识（`dm_mc02`）。`board.cmake` 声明 CPU 与烧录配置。
+- `cubemx/` 放生成物；`port/` 放 C++ 实现的 hal 与 hal/os、HAL 回调、FreeRTOS 相关实现；`board/` 放 `board.hpp`、链接脚本 overlay。
+- port 与 board 用 OBJECT 库：port 里有覆盖 HAL 弱符号的回调，放进静态库会被链接器静默丢弃。
+- 出现同一芯片的第二块板时，再决定共用代码放在哪里（先登记）。
+- `platform/mock` 实现 hal 与 hal/os，只供宿主测试。它是测试替身，不构成 `src` 对 `platform` 的依赖。
+
+## 4. target 依赖图
 
 箭头指向被依赖方。
 
 ```text
-EXECUTABLE  foray_firmware_<profile>
- ├─ STATIC       foray_assembly_<profile>        config/assembly（组合根：任务表、对象构造、boot 实现）
- │   ├─ INTERFACE foray_profile_<profile>        config/profiles（纯数据生成头，叶子，无依赖）
- │   ├─ INTERFACE foray_boot                     src/boot（C 兼容的启动契约头，extern "C"）
- │   ├─ STATIC    foray_app_<capability>         app/<capability>（集合由 profile 决定）
- │   │   ├─ INTERFACE/STATIC foray_app_common
- │   │   ├─ INTERFACE foray_hal                  src/hal（C++ 契约，由 port 直接实现）
- │   │   ├─ INTERFACE foray_hal_os               src/hal/os（临界区 + 单调时基；实现在 port）
- │   │   ├─ INTERFACE foray_utils                src/utils（零平台工具）
- │   │   ├─ STATIC    foray_lib_<pkg>            src/lib（纯算法与组件）
- │   │   ├─ STATIC    foray_driver_<device>      src/driver → foray_hal + foray_lib
- │   │   ├─ STATIC    foray_msg                  src/msg → foray_utils（+ foray_hal_os）
- │   │   └─ STATIC    foray_middleware_<svc>
- │   ├─ INTERFACE foray_os_freertos_<board>      FreeRTOS 头与宏（迁移期含 CMSIS-RTOS2；只对 app/tasks、app/common、assembly 可见）
- │   └─ OBJECT    foray_board_<board>            platform/<vendor>/<mcu>/<board>/board
- └─ OBJECT       foray_port_<board>              platform/.../port（实现 foray_hal 与 foray_hal_os；PRIVATE 依赖厂商代码）
-     ├─ OBJECT   foray_mx_generated_<board>      cubemx/ 生成物（Core、USB_DEVICE、Middlewares）
-     ├─ OBJECT   foray_rtos_<board>
-     └─ OBJECT   foray_usb_<board>
+EXECUTABLE  firmware_<profile>
+ ├─ STATIC    assembly_<profile>        config/assembly/<profile>.cpp
+ │   ├─ INTERFACE profile_<profile>     config/profiles/<profile>（params.hpp）
+ │   ├─ INTERFACE boot                  src/boot
+ │   ├─ STATIC    app_common            app/common → os_freertos_<board>、hal_os
+ │   ├─ STATIC    app_<capability>      app/<capability>
+ │   │   ├─ INTERFACE app_topics        app/topics → middleware_topic
+ │   │   ├─ 库       middleware_topic   src/middleware/topic → utils、hal_os
+ │   │   ├─ STATIC  driver_<device>     src/driver → hal、hal_os、lib、utils
+ │   │   ├─ STATIC  lib_<pkg>           src/lib → utils
+ │   │   ├─ STATIC  utils_<名>          src/utils（只依赖标准库；只有头文件的是 INTERFACE，如 utils_concurrency）
+ │   │   └─ INTERFACE hal、hal_os        src/hal（实现在 port）
+ │   ├─ INTERFACE os_freertos_<board>   FreeRTOS 头（只对 app_common、assembly 可见）
+ │   └─ OBJECT    board_<board>         platform/<board>/board（board.hpp、链接脚本）
+ └─ OBJECT    port_<board>              platform/<board>/port → mx_generated、rtos、usb（OBJECT）
 
-宿主测试（不交叉编译）：
-EXECUTABLE foray_test_<name>  →  被测 target + STATIC foray_platform_mock + ctest
-
-框架独立构建 / 裸机构建（CI）：
-只配置 src/ + platform/mock，不含 app/、config/，不提供任何 RTOS 头 → 全部框架 target 编译通过
+宿主测试：test_<name> → 被测 target + platform_mock
+框架独立构建：只配置 src/ + platform/mock，不含 app/、config/，不提供 RTOS 头
 ```
 
-- **只有最终固件 executable 可以链接 `foray_assembly_*`**；库和测试都不得链接。
-- `foray_os_freertos_<board>` 是 INTERFACE，只暴露头和宏；FreeRTOS 的实现（OBJECT）只链入 `foray_port_<board>`。
-- `foray_platform_mock` 用 C++ 实现 `foray_hal` 与 `foray_hal_os`，只供宿主测试；它是测试替身，不构成 `src` 对 `platform` 的依赖。
-- **port 与 board 用 OBJECT 库，不用 STATIC**：port 中有覆盖 HAL 弱符号的回调。静态库里的目标文件只在有未解析引用时才被拉入，回调单独成文件后会被静默丢弃，中断回调退化成 HAL 的空实现。也可以用 CMake 3.24+ 的 `$<LINK_LIBRARY:WHOLE_ARCHIVE,...>`。
+- 只有最终固件可以链接 `assembly_*`。
+- 间接依赖的 OBJECT 库用 `cmake/targets.cmake` 的 `link_object_library()` 把目标文件传到固件。
+- target 名不带项目前缀（Decision-20261026-06）。
+- CMake 文件按层组织，一层一个 `CMakeLists.txt`（Decision-20261026-07）。
 
-## 4. 依赖规则
+## 5. 依赖规则
 
-### 4.1 执行方式
+### 5.1 执行方式
 
-每个 target 用 PRIVATE include 之后，规则 1–8 的大部分由 CMake 本身保证：看不到的头就 include 不了。CI 只补三类检查：
+每个 target 用 PRIVATE include 之后，大部分规则由 CMake 本身保证：看不到的头就 include 不了。CI 补三类检查：
+- **依赖图**：`cmake --graphviz` 导出后，由 `tool/ci/arch_check.py graph` 检查；
+- **文本扫描**：由 `arch_check.py scan` 完成；
+- **符号与哈希**：HAL 回调未被 C++ 改名，生成区清单与 vendor 头哈希一致。
 
-- **target 图断言**：用 `cmake --graphviz` 导出依赖图，检查无环、`app` 到不了 port、`src` 到不了 `platform`、只有 executable 到得了 assembly、节点与边的集合符合 §3。
-- **文本扫描**：`file(GLOB)`、全局 include、`#if FORAY_`、厂商与 RTOS 名、手写帧与 CRC、原子读改写。
-- **哈希与符号检查**：生成区清单、vendor 头哈希、HAL 回调符号未被 C++ 改名。
+### 5.2 规则表
 
-检查脚本放在 `tool/ci/`（或 `cmake/checks/`），随规则的生效阶段逐步加入 `.github/workflows/ci.yml`。
-
-### 4.2 规则表
-
-规则条文与评审报告 §5.3 一致。
-
-| # | 规则 | 主要检查方式 | 生效阶段 |
+| # | 规则 | 主要检查方式 | 生效 |
 |---|---|---|---|
-| 1 | `app` 不得链接或看见 `foray_port_*`、`foray_board_*`、`foray_mx_generated_*`、`foray_rtos_*`、`foray_usb_*`、`foray_assembly_*` | PRIVATE include + target 图断言 | P1（target 骨架）；`app` 代码在 P2 出现 |
-| 2 | `src` 源码不得 include 或链接 `platform` 实现；`src` 的宿主测试可以链接 `platform/mock`；`src` 必须能只靠 mock 在宿主机构建 | target 图断言；框架独立构建 | P1（mock 最小实现）；框架独立构建 CI 在 P3a |
-| 3 | `src/hal` 头（含 `os/`）不得出现 `stm32`、`cmsis`、`HAL_`、`FreeRTOS`、`cmsis_os2`，只允许标准库头；契约类型只用 enum class、POD 结构与不透明 ID/句柄 | 文本扫描 `src/hal/**` | P1（`src/hal` 建立）；P2 暂放的 `src/hal/detail/` 见例外 X-07 |
-| 4 | `config/profiles/**` 不得 include 任何工程头；profile 是叶子 | 文本扫描；target 图断言（profile 无依赖） | P3b（profile 落地） |
-| 5 | `foray_assembly_*` 是组合根：只有最终 executable 可以链接它；任何库与测试不得链接；它的头不得被其他 target include（boot 头除外） | target 图断言 | P1 |
-| 6 | `test` 不得链接 `foray_port_*`、`foray_board_*`、`foray_assembly_*` 的真实实现；测试二进制不得进入固件链接图 | target 图断言 | P1 |
-| 7 | `platform/**/cubemx/**` 不得 include `app/`、`config/`、`Application/` 的头；只允许 boot 与 board 契约头 | 文本扫描 | P3b（boot ABI 落地）；在此之前见例外 X-09 |
-| 8 | 禁止 `file(GLOB)` 收集业务源码；禁止全局 `include_directories()`；每个 target 显式声明 PRIVATE/PUBLIC/INTERFACE | 文本扫描 CMake 文件 | P1（根 CMake）；`legacy/` 自带的构建文件见例外 X-12 |
-| 9 | `app/` 与 `src/` 中禁止 `#if.*FORAY_`（能力裁剪用 target 组合）；`#if` 只允许出现在生成头与 platform 适配层 | 文本扫描 | P1 |
-| 10 | 只有 `app/tasks`、`app/common` 与 `config/assembly` 可以 include RTOS 头（经 `foray_os_freertos_<board>`）；迁移期可用 `cmsis_os2.h`，终态改用 FreeRTOS 原生 API；`app/<capability>` 与整个 `src/` 零 RTOS，需要临界区或时间时只经 `foray_hal_os` | target 可见性 + 文本扫描 `src/**`、`app/<capability>/**` | P3a（OS 契约实体）；任务层改原生 API 在 P3b |
-| 11 | 链路协议只允许来自 vendor 的 `lower_link.hpp`（固定版本 + sha256）；`app/` 与 `src/` 中禁止手写帧与 CRC | vendor 哈希校验 + 文本扫描 | P4 |
-| 12 | `app`、`src`、`platform` 的一级目录都有白名单（§4.4）；新增需在 decision.md 登记 | 脚本比对白名单 | P1 |
-| 13 | 框架代码（`src/`）不直接使用 `std::atomic` 的读改写操作（`fetch_*`、`exchange`、`compare_exchange_*`），一律用 `src/utils` 的并发原语（Cortex-M0+ 没有独占访问指令，做不到无锁） | 文本扫描 `src/**` | P3a（并发原语落地）；迁移期见例外 X-08 |
-| 14 | 框架代码开启 `-Wdouble-promotion`；豁免清单只含 IMU 姿态解算中有意使用 double 的文件，新增豁免需在 decision.md 登记 | 编译选项（`cmake/foray_targets.cmake`） | P3a；豁免清单见例外 X-06 |
-| 15 | 框架（`src/`、`platform/`、`cmake/`）不得引用产品（`app/`、`config/`）的任何路径或 target；框架必须能独立配置和构建 | 文本扫描 + 框架独立构建 | P1 起扫描；框架独立构建 CI 在 P3a |
-| 16 | C 链接（`extern "C"`）只允许出现在 §8.3 列出的三处；覆盖 HAL 弱符号的 `.cpp` 必须 include 对应的 HAL 头，让回调继承 C 链接 | `nm` 检查 `HAL_*Callback` 符号未被改名 | P3a（port 改写为 C++）；`legacy/` 的 C 接缝见例外 X-07 |
+| 1 | `app` 不得链接或看见 `port_*`、`board_*`（含 `board.hpp`）、生成区、`assembly_*` | 依赖图 | 已执行；`board.hpp` 在 F2 |
+| 2 | `src` 不得 include 或链接 `platform` 实现、`app`、`config`；必须能只靠 `platform/mock` 在宿主机构建 | 依赖图；框架独立构建 | 已执行；独立构建在 F1 |
+| 3 | 契约头（`src/hal` 含 `os`、`src/boot`）只用标准库头；类型只用 enum class、POD、不透明句柄；不出现厂商与 RTOS 名 | 文本扫描 | 已执行；`hal/detail` 见 X-07 |
+| 4 | `config/profiles` 只含数据：`params.hpp` 只能 include 能力的配置类型头与标准库头 | 文本扫描 | F2 |
+| 5 | 只有最终固件可以链接 `assembly_*` | 依赖图 | 已执行 |
+| 6 | 测试不得链接 port、board、生成区、assembly | 依赖图 | 已执行 |
+| 7 | 生成区只在 USER CODE 区调用 `boot_*`（及 X-01 的 USB 接口）；不得 include `app`、`config` 的头 | 文本扫描 | F2；之前见 X-09 |
+| 8 | 禁止 `file(GLOB)` 收集源码；禁止全局 `include_directories()`；每个 target 显式声明 PRIVATE/PUBLIC/INTERFACE | 文本扫描 | 已执行 |
+| 9 | `app/`、`src/` 中不用 `#if` 做裁剪（头文件保护与 `__cplusplus` 除外） | 文本扫描 | 已执行；X-14 放行 |
+| 10 | RTOS 头只对 `app/common` 与 `config/assembly` 可见，用 FreeRTOS 原生 API；能力与 `src` 零 RTOS，只经 `hal/os` | 依赖图 + 文本扫描 | F2；之前见 X-04 |
+| 11 | 上位机链路协议只用 vendor 的 `lower_link.hpp`，不手写帧与校验（`utils` 的 CRC 只给设备协议用，如裁判系统） | vendor 哈希 + 文本扫描 | 链路能力重建时 |
+| 12 | `app`、`src`、`platform`、`config` 的一级目录有白名单（§5.4），新增先登记 | 文本扫描 | 已执行 |
+| 13 | 不用 `std::atomic` 的读改写（`fetch_*`、`exchange`、`compare_exchange_*`）；并发只用 `utils` 原语与 topic | 文本扫描 | F1；之前见 X-08 |
+| 14 | 框架开启 `-Wdouble-promotion`，豁免清单见 X-06 | 编译选项 | F3 |
+| 15 | 框架（`src/`、`platform/`、`cmake/`）不得引用产品的路径或 target | 文本扫描 + 框架独立构建 | 已执行 |
+| 16 | C 链接只允许 §9.3 列出的几处；覆盖 HAL 弱符号的 `.cpp` 必须 include 对应 HAL 头 | `nm` 检查 `HAL_*Callback` | F2 |
+| 17 | topic 只在 `app/topics` 定义；每个 topic 一个发布者；消息可平凡拷贝，只用标准标量与定长数组 | `static_assert` + 初始化检查 + 文本扫描 | F1 |
+| 18 | 能力之间只经 topic 通信：`app_<capability>` 不得依赖其他 `app_<capability>` | 依赖图 | F2 |
 
-### 4.3 当前 CI 已执行的检查（P0）
+### 5.3 CI 检查
 
-见 `.github/workflows/ci.yml` 与 Decision-20261026-01：
-
-| 作业 | 检查内容 | 有效期 |
+| 作业 | 内容 | 变化 |
 |---|---|---|
-| `lint-c` | `tool/ci/format.py --check`：全部手写 C/C++ 文件必须符合 `.clang-format`（18.1.8）；排除生成区、厂商代码与 vendor 生成头 | 长期（P0.5 起全量，Decision-20261026-04） |
-| `lint-naming` | `tool/ci/naming.py --check`：C++ 标识符必须符合 `.clang-tidy`（ROS 2 命名，clang-tidy 18.1.8）；编译数据库为 legacy 固件 Debug、Release 与宿主测试，孤立头文件单独检查 | 长期（P0.5 起全量，Decision-20261026-05） |
-| `host-tests` | `test/host` 的 13 项 ctest | 长期 |
-| `firmware-legacy` | 构建 `legacy/` 的 Debug 与 Release；**Release 镜像必须与基线 SHA-256 逐字节一致** | P0–P0.5；P1 起改为根工程构建 + 符号名与大小集合对照 |
+| `lint-python`、`lint-c`、`lint-naming` | ruff/black；clang-format 18.1.8；clang-tidy 18.1.8 命名 | 不变 |
+| `lint-arch` | `arch_check.py scan` | 随 F1、F2 加入规则 4、7、13、17 |
+| `host-tests` | host-tests preset 的 ctest；宿主依赖图 | F1 增加框架独立构建（`src` + `platform/mock`） |
+| `firmware` | arm-debug、arm-release 构建；固件依赖图；与 P1 存档的符号对照 | 符号对照在 F2 退役（行为开始改变），改为构建 + 段大小报告；F2 增加 HAL 回调符号检查 |
 
-### 4.4 一级目录白名单（规则 12）
+### 5.4 一级目录白名单（规则 12）
 
 | 目录 | 白名单 |
 |---|---|
-| `app/` | `common`、`imu`、`chassis`、`gimbal`、`remote`、`link`、`launch`、`debug_comm`（临时，调优后删除）、`tasks` |
-| `src/` | `hal`（含 `os`）、`boot`、`lib`、`driver`、`msg`、`middleware`、`utils`、`third_party` |
-| `platform/` | `st`、`ti`、`mock`；其下按 `<vendor>/<mcu>/<board>/{cubemx,port,board}` 组织（如 `st/stm32h7/board_dm`、`st/stm32f4/board_c`） |
+| `src/` | `hal`（含 `os`）、`boot`、`utils`、`middleware`、`lib`、`driver`、`third_party` |
+| `app/` | `topics`、`common`、`imu`、`chassis`、`gimbal`、`remote`、`launch`、`link`（新增能力先登记） |
+| `platform/` | `mock` 与各板标识（`dm_mc02`；F407 C 板在阶段 B 加入） |
+| `config/` | `profiles`、`assembly` |
 
-`src/bsp/` 不在白名单内：仓库里 7 个 0 字节占位头（未入 git）在 P1 建 `src/hal` 时删除。
+## 6. 生成区与 vendor 治理
 
-## 5. 生成区与 vendor 治理
+- `platform/<board>/cubemx/` 只放生成物。手写内容只允许出现在 USER CODE 区，且只能是对 `boot_*` 的调用（以及 X-01 的 USB 接口调用）。这些行登记在 decision.md，由 CI 文本扫描检查。
+- 生成区的其他变更只能通过重新生成，并先在 decision.md 登记。
+- 再生成可复现：CI 用 sha256 清单校验；有装 CubeMX 的 runner 时再加 regenerate-diff。
+- 板级 CMake 的再生成防护保留：USB OTG HS 内部 DMA 必须开启；USB port 必须含 PA11/PA12 复用配置。
+- 链接脚本：生成的 `.ld` 不改，自定义段放 `platform/<board>/board/overlay.ld`，作为第二个 `-T` 追加（Q9）。
+- vendor 生成头：`src/third_party/foray_interfaces/` 固定版本并记录 sha256，CI 校验，不手改。
+- 层级声明：`.foray-layer` 为 `layer: MCU`、`depends_on_layers: [X2]`，对 X2（`foray_interfaces`）只消费 vendor 的生成头。
 
-- `platform/**/cubemx/**` 只放生成物（Core、Drivers、Middlewares、USB_DEVICE、`.ioc`、startup、`.ld`），手写代码 0 个；`port/`、`board/` 在物理上分开。
-- 生成区只能通过重新生成修改，禁止手工编辑；生成区变更须先在 decision.md 登记，PR 中单独说明（当前只有电控组一个 team，CODEOWNERS 无法单独分派）。
-- 再生成可复现：CI 默认用 `generated.manifest`（sha256 清单）校验；有装 CubeMX 的 runner 时再加 regenerate-diff。
-- 现有板级 CMake 的两条再生成防护保留：USB OTG HS 内部 DMA 必须开启；UsbCdc port 必须含 PA11/PA12 复用配置。
-- 链接脚本：CubeMX 生成的 `.ld` 冻结不改，自定义段放 `platform/.../board/link/overlay.ld`，作为第二个 `-T` 追加；CI 验证再生成后段仍在（Q9，P4 落地）。
-- vendor 生成头：`src/third_party/foray_interfaces/` 固定版本并记录 sha256，CI 校验哈希；不手改。
-- 层级声明：本仓 `.foray-layer` 为 `layer: MCU`、`depends_on_layers: [X2]`，对 X2（`foray_interfaces`）只消费 vendor 的生成头，没有构建期依赖。
+## 7. 例外登记
 
-## 6. 例外登记
+本表是全部生效中例外的唯一清单。新增例外先在 decision.md 登记；到期项完成后标为已关闭。已关闭的 X-11、X-12、X-13、X-15 见 decision.md。
 
-本表是全部已批准例外的唯一清单。新增例外先在 decision.md 登记，再加入本表；到期项完成后从表中移到 decision.md 的执行记录。
+| 编号 | 例外 | 涉及规则 | 处置与到期 |
+|---|---|---|---|
+| X-01 | **UsbCdc 边界**：USB 生成代码（`usb_device.c`、`usbd_cdc_if.c`）直接调用 port 的 C 接口 `UsbCdcPort_*`，`UsbCdc.h` 被生成代码按名字 include | 7、16 | F2 改写 port 时保留这组 C 接口；重建链路能力时按 Q8 改为回调注册 |
+| X-02 | **生成区链接接缝**：`-Wl,--wrap=HAL_PCD_EP_Transmit` | 16 | 随 X-01 删除 |
+| X-03 | **链接脚本 overlay**：自定义段用第二个 `-T` 追加，不改生成的 `.ld` | 生成区 | 第一个自定义段出现时落地 |
+| X-04 | **旧任务外壳用 CMSIS-RTOS2**：`app/tasks`、`app/common` 中的旧代码 | 10 | F2 随旧能力代码移出构建 |
+| X-05 | **DJI 型号映射**：`dji_motor_model_map.hpp`（型号 → 电调档案、原生减速比）是品牌默认值，留在驱动层 | §2.3 | 长期 |
+| X-06 | **`-Wdouble-promotion` 豁免**：`src/lib/estimate/vqf.cpp`，须有"目标无双精度 FPU 即 `#error`"的检查 | 14 | 长期；M4F 板链接姿态解算时重新评估 |
+| X-07 | **C 接口层**：`src/hal/detail/*.h`（`hal_detail`），port 仍是 C | 3、16 | F2 port 改写为 C++ 后删除 |
+| X-08 | **原子读改写**：`src/driver/motor/dji/dji_motor.cpp` 2 处；旧 app 中 6 处 | 13 | 驱动在 F3 适配时改；旧 app 随移出构建消失 |
+| X-09 | **生成区引用应用头**：`main.c`、`freertos.c` include `"Application/Entry.h"`，头文件位于 `config/assembly/Application/`，由 `config/CMakeLists.txt` 注入生成区的 include 路径 | 7 | F2 改为 `boot_*` 后删除 |
+| X-10 | **集成测试直接编译旧 app 源码**（底盘任务、控制器） | §2.4 | F2 随旧 app 归档 |
+| X-14 | **迁移期构建开关**：`legacy_build_options` 的 `BMI088_GYRO_BANDWIDTH_REGISTER`、`IMU_ENABLE_DIAGNOSTICS` | 9、15 | 诊断开关在 F2 随旧 app 删除；陀螺带宽在 F3 改为驱动 `Config` 参数 |
+| X-16 | **RTOS 头的可见范围**：`os_freertos_<board>` 只能整目录暴露 CubeMX 的 `Core/Inc` | 10 | 长期（CubeMX 生成布局决定） |
 
-| 编号 | 例外 | 涉及规则 | 依据 | 处置与到期 |
-|---|---|---|---|---|
-| X-01 | **UsbCdc 边界**：USB 生成代码（`usb_device.c`、`usbd_cdc_if.c`）直接调用 port 私有 ABI（`UsbCdcPort_*`），`Interface/UsbCdc.hpp` 在业务中零消费者。按 Q8 ①，UsbCdc 视为板私有能力，不纳入 `src/hal` 公共契约；中长期按 Q8 ② 改为 HAL 回调注册 | 7 | Q8 | P2.5 原样搬到 `platform/.../port/usb_cdc.c`；P4 按 Q8 重划边界 |
-| X-02 | **生成区链接 seam**：`-Wl,--wrap=HAL_PCD_EP_Transmit` 保留 | 16 | 评审报告 §5.6、Q8 | P4 随 X-01 改为回调注册后删除 |
-| X-03 | **链接脚本 overlay**：自定义段（如 `.dma_buffer.imu_diag`）不改生成的 `.ld`，用第二个 `-T` 追加 | 生成区冻结 | Q9 | P4 落地 |
-| X-04 | **OS 抽象范围**：框架只含临界区 + 单调时基；线程、队列、事件只在产品层；迁移期任务外壳可继续用 `cmsis_os2` | 10 | Q10、Q12 | 任务层在 P3b 改用 FreeRTOS 原生 API |
-| X-05 | **Dji 型号映射**：`DjiMotorModelMap`（型号 → 电调档案、原生减速比）是品牌默认值，留在驱动层 | 2.4 判据 | Q11 | 长期有效 |
-| X-06 | **`-Wdouble-promotion` 豁免**：`Vqf.cpp`（现位于 `legacy/Libraries/Algorithm/alg_estimate/`）。该文件同时须有"目标无双精度 FPU 即 `#error`"的检查 | 14 | Decision-20261025-03 | 长期有效；第一个在 M4F 板上链接姿态解算的 profile 出现时重新评估 |
-| X-07 | **迁移期的 C ABI 层**：`Platform/Interface/Detail/*.h` 在 P2 暂放 `src/hal/detail/`（过渡 target `foray_hal_detail`），port 与 PortKit 仍是 C | 3、16 | Q17、评审报告 §5.11 | P3a 合并进 C++ 契约后删除 |
-| X-08 | **迁移期的原子读改写**：框架侧只有 `DjiMotor.cpp` 有 2 处读改写；产品侧 `ImuDataReadyMailbox.hpp`（3 处）、`ImuTask.cpp`（1 处）、`RemoteReceiver.cpp`（2 处） | 13 | 评审报告 §5.8 | P3b 迁移到 `src/utils` 并发原语 |
-| X-09 | **生成区引用应用头**：`main.c`、`freertos.c` 的 USER CODE 区 include `Application/Entry.h` 并调用 `Application_*`；P2.5 起实现位于 `config/assembly/entry_legacy.*` | 7 | 评审报告 M4 | P3b 落地 boot ABI 后删除 |
-| X-10 | **宿主测试的 P0 独立工程**：`test/host/CMakeLists.txt` 不链接被测 target 与 `platform/mock`，而是直接编译 `legacy/` 源码，用影子头替换 `cmsis_os2.h` 与 DJI 映射 | §2.2 `test` 行 | `test/host/README.md` | P1 改由根工程引入，改为链接被测 target |
-| X-11 | **过渡 include 根**：P1 设 `foray_legacy_include`，暴露 `legacy/` 作为 include 根（零源码改动无法去掉旧路径） | 8 | 评审报告 §7.2 P1 | P2 结束时删除 |
-| X-12 | **冻结的迁移源**：`legacy/` 在 P0–P2.5 期间不受目标态目录规则约束（自带 `file(GLOB)` 构建、全局 include），只允许机械操作；由 CI 的基线对照守护 | 8、12 | Decision-20261025-05 | 随 P2/P2.5 搬空后删除 |
-| X-13 | ~~**C/C++ 格式增量检查**：P0.5 之前 lint-c 只查改动文件~~ | 格式规则 | Decision-20261026-01 | **已关闭**（2026-10-26，P0.5 格式化后改为全量检查，Decision-20261026-04） |
+**框架阶段（F2、F3）必须处理的已知问题**：
+- `lib/estimate/imu_body_mapping` 依赖 BMI088 驱动类型（`lib → driver` 反向依赖），F3 改为 POD 入参；
+- SPI 异步能力在契约里是可选，BMI088 与 WS2812 却当作必选（评审报告 §2.3 缺口 1），F2 契约中按 §3.1 的能力分级处理。
 
-**已知结构债**（违反目标规则，不是例外，按计划偿还，见 [plan.md](../../plan.md) P3a、P3b）：
+迁移源的其他问题（评审报告 §2、附录 B）在重建对应能力时处理。
 
-- `ImuBodyMapping` 反向依赖 Device：改为 POD 入参，或迁到 `src/driver/imu/`。
-- `Application/Imu` 的时钟读取与设备类型依赖。
-- 任务表外的 `defaultTask` 承载应用周期；栈巡检只遍历表内任务。
-- `Entry.cpp` 检查 3 个无消费者的端点，却漏检实际使用的 Pwm。
-- SPI 异步能力在契约注释里标为可选（MAY），BMI088 与 WS2812 却当作必选使用且没有回退（评审报告 §2.3 缺口 1）；P3a 契约 v1 中处理。
-- 其他已知问题：迁移源架构图的 F1–F13、C1–C8 清单，见评审报告附录 B（P3b/P4 验收项）。
+## 8. 框架与产品边界、平台可移植性
 
-## 7. 框架与产品边界、平台可移植性
+### 8.1 边界
 
-### 7.1 边界
+- 规则 2、15 保证框架不引用产品。同仓开发，暂不拆仓；第一个小项目启动时，用 `git subtree split` 把框架提成独立仓库并保留历史。
+- 框架只收与产品无关、至少两个产品会用的东西。底盘、云台、发射等 RM 专用能力和产品的 topic 清单留在 `app/`。
 
-- 框架 = `src/` + `platform/` + `cmake/` + 框架自己的测试；产品 = `app/` + `config/`。规则 2、15 保证框架不引用产品。
-- 同仓开发，暂不拆仓。第一个小项目启动时（P5），用 `git subtree split` 把框架提成独立仓库并保留历史。
-- 框架只收至少两个产品真正共用的东西；底盘、云台、发射等 RM 专用能力留在 `app/`。
-- 现阶段就要守住的三条：`src/` 零 RTOS；不直接用原子读改写；全部静态分配（无堆）。
-
-### 7.2 平台差异对框架代码的约束
+### 8.2 平台差异对框架代码的约束
 
 | 平台 | 内核 | 硬件双精度 | 无锁原子读改写 | 周期计数器 | 中断屏蔽 | RTOS |
 |---|---|---|---|---|---|---|
 | STM32H723（DM-MC02） | Cortex-M7 | 有 | 有 | DWT | PRIMASK / BASEPRI | FreeRTOS |
 | STM32F407（C 板） | Cortex-M4F | **无** | 有 | DWT | PRIMASK / BASEPRI | FreeRTOS |
 | TM4C | Cortex-M4F | **无** | 有 | DWT（按型号确认） | PRIMASK / BASEPRI | FreeRTOS |
-| AM26x | Cortex-R5F | 有（GCC 按 `vfpv3-d16`；按具体型号确认） | 有 | PMU（无 DWT） | **CPSR I/F 位（无 NVIC、PRIMASK、BASEPRI）** | FreeRTOS |
+| AM26x | Cortex-R5F | 有（按具体型号确认） | 有 | PMU（无 DWT） | **CPSR I/F 位（无 NVIC、PRIMASK、BASEPRI）** | FreeRTOS |
 | MSPM0 | Cortex-M0+ | **无 FPU** | **无** | 无 DWT | 仅 PRIMASK | 裸机 |
 
 由此得出的约束：
-
-- **不假设 DWT、PRIMASK 或 CMSIS**：时间和临界区只经 `src/hal/os`，实现留在 port。
-- **不用原子读改写**：规则 13。
+- **不假设 DWT、PRIMASK 或 CMSIS**：时间、临界区、信号只经 `src/hal/os`，实现留在 port。
+- **不用原子读改写**：规则 13。`utils` 的并发原语与 topic 只用读写与内存屏障。
 - **double 只在豁免文件里用**：规则 14。M4F 上 double 运算会编译成软件库调用。
-- **GNU 专属选项只出现在工具链或平台 CMake 中**：`--specs=nano.specs`、`-Wl,--wrap=`、GNU 链接脚本语法等。AM26x 可能使用 TI Arm Clang（Q13），代码要能同时通过 GCC 与 Clang。
-- **全局对象**：MSPM0 裸机的启动文件必须调用全局构造函数（`__libc_init_array`），P5 检查。
+- **GNU 专属选项只出现在工具链或平台 CMake 中**：代码要能同时通过 GCC 与 Clang（AM26x 可能用 TI Arm Clang，Q13）。
+- **全局对象**：topic 等全局对象要求常量初始化；MSPM0 裸机的启动文件须调用全局构造（`__libc_init_array`）。
 
-## 8. 语言、命名与格式
+## 9. 语言、命名与格式
 
-### 8.1 语言
+### 9.1 语言
 
 - C++17，`-fno-rtti -fno-exceptions -fno-threadsafe-statics`；无堆分配；热路径不用虚函数。
-- 契约统一用 C++（`src/hal/*.hpp` 直接作为 port 要实现的接口：enum class、POD 结构、非虚自由函数），枚举只定义一份。
+- 契约与 port 都用 C++；枚举只定义一份。
 - 文件编码 UTF-8（无 BOM）；注释、文档、提交信息用简体中文。
 
-### 8.2 命名（ROS 2 C++ 风格，由根目录 `.clang-tidy` 执行）
+### 9.2 命名（ROS 2 C++ 风格，由根目录 `.clang-tidy` 执行）
 
-| 元素 | 规则 | 示例（现名 → 新名） |
+| 元素 | 规则 | 示例 |
 |---|---|---|
-| 文件、目录 | snake_case；C++ 头文件 `.hpp`、实现 `.cpp` | `ChassisTask.cpp` → `chassis_task.cpp` |
-| 命名空间 | snake_case | `alg_math`、`device` |
+| 文件、目录 | snake_case；C++ 头文件 `.hpp`、实现 `.cpp` | `chassis_task.cpp` |
+| 命名空间 | snake_case，与目录同名（`src/lib` 下不加 `alg_` 前缀，Decision-20261026-09） | `math`、`topic`、`hal::can` |
 | 类、结构体、枚举类型、类型别名、模板参数 | PascalCase | `DjiMotor` |
-| 函数、方法 | snake_case | `SetWheelTarget` → `set_wheel_target` |
-| 局部变量、参数 | snake_case | `keyLevel` → `key_level` |
-| 私有、受保护成员 | snake_case + 尾下划线 | `transferActive_` → `transfer_active_` |
-| 结构体公开字段 | snake_case，不加后缀 | `eulerDegrees` → `euler_degrees` |
-| 全局变量（含匿名命名空间） | `g_` + snake_case | `snapshotSequence` → `g_snapshot_sequence` |
-| 编译期常量、全局与静态常量 | UPPER_SNAKE_CASE | `StackHealthSamplePeriodMs` → `STACK_HEALTH_SAMPLE_PERIOD_MS` |
-| 枚举值、宏 | UPPER_SNAKE_CASE | `Channel::Channel1` → `Channel::CHANNEL_1` |
-| 头文件保护宏 | 路径大写 + 双下划线 | `FORAY__HAL__CAN_HPP_` |
-| 本项目自有的 C 链接函数 | 模块前缀 + snake_case | `foray_boot_init` |
+| 函数、方法 | snake_case | `set_wheel_target` |
+| 局部变量、参数 | snake_case | `key_level` |
+| 私有、受保护成员 | snake_case + 尾下划线 | `transfer_active_` |
+| 结构体公开字段 | snake_case，不加后缀 | `euler_degrees` |
+| 全局变量（含匿名命名空间） | `g_` + snake_case；topic 实例按清单命名，不加 `g_` | `g_snapshot_sequence` |
+| 编译期常量、全局与静态常量 | UPPER_SNAKE_CASE | `STACK_HEALTH_SAMPLE_PERIOD_MS` |
+| 枚举值、宏 | UPPER_SNAKE_CASE | `Channel::CHANNEL_1` |
+| 头文件保护宏 | 路径大写，单下划线分隔 | `HAL_OS_CLOCK_HPP` |
+| 本项目自有的 C 链接函数 | 模块前缀 + snake_case | `boot_init` |
 
-不改名的：HAL 回调与中断入口（`HAL_*Callback`、`*_IRQHandler`）、CubeMX 生成代码、CMSIS-RTOS2 API（`os*`）、P3a 会被合并掉的 C ABI（`CanPort_*`、`Application_Init` 等"模块_函数"）；由 `.clang-tidy` 的 `FunctionIgnoredRegexp` 排除。
+不改名的：HAL 回调与中断入口（`HAL_*Callback`、`*_IRQHandler`）、CubeMX 生成代码、F2 删除前的 C 接口（`CanPort_*` 等"模块_函数"），由 `.clang-tidy` 的 `FunctionIgnoredRegexp` 排除。
 
-标识符里的数字（`.clang-tidy` 查不出，评审把关，Decision-20261026-05）："数值+单位"和序号单独成段（`ACCEL_ODR_100_HZ`、`POWER_24V_0`、`CHANNEL_1`）；名字里固有的数字不拆（型号 `BMI088`、`GM6020_CURRENT`，引脚名 `INTERRUPT1`，术语 `crc8`，标号 `WHEEL_M1`）。
+标识符里的数字（`.clang-tidy` 查不出，评审把关，Decision-20261026-05）："数值+单位"和序号单独成段（`ACCEL_ODR_100_HZ`、`CHANNEL_1`）；名字里固有的数字不拆（`BMI088`、`GM6020_CURRENT`、`crc8`）。
 
-### 8.3 C 链接只允许三处（规则 16）
+### 9.3 C 链接只允许这几处（规则 16）
 
 | # | 位置 | 原因 | 写法 |
 |---|---|---|---|
-| 1 | 生成区调用的启动入口 `foray_boot_*` | `main.c`、`freertos.c` 是 C 文件 | `src/boot/foray_boot.h` 用 `extern "C"` 声明，实现写在 `config/assembly` 的 C++ 里 |
+| 1 | 生成区调用的启动入口 `boot_*` | `main.c`、`freertos.c` 是 C 文件 | `src/boot/boot.h` 用 `extern "C"` 声明，实现在 `config/assembly` 的 C++ 里 |
 | 2 | 覆盖 HAL 弱符号的回调 `HAL_*Callback` | HAL 按 C 符号名调用 | 写在 port 的 `.cpp` 里，并 include 对应 HAL 头，让定义继承 C 链接；否则回调被 C++ 改名，HAL 弱实现照旧生效，编译链接都不报错 |
-| 3 | 中断入口 `*_IRQHandler` | 向量表按 C 符号名引用 | 保持在生成区的 C 文件里，不动 |
+| 3 | 中断入口 `*_IRQHandler` | 向量表按 C 符号名引用 | 保持在生成区的 C 文件里 |
+| 4 | USB 生成代码调用的 `UsbCdcPort_*` | 例外 X-01 | 在 port 中以 `extern "C"` 实现，Q8 落地后删除 |
 
-### 8.4 格式（组织规则，由根目录 `.clang-format` 执行）
+### 9.4 格式（组织规则，由根目录 `.clang-format` 执行）
 
-- 4 空格缩进、LF、UTF-8、文件末尾保留一个换行；Allman 大括号、行宽 120、指针靠右（沿用迁移源 `Libraries/Algorithm/.clang-format`）。
-- clang-format 与 clang-tidy 统一用 18（CI 固定 clang-format 18.1.8）。ROS 2 中属于排版的部分（2 空格缩进、行宽 100 等）不采用。
-- 生成区与厂商代码不格式化。格式化范围由 `tool/ci/format.py` 统一定义（CI 与本地共用）；不使用 `.clang-format-ignore`，因为 clang-format 18 的该文件不支持 `**`、`*` 也不跨目录（Decision-20261026-04）。
-- 格式化与改名必须各自单独提交，提交号写入 `.git-blame-ignore-revs`；`.clang-format`、`.clang-tidy` 的规则调整记入 decision.md。
-- 时间表：P0.5 一次性格式化手写代码并改名（含 `test/host` 中恢复的测试，已完成，见 `docs/ai/decisions/2026-10-26-P0.5-改名/`），CI 的 `lint-c` 与 `lint-naming` 均为全量检查；P2 搬迁时文件名改为 snake_case；P3a 改写 port 时直接按新规则命名。
+- 4 空格缩进、LF、UTF-8、文件末尾保留一个换行；Allman 大括号、行宽 120、指针靠右。
+- `template <...>` 总是单独一行，类、函数、成员模板、前置声明与 `template <>` 特化都适用（Decision-20261028-01）。
+- clang-format 与 clang-tidy 统一用 18（CI 固定 18.1.8）。
+- 生成区与厂商代码不格式化，范围由 `tool/ci/format.py` 定义（Decision-20261026-04）。
+- 格式化与改名必须各自单独提交，提交号写入 `.git-blame-ignore-revs`。
 
-## 9. 修改本文件
+## 10. 修改本文件
 
 1. 规则、白名单、例外的任何增删改，先在 [decision.md](../../decision.md) 登记（Context / Decision / Reason / Alternatives）。
 2. 再修改本文件的对应小节，并同步 `.github/workflows/ci.yml` 或 `tool/ci/` 中的检查。
-3. 评审报告是历史记录，不随本文件修改；两者出现差异时，以 decision.md 中较新的 Accepted 条目为准。
+3. 评审报告是历史记录，不随本文件修改。

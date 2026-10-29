@@ -348,6 +348,436 @@
 
 ---
 
+## Decision-20261026-06（名字去掉 foray 前缀，Accepted）
+
+- **Date**：2026-10-26
+- **Status**：Accepted（负责人 2026-10-26 要求："所有原本有 foray 前缀的都不需要这些前缀，其它不变"）
+- **Source**：负责人指示；适用于评审报告 §5、`docs/ai/architecture.md` 与此前决策中的命名
+
+**Decision**：计划中凡是带 `foray`/`FORAY` 前缀的名字一律去掉前缀，含义与结构不变：
+
+| 类别 | 原名 | 新名 |
+|---|---|---|
+| CMake target | `foray_hal`、`foray_hal_os`、`foray_boot`、`foray_utils`、`foray_msg`、`foray_lib_<pkg>`、`foray_driver_<device>`、`foray_middleware_<svc>`、`foray_app_<capability>`、`foray_app_common`、`foray_assembly_<profile>`、`foray_profile_<profile>`、`foray_firmware_<profile>`、`foray_os_freertos_<board>`、`foray_port_<board>`、`foray_board_<board>`、`foray_mx_generated_<board>`、`foray_rtos_<board>`、`foray_usb_<board>`、`foray_platform_mock`、`foray_test_<name>`、`foray_hal_detail`、`foray_legacy_include` | 去掉 `foray_`，如 `hal`、`port_<board>`、`legacy_include` |
+| CMake 变量 | `FORAY_PROFILE`（以及示意 schema 中的 `FORAY_PROFILE_ID`、`FORAY_BOARD`、`FORAY_FEATURES` 等） | `PROFILE`、`PROFILE_ID`、`BOARD`、`FEATURES` |
+| 启动入口（C 链接） | `foray_boot_init`、`foray_boot_init_rtos`、`foray_boot_run`，头文件 `src/boot/foray_boot.h` | `boot_init`、`boot_init_rtos`、`boot_run`，`src/boot/boot.h`（P3b 落地） |
+| 文件与函数 | `cmake/foray_targets.cmake`、`foray_profile.hpp(.in)`、宿主测试的 `foray_host_test()` | `cmake/targets.cmake`、`profile.hpp(.in)`、`host_test()` |
+
+**不改**（不是计划里的前缀）：仓库名 `foray_mcu`、组织规定的 `.foray-layer`、外部仓库 `foray_interfaces`、`foray_docs` 等。
+
+**适用**：此前的 Accepted 决策与评审报告 v1.0 中的旧名一律按上表理解，不逐条改写历史记录；`docs/ai/architecture.md`、`plan.md`、`tree.md` 等现行文档已同步。
+
+**Consequences**：
+- target 名不再带项目标识。将来把框架提成独立仓库、被其他 CMake 工程引入时（P5），`hal`、`utils` 这类通用名可能与对方的 target 重名，届时用带命名空间的 ALIAS（如 `framework::hal`）或在提取时统一加前缀。
+- 架构检查（`tool/ci/arch_check.py`）按新名字的命名白名单判定 target 所在的层。
+
+---
+
+## Decision-20261026-07（P1 构建骨架的设计与验收，Accepted）
+
+- **Date**：2026-10-26
+- **Status**：Accepted（按 plan.md P1 执行；过程与对照数据见 `docs/ai/decisions/2026-10-26-P1-构建骨架/`）
+- **Source**：评审报告 §5.2、§5.4、§7.2 P1、§7.3；Decision-20261026-06
+
+**Context**：P1 要在零源码改动的前提下建立根工程与 target 骨架，并以"符号名与大小集合与基线一致"验收。源码在 P2 之前仍在 `legacy/`。
+
+**Decision**：
+
+1. **profile 与板卡的 schema**（评审报告 §5.4 要求 P1 定稿）：
+   - 唯一开关是 `-DPROFILE=<名称>`；
+   - `config/profiles/<名称>/profile.cmake` 只含数据：`PROFILE_ID`（须与目录名一致）、`BOARD`（`platform/` 下的板卡目录）、`FEATURES`（P3b 起决定链接哪些能力）；
+   - 板卡目录下的 `board.cmake` 声明 `BOARD_ID`（target 名后缀）、`BOARD_CPU`（配置时与工具链核对）、`BOARD_OPENOCD_CONFIG`；
+   - 第一个 profile 是 `baseline`（a2cfd16 基线固件，DM-MC02，板标识 `dm_mc02`），P1–P2.5 用它做符号对照，P3b 起再按兵种建立正式 profile；
+   - `profile_<名称>` 是生成头 `profile.hpp`（`profile::ID`、`profile::BOARD`），叶子 target。
+2. **target 归属**：每个 legacy 文件按 P2/P2.5 的目标位置归属一个 target（头文件也列入），源码引用 `legacy/` 路径，P2 搬迁时只改路径。图中新增的节点有三类：
+   - `app_tasks`：任务外壳，对应 `app/tasks`；
+   - 迁移期过渡件：`legacy_include`、`legacy_build_options`、`portkit`；
+   - `msg`、`middleware_<svc>` 暂不建立，P3b/P4 有内容时再建。
+3. **OBJECT 库的目标文件传递**：CMake 只把直接链接的 OBJECT 库放进最终链接。`link_object_library()` 用 PRIVATE 链接保留依赖边，同时把 `$<TARGET_OBJECTS:…>` 放进链接接口。这样 port 下的生成区、assembly 下的 board 都能进入固件，依赖图也保持与 §5.2 一致。
+4. **编译选项与迁移源一致**：工具链文件照抄迁移源的 CPU、优化、调试选项，Release 不定义 `NDEBUG`。C 用 gnu11，C++ 用 C++17。差异只限于对应文件不使用的宏，逐文件对照表见证据目录。两点经验：
+   - **`-Wall` 加给全部代码**：GCC 15 在 -O0 下 `-Wall` 会改变生成代码，空死循环里多一条 `nop`。按 target 加会使 34 个函数大小不同，所以由工具链统一添加；
+   - **严格告警**（`-Wextra -Werror`）按 target 添加，只加给手写代码。
+5. **include 约定**（P2 起适用）：
+   - 新代码以层的根目录为 include 根：框架为 `src/`（`#include "hal/os/clock.hpp"`），产品为 `app/`；两边一级目录不重名；
+   - 不把仓库根加入 include 路径；
+   - 迁移期的 `legacy_include` 与 `hal` 对 `legacy/Platform/Interface` 的暴露在 P2 删除。
+6. **头文件保护宏**：路径大写，单下划线分隔，如 `HAL_OS_CLOCK_HPP`，与迁移源一致。`architecture.md` 原示例的双下划线写法通不过 `.clang-tidy` 的宏命名检查，而且是 C++ 保留标识符，予以更正。
+7. **最小 OS 契约草案**：`hal::os::CriticalSection`（RAII，可嵌套，析构恢复进入前状态）、`hal::os::now_ticks()`、`hal::os::tick_frequency_hz()`。platform_mock 实现并有宿主测试；固件的 port 实现与契约 v1 冻结在 P3a。
+8. **宿主测试**：
+   - 由根工程在宿主构建中引入；框架的单元测试链接 `lib_*`、`driver_*` target；
+   - 底盘集成测试要用影子头，仍在测试里直接编译 app 源码，例外 X-10 缩小为这一项，P3b 解决；
+   - 测试可执行文件为 `test_<名称>`，ctest 名称不变。
+9. **工具与 CI**：
+   - `tool/ci/symbols.py`：readelf 归一化的符号对照。存档的符号表在 Windows xPack 与 Linux Arm GNU 两套工具链上逐项一致，解决了基线对照文档 §7 记录的 `nm` 跨平台问题；
+   - `tool/ci/arch_check.py`：依赖图检查与文本扫描；
+   - CI 的 `firmware` 作业比较根工程与迁移源构建的符号集合；`lint-arch` 做文本扫描；`host-tests` 与 `lint-naming` 改用根工程 preset；
+   - 迁移源构建与 Release SHA 校验保留到 P2；
+   - xPack 安装抽成 `.github/actions/setup-arm-gcc`。
+10. **新增例外**：X-14（`legacy_build_options`，P3b）、X-15（`portkit`，P2.5）、X-16（`os_freertos_<board>` 只能整目录暴露 CubeMX 的 `Core/Inc`）。依赖图中迁移期放行的边：
+    - `hal → hal_detail`（X-07）；
+    - `mx_generated → hal_detail/legacy_include`（X-01、X-09）；
+    - `lib_estimate → driver_bmi088`（已知结构债）；
+    - `app_common → app_tasks`（TaskManager 含任务表，P3b）。
+
+11. **CMake 文件按层组织**（负责人 2026-10-26 选定）：
+    - 一层的全部 target 定义在该层的一个 `CMakeLists.txt` 里，不在子目录里各放一个；
+    - 手写的共 7 个：根、`src/`、`app/`、`config/`、每块板一个（`platform/<vendor>/<mcu>/<board>/`）、`platform/mock`、`test/host`；
+    - 某一层以后变大或由不同的人维护时，再拆出子目录的文件，拆分在本文件登记；
+    - P1 初版曾按子目录各放一个（共 14 个），合并前后的依赖图（节点、边与可见性）和每个文件的编译命令逐字相同。
+
+**验证**：
+- 根工程固件与迁移源构建的符号集合一致：Debug 1426 个、Release 1038 个函数与对象符号，名称、大小、类型、绑定、输出段全部相同；Windows xPack GCC 15.2.1 与 Linux Arm GNU 15.2.Rel1 各验证一次；
+- `.bin` 因对齐填充差几个字节，SHA 不同（预期内）；
+- ctest 14/14（MSYS2 g++ 16.2、WSL g++ 11.4）；
+- 依赖图检查与文本扫描通过，并做了反向验证；
+- 命名检查 0 处，格式检查 131 个文件通过；
+- `legacy/` 无任何改动。
+
+**Alternatives / Rejected**：
+- **固件直接链接全部 OBJECT 库**：依赖图会变成"固件 → 生成区"，与 §5.2 不符，检查也无法区分合法与违规的直连，否决。
+- **把 port、board 改为 STATIC 加 WHOLE_ARCHIVE**：需要 CMake 3.24，且与规则"port 与 board 用 OBJECT"不符，否决。
+- **只给手写代码加 `-Wall`**：会改变生成代码（第 4 点），否决。
+- **每个子目录一个 CMakeLists**（P1 初版的做法）：搬迁前大部分目录只有一个指向 `legacy/` 的构建文件，本仓规模（手写源码约 100 个文件）用不着这么细，负责人选定按层组织（第 11 点），否决。
+
+---
+
+## Decision-20261026-08（P2 机械搬迁的规则与结果，Accepted）
+
+- **Date**：2026-10-26
+- **Status**：Accepted（按 plan.md P2 执行；移动表、脚本与验证见 `docs/ai/decisions/2026-10-26-P2-机械搬迁/`）
+- **Source**：评审报告 §7.2、§7.2.1、附录 A；Decision-20261026-07
+
+**Decision**：
+
+1. **范围**：按附录 A 把 1:1 项搬出 `legacy/`：
+   - Platform/Interface → `src/hal`（Detail → `src/hal/detail`）；
+   - Libraries/Algorithm、Component → `src/lib`；
+   - Libraries/Device → `src/driver`；Libraries/Protocol → `src/driver/protocol`；
+   - 任务外壳 → `app/tasks`；ChassisController → `app/chassis`；RemoteReceiver → `app/remote`；
+   - DM_MC02 的 CubeMX 生成物 → `platform/st/stm32h7/board_dm/cubemx`；Port → `port`。
+
+   计划外的两处：
+   - `Application/Module/GimbalModule` 计划未写阶段，它是 1:1 项，随 P2 搬到 `app/gimbal`；
+   - 测试与支持文件名一并改为 snake_case。
+
+   留到 P2.5：`Application/{Entry,Imu,Task/TaskManager}`、PortKit、`Port/UsbCdc`。
+2. **文件名**：
+   - 一律 snake_case；
+   - 迁移源 Algorithm 下的 `.h` 是 C++ 头，统一改为 `.hpp`；C 头（`hal/detail/*.h`、port 头）保持 `.h`；
+   - 被 CubeMX 生成代码按名字 include 的头保持原名：`port/Init.h`；P2.5 的 `UsbCdc.h`、`Entry.h` 同理。生成区不手改，改名会让大小写敏感的系统找不到文件。
+3. **include 与保护宏**：
+   - include 一律相对层根目录书写：`src/` 下如 `"hal/can.hpp"`，`app/` 下如 `"tasks/imu_task.hpp"`，测试如 `"support/mock_motor.hpp"`；
+   - 去掉裸头名 include；
+   - `hal/detail` 只能经 `src/` 根引用，其中的 `time.h`、`spi.h` 等与标准库、CubeMX 头同名，不得把该目录本身加入 include 路径；
+   - 保护宏由新的 include 路径大写得到，如 `HAL_DETAIL_CAN_H`。
+   - 改写由 `move.py --rewrite` 完成：按搬迁前的查找顺序解析到具体文件再换写法，只改 include 与保护宏所在的行。
+4. **提交拆分**：
+   - 纯 `git mv` 单独一个提交，323 个文件全部 R100；
+   - include 改写、构建与工具适配各一个提交。
+
+   这样即使是只有一行 include 的文件（`basic_math.cpp`、`fsm.cpp`），改写后合计相似度低于 50%，`git log --follow` 仍能逐提交追溯到迁移源最早的提交。
+5. **迁移源旧构建**：
+   - DM_MC02 的 `CMakeLists.txt`、`CMakePresets.json`（含本机路径）、`cmake/gcc-arm-none-eabi.cmake`，以及 Interface、PortKit 的 `CMakeLists.txt` 删除，由根工程取代；
+   - CubeMX 每次都会重写的 `cmake/stm32cubemx/CMakeLists.txt` 与 `starm-clang.cmake` 随生成区保留（根工程不用，可对照源文件清单）；
+   - CubeMX 再生成时附带产生的旧式构建文件写入 `.gitignore`；
+   - `.clangd` 移到仓库根；`Libraries/README.md` → `src/README.md`，`motor/README.md` 随驱动搬迁，正文保留旧路径并加迁移说明，P3b 更新。
+6. **legacy_include 推迟到 P2.5 删除**（修订 plan.md 与例外 X-11）：P2.5 的文件仍以 `"Application/..."` 被引用，P2 结束时只有它们还需要 `legacy/` include 根。
+   - 框架 target 与已搬迁的 app target 已不再链接 `legacy_include`，依赖图少了 21 条指向它的边；
+   - `.clang-tidy` 头文件过滤只保留 `legacy/Application` 一段，同样到 P2.5。
+7. **工具与 CI**：
+   - `naming.py` 排除 C ABI 头 `src/hal/detail`（X-07）；
+   - `arch_check.py` 规则 9 放行 X-14 的两个构建开关（`IMU_ENABLE_DIAGNOSTICS`、`BMI088_GYRO_BANDWIDTH_REGISTER`），规则 15 跳过生成区；
+   - CI `firmware` 作业删除迁移源构建与基线 SHA 校验，符号对照改用 P1 存档的符号表。
+
+**验证**：
+- 符号与 P1 存档一致：Debug 1426、Release 1038；Windows xPack 与 Linux Arm GNU 各验证一次；
+- 112 个固件源文件除 include 目录外的编译选项与 P1 逐项相同；
+- ctest 14/14（MSYS2 g++ 16.2、WSL g++ 11.4）；
+- 依赖图与 P1 相比只少了指向 `legacy_include` 的边；
+- 命名检查 0 处，格式检查 131 个文件通过，文本扫描通过。
+
+**Alternatives / Rejected**：
+- **搬迁与改写合成一个提交**：小文件的改名识别会失效，`git log --follow` 断链，否决。
+- **把 `Init.h` 也改为 `init.h`，同时手改 `main.c` 的 USER CODE**：违反生成区不手改的规则，否决。等 P3b 的 boot ABI 落地后，生成区不再直接调用 `Port_Init`，届时再处理。
+- **P2 一并搬走 P2.5 的项以便按原计划删除 `legacy_include`**：会把 P2.5 的拆分判断混进机械搬迁，否决。
+
+---
+
+## Decision-20261026-09（src/lib 去掉 alg_ 前缀，Accepted）
+
+- **Date**：2026-10-26
+- **Status**：Accepted（负责人 2026-10-26 要求："取消掉 alg_ 这样的前缀"）
+- **Source**：负责人指示；修订 Decision-20261026-08 第 1 点"保留 `alg_*` 子目录名"与 tree.md 中"P3b 统一"的安排。过程与验证见 `docs/ai/decisions/2026-10-26-P2.5-去掉alg前缀/`
+
+**Decision**：
+
+1. **范围**：`src/lib` 的子目录与命名空间一起去掉 `alg_` 前缀。目录名、命名空间名、target 名后缀三者一致：
+
+   | 原目录 / 命名空间 | 新目录 / 命名空间 | target（不变） |
+   |---|---|---|
+   | `alg_math` | `math` | `lib_math` |
+   | `alg_controller` | `control` | `lib_control` |
+   | `alg_crc`、`alg_estimate`、`alg_filter`、`alg_fsm`、`alg_slope` | `crc`、`estimate`、`filter`、`fsm`、`slope` | `lib_<同名>` |
+   | `alg_kinematics`（另有命名空间 `alg_odometry`） | `kinematics`（`odometry`） | `lib_kinematics` |
+
+   - `alg_controller` 改为 `control`，不是字面去前缀的 `controller`：与已有 target 名 `lib_control`、tree.md 目标结构的分类名一致；
+   - `component` 本来没有前缀，不变。
+2. **时机**：放在 P2.5 开头，单独一个 PR。它是改名类变更，按"一个 PR 只做一类变更"与 P2.5 的拆分搬迁分开。原计划 P3b 统一，提前的理由：P3b 同时改行为，改名混在其中难以审查；现在改，除 `legacy/Application/Imu` 外的引用都已在新位置，一次改完。
+3. **提交拆分**（同 P2）：
+   - 纯 `git mv`：8 个目录、31 个文件，全部 R100；
+   - 整词替换：45 个文件 416 行，只改命名空间、限定名、include、保护宏与 `src/CMakeLists.txt` 的源文件路径；
+   - 重新格式化：10 个文件。
+   - 后两个提交登记到 `.git-blame-ignore-revs`。
+4. **对照判据不变，基准不变**：命名空间改名会改变修饰名。
+   - `tool/ci/symbols.py compare` 新增 `--renames`：按改名表把 P1 存档修饰名里的"长度+旧名"换成"长度+新名"，大小等其余字段仍须逐项一致；
+   - CI `firmware` 作业带改名表对照，基准仍是 P1 存档；
+   - 固件中没有大小随名字变化的符号（如 `__PRETTY_FUNCTION__`），只换算名字、不放宽大小。
+
+**验证**：
+- 符号集合与 P1 存档一致（带改名表）：Debug 1426、Release 1038；Windows xPack 与 Linux Arm GNU 各验证一次。不带改名表时报不一致，说明对照覆盖了改名的符号；
+- 编译选项与 P2 相比只有源文件路径不同；依赖图不变；
+- ctest 14/14；命名检查 0 处，格式检查 131 个文件通过，文本扫描通过。
+
+**Consequences**：
+- 新名字较通用（`math`、`filter`、`control`）。与局部变量、参数同名（如 `filter`、`crc`）不冲突，因为 `X::` 前的名字只按命名空间与类型查找。框架将来被其他工程引入时（P5）若与对方命名空间冲突，再整体加外层命名空间，与 Decision-20261026-06 的 target 名同样处理。
+- 历史记录中的 `alg_*` 按上表理解，不逐条改写：评审报告、Decision-20261026-05（如 `alg_math::PI` 与 CMSIS-DSP 的 `PI` 同名，现为 `math::PI`）、-08、P2 移动表、`src/README.md` 正文。
+
+**Alternatives / Rejected**：
+- **只改目录、不改命名空间**：`lib/math/` 下是 `alg_math::`，同一模块两套名字，否决。
+- **按原计划在 P3b 统一**：P3b 允许改行为，改名混在其中难以审查，否决。
+
+---
+
+## Decision-20261026-10（P2.5 搬迁的去向与结果，Accepted）
+
+- **Date**：2026-10-26
+- **Status**：Accepted（按 plan.md P2.5 执行；脚本与验证见 `docs/ai/decisions/2026-10-26-P2.5-拆分搬迁/`）
+- **Source**：评审报告 §7.2.1、附录 A；Decision-20261026-08 第 6 点
+
+**Decision**：
+
+1. **去向**（16 个文件，全部 R100）：
+   - `Application/Entry.cpp` → `config/assembly/entry_legacy.cpp`；
+   - `Application/Task/TaskManager.*` → `app/common/task_manager.*`；
+   - `Application/Imu/*` → `app/imu/`；
+   - `Port/UsbCdc.c` → `platform/.../port/usb_cdc.c`。
+
+   被生成代码按名字 include 的头保持路径与文件名：`Entry.h` 放在 `config/assembly/Application/Entry.h`，`UsbCdc.h` 放在 port。
+2. **PortKit 整体并入 port，拆分推迟到 P3a**（修订 plan.md P2.5 与评审报告 §7.2.1 的这一项）：`PortKit.{c,h}` → `platform/st/stm32h7/board_dm/port/port_kit.{c,h}`，删除过渡 target `portkit`。原样拆分做不到：
+   - 队列与通知也用 CMSIS 的 `__DMB()`，放进零平台的 `src/utils` 违反规则 3；
+   - 临界区拆到另一个文件会改变 Release 生成代码：`PortKit_Critical_Enter/Exit` 原本内联进 `PortKit_Notifier_Set`，拆开后变成调用。
+
+   P3a 把 PortKit 改写为 C++ 时一并拆分：队列与通知 → `src/utils` 并发原语，临界区 → `src/hal/os` 契约 + 各板 port 实现。
+3. **生成区接缝的 include 路径由组合根注入**（例外 X-09）：`config/CMakeLists.txt` 对 `mx_generated_<board>` 追加 `config/assembly` 的 include 路径。
+   - 平台层 CMake 不出现产品路径，规则 15 不变；
+   - 这条耦合只是 include 路径，不在依赖图上；
+   - P3b 生成区改为只调 boot ABI 后删除。
+4. **删除迁移期过渡件**：
+   - `legacy_include`、`legacy_library()`、`LEGACY_DIR`；
+   - `.clang-tidy` 头文件过滤中的 `legacy/Application` 一段；
+   - 例外 X-11、X-15 关闭。X-12 也关闭：`legacy/` 只剩迁移源 README 与架构图，没有代码与构建文件。
+
+   `cmake/legacy.cmake` 只剩 `legacy_build_options`（X-14，P3b）。
+5. **编译选项的一处变化**：`port_kit.c` 随 port 带上严格告警（`-Wextra -Werror`）。它没有告警，目标文件的反汇编与重定位与搬迁前逐项相同。其余 111 个固件源文件除 include 目录外不变。
+6. **工具**：`arch_check.py` 删去 `portkit` 层、`legacy_include`、生成区 → legacy 的放行；测试不再允许依赖 legacy 层。
+
+**验证**：
+- 符号与 P1 存档一致（带 `alg_` 改名表）：Debug 1426、Release 1038；Windows xPack 与 Linux Arm GNU 各验证一次；
+- 搬迁的 4 个目标文件反汇编（含重定位）与数据段逐项相同；
+- ctest 14/14（WSL g++ 11.4、MSYS2 g++ 16.2）；
+- 命名检查 0 处，格式检查 131 个文件通过，文本扫描与两张依赖图检查通过；
+- `git log --follow` 可追溯到迁移源最早的提交。
+
+**Alternatives / Rejected**：
+- **按计划把队列/通知原样放进 `src/utils`**：`src/` 会 include CMSIS 头，违反规则 3；把 `__DMB()` 换成 C11 `atomic_thread_fence` 会改变生成的指令（`dmb ish` 与 `dmb sy`），不属于不改行为的阶段。否决。
+- **保留 `portkit` 过渡 target，原地不动**：`legacy/` 搬不空，`legacy_include` 与例外 X-15 都要继续保留。否决。
+- **把 `Entry.h` 放进 `src/boot`，让生成区链接 `boot`**：这是 P3b boot ABI 的形态，但现有 `Application_*` 入口是产品的组合根，提前放进框架会让框架含产品接口。否决。
+- **在平台 CMake 里直接写 `config/assembly` 路径**：违反规则 15（框架不得引用产品路径）。否决。
+
+---
+
+## Decision-20261027-01（按负责人骨架重建：架构 v2，Accepted）
+
+- **Date**：2026-10-27
+- **Status**：Accepted（负责人 2026-10-27 逐条答复 15 个骨架问题）。其中第 4 点"topic 清单放在 `app/topics`"与"不支持多发布者"是负责人提出疑问后 AI 给出的建议，随架构 v2 一并待负责人审阅确认。
+- **Source**：负责人对 P2.5 结果的意见："我以为你的迁移是以原工程为参考，以我的想法为骨架然后重新构建，但是你现在的现状是充满了对原项目的妥协和新架构的适配"。负责人最初的提案见评审报告 §3.1。
+- **修订**：Decision-20261025-01 第 6 点的迁移方式（P3a–P5）及其 Reason 中的"重新切片而不是重写"；评审报告 §5.7 的"topic 第一版不引入"；评审报告中 platform 的厂商/芯片/板三级布局；Decision-20261026-10 第 2 点的 PortKit 拆分时机。其余 Accepted 条目不变。
+
+**Context**：P0–P2.5 采用渐进迁移，每一步与旧固件逐符号对照，可验证、可回滚。代价有两个：
+- 旧结构的形状被一路带过来：C 接口层、`Application_*` 入口、PortKit 放在 port、`config/assembly/Application/Entry.h`。
+- 目标架构本身是从分析旧工程推出来的，几处偏离了负责人的提案：topic 被推迟，lib/utils 的划分，platform 分三级。
+
+另外，被保护的基线 `a2cfd16` 本身不完整：遥控 → 底盘/云台的链路缺失，底盘从不使能输出。对它做到逐符号一致，价值有限。
+
+**Decision**（编号对应 15 个问题）：
+
+1. **app 按能力划分**；兵种 = 能力组合 + 参数（profile）。
+2. **依赖方向**：config（组合根）依赖 app，参数经 `Config` 注入；app 不依赖 config。
+3. **profile = 兵种 × 板**；一个兵种只有一台车，不需要单车覆盖。
+4. **topic 进入框架**，机制在 `src/middleware/topic`（负责人审阅时提出：topic 是给能力用的系统服务，放在 middleware；middleware 只收与产品无关的运行期服务，新增先登记）：
+   - 语义：最新值，不做队列；
+   - 中断里可以发布；订阅者可以阻塞等待新数据；
+   - 清单集中一处；框架验证好用后改为从描述文件生成。
+   - AI 建议（待确认）：
+     - 清单放在产品侧 `app/topics/`，不放 `src/`：具体 topic（云台指令等）是 RM 产品的数据，放进框架会让框架含产品内容；
+     - 每个 topic 只有一个发布者，多个来源由仲裁能力合并；
+     - topic 的单位是"一种数据"，归发布它的能力所有，清单按能力分组；一个能力可以发布多个 topic。
+5. **硬件契约名为 `hal`**，风格为自由函数 + 不透明句柄，链接期绑定。
+6. **platform 按板一级**：`platform/<板标识>/{cubemx,port,board}`。
+7. **utils 与 lib 的边界**：
+   - 没有领域含义、哪一层都可能用的放 `src/utils`：SPSC 队列、最新值邮箱、fsm、crc；
+   - 领域算法放 `src/lib`：slope 归入 `lib/control`；轴级执行器骨架（component）留在 lib。
+8. **线程归组合根**：能力只提供 `init()`/`step()`，零 RTOS；任务表在 assembly，由 `app/common` 的任务运行器执行。
+9. **RTOS 接口**：任务层直接用 FreeRTOS 原生 API；框架只经 `hal/os`（临界区、时基、信号）。
+10. **允许修改 CubeMX 的 USER CODE 区**，但只能写 `boot_*` 调用；改动行登记在 decision.md，由 CI 检查。
+11. **profile 参数**用 C++ `constexpr` 头文件（`params.hpp`）。
+12. **重建期间不需要能上车的固件**：当前目标是搭建可行的框架。
+13. **先框架、后能力**：框架建成并经负责人确认好用后，才重建能力。
+14. **F407 C 板**放在 DM-MC02 重建完成之后。
+15. **验收方式**：宿主单元测试 + `test/data` 录制数据回放 + 实机检查清单（实机部分由负责人执行）。
+
+**由此而来的安排**：
+- 迁移方式改为"以负责人骨架为准重建，迁移源只作参考与零件来源"。写得好的算法与驱动直接搬来，按新契约适配。
+- 架构文档重写为 `docs/ai/architecture.md` v2。
+- plan.md 的 P3a–P5 改为 F1–F4（框架）、A（能力重建）、B（F407）、E（框架提取与 MSPM0），原任务的去向见 plan.md 的对照表。
+- F2 开始时，旧能力代码打 tag `archive/pre-rebuild` 后移出构建；能力重建时从 tag 取参考。
+- "与旧固件逐符号对照"的判据止于 P2.5，CI 的符号对照在 F2 退役。
+
+**Alternatives / Rejected**：
+- **继续按原 P3a/P3b 改造旧代码**：每一步都要兼容旧结构，过渡件会延续，负责人的骨架要到很晚才成形。否决。
+- **推倒重来，不复用旧代码**：PID、VQF、EKF、BMI088、DJI 协议等经过实车使用，重写没有收益。否决。
+- **topic 回调式订阅**：回调在发布者的上下文执行，中断里发布时不可控。否决。
+- **topic 支持多发布者**：最新值语义下多个来源交替写入，"最新"失去意义；单写者 seqlock 也无法保持无锁。否决（待确认）。
+
+---
+
+## Decision-20261027-02（F1 第 1 步：utils、middleware、lib 的归类，Accepted）
+
+- **Date**：2026-10-27
+- **Status**：Accepted（负责人动手完成并确认；fsm 放 middleware 为负责人决定）
+- **Source**：Decision-20261027-01 第 7 点；修订其中"fsm 归 utils、math 留 lib"的划分
+
+**Decision**：
+
+1. **math → `src/utils/math`**：向量、四元数、矩阵没有领域含义，按"无领域含义、哪层都可能用"的标准归 utils。命名空间仍为 `math`。lib 的算法改为依赖 `utils_math`。
+2. **crc → `src/utils/crc`**（同 -01）。
+3. **fsm → `src/middleware/fsm`**（负责人决定）：
+   - 状态机作为给能力组织模式与流程的运行期机制，与 topic 同属 middleware；
+   - middleware 的定义相应改为"给能力用的运行期机制与服务"；
+   - driver 与 lib 仍不得依赖 middleware，驱动内部的少量状态自己处理。
+4. **slope 并入 `src/lib/control`**：目录名即命名空间，`slope::` 改为 `control::`；`lib_slope` 并入 `lib_control`。
+5. **target 与构建**：
+   - utils 每个子目录一个 target：`utils_<名>`；
+   - utils 用新的 `utils_library()`，不链接迁移期的构建开关 `legacy_build_options`，因为 utils 只依赖标准库；
+   - 删除 P1 留下的空 target `utils`。
+6. **依赖图检查**：
+   - target 名规则 `utils_\w+`；
+   - lib 可以依赖 utils；
+   - middleware 收紧为只依赖 utils、契约与 middleware 内部（迁移期另允许 `legacy_build_options`）。
+
+**验证**：
+- 宿主 ctest 14/14；
+- arm-debug、arm-release 构建通过，固件符号与 P1 存档一致：被移动或改名的代码（math 之外）固件都没有链接，math 的命名空间未变；
+- 两张依赖图检查、文本扫描、格式、命名检查通过；
+- 纯移动单独一个提交，只有一行的 `basic_math.cpp`、`fsm.cpp` 也能被识别为改名。
+
+**Alternatives / Rejected**：
+- **fsm 放 utils**（-01 原方案）：驱动也能用状态机。负责人选择把它作为能力层的运行期机制，放 middleware。
+- **utils 也链接 `legacy_build_options` 并在检查中放行**：utils 会背上产品的迁移期宏，与"只依赖标准库"矛盾。否决。
+
+---
+
+## Decision-20261028-01（template 声明单独一行，Accepted）
+
+- **Date**：2026-10-28
+- **Status**：Accepted（负责人决定）
+- **Source**：负责人在 F1 编写 `spsc_queue` 时提出；修订 Decision-20261025-04 第 2 点（根 `.clang-format` 原样沿用历史配置）
+
+**Context**：根 `.clang-format` 基于 LLVM 风格，`AlwaysBreakTemplateDeclarations` 取默认值 `MultiLine`：模板声明与后面的类或函数能放进一行（行宽 120）时合并成一行，如 `template <typename T, std::size_t Capacity> class SpscQueue`，放不下时才换行。同一个文件里两种写法混用，模板参数与类名、函数名挤在一行，不好读。
+
+**Decision**：
+
+1. `.clang-format` 增加 `AlwaysBreakTemplateDeclarations: Yes`：`template <...>` 总是单独一行，类、函数、成员模板、前置声明与 `template <>` 特化都适用。clang-format 19 起该选项改名为 `BreakTemplateDeclarations`，旧名仍可用；本仓固定 18.1.8，用旧名。
+2. 已有代码按新配置重新格式化，单独一个 `style` 提交，登记在 `.git-blame-ignore-revs`。
+3. 组织规则（4 空格、LF、UTF-8、文件末尾换行）不涉及模板换行，不冲突。
+
+**验证**：
+- 重新格式化 12 个已跟踪文件，拆开 25 处模板声明；去掉全部空白后与改动前相同，只改了换行；
+- 格式检查 131 个文件通过；宿主 ctest 14/14。
+
+**Alternatives / Rejected**：
+- **保持默认 `MultiLine`**：短声明并成一行、长声明换行，同一文件里写法不统一。否决。
+- **只在新代码里手动换行**：clang-format 会把它合并回去，CI 的格式检查不通过。否决。
+
+---
+
+## Decision-20261029-01（utils 并发原语放 src/utils/concurrency，Accepted）
+
+- **Date**：2026-10-29
+- **Status**：Accepted（目录 `concurrency` 由负责人建立，AI 建议保留；`latest_value` 的实现由 AI 按负责人的骨架补齐）
+- **Source**：plan.md F1"`src/utils`：spsc_queue、latest_value"；修订架构 v2 §2.1、tree.md 中 `src/utils/spsc_queue` 的写法
+
+**Context**：架构 v2 与 tree.md 把 F1 的并发原语写成 `spsc_queue`、`latest_value` 两项，没有定目录。负责人编写队列时建了 `src/utils/concurrency/`。按 Decision-20261027-02，utils 每个子目录一个 target，命名空间与子目录同名。
+
+**Decision**：
+
+1. 并发原语放 `src/utils/concurrency/`，命名空间 `concurrency`，target `utils_concurrency`：
+   - `SpscQueue<T, Capacity>`（`spsc_queue.hpp`）：单生产者、单消费者环形队列，由 PortKit 的队列改写，acquire/release，不依赖 CMSIS；容量是 2 的幂，不超过 2^31；
+   - `LatestValue<T>`（`latest_value.hpp`）：单写者、多读者的最新值邮箱（seqlock）。数据按 32 位字做 relaxed 原子读写，用内存屏障排序（Boehm 2012 的写法），读写同时发生也不是数据竞争，ThreadSanitizer 不会误报。版本号 31 位，按 2^31 回绕，求差用 `VERSION_MASK`；
+   - 读者不能在写入中途抢占写者，见 Decision-20261029-02。
+2. **不用原子读改写**（规则 13），只用原子读、原子写与内存屏障。也不用 `static_assert(is_always_lock_free)`：它要求全部原子操作都无锁，Cortex-M0+ 没有 LDREX/STREX，GCC 在那里报 false。实测 M0+、M4、M7 上的原子读写都是单条 LDR/STR 加 DMB，没有库调用。这条约束改由 CI 检查"Cortex-M0+ 编译后不出现 `__atomic_*`、`__sync_*` 库调用"，随 F1 的 CI 项加入。
+3. **只有头文件**：用现有的 `framework_interface()` 建 INTERFACE 库。它不链接迁移期构建开关，符合 utils"只依赖标准库"，所以不新增辅助函数。头文件的告警由使用方的编译检查（宿主测试带 `-Werror`）。依赖图检查已按 `utils_\w+` 归类，脚本不用改。
+4. **宿主测试**：`spsc_queue`、`latest_value`，含多线程压力与计数器回绕，用 `-O2`。ThreadSanitizer 只在本地跑，CI 不跑。
+
+**验证**：
+- 宿主 ctest 17/17（WSL g++ 11.4）；两个并发测试另用 MSYS2 g++ 16.2 加 `-Werror` 编译运行通过；
+- ThreadSanitizer 无报告；
+- 反向验证，每一项都被测试抓到：
+  - 读者去掉第二次比对、写者不先写奇数：压力测试报出数十万次不一致；
+  - 数据改成普通 `memcpy`：ThreadSanitizer 报数据竞争；
+  - 队列的 `size()` 改成不处理回绕的写法：回绕测试失败；
+- 交叉编译：Cortex-M0+/M4/M7 × `-O0`/`-Os`/`-O2` 加 `-Werror` 通过，没有 `__atomic_*`、`__sync_*` 库调用；全局对象放在 `.bss`，不需要运行期初始化（topic 要求常量初始化）；
+- 格式、命名（0 处）、文本扫描、两张依赖图检查通过；固件 Debug/Release 构建通过，符号与 P1 存档一致（1426、1038）。
+
+**Alternatives / Rejected**：
+- **按 tree.md 分成 `utils/spsc_queue/`、`utils/latest_value/`**：变成两个各只有一个头文件的 target，命名空间也要各取一个名字。否决。
+- **新增 `utils_interface()`**：与 `framework_interface()` 完全相同。否决。
+
+---
+
+## Decision-20261029-02（seqlock 的读写竞态与 topic 发布，Proposed）
+
+- **Date**：2026-10-29
+- **Status**：Proposed（待负责人在 F1 第 5 步做 topic 时决定）
+- **Source**：编写 `LatestValue` 时发现；补充架构 v2 §3.4"中断里不订阅"的理由
+
+**Context**：
+
+- `LatestValue` 的读者遇到写入中途（序号是奇数），或拷贝期间有新的写入（前后两次序号不同），会重试，直到读到一份完整的数据。
+- 写者打断读者没有问题：读者恢复运行后发现序号变了，重读一次即可。
+- 反过来不行。单核上，读者在写入中途抢占写者后，写者要等读者让出 CPU 才能写完，而读者在等写者写完：读者无限重试，系统卡死。
+- 架构 v2 §3.4 只考虑了中断："中断不能等被它打断的写端完成，所以中断里不订阅"。同样的问题也出在任务之间：
+  - **高优先级任务读低优先级任务发布的 topic 会卡死**，如控制任务读低频的裁判系统数据；
+  - 优先级相同时，时间片轮转会让读者空转一个时间片后写者继续，不会卡死，但浪费时间。
+- 只有读者恰好在写入的几十个时钟周期里抢占写者才会触发。测试很难覆盖，现场表现为偶发卡死。
+- 跨核共享（如 AM26x 的两个核）不在本决策范围。
+
+**可选方案**：
+
+1. **topic 发布时用 `hal::os::CriticalSection` 包住 `write`（AI 建议）**：
+   - 写入期间不会被任何读者打断，上面的限制全部消失，在中断里读也安全（中断里仍不能阻塞等待）；
+   - 代价：每次发布关一次中断，时长等于一次消息拷贝。可以给消息大小设上限（如 `static_assert(sizeof(T) <= 64)`）来限制关中断的时长，数值 F2 在板上实测后定；
+   - 依赖：`CriticalSection` 可以在中断里用、可以嵌套（P1 草案已经这样约定）。如果它只屏蔽 RTOS 管理的中断（BASEPRI），优先级高于阈值的中断既不能发布也不能读 topic；这一点在 hal/os 定稿时一并确定。
+2. **规定优先级**：每个 topic 的发布者优先级必须高于全部订阅者，中断里不订阅。
+   - 不需要关中断；
+   - 编译期查不出来。任务表或优先级一改就可能静默违反，后果是偶发卡死。
+3. **读者重试若干次后让出 CPU**：`hal/os` 要增加"让出"操作；仍会空转，最坏延迟不确定。
+4. **多缓冲**：读者不用重试。但三缓冲的交换要用原子读改写，规则 13 不允许；改成每个读者各有一个槽位，内存与复杂度都更高。
+
+**决定之前**：`LatestValue` 的类注释写明了这个限制；架构 §3.4 指向本决策；topic 按决定的结果实现。
+
+---
+
 ## 待登记
 
 - 分支保护的具体设置（组织规范 §6.1、§10，负责人在 GitHub 上操作后补记）。

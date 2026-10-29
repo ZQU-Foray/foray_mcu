@@ -9,7 +9,7 @@
 被 #if 关掉的代码对 clang-tidy 不可见：编译数据库要覆盖各个配置（如固件 Debug 打开诊断代码）。
 
 用法：
-    naming.py -p build/legacy-Debug -p build/host-tests --check
+    naming.py -p build/arm-debug -p build/arm-release -p build/host-tests --check
     naming.py -p ... --fix [--report 改名表.tsv]
     naming.py -p ... --list               # 列出将要检查的翻译单元
 
@@ -327,10 +327,11 @@ def main() -> int:
     root = Path(git("rev-parse", "--show-toplevel")[0]).resolve()
     databases = [path.resolve() for path in args.databases]
     os.chdir(root)
+    # C ABI 头（迁移期的 src/hal/detail，例外 X-07）不按 C++ 规则命名，P3a 并入 C++ 契约后删除。
     scope = {
         path
         for path in git("ls-files", "--", "*.c", "*.h", "*.cpp", "*.hpp")
-        if not EXCLUDE.search(path)
+        if not EXCLUDE.search(path) and not path.startswith("src/hal/detail/")
     }
     units = load_units(databases, scope, root)
     if args.list:

@@ -1,0 +1,32 @@
+# 安装与基线同版本的 xPack Arm GNU 工具链（带缓存与 sha256 校验）和 Ninja，
+# 并把 ARM_GCC_ROOT 写入后续步骤的环境（cmake/toolchains/arm-gcc-common.cmake 从这里取工具链）。
+# 版本与校验值来自 workflow 的 env：XPACK_GCC_VERSION、XPACK_GCC_SHA256。
+name: 安装 Arm GNU 工具链
+description: xPack arm-none-eabi-gcc（缓存、校验）+ Ninja，设置 ARM_GCC_ROOT
+runs:
+  using: composite
+  steps:
+    - name: 缓存 xPack GCC
+      id: cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ runner.temp }}/xpack-arm-none-eabi-gcc-${{ env.XPACK_GCC_VERSION }}
+        key: xpack-arm-none-eabi-gcc-${{ env.XPACK_GCC_VERSION }}-linux-x64
+
+    - name: 下载并校验 xPack GCC
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        url="https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack/releases/download/v${XPACK_GCC_VERSION}/xpack-arm-none-eabi-gcc-${XPACK_GCC_VERSION}-linux-x64.tar.gz"
+        curl -fsSL -o "$RUNNER_TEMP/gcc.tar.gz" "$url"
+        echo "${XPACK_GCC_SHA256}  $RUNNER_TEMP/gcc.tar.gz" | sha256sum -c -
+        tar -xzf "$RUNNER_TEMP/gcc.tar.gz" -C "$RUNNER_TEMP"
+        rm "$RUNNER_TEMP/gcc.tar.gz"
+
+    - name: 设置 ARM_GCC_ROOT 并安装 Ninja
+      shell: bash
+      run: |
+        root="$RUNNER_TEMP/xpack-arm-none-eabi-gcc-${XPACK_GCC_VERSION}"
+        "$root/bin/arm-none-eabi-gcc" --version | head -1
+        echo "ARM_GCC_ROOT=$root" >> "$GITHUB_ENV"
+        command -v ninja >/dev/null || { sudo apt-get update -q && sudo apt-get install -y -q ninja-build; }
