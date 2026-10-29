@@ -36,6 +36,7 @@ CI 的 `host-tests` 作业（`.github/workflows/ci.yml`）在 GitHub Actions 的
 | `brand_extension` | `unit/motor/brand_extension_test.cpp` | `driver_motor`（只用 `motor_group.hpp`，非 DJI 最小适配器） |
 | `bmi088_acquisition` | `unit/imu_acquisition/bmi088_acquisition_test.cpp` | `driver_bmi088`；测试源码直接 `#include` 了 `imu/imu_diagnostics.cpp`（`app/imu/`） |
 | `hal_os_mock` | `unit/hal_os/mock_os_test.cpp` | `platform_mock`（hal_os 的宿主替身：时基、临界区嵌套） |
+| `crc16` | `unit/crc/crc16_test.cpp` | `utils_crc`（CRC-16/MCRF4XX：标准校验值、与逐位实现对照、裁判系统帧尾的小端约定） |
 | `chassis_controller` | `integration/chassis/chassis_controller_test.cpp` | `lib_control`；直接编译 `app/chassis/chassis_controller.cpp`、`app/tasks/chassis_task.cpp`（模拟电机） |
 | `controller_equivalence` | `integration/chassis/controller_equivalence_test.cpp` | 同上 |
 | `mock_normal` / `mock_read_failure` / `mock_command_failure` / `mock_init_failure` | `integration/chassis/chassis_mock_test.cpp` | 同上，按场景参数运行 |
@@ -50,7 +51,7 @@ CI 的 `host-tests` 作业（`.github/workflows/ci.yml`）在 GitHub Actions 的
 ```text
 test/host/
 ├── CMakeLists.txt
-├── unit/{protocol,motor,imu_acquisition,hal_os}/   单元测试
+├── unit/{protocol,motor,imu_acquisition,hal_os,crc}/ 单元测试
 ├── integration/chassis/                     底盘任务 + 控制器 + 模拟电机
 └── support/                                 测试替身
     ├── dji_platform_stub.hpp                CAN/时基 C ABI 桩

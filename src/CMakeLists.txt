@@ -78,6 +78,8 @@ utils_library(utils_math
     utils/math/vector3.hpp)
 
 utils_library(utils_crc
+    utils/crc/crc16.cpp
+    utils/crc/crc16.hpp
     utils/crc/crc32.cpp
     utils/crc/crc32.hpp
     utils/crc/crc8.cpp

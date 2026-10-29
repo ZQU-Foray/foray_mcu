@@ -73,6 +73,9 @@ target_link_libraries(test_bmi088_acquisition PRIVATE Threads::Threads)
 host_test(hal_os_mock
     SOURCES unit/hal_os/mock_os_test.cpp
     LINK platform_mock)
+host_test(crc16
+    SOURCES unit/crc/crc16_test.cpp
+    LINK utils_crc)
 
 # ---- 集成测试（底盘任务 + 控制器 + 模拟电机） ----
 host_test(chassis_controller MOCK_BACKEND
