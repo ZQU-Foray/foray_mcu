@@ -880,6 +880,7 @@
    - `wait()`：在临界区内检查 `pending_`，有就清掉并返回 true；没有就登记当前任务，出临界区后 `ulTaskNotifyTakeIndexed(1, pdTRUE, 剩余节拍)`，醒来再检查。剩余时间按 `now_us()` 计算。
    - `notify()`：在临界区内置 `pending_`、取出 `waiter_`；出临界区后，有等待者就叫醒它：任务里用 `xTaskNotifyGiveIndexed`，中断里用 `vTaskNotifyGiveIndexedFromISR` 加 `portYIELD_FROM_ISR`。用 IPSR 判断是否在中断里。
    - 用 1 号通知槽，避开 0 号（CMSIS 线程标志、stream buffer），`configTASK_NOTIFICATION_ARRAY_ENTRIES` 改为 2。`FreeRTOSConfig.h` 属于生成区：F2 先查 CubeMX 6.17.0 的 FreeRTOS 参数里有没有这一项；没有的话只能写在 `USER CODE BEGIN Defines` 区，超出规则 7 的范围，要另行登记例外，由负责人决定。
+     - 2026-10-31 补充：CubeMX 6.18.1 没有这一项，改用板级 CMake 的编译宏统一设置，不改生成区，见 Decision-20261031-10。
    - 裸机板（MSPM0）：`pending_` 加 WFI，不用 `waiter_`。
 5. 宿主替身（`platform/mock`）：
    - 用条件变量等待，超时按测试推进的时间计算；
@@ -1191,6 +1192,52 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 
 **Alternatives / Rejected**：
 - **保留"厂商 / 芯片 / 板"三级**：与架构 v2 不符；同一芯片出现第二块板时再决定共用代码放哪里（§3.7）。否决。
+
+---
+
+## Decision-20261031-10（hal/os 在 DM-MC02 上的实现：TIM2、BASEPRI、任务通知槽，Accepted）
+
+- **Date**：2026-10-31
+- **Status**：Accepted（F2 第 3 步，负责人同意 Decision-20261031-07 的顺序；第 2、3 点按此前登记的建议执行，负责人可以否决）
+- **Source**：Decision-20261031-01 第 5 点、-02 第 4 点、-03 第 2 点、-04；plan.md F2 第 3 步
+
+**Context**：
+
+- hal/os 契约 v1 在 F1 定稿，固件上还没有实现。
+- Decision-20261031-02 第 4 点：`Signal` 用 1 号任务通知槽，`configTASK_NOTIFICATION_ARRAY_ENTRIES` 要改成 2。先查 CubeMX 有没有这一项；没有的话只能写进 `FreeRTOSConfig.h` 的 USER CODE 区，超出规则 7，要登记例外，由负责人决定。
+- 查得：CubeMX 6.18.1 的整个参数数据库（`db/`）里都没有 `ARRAY_ENTRIES`。`FreeRTOS.h` 在没有定义时用 `#ifndef` 取默认值 1。
+- Decision-20261031-01 第 5 点：调试暂停时是否冻结 TIM2 在 F2 定，当时建议冻结。
+
+**Decision**：
+
+1. 实现放在 `platform/dm_mc02/port/os/`（C++），每个契约头对应一个文件：
+   - `clock.cpp`：`now_us()` 读一次 `TIM2->CNT`；
+   - `critical_section.cpp`：保存 BASEPRI，用 `BASEPRI_MAX` 抬到 `configMAX_SYSCALL_INTERRUPT_PRIORITY`（优先级 5），然后 `isb`、`dsb`；析构时写回；
+   - `signal.cpp`：`pending_`、`waiter_` 在临界区内读写，用 1 号通知槽叫醒任务（中断里用 FromISR 版本加 `portYIELD_FROM_ISR`，按 IPSR 判断上下文）；醒来后以 `pending_` 为准，超时按 µs 核对；误用由 `configASSERT` 拦下（在中断里或临界区内调用 `wait()`、在临界区内调用 `notify()`、两个任务同时等）；
+   - port 私有的 `os.hpp` 声明 `port::os::start_clock()`。
+2. **通知槽的个数用编译宏统一设置，不改生成区**：板级 CMake 定义 `rtos_definitions`（`configTASK_NOTIFICATION_ARRAY_ENTRIES=2`），同时加进 `cubemx_definitions`（生成代码、内核、USB、port）与 `os_freertos_<板>` 的接口。
+   - 它决定任务控制块与 `StaticTask_t` 的大小，所有 include FreeRTOS 头的编译单元都必须一致；
+   - `signal.cpp` 用 `static_assert` 检查至少有 2 个槽；
+   - 这样不需要第 -02 第 4 点说的 USER CODE 例外。
+3. **调试暂停时冻结 TIM2**（`__HAL_DBGMCU_FREEZE_TIM2()`），按 -01 的建议：SysTick 在内核暂停时也停，两者一致，断点恢复后不会集体超时。
+4. TIM2 的计数器由 `port::os::start_clock()` 启动，F2 第 4 步由 `hal::init()` 调用。在那之前固件里没有调用方，这一步的函数会被 `--gc-sections` 回收，要到第 4 步的 bringup 才在板上运行。
+5. port 链接 `hal_os` 契约（依赖图允许 port → 契约）。
+
+**验证**：
+- 固件 Debug、Release 构建无告警（port 带 `-Wextra -Werror`）；
+- 用 ninja 的依赖记录核对：Debug、Release 各有 16 个编译单元 include `FreeRTOS.h`，全部带 `-DconfigTASK_NOTIFICATION_ARRAY_ENTRIES=2`；
+- 反汇编核对：
+  - 临界区是 `mrs BASEPRI` → `msr BASEPRI_MAX, 0x50` → `isb` → `dsb`，析构是 `msr BASEPRI`；
+  - `now_us()` 是一次读 `0x40000024`（TIM2_CNT）；
+  - `start_clock()` 置 DBGMCU `APB1LFZ1` 的 TIM2 位再启动 TIM2；
+  - `notify()` 调用 `vTaskGenericNotifyGiveFromISR` / `xTaskGenericNotify`，下标都是 1；
+- 固件符号的变化（Release）只有：`Idle_TCB`、`Timer_TCB`（cmsis_os2.c 里的 `StaticTask_t`）由 92 变为 96 字节，与内核的任务控制块一致；`xTaskGenericNotify`、`xTaskGenericNotifyFromISR`、`xTaskGenericNotifyWait` 变大；
+- HAL 回调检查、依赖图、文本扫描、格式、命名（0 处）通过。
+
+**Alternatives / Rejected**：
+- **写进 `FreeRTOSConfig.h` 的 USER CODE 区**（-02 第 4 点的原方案）：要为生成区登记例外，而且宏的位置不显眼。改用编译宏，效果相同，不碰生成区。
+- **改用 0 号通知槽**：会与 CMSIS-RTOS2 的线程标志、stream buffer 冲突。旧 app 归档后线程标志虽然没人用，但 stream buffer 仍可能被引入。否决。
+- **不冻结 TIM2**：断点停住后 TIM2 继续走，SysTick 停着，恢复运行时 µs 超时会集体到期，调试时的行为与正常运行不同。否决。
 
 ---
 
