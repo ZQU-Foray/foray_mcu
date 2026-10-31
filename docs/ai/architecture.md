@@ -160,7 +160,7 @@ foray_mcu/
   - true 只说明"上次取走之后有过 `notify()`"，调用方醒来后重新检查条件；
   - `notify()` 在任务与框架中断里都能调用，`wait()` 只在任务里；超时常量 `NO_WAIT`、`WAIT_FOREVER`；
   - `constexpr` 构造，可以常量初始化。
-- **实现**：`platform/<board>/port`（F2）：时基用板上的 32 位定时器分频到 1 MHz（DM-MC02 为 TIM2）；`Signal` 用 FreeRTOS 的 1 号任务通知槽，裸机板用标志位加 WFI。`platform/mock`：时间由测试推进，临界区是一把进程内的锁，`Signal` 用条件变量并检查误用。
+- **实现**：`platform/<board>/port/os`：时基用板上的 32 位定时器分频到 1 MHz（DM-MC02 为 TIM2，调试暂停时冻结）；`Signal` 用 FreeRTOS 的 1 号任务通知槽（槽数由板级 CMake 的编译宏设为 2，Decision-20261031-10），裸机板用标志位加 WFI。DM-MC02 的实现在 F2 第 3 步完成。`platform/mock`：时间由测试推进，临界区是一把进程内的锁，`Signal` 用条件变量并检查误用。
 - 线程、队列、事件组不进框架。
 
 ### 3.3 启动入口 `src/boot`

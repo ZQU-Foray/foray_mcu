@@ -44,7 +44,7 @@ foray_mcu/
 ├── platform/
 │   ├── dm_mc02/              按板一级（F2 第 2 步由 st/stm32h7/board_dm 移来，Decision-20261031-09）：board.cmake（板标识 dm_mc02）+ CMakeLists.txt（mx_generated、rtos、usb、port、board、os_freertos）
 │   │   ├── cubemx/           CubeMX 生成物：Core、Drivers、Middlewares、USB_DEVICE、.ioc、启动文件、链接脚本（冻结）
-│   │   └── port/             契约的手写实现（C），含 port_kit（队列/通知/临界区）与 usb_cdc；Init.h、UsbCdc.h 被生成代码按名字 include，保持原名
+│   │   └── port/             契约的手写实现（C，F2 起逐步改为 C++），含 port_kit（队列/通知/临界区）与 usb_cdc；os/ 是 hal/os 契约 v1 的 C++ 实现（TIM2、BASEPRI、任务通知槽，F2 第 3 步）；Init.h、UsbCdc.h 被生成代码按名字 include，保持原名
 │   └── mock/                 platform_mock：hal_os 的宿主替身（线程安全，测试推进时间，Signal 检查误用）
 ├── legacy/                   迁移源的 README 与既有架构图（源码已在 P2、P2.5 全部搬出）
 │   ├── .docs/images/         既有架构图
