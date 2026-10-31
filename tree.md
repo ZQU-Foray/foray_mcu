@@ -11,7 +11,7 @@ foray_mcu/
 ├── .gitignore / .gitattributes / .clang-format / .clang-tidy   仓库规则、格式与命名配置
 ├── .git-blame-ignore-revs     git blame 忽略的纯格式/纯改名提交
 ├── .foray-layer / CODEOWNERS  组织合规件（layer: MCU；@ZQU-Foray/电控组）
-├── .github/workflows/ci.yml   CI：lint-python、lint-c、lint-naming、lint-arch、host-tests、framework（框架独立构建、M0+ 原子检查）、firmware（符号对照）
+├── .github/workflows/ci.yml   CI：lint-python、lint-c、lint-naming、lint-arch、host-tests、framework（框架独立构建、M0+ 原子检查）、firmware（段大小报告、HAL 回调检查）
 ├── .github/actions/setup-arm-gcc/   CI 共用：安装 xPack Arm GNU 工具链与 Ninja
 ├── README.md / AGENTS.md / plan.md / tree.md / decision.md   五件套
 ├── .clangd                    clangd 设置（P2 从迁移源的 DM_MC02 移来）
@@ -55,7 +55,7 @@ foray_mcu/
 ├── test/data/heater/         原固件加热冷启动曲线（L6 重做的验收下限）
 ├── tool/debug/               SWD 只读轮询、IMU 采集与加热日志解码（Python）
 ├── tool/flash/openocd/       OpenOCD 配置（DM-MC02 + CMSIS-DAP）
-├── tool/ci/                  format.py（格式）、naming.py（命名）、symbols.py（符号对照）、arch_check.py（依赖图与文本扫描）
+├── tool/ci/                  format.py（格式）、naming.py（命名）、symbols.py（符号对照与段大小报告）、arch_check.py（依赖图、文本扫描、M0+ 原子与 HAL 回调检查）
 └── docs/
     ├── assets/controller_code-架构图.png                    迁移源架构图（人工绘制，PNG 内嵌 5 页）
     └── ai/                      AI 撰写的文档（Decision-20261026-03）

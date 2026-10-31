@@ -1,6 +1,6 @@
 # 架构判据与依赖规则（foray_mcu）
 
-> **状态**：v2.5（2026-10-31）。v2.0 见 Decision-20261027-01；v2.1 随 F1 第 1 步更新 utils、middleware、lib 的归类：math 进 utils，fsm 进 middleware（Decision-20261027-02）；v2.2 随 F1 第 2 步加入 utils 的并发原语 `concurrency`（Decision-20261029-01），§3.4 补充 seqlock 的读写竞态（Decision-20261029-02，待定）；v2.3 随 F1 第 3 步定稿 §3.2 的 OS 契约：1 µs 时基、`Signal` 的语义、临界区只屏蔽框架中断（Decision-20261031-01～03）；v2.4 随 F1 第 4 步定稿 §3.4 的 topic：发布时用临界区包住写入（Decision-20261029-02），接口、等待槽与清单约定（Decision-20261031-05）；v2.5 随 F1 的 CI 加入框架独立构建与 Cortex-M0+ 原子检查，规则 13、17 的文本扫描生效，新增例外 X-17（Decision-20261031-06）。v2 按负责人的骨架重写：迁移方式从"改造迁移源"改为"按新骨架重建，迁移源只作参考与零件来源"。v1.0–v1.4（P0–P2.5）见 git 历史与 decision.md。
+> **状态**：v2.6（2026-10-31）。v2.0 见 Decision-20261027-01；v2.1 随 F1 第 1 步更新 utils、middleware、lib 的归类：math 进 utils，fsm 进 middleware（Decision-20261027-02）；v2.2 随 F1 第 2 步加入 utils 的并发原语 `concurrency`（Decision-20261029-01），§3.4 补充 seqlock 的读写竞态（Decision-20261029-02，待定）；v2.3 随 F1 第 3 步定稿 §3.2 的 OS 契约：1 µs 时基、`Signal` 的语义、临界区只屏蔽框架中断（Decision-20261031-01～03）；v2.4 随 F1 第 4 步定稿 §3.4 的 topic：发布时用临界区包住写入（Decision-20261029-02），接口、等待槽与清单约定（Decision-20261031-05）；v2.5 随 F1 的 CI 加入框架独立构建与 Cortex-M0+ 原子检查，规则 13、17 的文本扫描生效，新增例外 X-17（Decision-20261031-06）；v2.6 随 F2 第 1 步把固件的符号对照换成段大小报告，规则 16 的 HAL 回调符号检查生效（Decision-20261031-08）。v2 按负责人的骨架重写：迁移方式从"改造迁移源"改为"按新骨架重建，迁移源只作参考与零件来源"。v1.0–v1.4（P0–P2.5）见 git 历史与 decision.md。
 > **权威来源**：[decision.md](../../decision.md) 中的 Accepted 条目，v2 起以 Decision-20261027-01 为准。[评审报告 v1.0](reviews/2026-10-25-foray_mcu-架构评审报告.md) 是历史记录，与本文件冲突的部分以本文件为准。
 > **修改流程**：新增或修改规则、例外、白名单，先在 decision.md 登记，再改本文件和对应的 CI 检查（§10）。
 
@@ -315,7 +315,7 @@ EXECUTABLE  firmware_<profile>
 | 13 | 不用 `std::atomic` 的读改写（`fetch_*`、`exchange`、`compare_exchange_*`）；并发只用 `utils` 原语与 topic | 文本扫描 + Cortex-M0+ 库调用检查 | 已执行（F1）；X-08、X-17 放行 |
 | 14 | 框架开启 `-Wdouble-promotion`，豁免清单见 X-06 | 编译选项 | F3 |
 | 15 | 框架（`src/`、`platform/`、`cmake/`）不得引用产品的路径或 target | 文本扫描 + 框架独立构建 | 已执行 |
-| 16 | C 链接只允许 §9.3 列出的几处；覆盖 HAL 弱符号的 `.cpp` 必须 include 对应 HAL 头 | `nm` 检查 `HAL_*Callback` | F2 |
+| 16 | C 链接只允许 §9.3 列出的几处；覆盖 HAL 弱符号的 `.cpp` 必须 include 对应 HAL 头 | `nm` 检查 `HAL_*Callback`：port 定义的回调都是强符号，没有被 C++ 改名的回调 | 回调检查已执行（F2 第 1 步）；C 链接位置的检查随 port 改写 |
 | 17 | topic 只在 `app/topics` 定义；每个 topic 一个发布者；消息可平凡拷贝，只用标准标量与定长数组 | `static_assert` + 初始化检查 + 文本扫描（定义位置、发布句柄只在一处取得、清单头的 include） | 已执行（F1） |
 | 18 | 能力之间只经 topic 通信：`app_<capability>` 不得依赖其他 `app_<capability>` | 依赖图 | F2 |
 
@@ -327,7 +327,7 @@ EXECUTABLE  firmware_<profile>
 | `lint-arch` | `arch_check.py scan` | F1 已加入规则 13、17；F2 加入规则 4、7 |
 | `host-tests` | host-tests preset 的 ctest；宿主依赖图 | 不变 |
 | `framework` | 只取出框架文件（`git archive`），在副本里：framework preset 构建 + `graph --mode framework`；framework-m0plus 构建 + `atomics` | F1 新增（Decision-20261031-06）；X-17 在 F3 解除后 M0+ 编译全部框架 |
-| `firmware` | arm-debug、arm-release 构建；固件依赖图；与 P1 存档的符号对照 | 符号对照在 F2 退役（行为开始改变），改为构建 + 段大小报告；F2 增加 HAL 回调符号检查 |
+| `firmware` | arm-debug、arm-release 构建；固件依赖图；HAL 回调符号检查（`arch_check.py callbacks`）；段大小报告（`symbols.py report`，写入作业摘要） | F2 第 1 步：与 P1 存档的符号对照退役，加入回调检查与段大小报告（Decision-20261031-08） |
 
 ### 5.4 一级目录白名单（规则 12）
 

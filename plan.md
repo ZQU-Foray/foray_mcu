@@ -95,14 +95,19 @@
 
 ### F2 契约 v1 与 DM-MC02 板级（6–10 人日）
 
-- [ ] 旧能力代码归档：打 tag `archive/pre-rebuild`，移出构建并删除 `app/{imu,chassis,gimbal,remote,tasks,common}` 的旧代码、`config/assembly/entry_legacy.cpp` 与 `Application/Entry.h`、profile `baseline`、依赖旧 app 的宿主测试（底盘集成测试；`bmi088_acquisition` 引用 `imu_diagnostics.cpp` 的部分在 F3 改写）（例外 X-04、X-09、X-10 关闭）；能力重建时从 tag 取参考
-- [ ] `src/hal` 契约 v1：自由函数 + 不透明句柄 + 能力分级（can、spi、uart、gpio、pwm、usb_cdc、`hal::init`；时间归 `hal/os`，不再单列 time，Decision-20261031-01）；`platform/mock` 实现（可注入输入、检查输出）
-- [ ] `platform/dm_mc02/`（按板一级）：port 用 C++ 重写，实现 hal v1 与 hal/os；PortKit 拆分完成；`board/board.hpp`（物理资源句柄、能力常量）；删除 `src/hal/detail`（X-07 关闭）
-  - hal/os（Decision-20261031-01～03）：时基用 TIM2 分频到 1 MHz（`.ioc` 由负责人配置，加入后固件符号会变，随本阶段第一批提交）；临界区用 BASEPRI 抬到优先级 5；`Signal` 用 1 号任务通知槽，`configTASK_NOTIFICATION_ARRAY_ENTRIES` 改为 2（先查 CubeMX 有没有这一项，没有就登记例外）；调试暂停时是否冻结 TIM2 届时定
-- [ ] 启动入口：`src/boot/boot.h`；CubeMX USER CODE 区改为调用 `boot_*`（改动行登记在 decision.md）
-- [ ] `app/common` 任务运行器（FreeRTOS 原生 API，任务表驱动，栈水位巡检）
-- [ ] profile `bringup_dm_mc02` 与对应的 assembly：启动 → 任务表 → topic → LED/蜂鸣器，固件可构建、可烧录
-- [ ] CI：`firmware` 作业的符号对照退役，改为构建 + 段大小报告；加入 HAL 回调符号检查；依赖图与文本扫描加入规则 1（`board.hpp`）、4、7、10、16、18
+> 顺序（Decision-20261031-07）：先做与具体外设无关的第 1–4 步，每一步固件都可构建；第 5 步（外设）待负责人决定，AI 建议按外设纵向推进、与 F3 合起来排。旧 C port 定义了 HAL 回调，同一外设的新旧 port 不能并存。
+> 本地分支：第 1 步 `f2/firmware-ci`（从 `f1/ci` 切出）；第 2 步的分支先用 merge 合入 `f2/tim2-timebase`。PR 暂不开，以后按 `f1/topic` → `f1/ci` → `f2/firmware-ci` → `f2/tim2-timebase` → 第 2 步起的分支依次合入。
+
+- [x] 第 1 步 CI（2026-10-31，Decision-20261031-08）：`firmware` 作业的符号对照退役，改为段大小报告（`symbols.py report`，写入作业摘要）；加入 HAL 回调符号检查（规则 16，`arch_check.py callbacks`）。规则 1（`board.hpp`）、4、7、10、18 的检查随对应内容出现时加入
+- [ ] 第 1 步（续）合入 `f2/tim2-timebase`（TIM2 作 1 MHz 时基计数源，CubeMX 6.18.1，Decision-20261031-04），用 merge 提交，保留提交号
+- [ ] 第 2 步 板级目录：`platform/st/stm32h7/board_dm` → `platform/dm_mc02`（按板一级），纯移动，用 `symbols.py compare` 自证固件符号不变
+- [ ] 第 3 步 hal/os 的 port 实现（Decision-20261031-01～03）：时基读 TIM2（计数器在 `hal::init()` 里启动）；临界区用 BASEPRI 抬到优先级 5；`Signal` 用 1 号任务通知槽，`configTASK_NOTIFICATION_ARRAY_ENTRIES` 改为 2（先查 CubeMX 有没有这一项，没有就登记例外）；调试暂停时是否冻结 TIM2 届时定
+- [ ] 第 4 步 启动与 bringup：
+  - 启动入口 `src/boot/boot.h`；CubeMX USER CODE 区改为调用 `boot_*`（改动行登记在 decision.md）；
+  - `app/common` 任务运行器（FreeRTOS 原生 API，任务表驱动，栈水位巡检）；
+  - profile `bringup_dm_mc02` 与对应的 assembly：启动 → 任务表 → topic，固件可构建、可烧录（LED/蜂鸣器随第 5 步的 gpio/pwm 加入）；
+  - 然后归档旧能力代码：打 tag `archive/pre-rebuild`，移出构建并删除 `app/{imu,chassis,gimbal,remote,tasks,common}` 的旧代码、`config/assembly/entry_legacy.cpp` 与 `Application/Entry.h`、profile `baseline`、依赖旧 app 的宿主测试（底盘集成测试；`bmi088_acquisition` 引用 `imu_diagnostics.cpp` 的部分在归档时去掉，BMI088 驱动改写时重写）（例外 X-04、X-09、X-10 关闭）；能力重建时从 tag 取参考
+- [ ] 第 5 步 外设（做法待定，见 decision.md"待登记"）：`src/hal` 契约 v1（写法待定：自由函数、静态类或句柄类；不透明句柄 + 能力分级；can、spi、uart、gpio、pwm、usb_cdc、`hal::init`；时间归 `hal/os`，Decision-20261031-01）；`platform/mock` 实现（可注入输入、检查输出）；port 用 C++ 重写，PortKit 拆分完成；`board/board.hpp`（物理资源句柄、能力常量）；删除 `src/hal/detail`（X-07 关闭）
 - [ ] 验收：bringup 固件在板上启动，任务按表运行，中断发布的 topic 能被阻塞等待的任务收到；宿主测试全绿
 
 ### F3 驱动适配（4–7 人日）
@@ -158,7 +163,7 @@
 
 ## 当前 Agent State
 
-`EXECUTING`（P0–P2.5 已验收；F1 框架基础件各项已完成——第 1–4 步、宿主测试、CI，待负责人验收；里程碑合并入 `main` 按负责人要求暂缓）。
+`EXECUTING`（P0–P2.5 已验收；F1 各项已完成，待负责人验收；F2 第 1 步已完成，第 2–4 步进行中，第 5 步待负责人决定；PR 暂不开，提交留在本地分支；里程碑合并入 `main` 按负责人要求暂缓）。
 状态词表：`REVIEW_PENDING`（等待评审）/ `PLANNING`（方案已批准、编制细节）/ `EXECUTING`（实施中）/ `BLOCKED`（外部阻塞）/ `DONE`（阶段完成）。
 
 ## Before Snapshot
@@ -236,3 +241,4 @@ Q1–Q18 已全部确认（见评审报告 v1.0 §11.1 与 decision.md）。仍�
 | 2026-10-31 | F1 | 第 3 步：hal/os 契约 v1——1 µs 时基、`Signal`、临界区只屏蔽框架中断（Decision-20261031-01～03）；`platform/mock` 改为线程安全。ctest 21/21，ThreadSanitizer 无报告，故意改坏 mock 的四处都被测试抓到，M0+/M4/M7 上全局 `Signal` 常量初始化，固件符号与 P1 存档一致 | 已完成 |
 | 2026-10-31 | F1 | 第 4 步：`middleware_topic`——发布时用临界区包住写入（Decision-20261029-02 定为方案 1）、单发布者、`update`/`wait`、等待槽、观测计数（Decision-20261031-05）；`app/topics` 清单约定。ctest 22/22，ThreadSanitizer 无报告，故意改坏的十处都被测试抓到，M0+/M4/M7 无原子读改写库调用、全局对象常量初始化，固件符号与 P1 存档一致 | 已完成 |
 | 2026-10-31 | F1 | CI：新增 `framework` 作业——只含框架文件的副本里做框架独立构建与依赖图检查；Cortex-M0+ 构建整个框架并检查原子库调用（X-17 的三个 target 暂不编译）；文本扫描加入规则 13、17（Decision-20261031-06）。反向验证七类违规都被拦下；ctest 22/22，固件符号与 P1 存档一致，命名检查 0 处 | 已完成，F1 待验收 |
+| 2026-10-31 | F2 | F2 顺序调整（Decision-20261031-07）：先做与外设无关的第 1–4 步，第 5 步待定。第 1 步：固件 CI 的符号对照退役，改为段大小报告；加入 HAL 回调符号检查（Decision-20261031-08）。报告与链接器用量一致，回调检查反向验证两种失效都被抓到 | 第 1 步完成（TIM2 待合入） |
