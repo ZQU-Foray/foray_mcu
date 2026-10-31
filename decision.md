@@ -917,6 +917,48 @@
 
 ---
 
+## Decision-20261031-04（DM-MC02 启用 TIM2 作时基计数源；CubeMX 改用 6.18.1，Accepted）
+
+- **Date**：2026-10-31
+- **Status**：Accepted（负责人在 CubeMX 中配置并生成；提交方式与合入时机由负责人选定 AI 的建议）
+- **Source**：Decision-20261031-01 第 5 点；修订其中的 CubeMX 版本（6.17.0 → 6.18.1）
+
+**Context**：
+
+- Decision-20261031-01 定了 DM-MC02 用 TIM2 分频到 1 MHz 作时基，`.ioc` 由负责人配置。
+- 2026-10-31 起开发环境从 Windows（WSL）换到 Ubuntu 24.04。负责人用 Linux 上的 STM32CubeMX 6.18.1（数据库 DB.6.0.181）生成，上一版是 Windows 上的 6.17.0（DB.6.0.170）。
+- 生成结果与上一版的差别分两类：
+  - **格式**：`.ioc` 行尾 CRLF → LF（953 行）；`usbd_conf.c` 行尾 LF → CRLF（665 行，文件末尾补了换行）；`.mxproject` 路径分隔符 `\` → `/`，头文件列表换了顺序。去掉这些差异后内容相同。
+  - **内容**：TIM2（`.ioc` 48 行；`tim.c`、`tim.h`；`main.c` 多一行 `MX_TIM2_Init()`）。`tim.c` 里 `HAL_TIM_PWM_Msp*` 与 `HAL_TIM_Base_Msp*` 换了先后顺序，函数内容不变。
+- 固件包仍是 FW_H7 V1.13.0，`Drivers/`、`Middlewares/` 没有变化；时钟树没变，TIM2 的时钟仍是 240 MHz。
+
+**Decision**：
+
+1. TIM2 配置：
+   - 内部时钟，分频 240−1，向上计数，自动重装 0xFFFFFFFF，时钟不分频，不预装载，TRGO Reset；
+   - 不开中断，不接 DMA；
+   - `MX_TIM2_Init()` 只初始化、不启动。计数器由 port 在 `hal::init()` 里启动（F2），USER CODE 区不加代码。
+2. CubeMX 的基准版本改为 6.18.1（DB.6.0.181），以后在 Linux 上用这个版本生成。`docs/ai/decisions/2026-10-25-迁移基线与对照.md` 里的 6.17.0 是迁移源的历史记录，不改。
+3. 生成物按 Linux 上 CubeMX 的输出入库，以后在本机重新生成就不会再出现格式差异。分两次提交：
+   - 第一次只含格式变化（上述三个文件，去掉行尾与分隔符差异后内容不变），登记到 `.git-blame-ignore-revs`；
+   - 第二次是 TIM2 的实际变化；
+   - 本分支合入时用 merge 提交，不要 rebase 或 squash，否则 `.git-blame-ignore-revs` 里的提交号会失效。
+4. 固件符号的变化（对照 P1 存档，其他符号不变）：
+   - 新增 `htim2`（76 B）、`MX_TIM2_Init`（Debug 156 B、Release 108 B）；
+   - `HAL_TIM_Base_MspInit` 变大（Debug 144 → 184 B，Release 120 → 152 B）；
+   - `main` 变大（Debug 232 → 236 B，Release 184 → 188 B）。
+5. 合入时机：CI 的 `firmware` 作业还在对照 P1 存档，上面的变化会让它失败。分支 `f2/tim2-timebase` 等 F2 让符号对照退役的 CI 改动合入后再开 PR。
+
+**验证**：固件 Debug、Release 构建无告警；符号差异与第 4 点完全一致。
+
+**Alternatives / Rejected**：
+
+- **把生成物手工转回 Windows 上的格式**：等于手工修改生成区；而且下次在 Linux 上重新生成又会变回来。否决。
+- **继续用 6.17.0**：Linux 上要另装旧版本；6.18.1 这次生成的代码除 TIM2 外与上一版相同，没有理由留在旧版本。否决。
+- **现在就合入，并在 CI 的符号对照里加"预期变化"清单**：要为一个提前一个阶段的改动修改 `symbols.py` 和 CI。否决。
+
+---
+
 ## 待登记
 
 - 分支保护的具体设置（组织规范 §6.1、§10，负责人在 GitHub 上操作后补记）。
