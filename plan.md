@@ -103,7 +103,7 @@
 - [x] 第 2 步 板级目录（2026-10-31，Decision-20261031-09）：`platform/st/stm32h7/board_dm` → `platform/dm_mc02`（按板一级），226 个文件纯移动（R100），只改 4 处路径；移动前后固件符号一致、`.bin` 逐字节相同。负责人以后从 `platform/dm_mc02/cubemx/mc02_cpp.ioc` 打开 CubeMX
 - [x] 第 3 步 hal/os 的 port 实现（2026-10-31，Decision-20261031-10）：`platform/dm_mc02/port/os/`（C++）——时基读 TIM2，调试暂停时冻结，计数器由 `port::os::start_clock()` 启动（第 4 步由 `hal::init()` 调用）；临界区用 `BASEPRI_MAX` 抬到优先级 5；`Signal` 用 1 号任务通知槽。CubeMX 6.18.1 没有 `configTASK_NOTIFICATION_ARRAY_ENTRIES`，改用板级 CMake 的编译宏统一设为 2，不改生成区。要到第 4 步的 bringup 才在板上运行
 - [ ] 第 4 步 启动与 bringup：
-  - 启动入口 `src/boot/boot.h`；CubeMX USER CODE 区改为调用 `boot_*`（改动行登记在 decision.md）；
+  - [x] 启动入口（2026-10-31，Decision-20261031-11）：`src/boot/boot.h`、`hal::init()`（port 实现：启动 TIM2 + 迁移期的 `Port_Init()`）；CubeMX USER CODE 区改为调用 `boot_*`（改动行登记在 -11）；迁移期的 `entry_legacy.cpp` 实现 `boot_*`，旧 app 照常运行；X-09 关闭；规则 7 的 include 检查；
   - `app/common` 任务运行器（FreeRTOS 原生 API，任务表驱动，栈水位巡检）；
   - profile `bringup_dm_mc02` 与对应的 assembly：启动 → 任务表 → topic，固件可构建、可烧录（LED/蜂鸣器随第 5 步的 gpio/pwm 加入）；
   - 然后归档旧能力代码：打 tag `archive/pre-rebuild`，移出构建并删除 `app/{imu,chassis,gimbal,remote,tasks,common}` 的旧代码、`config/assembly/entry_legacy.cpp` 与 `Application/Entry.h`、profile `baseline`、依赖旧 app 的宿主测试（底盘集成测试；`bmi088_acquisition` 引用 `imu_diagnostics.cpp` 的部分在归档时去掉，BMI088 驱动改写时重写）（例外 X-04、X-09、X-10 关闭）；能力重建时从 tag 取参考
@@ -245,3 +245,4 @@ Q1–Q18 已全部确认（见评审报告 v1.0 §11.1 与 decision.md）。仍�
 | 2026-10-31 | F2 | F2 顺序调整（Decision-20261031-07）：先做与外设无关的第 1–4 步，第 5 步待定。第 1 步：固件 CI 的符号对照退役，改为段大小报告；加入 HAL 回调符号检查（Decision-20261031-08）。报告与链接器用量一致，回调检查反向验证两种失效都被抓到 | 第 1 步完成 |
 | 2026-10-31 | F2 | 合入 TIM2 分支（merge 提交，符号变化与 Decision-20261031-04 一致）；第 2 步：板级目录改为 `platform/dm_mc02`（Decision-20261031-09），移动前后固件符号一致、`.bin` 逐字节相同 | 第 2 步完成 |
 | 2026-10-31 | F2 | 第 3 步：hal/os 在 DM-MC02 上的实现（Decision-20261031-10）。16 个 include FreeRTOS 头的编译单元宏一致；反汇编核对临界区、时基、通知槽；`StaticTask_t` 与内核一致（92 → 96 字节）；板上运行待第 4 步 | 第 3 步完成（待上板） |
+| 2026-10-31 | F2 | 第 4 步（启动入口）：生成区只调 `boot_*`，`hal::init()` 由 port 实现并启动 TIM2，X-09 关闭（Decision-20261031-11）。固件只有 `Application_*` 换成 `boot_*` 与新增的 `hal::init`、`start_clock`、`HAL_TIM_Base_Start`；旧 `main.c` 的两处 include 会被规则 7 拦下 | 启动入口完成（待上板确认旧固件照常运行） |

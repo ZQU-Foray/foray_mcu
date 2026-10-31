@@ -1,6 +1,6 @@
 # 架构判据与依赖规则（foray_mcu）
 
-> **状态**：v2.6（2026-10-31）。v2.0 见 Decision-20261027-01；v2.1 随 F1 第 1 步更新 utils、middleware、lib 的归类：math 进 utils，fsm 进 middleware（Decision-20261027-02）；v2.2 随 F1 第 2 步加入 utils 的并发原语 `concurrency`（Decision-20261029-01），§3.4 补充 seqlock 的读写竞态（Decision-20261029-02，待定）；v2.3 随 F1 第 3 步定稿 §3.2 的 OS 契约：1 µs 时基、`Signal` 的语义、临界区只屏蔽框架中断（Decision-20261031-01～03）；v2.4 随 F1 第 4 步定稿 §3.4 的 topic：发布时用临界区包住写入（Decision-20261029-02），接口、等待槽与清单约定（Decision-20261031-05）；v2.5 随 F1 的 CI 加入框架独立构建与 Cortex-M0+ 原子检查，规则 13、17 的文本扫描生效，新增例外 X-17（Decision-20261031-06）；v2.6 随 F2 第 1 步把固件的符号对照换成段大小报告，规则 16 的 HAL 回调符号检查生效（Decision-20261031-08）。v2 按负责人的骨架重写：迁移方式从"改造迁移源"改为"按新骨架重建，迁移源只作参考与零件来源"。v1.0–v1.4（P0–P2.5）见 git 历史与 decision.md。
+> **状态**：v2.7（2026-10-31）。v2.0 见 Decision-20261027-01；v2.1 随 F1 第 1 步更新 utils、middleware、lib 的归类：math 进 utils，fsm 进 middleware（Decision-20261027-02）；v2.2 随 F1 第 2 步加入 utils 的并发原语 `concurrency`（Decision-20261029-01），§3.4 补充 seqlock 的读写竞态（Decision-20261029-02，待定）；v2.3 随 F1 第 3 步定稿 §3.2 的 OS 契约：1 µs 时基、`Signal` 的语义、临界区只屏蔽框架中断（Decision-20261031-01～03）；v2.4 随 F1 第 4 步定稿 §3.4 的 topic：发布时用临界区包住写入（Decision-20261029-02），接口、等待槽与清单约定（Decision-20261031-05）；v2.5 随 F1 的 CI 加入框架独立构建与 Cortex-M0+ 原子检查，规则 13、17 的文本扫描生效，新增例外 X-17（Decision-20261031-06）；v2.6 随 F2 第 1 步把固件的符号对照换成段大小报告，规则 16 的 HAL 回调符号检查生效（Decision-20261031-08）；v2.7 随 F2 第 4 步换上启动入口 `boot_*` 与 `hal::init()`，规则 7 的 include 检查生效，`boot` 在依赖图里单独成层，X-09 关闭（Decision-20261031-11）。v2 按负责人的骨架重写：迁移方式从"改造迁移源"改为"按新骨架重建，迁移源只作参考与零件来源"。v1.0–v1.4（P0–P2.5）见 git 历史与 decision.md。
 > **权威来源**：[decision.md](../../decision.md) 中的 Accepted 条目，v2 起以 Decision-20261027-01 为准。[评审报告 v1.0](reviews/2026-10-25-foray_mcu-架构评审报告.md) 是历史记录，与本文件冲突的部分以本文件为准。
 > **修改流程**：新增或修改规则、例外、白名单，先在 decision.md 登记，再改本文件和对应的 CI 检查（§10）。
 
@@ -306,7 +306,7 @@ EXECUTABLE  firmware_<profile>
 | 4 | `config/profiles` 只含数据：`params.hpp` 只能 include 能力的配置类型头与标准库头 | 文本扫描 | F2 |
 | 5 | 只有最终固件可以链接 `assembly_*` | 依赖图 | 已执行 |
 | 6 | 测试不得链接 port、board、生成区、assembly | 依赖图 | 已执行 |
-| 7 | 生成区只在 USER CODE 区调用 `boot_*`（及 X-01 的 USB 接口）；不得 include `app`、`config` 的头 | 文本扫描 | F2；之前见 X-09 |
+| 7 | 生成区只在 USER CODE 区调用 `boot_*`（及 X-01 的 USB 接口）；不得 include `app`、`config` 的头 | 文本扫描（include 只能指向生成区自己的头、厂商 HAL 头、`boot/boot.h` 与 X-01 的 `UsbCdc.h`）；USER CODE 的改动行登记在 decision.md | 已执行（F2 第 4 步，Decision-20261031-11） |
 | 8 | 禁止 `file(GLOB)` 收集源码；禁止全局 `include_directories()`；每个 target 显式声明 PRIVATE/PUBLIC/INTERFACE | 文本扫描 | 已执行 |
 | 9 | `app/`、`src/` 中不用 `#if` 做裁剪（头文件保护与 `__cplusplus` 除外） | 文本扫描 | 已执行；X-14 放行 |
 | 10 | RTOS 头只对 `app/common` 与 `config/assembly` 可见，用 FreeRTOS 原生 API；能力与 `src` 零 RTOS，只经 `hal/os` | 依赖图 + 文本扫描 | F2；之前见 X-04 |
@@ -350,7 +350,7 @@ EXECUTABLE  firmware_<profile>
 
 ## 7. 例外登记
 
-本表是全部生效中例外的唯一清单。新增例外先在 decision.md 登记；到期项完成后标为已关闭。已关闭的 X-11、X-12、X-13、X-15 见 decision.md。
+本表是全部生效中例外的唯一清单。新增例外先在 decision.md 登记；到期项完成后标为已关闭。已关闭的 X-09（F2 第 4 步，Decision-20261031-11）、X-11、X-12、X-13、X-15 见 decision.md。
 
 | 编号 | 例外 | 涉及规则 | 处置与到期 |
 |---|---|---|---|
@@ -362,7 +362,6 @@ EXECUTABLE  firmware_<profile>
 | X-06 | **`-Wdouble-promotion` 豁免**：`src/lib/estimate/vqf.cpp`，须有"目标无双精度 FPU 即 `#error`"的检查 | 14 | 长期；M4F 板链接姿态解算时重新评估 |
 | X-07 | **C 接口层**：`src/hal/detail/*.h`（`hal_detail`），port 仍是 C | 3、16 | F2 port 改写为 C++ 后删除 |
 | X-08 | **原子读改写**：`src/driver/motor/dji/dji_motor.cpp` 2 处；旧 app 中 6 处 | 13 | 驱动在 F3 适配时改；旧 app 随移出构建消失 |
-| X-09 | **生成区引用应用头**：`main.c`、`freertos.c` include `"Application/Entry.h"`，头文件位于 `config/assembly/Application/`，由 `config/CMakeLists.txt` 注入生成区的 include 路径 | 7 | F2 改为 `boot_*` 后删除 |
 | X-10 | **集成测试直接编译旧 app 源码**（底盘任务、控制器） | §2.4 | F2 随旧 app 归档 |
 | X-14 | **迁移期构建开关**：`legacy_build_options` 的 `BMI088_GYRO_BANDWIDTH_REGISTER`、`IMU_ENABLE_DIAGNOSTICS` | 9、15 | 诊断开关在 F2 随旧 app 删除；陀螺带宽在 F3 改为驱动 `Config` 参数 |
 | X-16 | **RTOS 头的可见范围**：`os_freertos_<board>` 只能整目录暴露 CubeMX 的 `Core/Inc` | 10 | 长期（CubeMX 生成布局决定） |

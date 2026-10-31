@@ -23,7 +23,8 @@ foray_mcu/
 ├── src/                      框架（include 根：#include "hal/can.hpp"）
 │   ├── CMakeLists.txt        框架的全部 target：hal、hal_detail、hal_os、boot、utils_*、middleware_*、lib_*、driver_*
 │   ├── README.md             迁移源 Libraries/README.md（正文为旧路径，F1 更新）
-│   ├── hal/                  C++ 契约（can、gpio、pwm、spi、time、uart、usb_cdc）；detail/ 为迁移期 C ABI（F2 删）；os/ 为最小 OS 契约 v1（clock、critical_section、signal，F1）
+│   ├── hal/                  C++ 契约（can、gpio、pwm、spi、time、uart、usb_cdc，迁移期写法）、init.hpp（hal::init，F2）；detail/ 为迁移期 C ABI（F2 删）；os/ 为最小 OS 契约 v1（clock、critical_section、signal，F1）
+│   ├── boot/                 boot.h：生成区唯一调用的启动入口（F2）
 │   ├── utils/                math、crc（F1 第 1 步由 lib 移入）、concurrency（spsc_queue、latest_value，F1 第 2 步）
 │   ├── middleware/           fsm（F1 第 1 步由 lib 移入）、topic（topic.hpp，F1 第 4 步）
 │   ├── lib/                  control（pid、slope）、estimate、filter、kinematics、component（目录名即命名空间名）
@@ -38,8 +39,8 @@ foray_mcu/
 │   ├── remote/               遥控接收
 │   └── common/               旧任务管理（F2 归档，改为任务运行器 + assembly 的任务表）
 ├── config/
-│   ├── CMakeLists.txt        profile_baseline、assembly_baseline；把 assembly/ 注入生成区的 include 路径（X-09）
-│   ├── assembly/             entry_legacy.cpp（启动入口 Application_*）；Application/Entry.h 被生成代码按此路径 include（F2 改为 boot ABI）
+│   ├── CMakeLists.txt        profile_baseline、assembly_baseline
+│   ├── assembly/             entry_legacy.cpp：迁移期的组合根，实现 boot_*（F2 第 4 步，Decision-20261031-11），随旧 app 归档
 │   └── profiles/             baseline/profile.cmake（a2cfd16 基线固件，DM-MC02）；profile.hpp.in 生成 profile.hpp
 ├── platform/
 │   ├── dm_mc02/              按板一级（F2 第 2 步由 st/stm32h7/board_dm 移来，Decision-20261031-09）：board.cmake（板标识 dm_mc02）+ CMakeLists.txt（mx_generated、rtos、usb、port、board、os_freertos）
@@ -78,7 +79,7 @@ foray_mcu/
 - CMake 文件按层组织：手写的 `CMakeLists.txt` 共 7 个（根、`src/`、`app/`、`config/`、每块板一个、`platform/mock`、`test/host`），一层的全部 target 定义在该层的文件里（Decision-20261026-07）；
 - 根工程按目标结构组织 target，固件 `firmware_baseline` 的符号集合与迁移源一致（P1、P2 验收）；
 - 源码已全部搬出 `legacy/`（P2、P2.5），`legacy/` 只剩迁移源 README 与架构图；迁移期过渡件只剩 `hal_detail`（F2）与 `legacy_build_options`（F2、F3）；
-- `src/boot`（target 已建，暂无代码）；`src/utils`、`src/hal/os`、`src/middleware/topic` 已在 F1 建立，`app/topics` 只有清单约定；按板一级的 `platform/dm_mc02` 等按架构 v2 在 F2 建立。
+- `src/utils`、`src/hal/os`、`src/middleware/topic` 已在 F1 建立，`app/topics` 只有清单约定；`platform/dm_mc02`（按板一级）、`src/boot/boot.h` 与 `src/hal/init.hpp` 在 F2 建立。
 
 ## 目标结构（架构 v2，Decision-20261027-01）
 
@@ -157,7 +158,7 @@ foray_mcu/
 | topic 机制 / 产品的 topic 清单 | `src/middleware/topic/` / `app/topics/` | ✅ 机制（F1 第 4 步，Decision-20261031-05）；清单约定已定，第一个 topic 随 F2 加入 |
 | OS 契约 | `src/hal/os/` | ✅ 契约 v1 与宿主替身（F1 第 3 步，Decision-20261031-01～03）；port 实现在 F2 |
 | 硬件契约 v1 | `src/hal/` | 🟡 F2（现为旧契约 + `src/hal/detail` C 接口，F2 删除） |
-| 启动入口 | `src/boot/` | 🟡 F2（现为 `config/assembly` 的 `Application_*`，例外 X-09） |
+| 启动入口 | `src/boot/` | ✅ `boot.h`，生成区只调 `boot_*`（F2 第 4 步，X-09 关闭）；实现暂在迁移期的 `entry_legacy.cpp`，bringup profile 就位后改为每个 profile 一份 |
 | 领域算法 | `src/lib/` | ✅ 已搬入（P2）、去掉 `alg_` 前缀（P2.5）；F1 调整 slope/fsm/crc 的归属 |
 | 设备驱动与协议 | `src/driver/` | ✅ 已搬入（P2）；F3 适配 hal v1 |
 | 板级（生成区、port、board） | `platform/<板>/{cubemx,port,board}` | 🟡 已按板一级（`platform/dm_mc02`，F2 第 2 步）；port 仍是 C，`board/` 随第 5 步建立 |
