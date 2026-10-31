@@ -104,6 +104,11 @@ host_test(latest_value
     LINK utils_concurrency Threads::Threads)
 target_compile_options(test_spsc_queue PRIVATE -O2)
 target_compile_options(test_latest_value PRIVATE -O2)
+# topic：含一个发布线程对三个订阅线程的压力测试，同样用 -O2。
+host_test(topic
+    SOURCES unit/topic/topic_test.cpp
+    LINK middleware_topic platform_mock Threads::Threads)
+target_compile_options(test_topic PRIVATE -O2)
 
 # ---- 集成测试（底盘任务 + 控制器 + 模拟电机） ----
 host_test(chassis_controller MOCK_BACKEND
@@ -190,3 +195,20 @@ check_motor_code(MAPPING_REQUIRED_COMPILES FALSE
     "${MOTOR_GROUP_INCLUDE}
 static_assert(sizeof(device::MotorGroup<device::MotorModel::M2006, 4>) > 0);
 int main() {}")
+
+# ---- 编译期断言：topic 的消息约束（规则 17、Decision-20261031-05） ----
+# 消息必须可平凡拷贝，且不超过 MAX_MESSAGE_SIZE 字节；对照检查保证"被拒绝"来自这两条约束。
+set(TOPIC_INCLUDE "#include <middleware/topic/topic.hpp>\n#include <array>\n#include <cstdint>")
+function(check_topic_message result should_compile message_type)
+    check_motor_code(${result} ${should_compile}
+        "${TOPIC_INCLUDE}
+${message_type}
+topic::Topic<Message> g_topic{\"check\"};
+int main() {}")
+endfunction()
+check_topic_message(TOPIC_MAX_SIZE_COMPILES TRUE
+    "struct Message { std::array<std::uint8_t, topic::MAX_MESSAGE_SIZE> bytes; };")
+check_topic_message(TOPIC_OVERSIZED_COMPILES FALSE
+    "struct Message { std::array<std::uint8_t, topic::MAX_MESSAGE_SIZE + 1U> bytes; };")
+check_topic_message(TOPIC_NON_TRIVIAL_COMPILES FALSE
+    "struct Message { Message() = default; Message(const Message &) {} std::uint32_t value; };")

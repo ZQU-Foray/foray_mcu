@@ -100,6 +100,12 @@ framework_library(middleware_fsm
     middleware/fsm/fsm.cpp
     middleware/fsm/fsm.hpp)
 
+# topic：最新值、单发布者、中断里可发布、阻塞等待、观测计数（架构 v2 §3.4，Decision-20261031-05）。
+# 只有头文件，只依赖 utils_concurrency 与 hal_os 契约；发布时用临界区包住写入（Decision-20261029-02）。
+framework_interface(middleware_topic
+    middleware/topic/topic.hpp)
+target_link_libraries(middleware_topic INTERFACE hal_os utils_concurrency)
+
 # ==== lib：领域算法（docs/ai/architecture.md §2.3）。只依赖标准库、utils 与 lib 内部 ====
 # 子目录名即命名空间名、即 target 名的后缀（lib/control → control:: → lib_control）。
 

@@ -283,6 +283,7 @@ def check_graph(path: Path, mode: str) -> list[str]:
 
 WHITELIST = {
     "app": {
+        "topics",
         "common",
         "imu",
         "chassis",
