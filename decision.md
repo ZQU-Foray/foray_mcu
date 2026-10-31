@@ -989,6 +989,67 @@
 
 ---
 
+## Decision-20261031-06（F1 的 CI：框架独立构建、Cortex-M0+ 原子检查、规则 13 与 17 的文本扫描，Accepted）
+
+- **Date**：2026-10-31
+- **Status**：Accepted（负责人要求直接推进 F1 的 CI 项；做法由 AI 拟定）
+- **Source**：plan.md F1"CI"项；架构 v2 §5.2 规则 2、13、15、17，§5.3；Decision-20261029-01 第 2 点（用 M0+ 编译检查代替 `is_always_lock_free`）
+
+**Context**：
+
+- 规则 2、15 要求框架（`src/` + `platform/` + `cmake/`）不引用产品。现在只有依赖图检查与文本扫描，没有在"产品不存在"的条件下构建过框架：
+  - 链接一个不存在的 target 名时，CMake 只把它当成库文件名，静态库照常生成；
+  - 产品目录还在，include 产品路径也能编译通过。
+- 规则 13（不用原子读改写）还没有检查。现有的原子读改写正好是 X-08 登记的那些：dji 电机 2 处，旧 app 6 处。文本扫描只能查函数名，查不到对原子变量直接用 `++`、`+=` 的写法。
+- Cortex-M0+ 没有 LDREX/STREX，原子读改写只能编译成 `__atomic_*` 库调用。在 M0+ 上编译，就能把所有写法都查出来。
+- 规则 17 只有 topic 的 `static_assert`。"只在 `app/topics` 定义"和"一个发布者"还没有静态检查。
+- 只有头文件的模板（`utils_concurrency`、`middleware_topic`）没有使用方就不会被编译。框架独立构建与 M0+ 检查都要先把它们实例化。
+
+**Decision**：
+
+1. **框架独立构建**：根 `CMakeLists.txt` 加选项 `FRAMEWORK_ONLY`，新增两个 preset：
+   - `framework`（宿主）：配置 `src` 与 `platform/mock`；
+   - `framework-m0plus`：用新工具链文件 `cmake/toolchains/arm-gcc-cortex-m0plus.cmake` 交叉编译 `src`，不选板卡，只编译不链接；
+   - 两者都不含 `app/`、`config/`、`test/host` 与任何板卡，都另编 `check_templates`（见第 2 点）；
+   - 固件构建仍只有 `-DPROFILE` 一个开关；`FRAMEWORK_ONLY` 只用于这两个 preset，区分构建种类，与 host-tests 用工具链区分是同一类做法。
+2. **模板实例化**：`test/framework/template_check.cpp` 显式实例化 `SpscQueue`、`LatestValue`、`Topic`、`Publisher`、`Subscriber`，target 是 `check_templates`（STATIC），定义在根 `CMakeLists.txt` 的 `FRAMEWORK_ONLY` 分支里。
+   - 不为它新建 CMakeLists：它只有一个文件，只在框架独立构建里出现；
+   - `arch_check.py` 新增 `check` 层（`check_\w+`），只能依赖框架；
+   - 以后新增只有头文件的并发原语或 topic 模板时，在这里补实例化。
+3. **CI 作业 `framework`**：
+   - 用 `git archive` 只取出 `CMakeLists.txt`、`CMakePresets.json`、`cmake/`、`src/`、`platform/mock/`、`test/framework/`，在这个副本里构建；
+   - 宿主：配置后用 `arch_check.py graph --mode framework` 检查依赖图，再构建。framework 模式下，图里不得出现产品、板卡、RTOS 或测试，连"外部库"形式的同名节点也不行，这样链接不存在的产品 target 也会被拦下；
+   - Cortex-M0+：构建后用新增的 `arch_check.py atomics` 检查所有静态库没有 `__atomic_*`、`__sync_*` 调用。
+   - 放在单独的作业里，不放进 host-tests：它要 Arm 工具链，而且必须在副本里构建。架构 §5.3 原来写的是"host-tests 增加框架独立构建"，这里改为单独作业。
+4. **M0+ 的范围**：plan 原来只写 utils 与 topic，现在扩大为整个框架的默认构建，新写的框架代码自动纳入检查。暂时排除 3 个 target，登记为**例外 X-17**，F3 驱动适配后解除：
+   - `driver_bmi088`、`driver_motor_dji`：用 `static_assert(is_always_lock_free)` 要求原子读改写无锁，M0+ 上编译失败，后者另有 X-08；
+   - `lib_estimate`：经 `imu_body_mapping` 依赖 `driver_bmi088`（已知结构债）。
+
+   排除的写法是在根 `CMakeLists.txt` 里给这 3 个 target 设 `EXCLUDE_FROM_ALL`，只在交叉编译的框架构建里生效。其余 11 个静态库都能为 M0+ 编译，也没有原子库调用。
+5. **文本扫描**（`arch_check.py scan`，lint-arch）：
+   - **规则 13**：扫描 `src/`、`app/`、`config/`、`platform/` 的手写代码（生成区与 vendor 头除外），查 `.fetch_*(`、`.exchange(`、`.compare_exchange_*(`、`.test_and_set(` 与 `std::atomic_*` 的读改写自由函数。`std::exchange` 不是原子操作，不算。X-08 的 4 个文件放行；放行的文件改掉以后，扫描会提示删掉这一条；
+   - **规则 17**：`topic::Topic<` 只能出现在 `app/topics/` 与 `src/middleware/topic/`；同一个 topic 的 `claim_publisher()` 只能出现在一处；`app/topics/` 的头文件只能 include 标准库头（不带 `.h` 的名字）、`middleware/topic/topic.hpp`、`hal/os/clock.hpp` 与清单里的其他头，消息因此用不了 `lib` 等层的类型。
+6. **命名检查**：lint-naming 的编译数据库加上 `framework` preset，否则 `test/framework` 不会被检查。
+
+**验证**：
+- 只含框架文件的副本里：`framework` 构建通过，framework 模式的依赖图检查通过（24 个 target）；`framework-m0plus` 构建通过，11 个静态库没有原子库调用；
+- 反向验证，下面每一项都被拦下：
+  - 依赖图：`lib_control` 链接 `app_imu`；
+  - 构建：框架 include 产品头；
+  - M0+：utils 里对 `std::atomic` 用 `++`（文本扫描查不到的写法），报 `__atomic_fetch_add_4`；
+  - 规则 13：`fetch_add`、`compare_exchange_weak`。`std::exchange` 不误报；
+  - 规则 17：框架里定义 `topic::Topic`；同一 topic 两处 `claim_publisher()`（只出现一次的不误报）；清单头 include `lib` 头与 `<stdint.h>`（`<array>`、topic 头、清单头不误报）；
+  - X-08 放行文件改掉原子读改写后，扫描给出删除提示；
+- 现有构建不变：宿主 ctest 22/22；固件 Debug/Release 构建通过，符号与 P1 存档一致（1426、1038）；固件与宿主依赖图检查通过；格式检查通过；命名检查用 4 个编译数据库，0 处。
+
+**Alternatives / Rejected**：
+- **只为 M0+ 编 utils 与 topic**（plan 原文）：新写的驱动和 lib 代码要等到阶段 E 做 MSPM0 时才会被检查。否决，改为全框架 + 例外。
+- **用 `static_assert(is_always_lock_free)` 检查**：它要求全部原子操作都无锁，M0+ 上恒为 false（Decision-20261029-01）。否决。
+- **在完整仓库里配置框架构建**：产品目录还在，include 产品路径照样能编译，证明不了规则 15。否决，改为在副本里构建。
+- **为 `check_templates` 单独建 `test/framework/CMakeLists.txt`**：多一个 CMake 文件（Decision-20261026-07 要求先登记），换来的只是一个只有一个源文件的 target。否决。
+
+---
+
 ## 待登记
 
 - 分支保护的具体设置（组织规范 §6.1、§10，负责人在 GitHub 上操作后补记）。
