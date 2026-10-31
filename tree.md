@@ -24,12 +24,13 @@ foray_mcu/
 │   ├── CMakeLists.txt        框架的全部 target：hal、hal_detail、hal_os、boot、utils_*、middleware_*、lib_*、driver_*
 │   ├── README.md             迁移源 Libraries/README.md（正文为旧路径，F1 更新）
 │   ├── hal/                  C++ 契约（can、gpio、pwm、spi、time、uart、usb_cdc）；detail/ 为迁移期 C ABI（F2 删）；os/ 为最小 OS 契约 v1（clock、critical_section、signal，F1）
-│   ├── utils/                math、crc（F1 第 1 步由 lib 移入）
-│   ├── middleware/           fsm（F1 第 1 步由 lib 移入）
+│   ├── utils/                math、crc（F1 第 1 步由 lib 移入）、concurrency（spsc_queue、latest_value，F1 第 2 步）
+│   ├── middleware/           fsm（F1 第 1 步由 lib 移入）、topic（topic.hpp，F1 第 4 步）
 │   ├── lib/                  control（pid、slope）、estimate、filter、kinematics、component（目录名即命名空间名）
 │   └── driver/               bmi088、buzzer、motor（含 dji/）、ws2812、protocol/{dji,sbus}
 ├── app/                      产品（include 根：#include "tasks/imu_task.hpp"）
 │   ├── CMakeLists.txt        产品的全部 target：app_imu、app_chassis、app_gimbal、app_remote、app_tasks、app_common
+│   ├── topics/               topic 清单的约定（README.md，F1 第 4 步）；第一个 topic 随 F2 加入
 │   ├── tasks/                imu、chassis、gimbal 的任务外壳与 IMU 数据就绪邮箱
 │   ├── imu/                  姿态解算、陀螺零偏标定与观测、IMU 诊断
 │   ├── chassis/              底盘控制器
@@ -76,7 +77,7 @@ foray_mcu/
 - CMake 文件按层组织：手写的 `CMakeLists.txt` 共 7 个（根、`src/`、`app/`、`config/`、每块板一个、`platform/mock`、`test/host`），一层的全部 target 定义在该层的文件里（Decision-20261026-07）；
 - 根工程按目标结构组织 target，固件 `firmware_baseline` 的符号集合与迁移源一致（P1、P2 验收）；
 - 源码已全部搬出 `legacy/`（P2、P2.5），`legacy/` 只剩迁移源 README 与架构图；迁移期过渡件只剩 `hal_detail`（F2）与 `legacy_build_options`（F2、F3）；
-- `src/boot`、`src/utils`（target 已建，暂无代码）；`src/middleware/topic`、`app/topics`、按板一级的 `platform/dm_mc02` 等按架构 v2 在 F1、F2 建立。
+- `src/boot`（target 已建，暂无代码）；`src/utils`、`src/hal/os`、`src/middleware/topic` 已在 F1 建立，`app/topics` 只有清单约定；按板一级的 `platform/dm_mc02` 等按架构 v2 在 F2 建立。
 
 ## 目标结构（架构 v2，Decision-20261027-01）
 
@@ -151,7 +152,7 @@ foray_mcu/
 |---|---|---|
 | 迁移源 README 与架构图 | `legacy/` | ⛔ 只读（源码已在 P2、P2.5 全部搬出） |
 | 无领域含义的基础件 | `src/utils/` | ✅ math、crc 已移入（F1 第 1 步）；crc16、concurrency（spsc_queue、latest_value）已完成（F1 第 2 步） |
-| topic 机制 / 产品的 topic 清单 | `src/middleware/topic/` / `app/topics/` | 🟡 F1 |
+| topic 机制 / 产品的 topic 清单 | `src/middleware/topic/` / `app/topics/` | ✅ 机制（F1 第 4 步，Decision-20261031-05）；清单约定已定，第一个 topic 随 F2 加入 |
 | OS 契约 | `src/hal/os/` | ✅ 契约 v1 与宿主替身（F1 第 3 步，Decision-20261031-01～03）；port 实现在 F2 |
 | 硬件契约 v1 | `src/hal/` | 🟡 F2（现为旧契约 + `src/hal/detail` C 接口，F2 删除） |
 | 启动入口 | `src/boot/` | 🟡 F2（现为 `config/assembly` 的 `Application_*`，例外 X-09） |

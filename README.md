@@ -10,7 +10,7 @@ RoboMaster 多兵种、多开发板的 MCU 下位机固件。本仓以 `Controll
 
 - 迁移源基线：`ControllerCode` `main` @ `a2cfd16`（2026-10-23，19 个提交，git 跟踪 333 个文件，项目自有代码约 2.3 万行）。
 - 目标平台：STM32H723（DM-MC02，主力，先行）、STM32F407（RM C 板）、TI TM4C / AM26x（按需）；`src/` + `platform/` 作为可复用框架，另供 MSPM0 等小项目（大概率裸机）使用。
-- 当前状态：基线 tag `baseline/a2cfd16`。根工程（P1）按目标结构建立了 target，用 profile `baseline` 构建出的固件与迁移源构建的符号集合一致；宿主测试由根工程引入（14 项 ctest，见 [test/host/README.md](test/host/README.md)）。P2、P2.5 已把全部源码搬到 `src/`、`app/`、`config/`、`platform/`，`src/lib` 去掉了 `alg_` 前缀，固件符号与迁移源一致（命名空间按改名表换算）。
+- 当前状态：基线 tag `baseline/a2cfd16`。根工程（P1）按目标结构建立了 target，用 profile `baseline` 构建出的固件与迁移源构建的符号集合一致；宿主测试由根工程引入（22 项 ctest，含 F1 新增的 utils、hal/os、topic 测试，见 [test/host/README.md](test/host/README.md)）。P2、P2.5 已把全部源码搬到 `src/`、`app/`、`config/`、`platform/`，`src/lib` 去掉了 `alg_` 前缀，固件符号与迁移源一致（命名空间按改名表换算）。
 - 架构：**[docs/ai/architecture.md](docs/ai/architecture.md) v2**（按负责人骨架重建，Decision-20261027-01）；执行计划与进度见 [plan.md](plan.md)。
 - 评审报告 [docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md](docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md) v1.0 是历史记录，与架构 v2 冲突处以 v2 为准。
 
