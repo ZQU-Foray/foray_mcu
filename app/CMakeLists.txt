@@ -16,6 +16,22 @@ function(app_library name)
     enable_strict_warnings(${name})
 endfunction()
 
+# app_topics：本产品的全部 topic（消息类型 + 实例，规则 17），只依赖 topic 机制与时基（Decision-20261031-12）。
+# 能力、任务运行器与组合根都可以依赖它；能力之间只经它通信（规则 18）。
+add_library(app_topics INTERFACE
+    topics/all.hpp
+    topics/bringup.hpp)
+target_include_directories(app_topics INTERFACE "${PROJECT_SOURCE_DIR}/app")
+target_link_libraries(app_topics INTERFACE middleware_topic hal_os)
+
+# app_bringup：框架验证用的能力（心跳与监视），不含 RM 业务，零 RTOS（Decision-20261031-12）。
+app_library(app_bringup
+    bringup/heartbeat.cpp
+    bringup/heartbeat.hpp
+    bringup/monitor.cpp
+    bringup/monitor.hpp)
+target_link_libraries(app_bringup PUBLIC app_topics middleware_topic hal_os)
+
 app_library(app_imu
     imu/attitude_estimator.cpp
     imu/attitude_estimator.hpp
@@ -54,9 +70,12 @@ target_link_libraries(app_tasks
     PUBLIC app_imu app_chassis app_gimbal driver_bmi088 driver_motor driver_motor_dji hal
     PRIVATE ${os_freertos})
 
+# app_common：任务运行器（task_runner.hpp，FreeRTOS 原生 API，Decision-20261031-12）。
+# 迁移期还含旧的 TaskManager（task_manager.*，依赖 app_tasks），F2 第 4 步随旧 app 归档。
+# 运行器的头文件用到 FreeRTOS 类型，RTOS 头随之 PUBLIC 给组合根（规则 10：只有 app_common 与 assembly 可见）。
 app_library(app_common
     common/task_manager.cpp
-    common/task_manager.hpp)
+    common/task_manager.hpp
+    common/task_runner.hpp)
 target_link_libraries(app_common
-    PUBLIC app_tasks hal
-    PRIVATE ${os_freertos})
+    PUBLIC app_tasks hal hal_os middleware_topic ${os_freertos})

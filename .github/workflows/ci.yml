@@ -287,8 +287,9 @@ jobs:
         run: |
           nm="$ARM_GCC_ROOT/bin/arm-none-eabi-nm"
           for preset in arm-debug arm-release; do
-            python3 tool/ci/arch_check.py callbacks "build/$preset/firmware_baseline.elf" \
-              --nm "$nm" --port platform/dm_mc02/port
+            for elf in build/$preset/firmware_*.elf; do
+              python3 tool/ci/arch_check.py callbacks "$elf" --nm "$nm" --port platform/dm_mc02/port
+            done
           done
 
       - name: 段大小报告
@@ -296,12 +297,14 @@ jobs:
         run: |
           readelf="$ARM_GCC_ROOT/bin/arm-none-eabi-readelf"
           for preset in arm-debug arm-release; do
-            elf="build/$preset/firmware_baseline.elf"
-            python3 tool/ci/symbols.py --readelf "$readelf" report \
-              --map "build/$preset/firmware_baseline.map" --title "firmware_baseline（$preset）" "$elf" \
-              | tee -a "$GITHUB_STEP_SUMMARY"
-            sha256sum "build/$preset/firmware_baseline.bin" | tee -a "$GITHUB_STEP_SUMMARY"
-            echo | tee -a "$GITHUB_STEP_SUMMARY"
+            for elf in build/$preset/firmware_*.elf; do
+              name="$(basename "$elf" .elf)"
+              python3 tool/ci/symbols.py --readelf "$readelf" report \
+                --map "${elf%.elf}.map" --title "$name（$preset）" "$elf" \
+                | tee -a "$GITHUB_STEP_SUMMARY"
+              sha256sum "${elf%.elf}.bin" | tee -a "$GITHUB_STEP_SUMMARY"
+              echo | tee -a "$GITHUB_STEP_SUMMARY"
+            done
           done
 
       - name: 上传构建产物

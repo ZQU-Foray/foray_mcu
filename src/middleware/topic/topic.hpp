@@ -71,25 +71,13 @@ class TopicBase
         return last_publish_us_.load(std::memory_order_relaxed);
     }
 
-  protected:
-    /** @param name 必须是字符串字面量或其他静态存储的字符串，topic 只保存指针。 */
-    constexpr explicit TopicBase(const char *name) noexcept : name_{name} {}
-    ~TopicBase() = default;
-
-    /** 发布者检查：第一次调用返回 true，以后都返回 false。 */
-    bool claim_publisher_slot() noexcept
-    {
-        const hal::os::CriticalSection critical_section;
-        if (publisher_claimed_)
-        {
-            return false;
-        }
-        publisher_claimed_ = true;
-        return true;
-    }
-
-    /** 占一个等待槽，发布时叫醒 signal。同一个 signal 重复登记只占一个槽；槽满返回 false。 */
-    bool add_waiter(hal::os::Signal &signal) noexcept
+    /**
+     * @brief 占一个等待槽：此后每次发布都会叫醒 signal（Decision-20261031-12）。
+     * @return false：槽已满（WAIT_SLOTS 个）。同一个 signal 重复登记只占一个槽；槽只增不减。
+     * @note 订阅者经 Subscriber::enable_wait() 登记；任务运行器按 topic 触发任务时直接登记自己的 Signal。
+     *       初始化阶段调用；任务与框架中断里都能调用，不阻塞。
+     */
+    [[nodiscard]] bool add_waiter(hal::os::Signal &signal) noexcept
     {
         const hal::os::CriticalSection critical_section;
         for (auto &slot : waiters_)
@@ -107,6 +95,23 @@ class TopicBase
             }
         }
         return false;
+    }
+
+  protected:
+    /** @param name 必须是字符串字面量或其他静态存储的字符串，topic 只保存指针。 */
+    constexpr explicit TopicBase(const char *name) noexcept : name_{name} {}
+    ~TopicBase() = default;
+
+    /** 发布者检查：第一次调用返回 true，以后都返回 false。 */
+    bool claim_publisher_slot() noexcept
+    {
+        const hal::os::CriticalSection critical_section;
+        if (publisher_claimed_)
+        {
+            return false;
+        }
+        publisher_claimed_ = true;
+        return true;
     }
 
     /** 记录一次发布。调用方在临界区内，计数只有发布者写，"读一次、写一次"代替原子读改写（规则 13）。 */

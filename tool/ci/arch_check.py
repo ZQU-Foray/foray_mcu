@@ -60,6 +60,8 @@ LAYERS = [
     ("middleware", r"middleware_\w+"),
     ("app_common", r"app_common"),
     ("app_tasks", r"app_tasks"),
+    # 产品的 topic 清单（Decision-20261031-12）：能力之间只经它通信，它只依赖 topic 机制与契约
+    ("topics", r"app_topics"),
     ("app", r"app_\w+"),
     ("os", r"os_freertos_\w+"),
     ("port", r"port_\w+"),
@@ -80,9 +82,17 @@ FRAMEWORK = {
     "driver",
     "middleware",
 }
-PRODUCT = {"firmware", "assembly", "profile", "app", "app_common", "app_tasks"}
+PRODUCT = {
+    "firmware",
+    "assembly",
+    "profile",
+    "app",
+    "app_common",
+    "app_tasks",
+    "topics",
+}
 PLATFORM = {"os", "port", "board", "vendor", "mock"}
-APP = {"app", "app_common", "app_tasks"}
+APP = {"app", "app_common", "app_tasks", "topics"}
 FORBIDDEN_FOR_APP = {"port", "board", "vendor", "assembly"}
 FORBIDDEN_FOR_TEST = {
     "port",
@@ -92,7 +102,16 @@ FORBIDDEN_FOR_TEST = {
     "os",
     "firmware",
 }
-APP_DEPENDENCIES = {"contract", "utils", "msg", "lib", "driver", "middleware", "legacy"}
+APP_DEPENDENCIES = {
+    "contract",
+    "utils",
+    "msg",
+    "lib",
+    "driver",
+    "middleware",
+    "topics",
+    "legacy",
+}
 
 # 每一层可以直接依赖的层（docs/ai/architecture.md §2.3、§3）。
 ALLOWED = {
@@ -108,6 +127,7 @@ ALLOWED = {
     "driver": {"contract", "lib", "driver", "utils", "legacy"},
     # 架构 v2 §2.3：middleware 只依赖 utils 与契约（hal/os；传输类服务另可依赖 hal），不依赖 driver、lib。
     "middleware": {"middleware", "contract", "utils", "legacy"},
+    "topics": {"middleware", "contract"},
     "app": APP_DEPENDENCIES | {"app_common"},
     "app_tasks": APP_DEPENDENCIES | {"app", "app_common", "os"},
     "app_common": APP_DEPENDENCIES | {"os"},
@@ -329,6 +349,7 @@ WHITELIST = {
     "app": {
         "topics",
         "common",
+        "bringup",
         "imu",
         "chassis",
         "gimbal",

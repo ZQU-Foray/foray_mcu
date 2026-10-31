@@ -109,6 +109,13 @@ host_test(topic
     SOURCES unit/topic/topic_test.cpp
     LINK middleware_topic platform_mock Threads::Threads)
 target_compile_options(test_topic PRIVATE -O2)
+# bringup 能力：app/ 还没有加入宿主构建（旧 app 依赖 RTOS），暂时在测试里直接编译其源码，
+# 旧 app 归档后改为链接 app_bringup（Decision-20261031-12）。
+host_test(bringup
+    SOURCES unit/bringup/bringup_test.cpp
+            "${PROJECT_SOURCE_DIR}/app/bringup/heartbeat.cpp"
+            "${PROJECT_SOURCE_DIR}/app/bringup/monitor.cpp"
+    LINK middleware_topic platform_mock)
 
 # ---- 集成测试（底盘任务 + 控制器 + 模拟电机） ----
 host_test(chassis_controller MOCK_BACKEND

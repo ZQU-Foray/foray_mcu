@@ -1,9 +1,11 @@
 // middleware_topic（架构 v2 §3.4，Decision-20261031-05），用 platform_mock 的 hal_os 验证：
 // 常量初始化与清单写法、单发布者、update() 的新数据判断与丢失计数、观测计数、发布只进一次临界区、
-// wait() 的立即返回、跨线程唤醒、超时（跨回绕）、旧通知不提前结束等待、等待槽上限、一次发布叫醒全部等待者，
+// wait() 的立即返回、跨线程唤醒、超时（跨回绕）、旧通知不提前结束等待、等待槽上限、直接登记的 Signal、
+// 一次发布叫醒全部等待者，
 // 以及一个发布线程对三个订阅者（阻塞等待、轮询、模拟中断）的压力测试。
 #include "hal/os/clock.hpp"
 #include "hal/os/critical_section.hpp"
+#include "hal/os/signal.hpp"
 #include "middleware/topic/topic.hpp"
 #include "mock_os.hpp"
 
@@ -344,6 +346,33 @@ void wait_slots_are_limited()
     assert(!subscribers[topic::WAIT_SLOTS].enable_wait());
 }
 
+// 任务运行器的用法（Decision-20261031-12）：直接在 topic 上登记一个 Signal，发布就叫醒它；
+// 与订阅者的 enable_wait() 共用 WAIT_SLOTS 个等待槽
+void signal_registered_on_topic_is_notified()
+{
+    mock::reset();
+    topic::Topic<Small> small{"test.runner"};
+    topic::Publisher<Small> publisher = small.claim_publisher();
+    hal::os::Signal trigger;
+    assert(small.add_waiter(trigger));
+    assert(small.add_waiter(trigger)); // 重复登记不占新槽
+    assert(!trigger.wait(NO_WAIT));
+
+    publisher.publish(Small{1.0F, true});
+    assert(trigger.wait(NO_WAIT));
+    assert(!trigger.wait(NO_WAIT)); // 多次发布合并、取走后清除
+
+    std::array<topic::Subscriber<Small>, topic::WAIT_SLOTS> subscribers{topic::Subscriber<Small>{small},
+                                                                        topic::Subscriber<Small>{small},
+                                                                        topic::Subscriber<Small>{small},
+                                                                        topic::Subscriber<Small>{small}};
+    for (std::size_t i = 0U; i + 1U < topic::WAIT_SLOTS; ++i)
+    {
+        assert(subscribers[i].enable_wait());
+    }
+    assert(!subscribers[topic::WAIT_SLOTS - 1U].enable_wait()); // 第一个槽给了 trigger
+}
+
 void one_publish_wakes_all_waiters()
 {
     mock::reset();
@@ -482,6 +511,7 @@ int main()
     stale_notification_does_not_end_wait();
     wait_without_slot_only_times_out();
     wait_slots_are_limited();
+    signal_registered_on_topic_is_notified();
     one_publish_wakes_all_waiters();
     stress_publisher_against_subscribers();
     return 0;

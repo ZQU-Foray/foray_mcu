@@ -19,16 +19,16 @@
       "name": "arm-base",
       "hidden": true,
       "inherits": "base",
-      "description": "固件：baseline profile（DM-MC02）。Arm GNU 工具链取自 ARM_GCC_ROOT 或 PATH；本机路径写在 CMakeUserPresets.json（不入库）",
+      "description": "固件：bringup_dm_mc02 profile（框架验证，DM-MC02）。Arm GNU 工具链取自 ARM_GCC_ROOT 或 PATH；本机路径写在 CMakeUserPresets.json（不入库）",
       "toolchainFile": "${sourceDir}/cmake/toolchains/arm-gcc-cortex-m7.cmake",
       "cacheVariables": {
-        "PROFILE": "baseline"
+        "PROFILE": "bringup_dm_mc02"
       }
     },
     {
       "name": "arm-debug",
       "inherits": "arm-base",
-      "displayName": "固件 Debug（baseline × DM-MC02）",
+      "displayName": "固件 Debug（bringup × DM-MC02）",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug"
       }
@@ -36,7 +36,7 @@
     {
       "name": "arm-release",
       "inherits": "arm-base",
-      "displayName": "固件 Release（baseline × DM-MC02）",
+      "displayName": "固件 Release（bringup × DM-MC02）",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
       }
