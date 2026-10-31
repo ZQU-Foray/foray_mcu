@@ -96,7 +96,7 @@
 ### F2 契约 v1 与 DM-MC02 板级（6–10 人日）
 
 > 顺序（Decision-20261031-07）：先做与具体外设无关的第 1–4 步，每一步固件都可构建；第 5 步（外设）待负责人决定，AI 建议按外设纵向推进、与 F3 合起来排。旧 C port 定义了 HAL 回调，同一外设的新旧 port 不能并存。
-> 本地分支（一个分支对应以后的一个 PR，依次叠在前一个上）：`f1/topic` → `f1/ci` → `f2/firmware-ci`（第 1 步 CI）→ `f2/tim2-timebase`（merge 合入）→ `f2/board-dir`（第 2 步）→ `f2/hal-os-port`（第 3 步）→ `f2/boot`（第 4 步：启动入口）→ `f2/bringup`（第 4 步：任务运行器与 bringup）。PR 暂不开，以后按这个顺序依次合入 `dev`。
+> 本地分支（一个分支对应以后的一个 PR，依次叠在前一个上）：`f1/topic` → `f1/ci` → `f2/firmware-ci`（第 1 步 CI）→ `f2/tim2-timebase`（merge 合入）→ `f2/board-dir`（第 2 步）→ `f2/hal-os-port`（第 3 步）→ `f2/boot`（第 4 步：启动入口）→ `f2/bringup`（第 4 步：任务运行器与 bringup）→ `f2/archive`（第 4 步：归档旧 app）。tag `archive/pre-rebuild` 随这批分支一起推送。PR 暂不开，以后按这个顺序依次合入 `dev`。
 
 - [x] 第 1 步 CI（2026-10-31，Decision-20261031-08）：`firmware` 作业的符号对照退役，改为段大小报告（`symbols.py report`，写入作业摘要）；加入 HAL 回调符号检查（规则 16，`arch_check.py callbacks`）。规则 1（`board.hpp`）、4、7、10、18 的检查随对应内容出现时加入
 - [x] 第 1 步（续）合入 `f2/tim2-timebase`（2026-10-31，在分支 `f2/board-dir` 用 merge 提交合入，保留提交号）：TIM2 作 1 MHz 时基计数源，CubeMX 6.18.1（Decision-20261031-04）
@@ -106,13 +106,13 @@
   - [x] 启动入口（2026-10-31，Decision-20261031-11）：`src/boot/boot.h`、`hal::init()`（port 实现：启动 TIM2 + 迁移期的 `Port_Init()`）；CubeMX USER CODE 区改为调用 `boot_*`（改动行登记在 -11）；迁移期的 `entry_legacy.cpp` 实现 `boot_*`，旧 app 照常运行；X-09 关闭；规则 7 的 include 检查；
   - [x] `app/common` 任务运行器（2026-10-31，Decision-20261031-12）：`common::TaskRunner<TASKS>`，FreeRTOS 原生 API，任务表在编译期检查，栈静态分配，`every_ms` / `on_topic` 两种触发，栈水位巡检；`TopicBase::add_waiter()` 公开；
   - [x] profile `bringup_dm_mc02` 与对应的 assembly（2026-10-31，Decision-20261031-12）：bringup 能力（`Heartbeat` 1 kHz 发布、`Monitor` 按 topic 触发并统计），第一个 topic `bringup.heartbeat`，preset 改为 bringup；已上板验证（收到全部心跳，丢失 0，最大延迟 9 µs）。LED/蜂鸣器随第 5 步的 gpio/pwm 加入；"中断里发布"的验收待定中断源；
-  - 然后归档旧能力代码：打 tag `archive/pre-rebuild`，移出构建并删除 `app/{imu,chassis,gimbal,remote,tasks,common}` 的旧代码、`config/assembly/entry_legacy.cpp` 与 `Application/Entry.h`、profile `baseline`、依赖旧 app 的宿主测试（底盘集成测试；`bmi088_acquisition` 引用 `imu_diagnostics.cpp` 的部分在归档时去掉，BMI088 驱动改写时重写）（例外 X-04、X-09、X-10 关闭）；能力重建时从 tag 取参考
+  - [x] 归档旧能力代码（2026-10-31，Decision-20261031-13）：tag `archive/pre-rebuild`（`9c11546`，可用 `-DPROFILE=baseline` 构建旧固件）；删除 `app/{imu,chassis,gimbal,remote,tasks}`、旧 TaskManager、`entry_legacy.cpp`、profile `baseline`、底盘集成测试与 `bmi088_acquisition` 中测旧 app 的两段；`app/` 加入宿主构建；X-04、X-10 关闭，X-08、X-14 缩小；规则 10、18 生效。bringup 固件归档前后 `.bin` 逐字节相同；能力重建时从 tag 取参考
 - [ ] 第 5 步 外设（做法待定，见 decision.md"待登记"）：`src/hal` 契约 v1（写法待定：自由函数、静态类或句柄类；不透明句柄 + 能力分级；can、spi、uart、gpio、pwm、usb_cdc、`hal::init`；时间归 `hal/os`，Decision-20261031-01）；`platform/mock` 实现（可注入输入、检查输出）；port 用 C++ 重写，PortKit 拆分完成；`board/board.hpp`（物理资源句柄、能力常量）；删除 `src/hal/detail`（X-07 关闭）
 - [ ] 验收：bringup 固件在板上启动，任务按表运行，中断发布的 topic 能被阻塞等待的任务收到；宿主测试全绿
 
 ### F3 驱动适配（4–7 人日）
 
-- [ ] 驱动改用 hal v1，经 `Config` 接收句柄与参数：bmi088（陀螺带宽改为 `Config` 参数，X-14 关闭；时间改用 `hal::os::now_us()`，之后删除 `src/hal/time.hpp`，Decision-20261031-01）、motor/dji（去掉原子读改写，X-08 关闭）、buzzer、ws2812、protocol/{dji,sbus}；用 `platform/mock` 做单元测试
+- [ ] 驱动改用 hal v1，经 `Config` 接收句柄与参数：bmi088（陀螺带宽改为 `Config` 参数，X-14 关闭；`bmi088_acquisition` 测试随之改写；时间改用 `hal::os::now_us()`，之后删除 `src/hal/time.hpp`，Decision-20261031-01）、motor/dji（去掉原子读改写，X-08 关闭）、buzzer、ws2812、protocol/{dji,sbus}；用 `platform/mock` 做单元测试
 - [ ] SPI 异步按能力分级使用：BMI088、WS2812 对可选能力做编译期检查或回退
 - [ ] `src/lib/estimate` 去掉对 BMI088 驱动的依赖（POD 入参）；框架开启 `-Wdouble-promotion`（`vqf.cpp` 豁免并加 FPU `#error` 检查）
 - [ ] bringup 固件加入各驱动的检查：CAN 收发（电机反馈）、SPI 读 BMI088、UART 收 SBUS、PWM/GPIO、USB CDC 回显、时基精度
@@ -163,7 +163,7 @@
 
 ## 当前 Agent State
 
-`EXECUTING`（P0–P2.5 已验收；F1 各项已完成，待负责人验收；F2 第 1 步已完成，第 2–4 步进行中，第 5 步待负责人决定；PR 暂不开，提交留在本地分支；里程碑合并入 `main` 按负责人要求暂缓）。
+`EXECUTING`（P0–P2.5 已验收；F1 各项已完成，待负责人验收；F2 第 1–4 步已完成（"中断里发布"的验收待定中断源），第 5 步待负责人决定；PR 暂不开，提交留在本地分支；里程碑合并入 `main` 按负责人要求暂缓）。
 状态词表：`REVIEW_PENDING`（等待评审）/ `PLANNING`（方案已批准、编制细节）/ `EXECUTING`（实施中）/ `BLOCKED`（外部阻塞）/ `DONE`（阶段完成）。
 
 ## Before Snapshot
@@ -247,3 +247,4 @@ Q1–Q18 已全部确认（见评审报告 v1.0 §11.1 与 decision.md）。仍�
 | 2026-10-31 | F2 | 第 3 步：hal/os 在 DM-MC02 上的实现（Decision-20261031-10）。16 个 include FreeRTOS 头的编译单元宏一致；反汇编核对临界区、时基、通知槽；`StaticTask_t` 与内核一致（92 → 96 字节）；板上运行待第 4 步 | 第 3 步完成（待上板） |
 | 2026-10-31 | F2 | 第 4 步（启动入口）：生成区只调 `boot_*`，`hal::init()` 由 port 实现并启动 TIM2，X-09 关闭（Decision-20261031-11）。固件只有 `Application_*` 换成 `boot_*` 与新增的 `hal::init`、`start_clock`、`HAL_TIM_Base_Start`；旧 `main.c` 的两处 include 会被规则 7 拦下 | 启动入口完成；已上板确认旧固件照常运行（烧录前备份的板上固件与 10-26 存档相同） |
 | 2026-10-31 | F2 | 第 4 步（任务运行器与 bringup）：`common::TaskRunner<TASKS>`、bringup 能力与 profile、第一个 topic（Decision-20261031-12）。ctest 23/23；任务表写错的 5 种情况编译期被拒绝；上板：心跳 1 kHz，monitor 收到全部心跳，丢失与乱序 0，最大延迟 9 µs | 完成；中断发布的验收待定，归档旧 app 待做 |
+| 2026-10-31 | F2 | 第 4 步（归档旧 app）：tag `archive/pre-rebuild`，删除旧能力代码、`baseline` 与依赖它们的测试，`app/` 加入宿主构建，X-04、X-10 关闭，规则 10、18 生效（Decision-20261031-13）。bringup 固件归档前后 `.bin` 逐字节相同；ctest 17/17；从 tag 能构建旧 `baseline` 固件 | 第 4 步完成 |

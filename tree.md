@@ -1,9 +1,9 @@
 # 目录结构说明（foray_mcu）
 
-> 状态：**P0–P2.5 已验收（2026-10-26）；2026-10-27 起按架构 v2 重建（Decision-20261027-01），下一步 F1 框架基础件**。本文件描述"目标结构"与"当前实际状态"的差异。
+> 状态：**P0–P2.5 已验收（2026-10-26）；2026-10-27 起按架构 v2 重建（Decision-20261027-01）；F1 各项完成、待验收；F2 第 1–4 步完成，第 5 步（外设）待负责人决定**。本文件描述"目标结构"与"当前实际状态"的差异。
 > 目标结构以 [docs/ai/architecture.md](docs/ai/architecture.md) v2 为准（评审报告 v1.0 是历史记录）；"目标位置"按阶段落地，是否已落地以状态图例为准。
 
-## 当前实际结构（2026-10-26，P2.5 完成）
+## 当前实际结构（2026-10-31，F2 第 4 步完成）
 
 ```text
 foray_mcu/
@@ -29,20 +29,15 @@ foray_mcu/
 │   ├── middleware/           fsm（F1 第 1 步由 lib 移入）、topic（topic.hpp，F1 第 4 步）
 │   ├── lib/                  control（pid、slope）、estimate、filter、kinematics、component（目录名即命名空间名）
 │   └── driver/               bmi088、buzzer、motor（含 dji/）、ws2812、protocol/{dji,sbus}
-├── app/                      产品（include 根：#include "tasks/imu_task.hpp"）
-│   ├── CMakeLists.txt        产品的全部 target：app_topics、app_bringup、app_imu、app_chassis、app_gimbal、app_remote、app_tasks、app_common
+├── app/                      产品（include 根：#include "topics/bringup.hpp"）；固件与宿主构建都加入
+│   ├── CMakeLists.txt        产品的全部 target：app_topics、app_bringup、app_common（只在固件构建中）
 │   ├── topics/               topic 清单：bringup.hpp（第一个 topic，F2）、all.hpp（topics::ALL）；约定见 README.md
 │   ├── bringup/              框架验证用的能力：Heartbeat、Monitor（F2，Decision-20261031-12）
-│   ├── tasks/                imu、chassis、gimbal 的任务外壳与 IMU 数据就绪邮箱
-│   ├── imu/                  姿态解算、陀螺零偏标定与观测、IMU 诊断
-│   ├── chassis/              底盘控制器
-│   ├── gimbal/               云台模块
-│   ├── remote/               遥控接收
-│   └── common/               task_runner.hpp（任务运行器，F2）；旧 task_manager（F2 第 4 步随旧 app 归档）
+│   └── common/               task_runner.hpp：任务运行器（F2）
 ├── config/
-│   ├── CMakeLists.txt        profile_<名称>、assembly_<名称>：按 profile 选组合根，链接 CAPABILITIES
-│   ├── assembly/             bringup_dm_mc02.cpp（任务表与 boot_*，F2）；entry_legacy.cpp（baseline 的迁移期组合根，随旧 app 归档）
-│   └── profiles/             bringup_dm_mc02/（profile.cmake、params.hpp，preset 默认）；baseline/（a2cfd16 基线固件，随旧 app 归档）；profile.hpp.in 生成 profile.hpp
+│   ├── CMakeLists.txt        profile_<名称>、assembly_<名称>：组合根 assembly/<profile>.cpp，链接 CAPABILITIES
+│   ├── assembly/             bringup_dm_mc02.cpp（任务表与 boot_*，F2）
+│   └── profiles/             bringup_dm_mc02/（profile.cmake、params.hpp，preset 默认）；profile.hpp.in 生成 profile.hpp
 ├── platform/
 │   ├── dm_mc02/              按板一级（F2 第 2 步由 st/stm32h7/board_dm 移来，Decision-20261031-09）：board.cmake（板标识 dm_mc02）+ CMakeLists.txt（mx_generated、rtos、usb、port、board、os_freertos）
 │   │   ├── cubemx/           CubeMX 生成物：Core、Drivers、Middlewares、USB_DEVICE、.ioc、启动文件、链接脚本（冻结）
@@ -78,7 +73,7 @@ foray_mcu/
 
 **事实**：
 - CMake 文件按层组织：手写的 `CMakeLists.txt` 共 7 个（根、`src/`、`app/`、`config/`、每块板一个、`platform/mock`、`test/host`），一层的全部 target 定义在该层的文件里（Decision-20261026-07）；
-- 根工程按目标结构组织 target，固件 `firmware_baseline` 的符号集合与迁移源一致（P1、P2 验收）；
+- 根工程按目标结构组织 target；P1–P2.5 期间固件 `firmware_baseline` 的符号集合与迁移源一致。旧能力代码与 `baseline` 已在 F2 归档到 tag `archive/pre-rebuild`（Decision-20261031-13），现在的固件是 `firmware_bringup_dm_mc02`；
 - 源码已全部搬出 `legacy/`（P2、P2.5），`legacy/` 只剩迁移源 README 与架构图；迁移期过渡件只剩 `hal_detail`（F2）与 `legacy_build_options`（F2、F3）；
 - `src/utils`、`src/hal/os`、`src/middleware/topic` 已在 F1 建立；`platform/dm_mc02`（按板一级）、`src/boot/boot.h`、`src/hal/init.hpp`、任务运行器、第一个 topic 与 bringup profile 在 F2 建立。
 
@@ -159,12 +154,12 @@ foray_mcu/
 | topic 机制 / 产品的 topic 清单 | `src/middleware/topic/` / `app/topics/` | ✅ 机制（F1 第 4 步，Decision-20261031-05）；第一个 topic `bringup.heartbeat` 与 `topics::ALL`（F2，Decision-20261031-12） |
 | OS 契约 | `src/hal/os/` | ✅ 契约 v1 与宿主替身（F1 第 3 步，Decision-20261031-01～03）；port 实现在 F2 |
 | 硬件契约 v1 | `src/hal/` | 🟡 F2（现为旧契约 + `src/hal/detail` C 接口，F2 删除） |
-| 启动入口 | `src/boot/` | ✅ `boot.h`，生成区只调 `boot_*`（F2 第 4 步，X-09 关闭）；每个 profile 的组合根实现一份（bringup 已有，baseline 仍是迁移期的 `entry_legacy.cpp`） |
+| 启动入口 | `src/boot/` | ✅ `boot.h`，生成区只调 `boot_*`（F2 第 4 步，X-09 关闭）；每个 profile 的组合根实现一份 |
 | 领域算法 | `src/lib/` | ✅ 已搬入（P2）、去掉 `alg_` 前缀（P2.5）；F1 调整 slope/fsm/crc 的归属 |
 | 设备驱动与协议 | `src/driver/` | ✅ 已搬入（P2）；F3 适配 hal v1 |
 | 板级（生成区、port、board） | `platform/<板>/{cubemx,port,board}` | 🟡 已按板一级（`platform/dm_mc02`，F2 第 2 步）；port 仍是 C，`board/` 随第 5 步建立 |
-| 任务运行器 | `app/common/` | ✅ `task_runner.hpp`（F2 第 4 步，Decision-20261031-12）；旧 TaskManager 随旧 app 归档 |
-| 能力 | `app/<capability>/` | ⏳ 阶段 A 重建（现有旧代码 F2 归档到 tag `archive/pre-rebuild`） |
+| 任务运行器 | `app/common/` | ✅ `task_runner.hpp`（F2 第 4 步，Decision-20261031-12） |
+| 能力 | `app/<capability>/` | ⏳ 阶段 A 重建；旧代码已归档到 tag `archive/pre-rebuild`（F2，Decision-20261031-13）；`app/bringup` 是框架验证用的能力 |
 | profile 与组合根 | `config/profiles/<兵种>_<板>/`、`config/assembly/<profile>.cpp` | ✅ `bringup_dm_mc02`（F2，preset 默认）；兵种 profile 在阶段 A |
 | 宿主测试 | `test/host/` | ✅ 由根工程引入（17 项全绿）；随 F1–F3 扩充，依赖旧 app 的测试在 F2 归档 |
 | 组织合规件 | `.foray-layer`、`CODEOWNERS`、`.github/workflows/ci.yml` | ✅ 已落地 |

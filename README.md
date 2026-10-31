@@ -10,7 +10,7 @@ RoboMaster 多兵种、多开发板的 MCU 下位机固件。本仓以 `Controll
 
 - 迁移源基线：`ControllerCode` `main` @ `a2cfd16`（2026-10-23，19 个提交，git 跟踪 333 个文件，项目自有代码约 2.3 万行）。
 - 目标平台：STM32H723（DM-MC02，主力，先行）、STM32F407（RM C 板）、TI TM4C / AM26x（按需）；`src/` + `platform/` 作为可复用框架，另供 MSPM0 等小项目（大概率裸机）使用。
-- 当前状态：基线 tag `baseline/a2cfd16`。根工程（P1）按目标结构建立了 target，用 profile `baseline` 构建出的固件与迁移源构建的符号集合一致；宿主测试由根工程引入（23 项 ctest，含 F1、F2 新增的 utils、hal/os、topic、bringup 测试，见 [test/host/README.md](test/host/README.md)）。P2、P2.5 已把全部源码搬到 `src/`、`app/`、`config/`、`platform/`，`src/lib` 去掉了 `alg_` 前缀，固件符号与迁移源一致（命名空间按改名表换算）。
+- 当前状态：基线 tag `baseline/a2cfd16`。P1–P2.5 期间，根工程用 profile `baseline` 构建出的固件与迁移源构建的符号集合一致；F2 起按架构 v2 重建，旧能力代码已归档到 tag `archive/pre-rebuild`（Decision-20261031-13），现在的固件是框架验证用的 `bringup_dm_mc02`；宿主测试由根工程引入（17 项 ctest，含 F1、F2 新增的 utils、hal/os、topic、bringup 测试，见 [test/host/README.md](test/host/README.md)）。P2、P2.5 已把全部源码搬到 `src/`、`app/`、`config/`、`platform/`，`src/lib` 去掉了 `alg_` 前缀，固件符号与迁移源一致（命名空间按改名表换算）。
 - 架构：**[docs/ai/architecture.md](docs/ai/architecture.md) v2**（按负责人骨架重建，Decision-20261027-01）；执行计划与进度见 [plan.md](plan.md)。
 - 评审报告 [docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md](docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md) v1.0 是历史记录，与架构 v2 冲突处以 v2 为准。
 
@@ -43,7 +43,7 @@ cmake --preset host-tests  && cmake --build --preset host-tests && ctest --prese
 cmake --preset framework   && cmake --build --preset framework     # 框架独立构建（不含产品）；framework-m0plus 为 Cortex-M0+ 构建
 ```
 
-- 固件构建唯一的开关是 `-DPROFILE=<名称>`（preset 中为 `bringup_dm_mc02`，框架验证 × DM-MC02；a2cfd16 基线固件 `baseline` 在旧 app 归档前仍可用 `-DPROFILE=baseline` 构建）；板卡由 profile 声明，工具链在 `cmake/toolchains/`。本机路径（工具链、Windows 上的宿主编译器）写在 `CMakeUserPresets.json`，不入库。
+- 固件构建唯一的开关是 `-DPROFILE=<名称>`（preset 中为 `bringup_dm_mc02`，框架验证 × DM-MC02；a2cfd16 基线固件 `baseline` 只能从 tag `archive/pre-rebuild` 构建）；板卡由 profile 声明，工具链在 `cmake/toolchains/`。本机路径（工具链、Windows 上的宿主编译器）写在 `CMakeUserPresets.json`，不入库。
 - 兵种 profile 在阶段 A（能力重建）建立：`cmake -S . -B build/<目录> --toolchain cmake/toolchains/<工具链>.cmake -DPROFILE=<名称>`。
 - 迁移源自带的构建已在 P2 删除。P1–P2.5 固件不改行为的证据是符号集合与 P1 存档一致；F2 起固件行为开始改变，CI 的 `firmware` 作业改为段大小报告与 HAL 回调符号检查。
 - 迁移验收用的基线对照（ControllerCode 可复现构建实测，2026-10-26 在本仓复现一致）：Debug `.bin` **238,320 B**，Release `.bin` **100,664 B**；SHA-256、工具链版本、符号表与对照判据见 [docs/ai/decisions/2026-10-25-迁移基线与对照.md](docs/ai/decisions/2026-10-25-迁移基线与对照.md)（证据来源已转存 [docs/ai/assets/controller_code-固件恢复可行性评估.md](docs/ai/assets/controller_code-固件恢复可行性评估.md)）。

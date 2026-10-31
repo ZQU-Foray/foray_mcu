@@ -5,7 +5,7 @@
 
 ## 0. 当前阶段
 
-本仓 **P0（基线与资产恢复）、P0.5（格式与命名统一）、P1（构建骨架）、P2（机械搬迁）、P2.5（混合文件拆分搬迁）已于 2026-10-26 验收。2026-10-27 起按负责人的骨架重建（Decision-20261027-01，架构 v2）：迁移源只作参考与零件来源，不为保持旧结构妥协；先建框架（F1–F4），负责人验收框架后再重建能力。下一步是 F1（框架基础件）**。评审报告 `docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md` v1.0 是历史记录，与架构 v2 冲突处以 v2 为准。
+本仓 **P0（基线与资产恢复）、P0.5（格式与命名统一）、P1（构建骨架）、P2（机械搬迁）、P2.5（混合文件拆分搬迁）已于 2026-10-26 验收。2026-10-27 起按负责人的骨架重建（Decision-20261027-01，架构 v2）：迁移源只作参考与零件来源，不为保持旧结构妥协；先建框架（F1–F4），负责人验收框架后再重建能力。F1 各项已完成、待验收；F2 第 1–4 步已完成（旧能力代码已归档到 tag `archive/pre-rebuild`），第 5 步（外设）待负责人决定**。评审报告 `docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md` v1.0 是历史记录，与架构 v2 冲突处以 v2 为准。
 迁移源 ControllerCode `a2cfd16` 的历史已导入（基线 tag `baseline/a2cfd16`）；根工程（`CMakeLists.txt`、`CMakePresets.json`）已按目标结构建立 target，源码已全部搬到 `src/`、`app/`、`config/`、`platform/`（P2、P2.5），`legacy/` 只剩迁移源 README 与架构图；新代码的 include 写成相对层根目录的路径（`"hal/can.hpp"`、`"tasks/imu_task.hpp"`），文件名 snake_case、C++ 头用 `.hpp`（Decision-20261026-08）；宿主测试由根工程的 host-tests preset 引入（见 `test/host/README.md`）。target、函数、变量名一律不加项目前缀（Decision-20261026-06）；`src/lib` 的子目录与命名空间同名，不加 `alg_` 前缀（Decision-20261026-09）。**按 [plan.md](plan.md) 的阶段顺序推进，不跨阶段混做。**
 
 ## 1. 语言与格式

@@ -1,6 +1,6 @@
 # 架构判据与依赖规则（foray_mcu）
 
-> **状态**：v2.8（2026-10-31）。v2.0 见 Decision-20261027-01；v2.1 随 F1 第 1 步更新 utils、middleware、lib 的归类：math 进 utils，fsm 进 middleware（Decision-20261027-02）；v2.2 随 F1 第 2 步加入 utils 的并发原语 `concurrency`（Decision-20261029-01），§3.4 补充 seqlock 的读写竞态（Decision-20261029-02，待定）；v2.3 随 F1 第 3 步定稿 §3.2 的 OS 契约：1 µs 时基、`Signal` 的语义、临界区只屏蔽框架中断（Decision-20261031-01～03）；v2.4 随 F1 第 4 步定稿 §3.4 的 topic：发布时用临界区包住写入（Decision-20261029-02），接口、等待槽与清单约定（Decision-20261031-05）；v2.5 随 F1 的 CI 加入框架独立构建与 Cortex-M0+ 原子检查，规则 13、17 的文本扫描生效，新增例外 X-17（Decision-20261031-06）；v2.6 随 F2 第 1 步把固件的符号对照换成段大小报告，规则 16 的 HAL 回调符号检查生效（Decision-20261031-08）；v2.7 随 F2 第 4 步换上启动入口 `boot_*` 与 `hal::init()`，规则 7 的 include 检查生效，`boot` 在依赖图里单独成层，X-09 关闭（Decision-20261031-11）；v2.8 随 F2 第 4 步定下 §3.5 的任务运行器写法，加入第一个 topic 与 bringup 能力，`topics` 在依赖图里单独成层（Decision-20261031-12）。v2 按负责人的骨架重写：迁移方式从"改造迁移源"改为"按新骨架重建，迁移源只作参考与零件来源"。v1.0–v1.4（P0–P2.5）见 git 历史与 decision.md。
+> **状态**：v2.9（2026-10-31）。v2.0 见 Decision-20261027-01；v2.1 随 F1 第 1 步更新 utils、middleware、lib 的归类：math 进 utils，fsm 进 middleware（Decision-20261027-02）；v2.2 随 F1 第 2 步加入 utils 的并发原语 `concurrency`（Decision-20261029-01），§3.4 补充 seqlock 的读写竞态（Decision-20261029-02，待定）；v2.3 随 F1 第 3 步定稿 §3.2 的 OS 契约：1 µs 时基、`Signal` 的语义、临界区只屏蔽框架中断（Decision-20261031-01～03）；v2.4 随 F1 第 4 步定稿 §3.4 的 topic：发布时用临界区包住写入（Decision-20261029-02），接口、等待槽与清单约定（Decision-20261031-05）；v2.5 随 F1 的 CI 加入框架独立构建与 Cortex-M0+ 原子检查，规则 13、17 的文本扫描生效，新增例外 X-17（Decision-20261031-06）；v2.6 随 F2 第 1 步把固件的符号对照换成段大小报告，规则 16 的 HAL 回调符号检查生效（Decision-20261031-08）；v2.7 随 F2 第 4 步换上启动入口 `boot_*` 与 `hal::init()`，规则 7 的 include 检查生效，`boot` 在依赖图里单独成层，X-09 关闭（Decision-20261031-11）；v2.8 随 F2 第 4 步定下 §3.5 的任务运行器写法，加入第一个 topic 与 bringup 能力，`topics` 在依赖图里单独成层（Decision-20261031-12）；v2.9 随 F2 第 4 步归档旧能力代码（tag `archive/pre-rebuild`），X-04、X-10 关闭，规则 10、18 生效，`app/` 加入宿主构建（Decision-20261031-13）。v2 按负责人的骨架重写：迁移方式从"改造迁移源"改为"按新骨架重建，迁移源只作参考与零件来源"。v1.0–v1.4（P0–P2.5）见 git 历史与 decision.md。
 > **权威来源**：[decision.md](../../decision.md) 中的 Accepted 条目，v2 起以 Decision-20261027-01 为准。[评审报告 v1.0](reviews/2026-10-25-foray_mcu-架构评审报告.md) 是历史记录，与本文件冲突的部分以本文件为准。
 > **修改流程**：新增或修改规则、例外、白名单，先在 decision.md 登记，再改本文件和对应的 CI 检查（§10）。
 
@@ -326,7 +326,7 @@ EXECUTABLE  firmware_<profile>
 | 7 | 生成区只在 USER CODE 区调用 `boot_*`（及 X-01 的 USB 接口）；不得 include `app`、`config` 的头 | 文本扫描（include 只能指向生成区自己的头、厂商 HAL 头、`boot/boot.h` 与 X-01 的 `UsbCdc.h`）；USER CODE 的改动行登记在 decision.md | 已执行（F2 第 4 步，Decision-20261031-11） |
 | 8 | 禁止 `file(GLOB)` 收集源码；禁止全局 `include_directories()`；每个 target 显式声明 PRIVATE/PUBLIC/INTERFACE | 文本扫描 | 已执行 |
 | 9 | `app/`、`src/` 中不用 `#if` 做裁剪（头文件保护与 `__cplusplus` 除外） | 文本扫描 | 已执行；X-14 放行 |
-| 10 | RTOS 头只对 `app/common` 与 `config/assembly` 可见，用 FreeRTOS 原生 API；能力与 `src` 零 RTOS，只经 `hal/os` | 依赖图 + 文本扫描 | F2；之前见 X-04 |
+| 10 | RTOS 头只对 `app/common` 与 `config/assembly` 可见，用 FreeRTOS 原生 API；能力与 `src` 零 RTOS，只经 `hal/os` | 依赖图（能力不得依赖 `app_common`）+ 文本扫描（`src/`、`app/` 只有 `app/common` 可以 include RTOS 头） | 已执行（F2 第 4 步，Decision-20261031-13） |
 | 11 | 上位机链路协议只用 vendor 的 `lower_link.hpp`，不手写帧与校验（`utils` 的 CRC 只给设备协议用，如裁判系统） | vendor 哈希 + 文本扫描 | 链路能力重建时 |
 | 12 | `app`、`src`、`platform`、`config` 的一级目录有白名单（§5.4），新增先登记 | 文本扫描 | 已执行 |
 | 13 | 不用 `std::atomic` 的读改写（`fetch_*`、`exchange`、`compare_exchange_*`）；并发只用 `utils` 原语与 topic | 文本扫描 + Cortex-M0+ 库调用检查 | 已执行（F1）；X-08、X-17 放行 |
@@ -334,7 +334,7 @@ EXECUTABLE  firmware_<profile>
 | 15 | 框架（`src/`、`platform/`、`cmake/`）不得引用产品的路径或 target | 文本扫描 + 框架独立构建 | 已执行 |
 | 16 | C 链接只允许 §9.3 列出的几处；覆盖 HAL 弱符号的 `.cpp` 必须 include 对应 HAL 头 | `nm` 检查 `HAL_*Callback`：port 定义的回调都是强符号，没有被 C++ 改名的回调 | 回调检查已执行（F2 第 1 步）；C 链接位置的检查随 port 改写 |
 | 17 | topic 只在 `app/topics` 定义；每个 topic 一个发布者；消息可平凡拷贝，只用标准标量与定长数组 | `static_assert` + 初始化检查 + 文本扫描（定义位置、发布句柄只在一处取得、清单头的 include） | 已执行（F1） |
-| 18 | 能力之间只经 topic 通信：`app_<capability>` 不得依赖其他 `app_<capability>` | 依赖图 | F2 |
+| 18 | 能力之间只经 topic 通信：`app_<capability>` 不得依赖其他 `app_<capability>` | 依赖图（能力层只能依赖 `app_topics`，不能依赖能力层自己） | 已执行（F2 第 4 步，旧 app 归档后不再有放行） |
 
 ### 5.3 CI 检查
 
@@ -367,20 +367,18 @@ EXECUTABLE  firmware_<profile>
 
 ## 7. 例外登记
 
-本表是全部生效中例外的唯一清单。新增例外先在 decision.md 登记；到期项完成后标为已关闭。已关闭的 X-09（F2 第 4 步，Decision-20261031-11）、X-11、X-12、X-13、X-15 见 decision.md。
+本表是全部生效中例外的唯一清单。新增例外先在 decision.md 登记；到期项完成后标为已关闭。已关闭的 X-04、X-10（F2 第 4 步，Decision-20261031-13）、X-09（Decision-20261031-11）、X-11、X-12、X-13、X-15 见 decision.md。
 
 | 编号 | 例外 | 涉及规则 | 处置与到期 |
 |---|---|---|---|
 | X-01 | **UsbCdc 边界**：USB 生成代码（`usb_device.c`、`usbd_cdc_if.c`）直接调用 port 的 C 接口 `UsbCdcPort_*`，`UsbCdc.h` 被生成代码按名字 include | 7、16 | F2 改写 port 时保留这组 C 接口；重建链路能力时按 Q8 改为回调注册 |
 | X-02 | **生成区链接接缝**：`-Wl,--wrap=HAL_PCD_EP_Transmit` | 16 | 随 X-01 删除 |
 | X-03 | **链接脚本 overlay**：自定义段用第二个 `-T` 追加，不改生成的 `.ld` | 生成区 | 第一个自定义段出现时落地 |
-| X-04 | **旧任务外壳用 CMSIS-RTOS2**：`app/tasks`、`app/common` 中的旧代码 | 10 | F2 随旧能力代码移出构建 |
 | X-05 | **DJI 型号映射**：`dji_motor_model_map.hpp`（型号 → 电调档案、原生减速比）是品牌默认值，留在驱动层 | §2.3 | 长期 |
 | X-06 | **`-Wdouble-promotion` 豁免**：`src/lib/estimate/vqf.cpp`，须有"目标无双精度 FPU 即 `#error`"的检查 | 14 | 长期；M4F 板链接姿态解算时重新评估 |
 | X-07 | **C 接口层**：`src/hal/detail/*.h`（`hal_detail`），port 仍是 C | 3、16 | F2 port 改写为 C++ 后删除 |
-| X-08 | **原子读改写**：`src/driver/motor/dji/dji_motor.cpp` 2 处；旧 app 中 6 处 | 13 | 驱动在 F3 适配时改；旧 app 随移出构建消失 |
-| X-10 | **集成测试直接编译旧 app 源码**（底盘任务、控制器） | §2.4 | F2 随旧 app 归档 |
-| X-14 | **迁移期构建开关**：`legacy_build_options` 的 `BMI088_GYRO_BANDWIDTH_REGISTER`、`IMU_ENABLE_DIAGNOSTICS` | 9、15 | 诊断开关在 F2 随旧 app 删除；陀螺带宽在 F3 改为驱动 `Config` 参数 |
+| X-08 | **原子读改写**：`src/driver/motor/dji/dji_motor.cpp` 2 处（旧 app 的 6 处已随归档删除） | 13 | DJI 电机驱动改写为 hal v1 时改 |
+| X-14 | **迁移期构建开关**：`legacy_build_options` 的 `BMI088_GYRO_BANDWIDTH_REGISTER`（`IMU_ENABLE_DIAGNOSTICS` 已随旧 app 删除） | 9、15 | BMI088 驱动改写时改为 `Config` 参数 |
 | X-16 | **RTOS 头的可见范围**：`os_freertos_<board>` 只能整目录暴露 CubeMX 的 `Core/Inc` | 10 | 长期（CubeMX 生成布局决定） |
 | X-17 | **Cortex-M0+ 框架构建暂不编译**：`driver_bmi088`、`driver_motor_dji`（`static_assert(is_always_lock_free)`，后者另有 X-08）、`lib_estimate`（经 `imu_body_mapping` 依赖 `driver_bmi088`）；根 `CMakeLists.txt` 在交叉编译的框架构建里设 `EXCLUDE_FROM_ALL` | 13、§8.2 | F3 驱动适配后删除 |
 
