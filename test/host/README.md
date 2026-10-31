@@ -20,7 +20,7 @@ Windows 上用 MSYS2 UCRT64 的 gcc/g++：在 `CMakeUserPresets.json`（不入�
 
 CI 的 `host-tests` 作业（`.github/workflows/ci.yml`）在 GitHub Actions 的 Ubuntu 上运行同样的三条命令，并检查宿主构建的依赖图。
 
-已验证环境：Ubuntu 24.04 + g++ 13.3.0 + CMake 3.28.3（2026-10-31，22/22 通过）；WSL Ubuntu 22.04 + g++ 11.4.0 + CMake 3.31.6（2026-10-29，17/17 通过）；Windows + MSYS2 UCRT64 g++ 16.2.0 + CMake 4.4.4（2026-10-26，14/14 通过；F1 新增的 `spsc_queue`、`latest_value` 于 2026-10-29 用同一编译器直接编译运行通过）。
+已验证环境：Ubuntu 24.04 + g++ 13.3.0 + CMake 3.28.3（2026-10-31，23/23 通过）；WSL Ubuntu 22.04 + g++ 11.4.0 + CMake 3.31.6（2026-10-29，17/17 通过）；Windows + MSYS2 UCRT64 g++ 16.2.0 + CMake 4.4.4（2026-10-26，14/14 通过；F1 新增的 `spsc_queue`、`latest_value` 于 2026-10-29 用同一编译器直接编译运行通过）。
 
 ## 测试清单
 
@@ -41,7 +41,8 @@ CI 的 `host-tests` 作业（`.github/workflows/ci.yml`）在 GitHub Actions 的
 | `crc16` | `unit/crc/crc16_test.cpp` | `utils_crc`（CRC-16/MCRF4XX：标准校验值、与逐位实现对照、裁判系统帧尾的小端约定） |
 | `spsc_queue` | `unit/concurrency/spsc_queue_test.cpp` | `utils_concurrency`（SPSC 队列：空与满、下标绕回、批量截断与绕回、`clear`、容量 1、计数器跨过 2^32；生产者、消费者、旁观者三线程压力；`-O2`） |
 | `latest_value` | `unit/concurrency/latest_value_test.cpp` | `utils_concurrency`（最新值邮箱：初值、覆盖、大小不是 4 的倍数、版本号按 2^31 回绕；一写三读的一致性压力；`-O2`） |
-| `topic` | `unit/topic/topic_test.cpp` | `middleware_topic` + `platform_mock`（常量初始化与清单写法、单发布者、新数据判断与丢失计数、观测计数、发布只进一次临界区、`wait()` 立即返回、跨线程唤醒、超时跨回绕、旧通知不提前结束等待、等待槽上限、一次发布叫醒全部等待者；一个发布线程对阻塞等待、轮询、模拟中断三个订阅者的压力测试；`-O2`） |
+| `topic` | `unit/topic/topic_test.cpp` | `middleware_topic` + `platform_mock`（常量初始化与清单写法、单发布者、新数据判断与丢失计数、观测计数、发布只进一次临界区、`wait()` 立即返回、跨线程唤醒、超时跨回绕、旧通知不提前结束等待、等待槽上限、直接登记的 `Signal`、一次发布叫醒全部等待者；一个发布线程对阻塞等待、轮询、模拟中断三个订阅者的压力测试；`-O2`） |
+| `bringup` | `unit/bringup/bringup_test.cpp` + `app/bringup/*.cpp` | `middleware_topic` + `platform_mock`（Heartbeat 单发布者与序号；Monitor 的收到、丢失、延迟超限、延迟跨回绕；`topics::ALL`） |
 | `chassis_controller` | `integration/chassis/chassis_controller_test.cpp` | `lib_control`；直接编译 `app/chassis/chassis_controller.cpp`、`app/tasks/chassis_task.cpp`（模拟电机） |
 | `controller_equivalence` | `integration/chassis/controller_equivalence_test.cpp` | 同上 |
 | `mock_normal` / `mock_read_failure` / `mock_command_failure` / `mock_init_failure` | `integration/chassis/chassis_mock_test.cpp` | 同上，按场景参数运行 |
@@ -59,7 +60,7 @@ CI 的 `host-tests` 作业（`.github/workflows/ci.yml`）在 GitHub Actions 的
 ```text
 test/host/
 ├── CMakeLists.txt
-├── unit/{protocol,motor,imu_acquisition,hal_os,crc,concurrency,topic}/ 单元测试
+├── unit/{protocol,motor,imu_acquisition,hal_os,crc,concurrency,topic,bringup}/ 单元测试
 ├── integration/chassis/                     底盘任务 + 控制器 + 模拟电机
 └── support/                                 测试替身
     ├── dji_platform_stub.hpp                CAN/时基 C ABI 桩
@@ -72,6 +73,7 @@ test/host/
 
 ## 来源与适配记录
 
+> F2（2026-10-31）：新增 `bringup`（测 `app/bringup` 的 Heartbeat、Monitor，测试里直接编译其源码，旧 app 归档后改为链接 `app_bringup`）；`topic` 补直接登记 `Signal` 的用例（Decision-20261031-12）。
 > F1（2026-10-31）：新增 `topic` 与消息约束的配置期检查，测 F1 第 4 步的 `middleware_topic`，不来自 `fd1edbb`。
 > F1（2026-10-31）：`hal_os_mock` 随 hal/os 契约 v1 改写（时基改为 1 µs，补多线程互斥），新增 `signal`、`signal_misuse`，不来自 `fd1edbb`。
 > F1（2026-10-28、10-29）：新增 `crc16`、`spsc_queue`、`latest_value`，测 F1 新写的 utils 代码，不来自 `fd1edbb`。

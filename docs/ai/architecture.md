@@ -1,6 +1,6 @@
 # 架构判据与依赖规则（foray_mcu）
 
-> **状态**：v2.7（2026-10-31）。v2.0 见 Decision-20261027-01；v2.1 随 F1 第 1 步更新 utils、middleware、lib 的归类：math 进 utils，fsm 进 middleware（Decision-20261027-02）；v2.2 随 F1 第 2 步加入 utils 的并发原语 `concurrency`（Decision-20261029-01），§3.4 补充 seqlock 的读写竞态（Decision-20261029-02，待定）；v2.3 随 F1 第 3 步定稿 §3.2 的 OS 契约：1 µs 时基、`Signal` 的语义、临界区只屏蔽框架中断（Decision-20261031-01～03）；v2.4 随 F1 第 4 步定稿 §3.4 的 topic：发布时用临界区包住写入（Decision-20261029-02），接口、等待槽与清单约定（Decision-20261031-05）；v2.5 随 F1 的 CI 加入框架独立构建与 Cortex-M0+ 原子检查，规则 13、17 的文本扫描生效，新增例外 X-17（Decision-20261031-06）；v2.6 随 F2 第 1 步把固件的符号对照换成段大小报告，规则 16 的 HAL 回调符号检查生效（Decision-20261031-08）；v2.7 随 F2 第 4 步换上启动入口 `boot_*` 与 `hal::init()`，规则 7 的 include 检查生效，`boot` 在依赖图里单独成层，X-09 关闭（Decision-20261031-11）。v2 按负责人的骨架重写：迁移方式从"改造迁移源"改为"按新骨架重建，迁移源只作参考与零件来源"。v1.0–v1.4（P0–P2.5）见 git 历史与 decision.md。
+> **状态**：v2.8（2026-10-31）。v2.0 见 Decision-20261027-01；v2.1 随 F1 第 1 步更新 utils、middleware、lib 的归类：math 进 utils，fsm 进 middleware（Decision-20261027-02）；v2.2 随 F1 第 2 步加入 utils 的并发原语 `concurrency`（Decision-20261029-01），§3.4 补充 seqlock 的读写竞态（Decision-20261029-02，待定）；v2.3 随 F1 第 3 步定稿 §3.2 的 OS 契约：1 µs 时基、`Signal` 的语义、临界区只屏蔽框架中断（Decision-20261031-01～03）；v2.4 随 F1 第 4 步定稿 §3.4 的 topic：发布时用临界区包住写入（Decision-20261029-02），接口、等待槽与清单约定（Decision-20261031-05）；v2.5 随 F1 的 CI 加入框架独立构建与 Cortex-M0+ 原子检查，规则 13、17 的文本扫描生效，新增例外 X-17（Decision-20261031-06）；v2.6 随 F2 第 1 步把固件的符号对照换成段大小报告，规则 16 的 HAL 回调符号检查生效（Decision-20261031-08）；v2.7 随 F2 第 4 步换上启动入口 `boot_*` 与 `hal::init()`，规则 7 的 include 检查生效，`boot` 在依赖图里单独成层，X-09 关闭（Decision-20261031-11）；v2.8 随 F2 第 4 步定下 §3.5 的任务运行器写法，加入第一个 topic 与 bringup 能力，`topics` 在依赖图里单独成层（Decision-20261031-12）。v2 按负责人的骨架重写：迁移方式从"改造迁移源"改为"按新骨架重建，迁移源只作参考与零件来源"。v1.0–v1.4（P0–P2.5）见 git 历史与 decision.md。
 > **权威来源**：[decision.md](../../decision.md) 中的 Accepted 条目，v2 起以 Decision-20261027-01 为准。[评审报告 v1.0](reviews/2026-10-25-foray_mcu-架构评审报告.md) 是历史记录，与本文件冲突的部分以本文件为准。
 > **修改流程**：新增或修改规则、例外、白名单，先在 decision.md 登记，再改本文件和对应的 CI 检查（§10）。
 
@@ -191,7 +191,7 @@ void boot_run(void);        // 默认任务：留给 assembly 的周期工作（
 **实现要点**：
 - 存储用单写者 seqlock（`utils/concurrency` 的 `LatestValue`）：只用原子读写与内存屏障，没有原子读改写，Cortex-M0+ 也能用（规则 13）。
 - **读写竞态**（Decision-20261029-02）：读端遇到写入中途会重试，直到写端写完；如果读端在写入中途抢占了写端，单核上写端再也轮不到运行，读端无限重试。所以发布时用 `hal::os::CriticalSection` 包住写入：写入期间框架中断与任务切换都被屏蔽，读端抢占不了写端。任务之间因此没有优先级限制，框架中断里也能读。代价是每次发布关一次框架中断，时长约等于一次消息拷贝，所以消息有大小上限。临界区只屏蔽框架中断（§3.2），线以上的中断既不能发布也不能读 topic。
-- 等待槽：每个 topic 固定 `WAIT_SLOTS`（4）个。订阅者用自己的 `hal::os::Signal` 登记，发布时在临界区外逐个 `notify()`。没有登记就 `wait()` 的，发布叫不醒它，只能睡到超时。
+- 等待槽：每个 topic 固定 `WAIT_SLOTS`（4）个，用 `TopicBase::add_waiter(signal)` 登记：订阅者经 `enable_wait()` 登记自己的 `Signal`，任务运行器按 topic 触发任务时直接登记（Decision-20261031-12）。发布时在临界区外逐个 `notify()`。没有登记就 `wait()` 的，发布叫不醒它，只能睡到超时。
 - 只用原子读写与内存屏障：每个计数都只有一个写者，用"读一次、写一次"更新（规则 13）。
 - `Topic`、`Subscriber`、`Publisher` 的构造函数都是 `constexpr`，作全局对象时常量初始化，不依赖全局构造顺序。
 - 只有头文件：`src/middleware/topic/topic.hpp`，target `middleware_topic`（Decision-20261031-05）。
@@ -227,9 +227,26 @@ void boot_run(void);        // 默认任务：留给 assembly 的周期工作（
 - 输入输出只经 topic 与注入的驱动对象。能力零 RTOS，宿主测试直接调用 `step()`。
 - 能力之间不 include 彼此的头，共享的只有 `app/topics`。
 
-**任务**：
-- 任务表在 assembly。每个任务包含：名称、栈大小、优先级、触发方式（周期 N 个 tick，或等待某个 topic），以及按顺序调用的 `step` 列表。
-- `app/common` 的任务运行器按表创建 FreeRTOS 任务（原生 API），并巡检栈水位。
+**任务**（Decision-20261031-12）：
+- 任务表在 assembly：`constexpr std::array<common::TaskSpec, N> TASKS`。每行包含：
+  - 名称；
+  - 栈（字）；
+  - FreeRTOS 优先级；
+  - 触发方式：`common::every_ms(周期)`，或 `common::on_topic(topic)`（topic 每次发布后运行一轮）；
+  - 按顺序调用的 step 列表，最多 8 个。每个 step 是 `void (*)(hal::os::Microseconds now)`，组合根用普通函数调能力的 `step(now)`；同一轮的各 step 拿到同一个 `now`。
+
+  ```cpp
+  constexpr std::array<common::TaskSpec, 2> TASKS{{
+      {"heartbeat", 256U, 25U, common::every_ms(1U), {heartbeat_step}},
+      {"monitor", 256U, 26U, common::on_topic(topics::bringup::heartbeat), {monitor_step}},
+  }};
+  common::TaskRunner<TASKS> g_runner;
+  ```
+- `app/common` 的任务运行器 `common::TaskRunner<TASKS>`：
+  - 用 FreeRTOS 原生 API，任务表在编译期检查；
+  - 栈与任务控制块静态分配，在 `.bss`；
+  - `init()`、`start()`、`sample_stack_health()` 分别在 `boot_init`、`boot_init_rtos`、`boot_run` 里调用；
+  - 记录每个任务的运行轮数、单轮最长耗时、错过周期次数、剩余栈。
 - 中断里只做"取数据 + 发布 topic"，计算放在任务里。
 
 ### 3.6 profile 与组合根
@@ -244,7 +261,7 @@ void boot_run(void);        // 默认任务：留给 assembly 的周期工作（
   - 定义任务表；
   - 实现启动入口。
 - **能力裁剪**：profile 不链接某个能力，它就不进镜像。不用 `#if`。
-- **框架验证**用 `bringup_dm_mc02` profile：不含 RM 能力，只演示并检查框架（plan.md F2–F4）。
+- **框架验证**用 `bringup_dm_mc02` profile：不含 RM 能力，链接 `app_bringup`（心跳与监视），只演示并检查框架（plan.md F2–F4，Decision-20261031-12）。`profile.cmake` 的 `CAPABILITIES` 决定组合根链接哪些 `app_<能力>`。
 
 ### 3.7 板级 `platform/<board>/`
 
@@ -334,7 +351,7 @@ EXECUTABLE  firmware_<profile>
 | 目录 | 白名单 |
 |---|---|
 | `src/` | `hal`（含 `os`）、`boot`、`utils`、`middleware`、`lib`、`driver`、`third_party` |
-| `app/` | `topics`、`common`、`imu`、`chassis`、`gimbal`、`remote`、`launch`、`link`（新增能力先登记） |
+| `app/` | `topics`、`common`、`bringup`（框架验证，Decision-20261031-12）、`imu`、`chassis`、`gimbal`、`remote`、`launch`、`link`（新增能力先登记） |
 | `platform/` | `mock` 与各板标识（`dm_mc02`；F407 C 板在阶段 B 加入） |
 | `config/` | `profiles`、`assembly` |
 

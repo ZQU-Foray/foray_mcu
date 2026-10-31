@@ -2,7 +2,7 @@
 
 本产品的全部 topic 都定义在这里（规则 17）。能力之间只经 topic 通信，共享的头文件只有这里的。机制见 `src/middleware/topic/topic.hpp` 与[架构 v2 §3.4](../../docs/ai/architecture.md)，设计记录见 [decision.md](../../decision.md) Decision-20261031-05。
 
-现在还没有 topic：第一批 topic 随 F2 的 bringup 加入，能力的 topic 在阶段 A 重建能力时加入。
+现有的 topic：`bringup.heartbeat`（`bringup.hpp`，框架验证用，F2，Decision-20261031-12）。能力的 topic 在阶段 A 重建能力时加入。
 
 ## 约定
 
@@ -69,8 +69,10 @@ attitude_.enable_wait();                   // 要阻塞等待的，init() 里先
 attitude_.wait(message, timeout);          // 只在任务里用：有没读过的数据就立即返回，否则等到下一次发布或超时
 ```
 
-## 待第一个 topic 加入时处理
+## 构建与检查（Decision-20261031-12）
 
-- 建 INTERFACE target `app_topics`（只依赖 `middleware_topic`），`tool/ci/arch_check.py` 加 `topics` 层：只能依赖 `middleware` 与契约；能力可以依赖它（规则 18 不把它算作能力）。
-- 命名检查：`.clang-tidy` 要求全局变量加 `g_`，而清单里的 topic 实例不加（架构 §9.2）。用逐行豁免还是检查脚本排除，届时定。
+- INTERFACE target `app_topics`，只依赖 `middleware_topic` 与 `hal_os`；新增头文件时列进 `app/CMakeLists.txt`。
+- `tool/ci/arch_check.py` 的 `topics` 层：只能依赖 middleware 与契约；能力、任务运行器、组合根都可以依赖它（规则 18 不把它算作能力）。
+- 命名：`.clang-tidy` 要求全局变量加 `g_`，清单里的 topic 实例不加（架构 §9.2），由 `tool/ci/naming.py` 对 `app/topics/` 的全局变量放行。所以这里的全局变量只能是 topic 实例；`ALL` 是编译期常量，按常量规则大写。
+- 任务运行器按 topic 触发任务时，也占 topic 的一个等待槽（共 `topic::WAIT_SLOTS` 个）。
 - 以后：框架验证好用之后，清单改为从描述文件生成，生成器放 `tool/`。

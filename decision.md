@@ -1353,6 +1353,17 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 6. **preset**：`arm-debug`、`arm-release` 改为 `bringup_dm_mc02`。`baseline` 在第 4 步归档前仍可用 `-DPROFILE=baseline` 构建。CI 的固件路径改为 `firmware_*.elf`，不写死 profile。
 7. **待定**：F2 验收的"中断里发布的 topic 能被阻塞等待的任务收到"。现在没有不改生成区就能挂接的空闲中断源（TIM1 的周期回调在生成的 `main.c` 里，SysTick 钩子要改 CubeMX 配置，EXTI 只给 BMI088 的两个引脚）。方案另行提出，由负责人决定。
 
+**验证**：
+- 宿主：ctest 23/23（新增 `bringup`；`topic` 补"直接登记的 Signal"）；
+- 编译期检查：任务表写错的 5 种情况（没有 step、栈太小、优先级等于空闲任务、优先级越界、周期为 0）都编译失败，报错指明原因；
+- 固件 Debug、Release 无告警；`g_runner` 在 `.bss`；依赖图、HAL 回调、文本扫描、格式、命名检查通过。关掉 naming.py 的豁免时，`heartbeat` 会被报出来；
+- `baseline` 仍可用 `-DPROFILE=baseline` 构建；
+- **上板**（2026-10-31，记录见 `docs/ai/decisions/2026-10-31-F2-bringup上板验证/`）：
+  - 心跳 1 kHz，没有错过周期；
+  - monitor 的运行轮数与 heartbeat 相同，收到全部心跳，丢失、乱序都是 0，最大延迟 9 µs；
+  - 两个任务的栈各剩一半以上；
+  - PC 采样都在空闲任务里。
+
 **Alternatives / Rejected**：
 - **step 用"函数指针 + 上下文指针"**：任务表里要多一列 `void *`，组合根还要做类型转换。否决。
 - **任务栈用 FreeRTOS 的堆**（`xTaskCreate`）：违背"无堆分配"。否决。
