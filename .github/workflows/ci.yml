@@ -5,8 +5,10 @@
 #     厂商代码与 vendor 生成头（P0.5 一次性格式化之后，Decision-20261026-04）。
 #   - 新增 lint-naming：tool/ci/naming.py 全量检查 C++ 命名（clang-tidy，P0.5 改名之后，
 #     Decision-20261026-05）；P1 起编译数据库来自根工程的三个 preset。
-#   - 新增 lint-arch：tool/ci/arch_check.py 的文本扫描（依赖规则 3、8、9、12、15，P1 起）。
+#   - 新增 lint-arch：tool/ci/arch_check.py 的文本扫描（依赖规则 3、8、9、12、15，P1 起；F1 加入 13、17）。
 #   - 新增 host-tests：根工程 host-tests preset 的宿主测试（ctest）与宿主依赖图检查。
+#   - 新增 framework（F1，Decision-20261031-06）：在只含框架文件的副本里做框架独立构建（宿主）
+#     并检查依赖图；为 Cortex-M0+ 构建框架，检查没有原子读改写的库调用（规则 2、13、15）。
 #   - 新增 firmware：根工程构建固件（arm-debug、arm-release），与迁移源的符号集合比较
 #     （名称、大小、类型，P1–P2.5 的判据），并检查固件依赖图（Decision-20261026-07）；
 #     P2 起迁移源构建随搬迁失效，基准改为 P1 存档的符号表，迁移源基线 SHA 校验删除（Decision-20261026-08）。
@@ -105,7 +107,8 @@ jobs:
   # ---- C++ 命名检查（全量，本仓新增） ----
   # 规则见根目录 .clang-tidy（ROS 2 命名），由 tool/ci/naming.py 执行（Decision-20261026-05）。
   # 被 #if 关掉的代码对 clang-tidy 不可见，所以三种配置都要检查：固件 Debug（打开 IMU 诊断代码）、
-  # 固件 Release（#else 分支）与宿主测试。只做 cmake 配置生成编译数据库，不编译。
+  # 固件 Release（#else 分支）与宿主测试；另加框架独立构建，覆盖只在其中编译的 test/framework。
+  # 只做 cmake 配置生成编译数据库，不编译。
   lint-naming:
     runs-on: ubuntu-latest
     steps:
@@ -127,13 +130,14 @@ jobs:
           cmake --preset arm-debug
           cmake --preset arm-release
           cmake --preset host-tests
+          cmake --preset framework
 
       - name: 命名检查（全量）
         shell: bash
         run: |
           if ! python tool/ci/naming.py --check \
-               -p build/arm-debug -p build/arm-release -p build/host-tests; then
-            echo "::error::C++ 命名不符合 .clang-tidy。本地生成三个 preset 的编译数据库后执行 python tool/ci/naming.py --fix（clang-tidy ${CLANG_TIDY_VERSION}），模板与注释里的遗漏需手工补齐。"
+               -p build/arm-debug -p build/arm-release -p build/host-tests -p build/framework; then
+            echo "::error::C++ 命名不符合 .clang-tidy。本地生成四个 preset 的编译数据库后执行 python tool/ci/naming.py --fix（clang-tidy ${CLANG_TIDY_VERSION}），模板与注释里的遗漏需手工补齐。"
             exit 1
           fi
 
@@ -149,7 +153,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: 文本扫描（规则 3、8、9、12、15）
+      - name: 文本扫描（规则 3、8、9、12、13、15、17）
         run: python tool/ci/arch_check.py scan
 
   # ---- Python 测试（模板原样） ----
@@ -213,6 +217,45 @@ jobs:
 
       - name: 测试
         run: ctest --preset host-tests
+
+  # ---- 框架独立构建（本仓新增，F1） ----
+  # 规则 2、15：框架（src + platform/mock + cmake）不引用产品。只取出框架文件（git archive），
+  # 在没有 app/、config/、test/host 与任何板卡的副本里配置和构建：引用产品的路径会编译失败，
+  # 链接产品的 target 会在依赖图里显示为外部库，由 arch_check.py graph --mode framework 拦下。
+  # 规则 13：Cortex-M0+ 没有 LDREX/STREX，原子读改写只能编译成库调用；为 M0+ 构建框架后检查静态库
+  # 里没有 __atomic_*、__sync_* 调用（例外 X-17 的 target 暂不编译，F3 解除）。
+  framework:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Arm GNU 工具链
+        uses: ./.github/actions/setup-arm-gcc
+
+      - name: 取出框架文件
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/framework"
+          git archive HEAD CMakeLists.txt CMakePresets.json cmake src platform/mock test/framework \
+            | tar -x -C "$RUNNER_TEMP/framework"
+          ls "$RUNNER_TEMP/framework"
+
+      - name: 宿主：配置、依赖图检查、构建
+        shell: bash
+        working-directory: ${{ runner.temp }}/framework
+        run: |
+          cmake --preset framework --graphviz=build/framework/graph/targets.dot
+          python3 "$GITHUB_WORKSPACE/tool/ci/arch_check.py" graph build/framework/graph/targets.dot --mode framework
+          cmake --build --preset framework
+
+      - name: Cortex-M0+：构建并检查原子库调用
+        shell: bash
+        working-directory: ${{ runner.temp }}/framework
+        run: |
+          cmake --preset framework-m0plus
+          cmake --build --preset framework-m0plus
+          python3 "$GITHUB_WORKSPACE/tool/ci/arch_check.py" atomics build/framework-m0plus \
+            --nm "$ARM_GCC_ROOT/bin/arm-none-eabi-nm"
 
   # ---- 固件构建、符号对照与依赖图检查（本仓新增） ----
   # P1–P2.5 只搬结构、不改行为：根工程固件的函数与对象符号（名称、大小、类型、绑定、输出段）

@@ -2,18 +2,23 @@
 """架构门禁：检查 target 依赖图与源码文本是否符合 docs/ai/architecture.md 的依赖规则。
 
 用法：
-    arch_check.py graph <targets.dot> --mode firmware|host   # cmake --graphviz 导出的依赖图
-    arch_check.py scan                                       # 文本扫描（仓库根执行）
+    arch_check.py graph <targets.dot> --mode firmware|host|framework   # cmake --graphviz 导出的依赖图
+    arch_check.py scan                                                 # 文本扫描（仓库根执行）
+    arch_check.py atomics <构建目录> --nm <arm-none-eabi-nm>           # Cortex-M0+ 原子库调用
 
 graph 检查（规则 1、2、5、6、15 与评审报告 §5.2）：
   - 每个 target 名都要符合命名白名单（新增一类 target 先改规则与本脚本）；
   - 每条边都要在分层允许的依赖表内；迁移期放行的边单独列出并注明例外编号；
   - 传递可达：app 到不了 port/board/生成区/assembly；框架到不了平台实现与产品；
     测试到不了 port/board/生成区/assembly；只有固件可执行文件能链接 assembly；
-  - 无环；port、board 与生成区必须是 OBJECT 库；必需的 target 都存在。
-scan 检查（规则 3、8、9、12、15）：契约头不出现厂商与 RTOS 名；CMake 不用 file(GLOB) 与
+  - 无环；port、board 与生成区必须是 OBJECT 库；必需的 target 都存在；
+  - framework 模式（框架独立构建）：图里不得出现产品、板卡、RTOS 或测试，连未定义的同名库也不行。
+scan 检查（规则 3、8、9、12、13、15、17）：契约头不出现厂商与 RTOS 名；CMake 不用 file(GLOB) 与
   全局 include_directories()；app/ 与 src/ 不用 #if 做裁剪（头文件保护与 __cplusplus 除外）；
-  一级目录白名单；框架代码不引用产品的路径或 target。
+  一级目录白名单；不用原子读改写；框架代码不引用产品的路径或 target；topic 只在 app/topics 定义、
+  每个 topic 只在一处取得发布句柄、清单头只 include 标准库与 topic 机制。
+atomics 检查（规则 13）：framework-m0plus 构建出的静态库里没有 __atomic_*、__sync_* 库调用。
+  Cortex-M0+ 没有 LDREX/STREX，原子读改写只能编译成库调用；文本扫描查不到的写法（如对原子变量用 ++）在这里现形。
 迁移源 legacy/ 不在扫描范围内（例外 X-12）。
 """
 
@@ -57,6 +62,7 @@ LAYERS = [
     ("vendor", r"(mx_generated|rtos|usb)_\w+"),
     ("mock", r"platform_mock"),
     ("test", r"test_\w+"),
+    ("check", r"check_\w+"),
     ("legacy", r"legacy_build_options"),
 ]
 FRAMEWORK = {"contract", "hal_detail", "utils", "msg", "lib", "driver", "middleware"}
@@ -96,6 +102,8 @@ ALLOWED = {
     "vendor": set(),
     "mock": {"contract", "hal_detail", "utils"},
     "test": FRAMEWORK | {"mock", "app", "app_common"},
+    # 框架独立构建里的检查用 target（如 check_templates：实例化只有头文件的模板），只能依赖框架。
+    "check": FRAMEWORK | {"legacy"},
     "legacy": set(),
 }
 
@@ -133,7 +141,10 @@ REQUIRED = {
         "driver",
     ],
     "host": ["contract", "mock", "test", "lib", "driver"],
+    "framework": ["contract", "utils", "middleware", "lib", "driver", "mock", "check"],
 }
+# 框架独立构建（规则 2、15）中不得出现的层：产品、板卡与 RTOS、测试。
+FORBIDDEN_IN_FRAMEWORK = PRODUCT | {"os", "port", "board", "vendor", "test"}
 
 
 def layer_of(name: str) -> str | None:
@@ -143,7 +154,9 @@ def layer_of(name: str) -> str | None:
     return None
 
 
-def parse_graph(path: Path) -> tuple[dict[str, str], list[tuple[str, str]]]:
+def parse_graph(
+    path: Path,
+) -> tuple[dict[str, str], list[tuple[str, str]], set[str]]:
     shapes: dict[str, str] = {}
     names: dict[str, str] = {}
     edges = []
@@ -163,13 +176,19 @@ def parse_graph(path: Path) -> tuple[dict[str, str], list[tuple[str, str]]]:
         for name, shape in shapes.items()
         if shape != EXTERNAL_SHAPE and IMPORTED not in name
     }
+    # 外部库：链接了一个不存在的 target 名时，CMake 把它当成库文件名，图里显示为外部库
+    externals = {
+        name
+        for name, shape in shapes.items()
+        if shape == EXTERNAL_SHAPE and IMPORTED not in name
+    }
     # 自环是 $<TARGET_OBJECTS:...> 生成器表达式在 graphviz 中的表现（CMake 不允许 target 依赖自己），忽略。
     resolved = [
         (names[source], names[target])
         for source, target in edges
         if source != target and names[source] in targets and names[target] in targets
     ]
-    return targets, sorted(set(resolved))
+    return targets, sorted(set(resolved)), externals
 
 
 def reachable(start: str, graph: dict[str, set[str]]) -> set[str]:
@@ -210,7 +229,7 @@ def find_cycle(graph: dict[str, set[str]]) -> list[str] | None:
 
 
 def check_graph(path: Path, mode: str) -> list[str]:
-    targets, edges = parse_graph(path)
+    targets, edges, externals = parse_graph(path)
     errors = []
     layers = {}
     for name in sorted(targets):
@@ -264,6 +283,14 @@ def check_graph(path: Path, mode: str) -> list[str]:
             errors.append(
                 f"规则 5：只有固件可执行文件可以链接 {target}，{source} 也链接了它"
             )
+
+    if mode == "framework":
+        for name in sorted(set(targets) | externals):
+            if layer_of(name) in FORBIDDEN_IN_FRAMEWORK:
+                kind = "外部库" if name in externals else "target"
+                errors.append(
+                    f"规则 2/15：框架独立构建中出现了{kind} {name}（{layer_of(name)}）"
+                )
 
     cycle = find_cycle(graph)
     if cycle:
@@ -319,6 +346,31 @@ PRODUCT_REFERENCE = re.compile(
     r"\b(app_\w+|assembly_\w+|profile_\w+|firmware_\w+)\b|(?<![\w/.])(app|config)/"
 )
 SOURCE_SUFFIXES = (".c", ".h", ".cpp", ".hpp")
+
+# 规则 13：std::atomic 的读改写（成员函数与 std::atomic_* 自由函数）。std::exchange 不是原子操作，不算。
+ATOMIC_RMW = re.compile(
+    r"(?:\.|->)\s*(?:fetch_\w+|exchange|compare_exchange_\w+|test_and_set)\s*\("
+    r"|\bstd::atomic_(?:fetch_\w+|exchange\w*|compare_exchange_\w+|flag_test_and_set\w*)\s*\("
+)
+# 例外 X-08 放行的文件 → 到期。改掉后删除对应条目（文件里已经没有时，扫描会提示）。
+ATOMIC_RMW_EXCEPTIONS = {
+    "src/driver/motor/dji/dji_motor.cpp": "X-08，F3 驱动适配时改",
+    "app/remote/remote_receiver.cpp": "X-08，F2 随旧 app 归档",
+    "app/tasks/imu_data_ready_mailbox.hpp": "X-08，F2 随旧 app 归档",
+    "app/tasks/imu_task.cpp": "X-08，F2 随旧 app 归档",
+}
+# 规则 17：topic 只在产品清单（app/topics）定义；topic 机制本身在 src/middleware/topic。
+TOPIC_TYPE = re.compile(r"\bTopic\s*<")
+TOPIC_HOMES = ("app/topics/", "src/middleware/topic/")
+CLAIM_PUBLISHER = re.compile(r"([A-Za-z_][\w:]*)\s*(?:\.|->)\s*claim_publisher\s*\(")
+# 清单头只能 include 标准库（不带 .h 的名字）、topic 机制、时基与清单里的其他头：消息不能用 lib 等层的类型。
+INCLUDE = re.compile(r'^\s*#\s*include\s*([<"])([^>"]+)[>"]', re.MULTILINE)
+TOPIC_QUOTED_INCLUDES = re.compile(
+    r"middleware/topic/topic\.hpp|hal/os/clock\.hpp|topics/[\w/]+\.hpp"
+)
+STANDARD_HEADER = re.compile(r"[a-z_]+")
+# Cortex-M0+ 上原子读改写编译成的库调用
+ATOMIC_CALL = re.compile(r"\b__(?:atomic|sync)_\w+")
 
 
 def tracked(*patterns: str) -> list[Path]:
@@ -404,6 +456,8 @@ def check_scan() -> list[str]:
                 errors.append(
                     f"规则 12：{root}/{path.parts[1]} 不在一级目录白名单内（{path}）"
                 )
+    errors += check_atomic_rmw()
+    errors += check_topics()
     for path in tracked("src/*", "platform/*", "cmake/*"):
         if "cubemx" in path.parts:
             continue  # 生成区由规则 7 与例外 X-09 管
@@ -416,8 +470,107 @@ def check_scan() -> list[str]:
             match = PRODUCT_REFERENCE.search(code)
             if match:
                 errors.append(f"规则 15：框架文件 {path} 引用了产品：{match.group(0)}")
-    print("文本扫描：规则 3、8、9、12、15")
+    print("文本扫描：规则 3、8、9、12、13、15、17")
     return sorted(set(errors))
+
+
+def handwritten_sources(*roots: str) -> list[Path]:
+    """手写的 C/C++ 源码：排除生成区与 vendor 头。"""
+    return [
+        path
+        for path in tracked(*(f"{root}/*" for root in roots))
+        if path.suffix in SOURCE_SUFFIXES
+        and "cubemx" not in path.parts
+        and "third_party" not in path.parts
+    ]
+
+
+def check_atomic_rmw() -> list[str]:
+    """规则 13：不用 std::atomic 的读改写，例外 X-08 的文件放行。"""
+    errors = []
+    seen = set()
+    for path in handwritten_sources("src", "app", "config", "platform"):
+        code = strip_comments(path, path.read_text("utf-8"))
+        for match in ATOMIC_RMW.finditer(code):
+            name = path.as_posix()
+            if name in ATOMIC_RMW_EXCEPTIONS:
+                seen.add(name)
+                continue
+            number = code.count("\n", 0, match.start()) + 1
+            errors.append(
+                f"规则 13：{name}:{number} 用了原子读改写 {match.group(0).strip()}"
+                "（Cortex-M0+ 不支持，改用 utils/concurrency 的原语或 topic）"
+            )
+    for name in sorted(set(ATOMIC_RMW_EXCEPTIONS) - seen):
+        print(f"  提示：例外 X-08 放行的 {name} 已经没有原子读改写，可以删掉这一条")
+    return errors
+
+
+def check_topics() -> list[str]:
+    """规则 17：topic 只在 app/topics 定义；每个 topic 只在一处取得发布句柄；清单头只 include 允许的头。"""
+    errors = []
+    claims: dict[str, list[str]] = collections.defaultdict(list)
+    for path in handwritten_sources("src", "app", "config", "platform"):
+        name = path.as_posix()
+        code = strip_comments(path, path.read_text("utf-8"))
+        if not name.startswith(TOPIC_HOMES):
+            for match in TOPIC_TYPE.finditer(code):
+                number = code.count("\n", 0, match.start()) + 1
+                errors.append(
+                    f"规则 17：{name}:{number} 定义或使用了 topic::Topic，topic 只在 app/topics 定义"
+                )
+        for match in CLAIM_PUBLISHER.finditer(code):
+            number = code.count("\n", 0, match.start()) + 1
+            claims[match.group(1)].append(f"{name}:{number}")
+        if name.startswith("app/topics/"):
+            for kind, header in INCLUDE.findall(code):
+                allowed = (
+                    TOPIC_QUOTED_INCLUDES.fullmatch(header)
+                    if kind == '"'
+                    else STANDARD_HEADER.fullmatch(header)
+                )
+                if not allowed:
+                    shown = f'"{header}"' if kind == '"' else f"<{header}>"
+                    errors.append(
+                        f"规则 17：清单头 {name} 不能 include {shown}：消息只用标准标量与定长数组"
+                    )
+    for topic, places in sorted(claims.items()):
+        if len(places) > 1:
+            errors.append(
+                f"规则 17：{topic} 在 {len(places)} 处取得发布句柄（{'、'.join(places)}），每个 topic 只有一个发布者"
+            )
+    return errors
+
+
+# ---- Cortex-M0+ 原子库调用 ----
+
+
+def check_atomics(build: Path, nm: str) -> list[str]:
+    """规则 13：framework-m0plus 构建出的静态库里不得有 __atomic_*、__sync_* 库调用。"""
+    archives = sorted(
+        path for path in build.rglob("*.a") if "CMakeFiles" not in path.parts
+    )
+    errors = []
+    if not any(path.name == "libcheck_templates.a" for path in archives):
+        errors.append(
+            f"{build} 里没有 libcheck_templates.a：先用 framework-m0plus preset 构建"
+        )
+    for archive in archives:
+        result = subprocess.run(
+            [nm, "-u", str(archive)],
+            check=True,
+            stdout=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+        )
+        calls = sorted(set(ATOMIC_CALL.findall(result.stdout)))
+        if calls:
+            errors.append(
+                f"规则 13：{archive.relative_to(build)} 调用了 {'、'.join(calls)}"
+                "（Cortex-M0+ 上原子读改写编译成库调用）"
+            )
+    print(f"原子库调用检查：{len(archives)} 个静态库（{build}）")
+    return errors
 
 
 def main() -> int:
@@ -427,11 +580,19 @@ def main() -> int:
     graph.add_argument("dot", type=Path)
     graph.add_argument("--mode", choices=sorted(REQUIRED), required=True)
     commands.add_parser("scan", help="文本扫描（仓库根执行）")
+    atomics = commands.add_parser(
+        "atomics", help="检查 framework-m0plus 构建的静态库没有原子库调用"
+    )
+    atomics.add_argument("build", type=Path)
+    atomics.add_argument("--nm", required=True, help="arm-none-eabi-nm 的路径")
     args = parser.parse_args()
 
-    errors = (
-        check_graph(args.dot, args.mode) if args.command == "graph" else check_scan()
-    )
+    if args.command == "graph":
+        errors = check_graph(args.dot, args.mode)
+    elif args.command == "atomics":
+        errors = check_atomics(args.build, args.nm)
+    else:
+        errors = check_scan()
     for error in errors:
         print(
             f"::error::{error}"

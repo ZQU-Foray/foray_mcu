@@ -1,9 +1,13 @@
 # foray_mcu 构建入口：顶层只做工具链检查、选项与组合（评审报告 §5.2、§5.4）。
 #
-# 两种构建，用 CMakePresets.json 选择：
+# 三种构建，用 CMakePresets.json 选择：
 #   固件  cmake --preset arm-debug | arm-release    交叉编译，唯一的开关是 -DPROFILE=<名称>，
 #                                                   板卡、能力、参数都来自 config/profiles/<名称>/profile.cmake
 #   宿主  cmake --preset host-tests                 框架 + platform/mock + 宿主测试（ctest）
+#   框架  cmake --preset framework | framework-m0plus
+#                                                   只有框架（-DFRAMEWORK_ONLY=ON）：src + 模板实例化检查，
+#                                                   宿主上另加 platform/mock；不含 app/、config/、test/host 与任何板卡。
+#                                                   CI 在只含这些文件的副本里构建，证明框架不引用产品（规则 2、15）
 #
 # 迁移期：迁移源的两个构建期开关由 cmake/legacy.cmake 的 legacy_build_options 提供（例外 X-14，P3b 删除）。
 cmake_minimum_required(VERSION 3.22)
@@ -22,7 +26,25 @@ list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 include(targets)
 include(legacy)
 
-if(CMAKE_CROSSCOMPILING)
+option(FRAMEWORK_ONLY "只构建框架（src；宿主上另加 platform/mock），不含产品、板卡与宿主测试" OFF)
+
+if(FRAMEWORK_ONLY)
+    # 框架独立构建（规则 2、15，Decision-20261031-06）。交叉编译时不选板卡：框架只依赖契约，
+    # 契约的实现在 port，这里只编译不链接。framework-m0plus 用它检查原子读改写（规则 13）。
+    add_subdirectory(src)
+    if(CMAKE_CROSSCOMPILING)
+        # 还不能为 Cortex-M0+ 编译的 target（例外 X-17，F3 驱动适配后删掉这一行）：
+        # driver_bmi088、driver_motor_dji 用 static_assert(is_always_lock_free) 要求原子读改写无锁，后者另有 X-08；
+        # lib_estimate 经 imu_body_mapping 依赖 driver_bmi088。
+        set_target_properties(driver_bmi088 driver_motor_dji lib_estimate PROPERTIES EXCLUDE_FROM_ALL ON)
+    else()
+        add_subdirectory(platform/mock)
+    endif()
+    # 只有头文件的模板没人用就不会被编译：在这里显式实例化，宿主与 Cortex-M0+ 上都编一遍。
+    add_library(check_templates STATIC test/framework/template_check.cpp)
+    target_link_libraries(check_templates PRIVATE middleware_topic utils_concurrency)
+    enable_strict_warnings(check_templates)
+elseif(CMAKE_CROSSCOMPILING)
     enable_language(ASM)
 
     # ---- profile 与板卡 ----

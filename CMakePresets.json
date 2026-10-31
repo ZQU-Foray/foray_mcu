@@ -50,6 +50,28 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug"
       }
+    },
+    {
+      "name": "framework",
+      "inherits": "base",
+      "displayName": "框架独立构建（src + platform/mock，宿主）",
+      "description": "只配置框架，不含 app/、config/、test/host 与板卡；CI 在只含框架文件的副本里构建（规则 2、15）",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/host.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "FRAMEWORK_ONLY": "ON"
+      }
+    },
+    {
+      "name": "framework-m0plus",
+      "inherits": "base",
+      "displayName": "框架独立构建（src，Cortex-M0+）",
+      "description": "框架为没有原子读改写指令的 Cortex-M0+ 编译，配合 arch_check.py atomics 检查规则 13；Arm GNU 工具链同 arm-base",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/arm-gcc-cortex-m0plus.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "FRAMEWORK_ONLY": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -64,6 +86,14 @@
     {
       "name": "host-tests",
       "configurePreset": "host-tests"
+    },
+    {
+      "name": "framework",
+      "configurePreset": "framework"
+    },
+    {
+      "name": "framework-m0plus",
+      "configurePreset": "framework-m0plus"
     }
   ],
   "testPresets": [
