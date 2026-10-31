@@ -5,6 +5,7 @@
     arch_check.py graph <targets.dot> --mode firmware|host|framework   # cmake --graphviz 导出的依赖图
     arch_check.py scan                                                 # 文本扫描（仓库根执行）
     arch_check.py atomics <构建目录> --nm <arm-none-eabi-nm>           # Cortex-M0+ 原子库调用
+    arch_check.py callbacks <ELF> --nm <arm-none-eabi-nm> --port <目录>  # HAL 回调是否生效
 
 graph 检查（规则 1、2、5、6、15 与评审报告 §5.2）：
   - 每个 target 名都要符合命名白名单（新增一类 target 先改规则与本脚本）；
@@ -19,6 +20,8 @@ scan 检查（规则 3、8、9、12、13、15、17）：契约头不出现厂商
   每个 topic 只在一处取得发布句柄、清单头只 include 标准库与 topic 机制。
 atomics 检查（规则 13）：framework-m0plus 构建出的静态库里没有 __atomic_*、__sync_* 库调用。
   Cortex-M0+ 没有 LDREX/STREX，原子读改写只能编译成库调用；文本扫描查不到的写法（如对原子变量用 ++）在这里现形。
+callbacks 检查（规则 16）：port 源码里定义的每个 HAL_*Callback，在固件里都是强符号（覆盖了 HAL 的弱实现）；
+  固件里没有被 C++ 改名的 HAL 回调（.cpp 没有 include 对应 HAL 头时，定义得到 C++ 链接，弱实现照旧生效）。
 迁移源 legacy/ 不在扫描范围内（例外 X-12）。
 """
 
@@ -371,6 +374,10 @@ TOPIC_QUOTED_INCLUDES = re.compile(
 STANDARD_HEADER = re.compile(r"[a-z_]+")
 # Cortex-M0+ 上原子读改写编译成的库调用
 ATOMIC_CALL = re.compile(r"\b__(?:atomic|sync)_\w+")
+# 规则 16：port 源码里的 HAL 回调定义（有函数体，不是声明）；固件 nm 输出中的一行；被 C++ 改名的 HAL 回调
+CALLBACK_DEFINITION = re.compile(r"\b(HAL_\w+Callback)\s*\([^;{]*\)\s*\{")
+NM_LINE = re.compile(r"^(?:[0-9a-fA-F]+\s+)?(?P<kind>\w)\s+(?P<name>\S+)$")
+MANGLED_CALLBACK = re.compile(r"^_Z\w*?\d+HAL_\w*Callback")
 
 
 def tracked(*patterns: str) -> list[Path]:
@@ -573,6 +580,48 @@ def check_atomics(build: Path, nm: str) -> list[str]:
     return errors
 
 
+# ---- HAL 回调符号 ----
+
+
+def check_callbacks(elf: Path, nm: str, ports: list[Path]) -> list[str]:
+    """规则 16：port 定义的 HAL 回调在固件里都是强符号；没有被 C++ 改名的 HAL 回调。"""
+    defined: dict[str, str] = {}
+    for port in ports:
+        for path in sorted(port.rglob("*")):
+            if path.suffix not in SOURCE_SUFFIXES:
+                continue
+            code = strip_comments(path, path.read_text("utf-8"))
+            for match in CALLBACK_DEFINITION.finditer(code):
+                number = code.count("\n", 0, match.start()) + 1
+                defined[match.group(1)] = f"{path.as_posix()}:{number}"
+    result = subprocess.run(
+        [nm, str(elf)], check=True, stdout=subprocess.PIPE, text=True, encoding="utf-8"
+    )
+    kinds: dict[str, set[str]] = collections.defaultdict(set)
+    for line in result.stdout.splitlines():
+        match = NM_LINE.match(line.strip())
+        if match:
+            kinds[match["name"]].add(match["kind"])
+    errors = []
+    for name, place in sorted(defined.items()):
+        if "T" in kinds.get(name, set()):
+            continue
+        state = "弱实现仍在生效" if kinds.get(name) else "没有进入固件"
+        errors.append(
+            f"规则 16：{place} 定义了 {name}，但固件里{state}"
+            "（C++ 文件要 include 对应 HAL 头；port 必须是 OBJECT 库）"
+        )
+    for name in sorted(kinds):
+        if MANGLED_CALLBACK.match(name):
+            errors.append(
+                f"规则 16：固件里有被 C++ 改名的 HAL 回调 {name}（定义它的 .cpp 没有 include 对应 HAL 头）"
+            )
+    if not defined:
+        errors.append(f"{'、'.join(map(str, ports))} 里没有找到 HAL 回调定义，检查路径")
+    print(f"HAL 回调检查：port 定义 {len(defined)} 个（{elf}）")
+    return errors
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     commands = parser.add_subparsers(dest="command", required=True)
@@ -585,12 +634,26 @@ def main() -> int:
     )
     atomics.add_argument("build", type=Path)
     atomics.add_argument("--nm", required=True, help="arm-none-eabi-nm 的路径")
+    callbacks = commands.add_parser(
+        "callbacks", help="检查 port 的 HAL 回调在固件里生效"
+    )
+    callbacks.add_argument("elf", type=Path)
+    callbacks.add_argument("--nm", required=True, help="arm-none-eabi-nm 的路径")
+    callbacks.add_argument(
+        "--port",
+        type=Path,
+        action="append",
+        required=True,
+        help="port 源码目录，可重复",
+    )
     args = parser.parse_args()
 
     if args.command == "graph":
         errors = check_graph(args.dot, args.mode)
     elif args.command == "atomics":
         errors = check_atomics(args.build, args.nm)
+    elif args.command == "callbacks":
+        errors = check_callbacks(args.elf, args.nm, args.port)
     else:
         errors = check_scan()
     for error in errors:

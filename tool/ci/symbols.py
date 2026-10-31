@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""导出或比较 ELF 的符号集合（结构调整阶段的对照判据，评审报告 §7.3）。
+"""导出或比较 ELF 的符号集合（结构调整阶段的对照判据，评审报告 §7.3），生成段大小报告。
 
 P1–P2.5 只搬结构、不改行为：链接顺序会变，镜像的 SHA 不再相同，
 判据改为"函数与对象符号的名称、大小集合一致"。nm 的文本输出跨平台不能直接比较
@@ -13,6 +13,15 @@ P1–P2.5 只搬结构、不改行为：链接顺序会变，镜像的 SHA 不�
     symbols.py compare --renames <改名表> <基准> <ELF>
                                               # 先按改名表换算基准中的名字（只改名、不改行为的提交）
     symbols.py sections <ELF>                 # 输出各段大小（辅助参考）
+    symbols.py report --map <MAP> [--title <标题>] <ELF>
+                                              # 段大小报告（Markdown）：各存储区的用量与各段大小
+
+F2 起固件行为开始改变，CI 的 firmware 作业不再做符号对照，改为输出段大小报告
+（Decision-20261031-08）；compare 留给纯移动、纯改名的提交在本地自证。
+
+report 的存储区取自 map 文件的 Memory Configuration。各存储区的用量与链接器的
+--print-memory-usage 一致：用到的最高地址减去起始地址。段按运行地址归入存储区，
+LOAD 段按装载地址归入（.data 的初值放在 FLASH 里）。
 
 改名表是 TSV（# 开头为注释），每行"旧名<TAB>新名"，是 C++ 源码中的标识符（如命名空间
 alg_math → math）；比较前把基准修饰名里的"长度+旧名"（8alg_math）换成"长度+新名"（4math）。
@@ -41,6 +50,10 @@ SECTION = re.compile(
     r"\s+(?P<size>[0-9a-fA-F]+)\s"
 )
 KEPT_TYPES = ("FUNC", "OBJECT")
+# map 文件 Memory Configuration 中的一行：名称、起始、长度
+REGION = re.compile(
+    r"^(?P<name>\w+)\s+0x(?P<origin>[0-9a-fA-F]+)\s+0x(?P<length>[0-9a-fA-F]+)"
+)
 HEADER = "# 输出段\t类型\t绑定\t大小\t名称"
 
 
@@ -63,6 +76,90 @@ def sections(tool: str, elf: Path) -> dict[int, tuple[str, int]]:
         if match:
             table[int(match["index"])] = (match["name"], int(match["size"], 16))
     return table
+
+
+def allocated_sections(tool: str, elf: Path) -> list[tuple[str, str, int, int]]:
+    """占用目标内存的段：（名称、类型、运行地址、大小），只取有 A 标志且大小不为 0 的。"""
+    result = []
+    for line in readelf(tool, "-S", str(elf)):
+        if not re.match(r"^\s*\[\s*\d+\]", line):
+            continue
+        fields = line.split("]", 1)[1].split()
+        # 名称 类型 地址 偏移 大小 ES [标志] Lk Inf Al：标志为空时少一列
+        if len(fields) < 9 or fields[1] == "Type":
+            continue
+        flags = fields[6] if len(fields) == 10 else ""
+        size = int(fields[4], 16)
+        if "A" in flags and size:
+            result.append((fields[0], fields[1], int(fields[2], 16), size))
+    return result
+
+
+def memory_regions(map_file: Path) -> list[tuple[str, int, int]]:
+    """map 文件 Memory Configuration 中的存储区：（名称、起始、长度），不含 *default*。"""
+    regions = []
+    lines = map_file.read_text("utf-8", errors="replace").splitlines()
+    start = lines.index("Memory Configuration") + 1
+    for line in lines[start:]:
+        if line.startswith("Linker script"):
+            break
+        match = REGION.match(line)
+        if match:
+            regions.append(
+                (match["name"], int(match["origin"], 16), int(match["length"], 16))
+            )
+    return regions
+
+
+def load_segments(tool: str, elf: Path) -> list[tuple[int, int]]:
+    """LOAD 段的装载地址与文件内大小：.data 这类段的初值按装载地址放在 FLASH 里。"""
+    result = []
+    for line in readelf(tool, "-l", str(elf)):
+        fields = line.split()
+        if fields and fields[0] == "LOAD":
+            result.append((int(fields[3], 16), int(fields[4], 16)))
+    return result
+
+
+def size_report(tool: str, elf: Path, map_file: Path, title: str) -> list[str]:
+    regions = memory_regions(map_file)
+
+    def region_of(address: int) -> str:
+        for name, origin, length in regions:
+            if origin <= address < origin + length:
+                return name
+        return "?"
+
+    # 用量与链接器的 --print-memory-usage 一致：用到的最高地址减去起始地址（含对齐留下的空隙）
+    ends: dict[str, int] = {}
+    rows = []
+    for name, _, address, size in allocated_sections(tool, elf):
+        region = region_of(address)
+        rows.append(f"| `{name}` | {region} | {size} |")
+        ends[region] = max(ends.get(region, 0), address + size)
+    for address, size in load_segments(tool, elf):
+        if size:
+            region = region_of(address)
+            ends[region] = max(ends.get(region, 0), address + size)
+    lines = [
+        f"### {title}",
+        "",
+        "| 存储区 | 起始 | 容量（KiB） | 已用（字节） | 占比 |",
+        "|---|---|---|---|---|",
+    ]
+    for name, origin, length in regions:
+        used = ends[name] - origin if name in ends else 0
+        lines.append(
+            f"| {name} | 0x{origin:08X} | {length // 1024} | {used} | {used / length:.1%} |"
+        )
+    lines += [
+        "",
+        "| 段 | 存储区（运行地址） | 大小（字节） |",
+        "|---|---|---|",
+        *rows,
+        "",
+    ]
+    return lines
 
 
 def symbols(tool: str, elf: Path) -> collections.Counter[tuple[str, ...]]:
@@ -144,11 +241,19 @@ def main() -> int:
     compare.add_argument("elf", type=Path)
     section_command = commands.add_parser("sections", help="输出各段大小")
     section_command.add_argument("elf", type=Path)
+    report = commands.add_parser("report", help="段大小报告（Markdown）")
+    report.add_argument("--map", type=Path, required=True, help="链接生成的 map 文件")
+    report.add_argument("--title", help="报告标题，默认为 ELF 文件名")
+    report.add_argument("elf", type=Path)
     args = parser.parse_args()
 
     if args.command == "dump":
         print(HEADER)
         print("\n".join(format_rows(symbols(args.readelf, args.elf))))
+        return 0
+    if args.command == "report":
+        title = args.title or args.elf.name
+        print("\n".join(size_report(args.readelf, args.elf, args.map, title)))
         return 0
     if args.command == "sections":
         for _, (name, size) in sorted(sections(args.readelf, args.elf).items()):

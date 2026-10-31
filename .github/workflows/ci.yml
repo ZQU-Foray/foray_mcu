@@ -11,7 +11,8 @@
 #     并检查依赖图；为 Cortex-M0+ 构建框架，检查没有原子读改写的库调用（规则 2、13、15）。
 #   - 新增 firmware：根工程构建固件（arm-debug、arm-release），与迁移源的符号集合比较
 #     （名称、大小、类型，P1–P2.5 的判据），并检查固件依赖图（Decision-20261026-07）；
-#     P2 起迁移源构建随搬迁失效，基准改为 P1 存档的符号表，迁移源基线 SHA 校验删除（Decision-20261026-08）。
+#     P2 起迁移源构建随搬迁失效，基准改为 P1 存档的符号表，迁移源基线 SHA 校验删除（Decision-20261026-08）；
+#     F2 起固件行为开始改变，符号对照退役，改为段大小报告，并加入 HAL 回调符号检查（规则 16，Decision-20261031-08）。
 #   - 删除 build-ros2：本仓是 MCU 固件，不是 ROS 2 工作空间。
 #
 # 设计原则沿用模板：没有适用文件就跳过；存量不合规代码不让 CI 长期红灯，新代码不放过。
@@ -257,11 +258,11 @@ jobs:
           python3 "$GITHUB_WORKSPACE/tool/ci/arch_check.py" atomics build/framework-m0plus \
             --nm "$ARM_GCC_ROOT/bin/arm-none-eabi-nm"
 
-  # ---- 固件构建、符号对照与依赖图检查（本仓新增） ----
-  # P1–P2.5 只搬结构、不改行为：根工程固件的函数与对象符号（名称、大小、类型、绑定、输出段）
-  # 必须与迁移源一致（链接顺序会变，镜像 SHA 不作判据，见评审报告 §7.3）。P2 起迁移源构建已随搬迁失效，
-  # 基准为 P1 存档的归一化符号表（docs/ai/decisions/2026-10-26-P1-构建骨架/symbols-*.txt）；
-  # 此后只改名、不改行为的提交把改名表登记在 renames 中，比较前换算基准里的名字。
+  # ---- 固件构建、段大小报告与依赖图检查（本仓新增） ----
+  # P1–P2.5 用符号集合与迁移源对照；F2 起固件行为开始改变，对照退役（Decision-20261031-08），
+  # 改为在作业摘要里给出段大小报告（各存储区用量与各段大小，与链接器的 --print-memory-usage 一致）。
+  # 纯移动、纯改名的提交仍可在本地用 tool/ci/symbols.py compare 自证符号不变。
+  # 规则 16：port 定义的每个 HAL_*Callback 在固件里都是强符号，没有被 C++ 改名的回调。
   firmware:
     runs-on: ubuntu-latest
     steps:
@@ -281,21 +282,27 @@ jobs:
       - name: 依赖图检查（固件）
         run: python3 tool/ci/arch_check.py graph build/arm-debug/graph/targets.dot --mode firmware
 
-      - name: 符号对照（与存档的迁移源符号表）
+      - name: HAL 回调符号检查（规则 16）
+        shell: bash
+        run: |
+          nm="$ARM_GCC_ROOT/bin/arm-none-eabi-nm"
+          for preset in arm-debug arm-release; do
+            python3 tool/ci/arch_check.py callbacks "build/$preset/firmware_baseline.elf" \
+              --nm "$nm" --port platform/st/stm32h7/board_dm/port
+          done
+
+      - name: 段大小报告
         shell: bash
         run: |
           readelf="$ARM_GCC_ROOT/bin/arm-none-eabi-readelf"
-          archive="docs/ai/decisions/2026-10-26-P1-构建骨架"
-          renames=(--renames "docs/ai/decisions/2026-10-26-P2.5-去掉alg前缀/改名表.tsv")
-          status=0
-          for cfg in Debug Release; do
-            preset="arm-$(echo "$cfg" | tr '[:upper:]' '[:lower:]')"
-            echo "== $cfg"
-            python3 tool/ci/symbols.py --readelf "$readelf" compare "${renames[@]}" \
-              "$archive/symbols-$cfg.txt" "build/$preset/firmware_baseline.elf" || status=1
-            sha256sum "build/$preset/firmware_baseline.bin"
+          for preset in arm-debug arm-release; do
+            elf="build/$preset/firmware_baseline.elf"
+            python3 tool/ci/symbols.py --readelf "$readelf" report \
+              --map "build/$preset/firmware_baseline.map" --title "firmware_baseline（$preset）" "$elf" \
+              | tee -a "$GITHUB_STEP_SUMMARY"
+            sha256sum "build/$preset/firmware_baseline.bin" | tee -a "$GITHUB_STEP_SUMMARY"
+            echo | tee -a "$GITHUB_STEP_SUMMARY"
           done
-          exit $status
 
       - name: 上传构建产物
         if: always()
