@@ -2,7 +2,7 @@
 #   mx_generated_<板>  CubeMX 生成物（Core、USB_DEVICE、HAL 驱动、启动文件）  OBJECT
 #   rtos_<板>          FreeRTOS 与 CMSIS-RTOS2 适配                            OBJECT
 #   usb_<板>           ST USB Device 库（CDC）                                  OBJECT
-#   port_<板>          契约的手写实现（迁移期为 C，P3a 改写为 C++），含 PortKit   OBJECT
+#   port_<板>          契约的手写实现（迁移期为 C，F2 起逐步改写为 C++；hal/os 已是 C++），含 PortKit   OBJECT
 #   board_<板>         链接脚本等板级内容（P1 只有链接脚本）                      OBJECT
 #   os_freertos_<板>   RTOS 头文件，只给 app_tasks、app_common 与 assembly       INTERFACE
 #
@@ -22,6 +22,12 @@ set(cubemx_definitions
     USE_HAL_DRIVER
     STM32H723xx
     $<$<CONFIG:Debug>:DEBUG>)
+# FreeRTOS 的配置里 CubeMX 没有、又必须设置的项，以编译宏的形式统一给出（Decision-20261031-10）：
+#   configTASK_NOTIFICATION_ARRAY_ENTRIES=2：hal::os::Signal 用 1 号任务通知槽。FreeRTOS.h 在没有定义时取 1，
+#   FreeRTOSConfig.h（生成区）不用改。它决定任务控制块与 StaticTask_t 的大小，凡是 include FreeRTOS 头的编译单元
+#   都必须一致，所以同时放进 cubemx_definitions（生成代码、内核、USB、port）与 os_freertos 的接口。
+set(rtos_definitions configTASK_NOTIFICATION_ARRAY_ENTRIES=2)
+list(APPEND cubemx_definitions ${rtos_definitions})
 set(cubemx_include_dirs
     "${cubemx_dir}/Core/Inc"
     "${cubemx_dir}/USB_DEVICE/App"
@@ -155,6 +161,7 @@ target_include_directories(usb_${BOARD_ID} PRIVATE ${cubemx_include_dirs})
 # ---- os_freertos：只暴露 RTOS 头文件（迁移期含 CMSIS-RTOS2，终态改 FreeRTOS 原生 API，规则 10） ----
 # FreeRTOSConfig.h 由 CubeMX 生成在 Core/Inc，只能整目录暴露；Core/Inc 里的其他生成头因此对任务层可见（迁移期限制）。
 add_library(os_freertos_${BOARD_ID} INTERFACE)
+target_compile_definitions(os_freertos_${BOARD_ID} INTERFACE ${rtos_definitions})
 target_include_directories(os_freertos_${BOARD_ID} INTERFACE
     "${cubemx_dir}/Core/Inc"
     "${freertos_dir}/include"
@@ -170,6 +177,10 @@ add_library(port_${BOARD_ID} OBJECT
     port/gpio.c
     port/init.c
     port/Init.h
+    port/os/clock.cpp
+    port/os/critical_section.cpp
+    port/os/os.hpp
+    port/os/signal.cpp
     port/port_kit.c
     port/port_kit.h
     port/pwm.c
@@ -179,7 +190,8 @@ add_library(port_${BOARD_ID} OBJECT
     port/usb_cdc.c
     port/UsbCdc.h)
 enable_strict_warnings(port_${BOARD_ID})
-target_link_libraries(port_${BOARD_ID} PRIVATE hal_detail)
+# hal_os：OS 契约 v1 的实现在 port/os（C++，Decision-20261031-10）。
+target_link_libraries(port_${BOARD_ID} PRIVATE hal_detail hal_os)
 link_object_library(port_${BOARD_ID}
     mx_generated_${BOARD_ID}
     rtos_${BOARD_ID}
