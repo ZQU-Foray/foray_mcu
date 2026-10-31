@@ -768,6 +768,7 @@
    - 写入期间不会被任何读者打断，上面的限制全部消失，在中断里读也安全（中断里仍不能阻塞等待）；
    - 代价：每次发布关一次中断，时长等于一次消息拷贝。可以给消息大小设上限（如 `static_assert(sizeof(T) <= 64)`）来限制关中断的时长，数值 F2 在板上实测后定；
    - 依赖：`CriticalSection` 可以在中断里用、可以嵌套（P1 草案已经这样约定）。如果它只屏蔽 RTOS 管理的中断（BASEPRI），优先级高于阈值的中断既不能发布也不能读 topic；这一点在 hal/os 定稿时一并确定。
+   - hal/os 定稿结果（2026-10-31，Decision-20261031-03）：临界区只屏蔽框架中断。选本方案时，优先级高于框架线的中断既不能发布也不能读 topic；这与"线以上的中断不得使用框架"的规则一致，不是新增的限制。
 2. **规定优先级**：每个 topic 的发布者优先级必须高于全部订阅者，中断里不订阅。
    - 不需要关中断；
    - 编译期查不出来。任务表或优先级一改就可能静默违反，后果是偶发卡死。
@@ -775,6 +776,144 @@
 4. **多缓冲**：读者不用重试。但三缓冲的交换要用原子读改写，规则 13 不允许；改成每个读者各有一个槽位，内存与复杂度都更高。
 
 **决定之前**：`LatestValue` 的类注释写明了这个限制；架构 §3.4 指向本决策；topic 按决定的结果实现。
+
+---
+
+## Decision-20261031-01（hal/os 时基固定为 1 µs，Accepted）
+
+- **Date**：2026-10-31
+- **Status**：Accepted（负责人选定 AI 建议的方案 B）
+- **Source**：plan.md F1 第 3 步；修订 P1 草案 `src/hal/os/clock.hpp`（`now_ticks()` 加 `tick_frequency_hz()`）与架构 v2 §3.2
+
+**Context**：
+
+- P1 草案按平台频率计数，频率在运行时由 `tick_frequency_hz()` 给出。
+- DM-MC02 上旧的 `platform::Time` 数的是 DWT 周期（480 MHz），32 位计数约 8.9 s 回绕一次；F407（168 MHz）约 25.6 s；AM26x、MSPM0 没有 DWT（架构 §8.2）。
+- 回绕周期太短，已经造成两类问题：
+  - `src/hal/time.hpp` 的 `has_elapsed_ms` 遇到超过约 8.9 s 的超时，永远返回"未到期"；
+  - 9 s 没更新的数据，用 32 位周期差算出来只"过了" 0.05 s，超时检测失灵。
+- 频率因板而异，使用方都要在运行时换算。`app/imu/gyro_bias_calibration.hpp`、`zero_rate_bias_observer.hpp` 把 480000000 写成了默认值。
+
+**Decision**：
+
+1. 契约只有一个时基 `hal::os::now_us()`：
+   - 单位固定为 1 µs，类型 `hal::os::Microseconds`（`std::uint32_t`），按 2^32 回绕，约 71.6 分钟一次；
+   - 任务、中断里都能调用，不阻塞，不进临界区；
+   - `now_ticks()`、`tick_frequency_hz()` 删除。
+2. 换算辅助写在契约头里（`constexpr`，平台无关）：
+   - `elapsed_us`、`has_elapsed`、`to_seconds`，常量 `MICROSECONDS_PER_MILLISECOND`、`MICROSECONDS_PER_SECOND`；
+   - 两个时刻一律用无符号差比较，间隔必须小于一个回绕周期。
+3. topic 的时间戳、`Signal` 的超时都用这个单位（Decision-20261031-02）。
+4. 不进 v1 的两项：
+   - 周期级计数器（性能分析用）：需要时作为板级可选能力再加（选项 D）；
+   - 忙等延时：现有代码没有调用 `Time::delay_us` 的地方。
+5. 实现：
+   - **DM-MC02（F2）**：
+     - TIM2 是 32 位定时器，现在没有使用。APB1 定时器时钟 240 MHz，分频值 239，得到 1 MHz 自由计数，自动重装值 0xFFFFFFFF，不开中断；`now_us()` 读一次 `TIM2->CNT`。
+     - TIM2 在 `.ioc` 里配置（生成区变更，负责人用 CubeMX 6.17.0 操作）。计数器由 port 在 `hal::init()` 里启动，USER CODE 区不加代码。
+     - 加入 TIM2 会改变固件符号，所以随 F2 第一批提交进行，那时符号对照正好退役；不放进 F1。
+     - 调试暂停时是否冻结 TIM2（`DBGMCU`）在 F2 定。建议冻结：SysTick 在调试暂停时也停，冻结后两者一致，断点恢复后不会集体超时。
+   - **F407（阶段 B）**：用 TIM2 或 TIM5（都是 32 位），做法相同。
+   - **其他平台**：届时按板选计数源，契约不变。
+   - **宿主**：`platform/mock` 的时间由测试推进。
+6. 旧的 `src/hal/time.hpp`（`platform::Time`）与 `hal/detail/time.h` 只剩 bmi088 驱动在用，驱动改用 `hal::os::now_us()` 后删除（F3）。hal 契约 v1 不再单列 time。
+
+**Alternatives / Rejected**：
+
+- **A 保持按平台频率计数**：精度最高（约 2 ns），但回绕短且各板不同，每处超时与时间戳都要按运行时频率换算。否决。
+- **C 1 µs、64 位**：实际上永不回绕，但时间戳占 8 字节；32 位 CPU 读不了原子的 64 位数，每个 port 都要在中断里数溢出，再"高位、低位、高位"拼起来。否决。
+- **D 另加周期计数器**：以后需要时再加，见第 4 点。
+
+---
+
+## Decision-20261031-02（hal/os 的 Signal：语义与存储，Accepted）
+
+- **Date**：2026-10-31
+- **Status**：Accepted（负责人选定 AI 的建议；"等待者怎么确定"在实现时由 AI 细化，见第 2 点与 Alternatives 第 1 条）
+- **Source**：plan.md F1 第 3 步；架构 v2 §3.2"`Signal`：二值信号"
+
+**Context**：
+
+- 架构 v2 只定了：`Signal` 是二值信号，`wait(timeout)` 在任务里阻塞，`notify()` 在任务或中断里都能调用。没有定：等待者怎么确定、早到的通知怎么处理、超时的单位、对象里存什么。
+- 用到 `Signal` 的地方：
+  - topic 的阻塞等待；
+  - 任务表里"等某个 topic 再运行"的任务；
+  - 驱动等 DMA 完成。等待的是调用驱动的那个任务，它可能同时也在等 topic，所以一个任务要能先后等多个 `Signal`。
+- FreeRTOS V10.6.2 支持带下标的任务通知：
+  - CMSIS-RTOS2 的线程标志（`osThreadFlags*`，现有 IMU 任务在用）和 stream buffer 用 0 号；
+  - `FreeRTOSConfig.h` 没有设置 `configTASK_NOTIFICATION_ARRAY_ENTRIES`，默认只有 1 个槽。
+
+**Decision**：
+
+1. 接口（`src/hal/os/signal.hpp`）：
+   - `void notify() noexcept`；
+   - `bool wait(Microseconds timeout) noexcept`：true 表示取走了一个通知，false 表示超时；
+   - 常量 `NO_WAIT`（0，只检查不睡眠）、`WAIT_FOREVER`（0xFFFFFFFF）。
+2. 语义：
+   - **通知不丢**：`notify()` 早于 `wait()` 时，下一次 `wait()` 立即返回 true；
+   - **合并**：上一次 `wait()` 返回之后的多次 `notify()` 只算一次，需要计数时用队列；
+   - **一次一个等待者**：每次 `wait()` 时登记当前任务，返回时注销。不同任务可以先后等同一个 `Signal`，一个任务可以先后等多个 `Signal`；两个任务同时等同一个 `Signal` 是误用；
+   - **返回 true 不等于有新数据**：true 只说明"上次取走之后有过 `notify()`"，对应的事件可能已经被调用方处理过。调用方醒来后要重新检查条件（如 topic 的版本号）。这是 10-29 建议里"允许虚假唤醒"的具体含义；
+   - **超时**：实际等待不少于 `timeout`，按实现的调度粒度向上取整（DM-MC02 上是 1 ms 的 RTOS 节拍）；
+   - **上下文**：`notify()` 在任务与框架中断里都能调用（框架中断见 Decision-20261031-03），由实现区分上下文；`wait()` 只在任务里调用（裸机板为主循环）；两者都不能在 `CriticalSection` 内调用；
+   - **常量初始化**：`constexpr` 默认构造，不可拷贝、不可移动，作全局对象时不依赖构造顺序。
+3. 存储：契约头里只有两个与 RTOS 无关的私有字段，由实现在临界区内读写：
+   - `void *waiter_`：正在等待的任务，FreeRTOS 上存任务句柄；
+   - `bool pending_`：有没有待处理的通知。
+
+   待处理状态放在 `Signal` 里，不放在任务通知里。这样一个任务先后等几个 `Signal` 也互不干扰：任务通知只用来叫醒任务，醒来后各自检查自己的 `pending_`。
+4. FreeRTOS 实现（F2）：
+   - `wait()`：在临界区内检查 `pending_`，有就清掉并返回 true；没有就登记当前任务，出临界区后 `ulTaskNotifyTakeIndexed(1, pdTRUE, 剩余节拍)`，醒来再检查。剩余时间按 `now_us()` 计算。
+   - `notify()`：在临界区内置 `pending_`、取出 `waiter_`；出临界区后，有等待者就叫醒它：任务里用 `xTaskNotifyGiveIndexed`，中断里用 `vTaskNotifyGiveIndexedFromISR` 加 `portYIELD_FROM_ISR`。用 IPSR 判断是否在中断里。
+   - 用 1 号通知槽，避开 0 号（CMSIS 线程标志、stream buffer），`configTASK_NOTIFICATION_ARRAY_ENTRIES` 改为 2。`FreeRTOSConfig.h` 属于生成区：F2 先查 CubeMX 6.17.0 的 FreeRTOS 参数里有没有这一项；没有的话只能写在 `USER CODE BEGIN Defines` 区，超出规则 7 的范围，要另行登记例外，由负责人决定。
+   - 裸机板（MSPM0）：`pending_` 加 WFI，不用 `waiter_`。
+5. 宿主替身（`platform/mock`）：
+   - 用条件变量等待，超时按测试推进的时间计算；
+   - 检查误用并 `abort()`：在临界区内调用 `wait()`、`notify()`；两个线程同时等同一个 `Signal`；
+   - 真实时间 10 s 还没被叫醒也 `abort()`，说明测试漏了 `notify()` 或推进时间，避免测试挂起。
+
+**Alternatives / Rejected**：
+
+- **第一次 `wait()` 时绑定，以后固定不变**（10-29 的建议）：驱动等 DMA 完成用的 `Signal` 由调用驱动的任务来等，绑定死以后就不能换任务。每次 `wait()` 时登记的代价相同（本来就要进一次临界区）。改为每次登记。
+- **待处理状态只存在任务通知里**（`Signal` 里不放 `pending_`）：一个任务等多个 `Signal` 时，A 的通知会被 `wait(B)` 取走，A 的通知就丢了。否决。
+- **FreeRTOS 二值信号量**：任意任务都能等，也支持多个等待者；但对象必须在运行时创建，中断里不能创建，`Signal` 就不能常量初始化；对象约 80 字节，大小还因平台而异，契约头没法预留空间。否决。
+- **多个等待者**：要用信号量或事件组，架构已定不进框架。否决。
+
+---
+
+## Decision-20261031-03（hal/os 临界区只屏蔽框架中断，Accepted）
+
+- **Date**：2026-10-31
+- **Status**：Accepted（负责人选定 AI 建议的方案 B）
+- **Source**：plan.md F1 第 3 步；架构 v2 §3.2"`CriticalSection`：构造时关中断"；Decision-20261029-02 方案 1 的依赖
+
+**Context**：
+
+- Cortex-M 有两种关中断的方式（优先级数字越小越高）：
+  - PRIMASK：一刀切，关掉全部可屏蔽中断；
+  - BASEPRI：只关优先级数值大于等于阈值的中断，阈值以上的照常响应。
+- FreeRTOS 的阈值是 5（`configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY`）：优先级 5–15 的中断可以调用 `FromISR` 函数，0–4 的不能调用 FreeRTOS，FreeRTOS 自己的临界区也从不屏蔽它们。
+- DM-MC02（`.ioc` 的 NVIC 配置）：外设中断（FDCAN、SPI、DMA、BDMA、MDMA、串口、USB、EXTI、OCTOSPI、TIM4/5）全部是 5；SysTick、PendSV、HAL 时基 TIM1 是 15；没有中断用 0–4。
+- 旧 PortKit 的临界区用 PRIMASK。按 DM-MC02 现在的配置，两种方式效果完全一样；只有将来把某个不能被耽误的中断（如高频电流环、编码器捕获）放到 0–4 时才有区别。
+
+**Decision**：
+
+1. 临界区屏蔽全部"框架中断"，不屏蔽框架线以上的中断：
+   - **框架线**每块板一条。FreeRTOS 板与 `configMAX_SYSCALL_INTERRUPT_PRIORITY` 相同，DM-MC02 是优先级 5；
+   - **框架中断**：优先级不高于框架线的中断（DM-MC02 为 5–15），可以使用框架（`hal::os`、topic，以及用到它们的驱动）；
+   - **线以上的中断**（DM-MC02 为 0–4）不得调用 RTOS，也不得使用框架，只能自己处理数据，再经框架中断或任务转交；
+   - 各平台：M3/M4/M7 用 BASEPRI；M0+ 没有 BASEPRI，用 PRIMASK，没有线以上的中断；R5 屏蔽 IRQ，FIQ 在线以上。
+2. 实现要求：
+   - 构造时保存原状态再屏蔽，析构时恢复原状态；任务与框架中断里都能用；可以嵌套；
+   - 不能用 `taskENTER_CRITICAL`：它只能在任务里用，而且按嵌套计数开关中断，不保存原状态；
+   - DM-MC02 的做法等价于 FreeRTOS 的 `portSET_INTERRUPT_MASK_FROM_ISR` / `portCLEAR_INTERRUPT_MASK_FROM_ISR`：读出旧 BASEPRI，用 `BASEPRI_MAX` 抬到框架线，析构时写回。
+3. 临界区内不得阻塞，不得调用 RTOS API，也不得调用 `Signal`。原因：FreeRTOS 的任务级 API 退出它自己的临界区时，嵌套计数归零就把 BASEPRI 清零，会在我们的临界区里提前打开中断。
+4. 宿主替身（`platform/mock`）：一把进程内的递归锁，同一时刻只有一个线程在临界区内，对应单核上关中断的效果。
+5. 对 Decision-20261029-02：topic 若选方案 1（发布时用临界区包住写入），线以上的中断既不能发布也不能读 topic，与第 1 点的规则一致。
+
+**Alternatives / Rejected**：
+
+- **A 全部屏蔽（PRIMASK）**：任何中断都能使用框架；但最高优先级的中断也会被推迟，每次推迟一个临界区的时长（发布 topic 时是一次消息拷贝）。否决。
 
 ---
 
