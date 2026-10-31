@@ -1,6 +1,6 @@
 # 架构判据与依赖规则（foray_mcu）
 
-> **状态**：v2.2（2026-10-29）。v2.0 见 Decision-20261027-01；v2.1 随 F1 第 1 步更新 utils、middleware、lib 的归类：math 进 utils，fsm 进 middleware（Decision-20261027-02）；v2.2 随 F1 第 2 步加入 utils 的并发原语 `concurrency`（Decision-20261029-01），§3.4 补充 seqlock 的读写竞态（Decision-20261029-02，待定）。v2 按负责人的骨架重写：迁移方式从"改造迁移源"改为"按新骨架重建，迁移源只作参考与零件来源"。v1.0–v1.4（P0–P2.5）见 git 历史与 decision.md。
+> **状态**：v2.3（2026-10-31）。v2.0 见 Decision-20261027-01；v2.1 随 F1 第 1 步更新 utils、middleware、lib 的归类：math 进 utils，fsm 进 middleware（Decision-20261027-02）；v2.2 随 F1 第 2 步加入 utils 的并发原语 `concurrency`（Decision-20261029-01），§3.4 补充 seqlock 的读写竞态（Decision-20261029-02，待定）；v2.3 随 F1 第 3 步定稿 §3.2 的 OS 契约：1 µs 时基、`Signal` 的语义、临界区只屏蔽框架中断（Decision-20261031-01～03）。v2 按负责人的骨架重写：迁移方式从"改造迁移源"改为"按新骨架重建，迁移源只作参考与零件来源"。v1.0–v1.4（P0–P2.5）见 git 历史与 decision.md。
 > **权威来源**：[decision.md](../../decision.md) 中的 Accepted 条目，v2 起以 Decision-20261027-01 为准。[评审报告 v1.0](reviews/2026-10-25-foray_mcu-架构评审报告.md) 是历史记录，与本文件冲突的部分以本文件为准。
 > **修改流程**：新增或修改规则、例外、白名单，先在 decision.md 登记，再改本文件和对应的 CI 检查（§10）。
 
@@ -143,10 +143,24 @@ foray_mcu/
 
 ### 3.2 OS 契约 `src/hal/os`
 
-- `CriticalSection`：RAII 守卫，构造时关中断并保存状态，析构时恢复，可嵌套。
-- 单调时基：`now_ticks()`、`tick_frequency_hz()`，以及换算辅助。
-- `Signal`：二值信号。`wait(timeout)` 在任务上下文阻塞；`notify()` 在任务或中断上下文都可调用，由实现区分上下文。topic 的阻塞等待用它实现。
-- 实现：`platform/<board>/port`（FreeRTOS 任务通知；裸机板用标志位 + WFI）与 `platform/mock`（宿主线程，测试可控制时间）。
+契约 v1 于 F1 第 3 步定稿（Decision-20261031-01～03）。
+
+- **时基**（`clock.hpp`）：
+  - `now_us()` 返回 `Microseconds`（`std::uint32_t`），单位固定 1 µs，按 2^32 回绕（约 71.6 分钟）；任务、中断里都能调用；
+  - 换算辅助 `elapsed_us`、`has_elapsed`、`to_seconds` 是 `constexpr`，两个时刻一律用无符号差比较；
+  - topic 的时间戳、`Signal` 的超时都用这个单位。周期级计数器与忙等延时不进 v1。
+- **框架中断与框架线**：每块板一条框架线，RTOS 板与 RTOS 允许调用中断 API 的最高优先级相同（DM-MC02 为优先级 5）。不高于这条线的中断是框架中断，可以使用框架；线以上的中断不得调用 RTOS，也不得使用框架（`hal::os`、topic），只能自己处理数据，再经框架中断或任务转交。
+- **`CriticalSection`**（`critical_section.hpp`）：
+  - RAII 守卫，构造时保存原状态并屏蔽全部框架中断，析构时恢复，可嵌套；任务与框架中断里都能用；
+  - Cortex-M3/M4/M7 用 BASEPRI，Cortex-M0+ 用 PRIMASK，Cortex-R5 屏蔽 IRQ；
+  - 临界区内不得阻塞，不得调用 RTOS API 与 `Signal`。
+- **`Signal`**（`signal.hpp`）：二值信号，`notify()` 留下一个通知，`wait(timeout) -> bool` 取走它，没有时睡眠到通知或超时：
+  - 通知不丢：`notify()` 早于 `wait()` 时，下一次 `wait()` 立即返回 true；多次 `notify()` 合并成一次；
+  - 一次一个等待者：每次 `wait()` 时登记、返回时注销。不同任务可以先后等同一个 `Signal`，一个任务可以先后等多个；
+  - true 只说明"上次取走之后有过 `notify()`"，调用方醒来后重新检查条件；
+  - `notify()` 在任务与框架中断里都能调用，`wait()` 只在任务里；超时常量 `NO_WAIT`、`WAIT_FOREVER`；
+  - `constexpr` 构造，可以常量初始化。
+- **实现**：`platform/<board>/port`（F2）：时基用板上的 32 位定时器分频到 1 MHz（DM-MC02 为 TIM2）；`Signal` 用 FreeRTOS 的 1 号任务通知槽，裸机板用标志位加 WFI。`platform/mock`：时间由测试推进，临界区是一把进程内的锁，`Signal` 用条件变量并检查误用。
 - 线程、队列、事件组不进框架。
 
 ### 3.3 启动入口 `src/boot`
@@ -168,7 +182,7 @@ void boot_run(void);        // 默认任务：留给 assembly 的周期工作（
 |---|---|
 | 数据 | 每个 topic 一种消息类型；发布覆盖旧值，订阅者读最新一份。不排队，不保证每条都收到；丢了几次可以观测 |
 | 发布者 | 每个 topic 只有一个发布者。取得发布句柄的操作每个 topic 只能成功一次，在初始化阶段完成，失败则 `boot_init()` 失败 |
-| 中断 | 允许在中断里发布；中断里不订阅（理由见下方"读写竞态"） |
+| 中断 | 允许在框架中断里发布（§3.2）；中断里不订阅（理由见下方"读写竞态"） |
 | 订阅 | `update(msg) -> bool`：有新数据才拷贝；`wait(msg, timeout) -> bool`：阻塞到下一次发布 |
 | 消息 | 可平凡拷贝（`static_assert`），只用标准整数、浮点、`bool` 与定长数组，尽量小 |
 | 观测 | 每个 topic 的发布次数、最后发布时刻；每个订阅者的丢失次数。调试通道可以列出全部 topic |
@@ -176,8 +190,8 @@ void boot_run(void);        // 默认任务：留给 assembly 的周期工作（
 
 **实现要点**：
 - 存储用单写者 seqlock（`utils/concurrency` 的 `LatestValue`）：只用原子读写与内存屏障，没有原子读改写，Cortex-M0+ 也能用（规则 13）。
-- **读写竞态**：读端遇到写入中途会重试，直到写端写完，所以读端不能在写入中途抢占写端，否则单核上写端再也轮不到运行，读端无限重试。中断读任务发布的 topic 是一种情况；高优先级任务读低优先级任务发布的 topic 是另一种，同样会卡死。处理方式待定（Decision-20261029-02，Proposed），AI 建议发布时用 `hal::os::CriticalSection` 包住写入。决定之前：中断里不订阅，订阅者的优先级不高于发布者。
-- 等待槽数量是编译期常量；订阅者用自己的 `hal::os::Signal` 注册，发布时逐个通知。
+- **读写竞态**：读端遇到写入中途会重试，直到写端写完，所以读端不能在写入中途抢占写端，否则单核上写端再也轮不到运行，读端无限重试。中断读任务发布的 topic 是一种情况；高优先级任务读低优先级任务发布的 topic 是另一种，同样会卡死。处理方式待定（Decision-20261029-02，Proposed），AI 建议发布时用 `hal::os::CriticalSection` 包住写入；临界区已定为只屏蔽框架中断（§3.2），选这个方案时线以上的中断既不能发布也不能读 topic，与 §3.2 的规则一致。决定之前：中断里不订阅，订阅者的优先级不高于发布者。
+- 等待槽数量是编译期常量；订阅者用自己的 `hal::os::Signal` 注册，发布时逐个通知（在临界区外调用 `notify()`）。
 - topic 对象常量初始化，不依赖全局构造顺序。
 
 **清单**：
@@ -193,7 +207,7 @@ void boot_run(void);        // 默认任务：留给 assembly 的周期工作（
   {
       float quaternion[4];
       float euler_rad[3];
-      std::uint32_t timestamp_ticks;
+      hal::os::Microseconds timestamp_us;
   };
   inline topic::Topic<Attitude> attitude{"imu.attitude"};  // Topic 的构造函数是 constexpr，保证常量初始化
   }
