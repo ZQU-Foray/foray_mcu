@@ -1,4 +1,7 @@
-#include "Application/Entry.h"
+// 迁移期的组合根（Decision-20261031-11）：实现启动入口 boot_*，内容仍是迁移源的装配。
+// F2 第 4 步的 bringup profile 就位后随旧 app 一起归档。
+#include "boot/boot.h"
+#include "hal/init.hpp"
 #include "remote/remote_receiver.hpp"
 #include "common/task_manager.hpp"
 #include "hal/can.hpp"
@@ -7,10 +10,14 @@
 #include "hal/time.hpp"
 #include "hal/uart.hpp"
 
-bool Application_Init(void)
+bool boot_init(void)
 {
-    // 核前初始化：只做平台能力校验与各任务的非 RTOS 部分初始化，
+    // 核前初始化：先初始化本板外设与时基，再做平台能力校验与各任务的非 RTOS 部分初始化，
     // 不得创建线程或依赖内核状态的对象
+    if (!hal::init())
+    {
+        return false;
+    }
     if (!platform::Time::is_ready())
     {
         return false;
@@ -55,24 +62,24 @@ bool Application_Init(void)
     return application::RemoteReceiver::init();
 }
 
-bool Application_InitRtos(void)
+bool boot_init_rtos(void)
 {
     // 应用线程的唯一创建入口：任务清单、优先级、栈与句柄集中在 TaskManager 任务表。
     return application::task::TaskManager::init_rtos();
 }
 
-bool Application_Start(void)
+void boot_run(void)
 {
     // 避免漏接一行就整机静默不启动；创建时机会被记为 POST_KERNEL 以暴露接线缺陷。
-    if (!Application_InitRtos())
+    if (!boot_init_rtos())
     {
-        return false;
+        return;
     }
 
     // 任务表未就绪（初始化失败或启动顺序错误）时不执行任何控制或通信周期工作。
     if (!application::task::TaskManager::start())
     {
-        return false;
+        return;
     }
 
     // 栈余量巡检：本入口由 defaultTask 每拍调用，采样在 TaskManager 内按 1 Hz 限频。
@@ -81,5 +88,4 @@ bool Application_Start(void)
     application::task::TaskManager::sample_stack_health();
 
     application::RemoteReceiver::process();
-    return true;
 }

@@ -50,7 +50,9 @@ LAYERS = [
     ("assembly", r"assembly_\w+"),
     ("profile", r"profile_\w+"),
     ("hal_detail", r"hal_detail"),
-    ("contract", r"hal|hal_os|boot"),
+    # boot 单独成层：只有生成区与组合根可以依赖它（规则 7，Decision-20261031-11）
+    ("boot", r"boot"),
+    ("contract", r"hal|hal_os"),
     ("utils", r"utils_\w+"),
     ("msg", r"msg"),
     ("lib", r"lib_\w+"),
@@ -68,7 +70,16 @@ LAYERS = [
     ("check", r"check_\w+"),
     ("legacy", r"legacy_build_options"),
 ]
-FRAMEWORK = {"contract", "hal_detail", "utils", "msg", "lib", "driver", "middleware"}
+FRAMEWORK = {
+    "contract",
+    "boot",
+    "hal_detail",
+    "utils",
+    "msg",
+    "lib",
+    "driver",
+    "middleware",
+}
 PRODUCT = {"firmware", "assembly", "profile", "app", "app_common", "app_tasks"}
 PLATFORM = {"os", "port", "board", "vendor", "mock"}
 APP = {"app", "app_common", "app_tasks"}
@@ -86,8 +97,9 @@ APP_DEPENDENCIES = {"contract", "utils", "msg", "lib", "driver", "middleware", "
 # 每一层可以直接依赖的层（docs/ai/architecture.md §2.3、§3）。
 ALLOWED = {
     "firmware": {"assembly", "port"},
-    "assembly": APP | APP_DEPENDENCIES | {"profile", "os", "board"},
+    "assembly": APP | APP_DEPENDENCIES | {"profile", "os", "board", "boot"},
     "profile": set(),
+    "boot": set(),
     "contract": {"legacy"},
     "hal_detail": set(),
     "utils": set(),
@@ -102,7 +114,8 @@ ALLOWED = {
     "os": set(),
     "port": {"vendor", "contract", "hal_detail", "utils"},
     "board": {"contract", "hal_detail"},
-    "vendor": set(),
+    # 生成区只调 boot_*（USER CODE 区）；X-01 的 USB 接缝见 TRANSITIONAL_TARGETS
+    "vendor": {"boot"},
     "mock": {"contract", "hal_detail", "utils"},
     "test": FRAMEWORK | {"mock", "app", "app_common"},
     # 框架独立构建里的检查用 target（如 check_templates：实例化只有头文件的模板），只能依赖框架。
@@ -133,6 +146,7 @@ REQUIRED = {
         "firmware",
         "assembly",
         "profile",
+        "boot",
         "contract",
         "utils",
         "port",
@@ -372,6 +386,13 @@ TOPIC_QUOTED_INCLUDES = re.compile(
     r"middleware/topic/topic\.hpp|hal/os/clock\.hpp|topics/[\w/]+\.hpp"
 )
 STANDARD_HEADER = re.compile(r"[a-z_]+")
+# 规则 7：生成区的 #include "…" 只能指向生成区自己的头，或下面这些（Decision-20261031-11）
+GENERATED_EXTERNAL_INCLUDES = {
+    "boot/boot.h": "启动入口（规则 7）",
+    "UsbCdc.h": "X-01：USB 生成代码调用 port 的 UsbCdcPort_*",
+}
+# 厂商 HAL 的头：stm32h7xx_hal_conf.h 按模块开关列出全部 HAL 头，没启用的模块不在仓库里
+VENDOR_HEADER = re.compile(r"stm32\w*\.h")
 # Cortex-M0+ 上原子读改写编译成的库调用
 ATOMIC_CALL = re.compile(r"\b__(?:atomic|sync)_\w+")
 # 规则 16：port 源码里的 HAL 回调定义（有函数体，不是声明）；固件 nm 输出中的一行；被 C++ 改名的 HAL 回调
@@ -465,6 +486,7 @@ def check_scan() -> list[str]:
                 )
     errors += check_atomic_rmw()
     errors += check_topics()
+    errors += check_generated_includes()
     for path in tracked("src/*", "platform/*", "cmake/*"):
         if "cubemx" in path.parts:
             continue  # 生成区由规则 7 与例外 X-09 管
@@ -477,7 +499,7 @@ def check_scan() -> list[str]:
             match = PRODUCT_REFERENCE.search(code)
             if match:
                 errors.append(f"规则 15：框架文件 {path} 引用了产品：{match.group(0)}")
-    print("文本扫描：规则 3、8、9、12、13、15、17")
+    print("文本扫描：规则 3、7（include）、8、9、12、13、15、17")
     return sorted(set(errors))
 
 
@@ -490,6 +512,32 @@ def handwritten_sources(*roots: str) -> list[Path]:
         and "cubemx" not in path.parts
         and "third_party" not in path.parts
     ]
+
+
+def check_generated_includes() -> list[str]:
+    """规则 7：生成区（Drivers、Middlewares 之外）只 include 生成区自己的头与登记过的接口头。"""
+    errors = []
+    generated = tracked("platform/*/cubemx/*")
+    roots = {path.parts[1] for path in generated}
+    for board in sorted(roots):
+        files = [path for path in generated if path.parts[1] == board]
+        headers = {path.name for path in files if path.suffix == ".h"}
+        for path in files:
+            if path.suffix not in (".c", ".h") or {"Drivers", "Middlewares"} & set(
+                path.parts
+            ):
+                continue
+            code = strip_comments(path, path.read_text("utf-8", errors="replace"))
+            for kind, header in INCLUDE.findall(code):
+                name = Path(header).name
+                if kind != '"' or name in headers or VENDOR_HEADER.fullmatch(name):
+                    continue
+                if header not in GENERATED_EXTERNAL_INCLUDES:
+                    errors.append(
+                        f'规则 7：生成区 {path.as_posix()} include 了 "{header}"：'
+                        "生成区只能调用 boot_*（src/boot/boot.h）与登记过的接口"
+                    )
+    return errors
 
 
 def check_atomic_rmw() -> list[str]:

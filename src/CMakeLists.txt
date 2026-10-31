@@ -33,6 +33,7 @@ endfunction()
 framework_interface(hal
     hal/can.hpp
     hal/gpio.hpp
+    hal/init.hpp
     hal/pwm.hpp
     hal/spi.hpp
     hal/time.hpp
@@ -59,10 +60,10 @@ framework_interface(hal_os
     hal/os/critical_section.hpp
     hal/os/signal.hpp)
 
-# boot：生成区可以调用的启动入口（extern "C"，评审报告 §5.6）。
-# 迁移期的启动入口仍是 legacy/Application/Entry.h 的 Application_*（例外 X-09），
-# P3b 落地 boot_init / boot_init_rtos / boot_run（src/boot/boot.h）后，生成区只认它。
-framework_interface(boot)
+# boot：生成区唯一可以调用的启动入口 boot_init / boot_init_rtos / boot_run（C 头，extern "C"，
+# 架构 v2 §3.3，Decision-20261031-11）。实现在组合根，只有生成区与 assembly 依赖它。
+framework_interface(boot
+    boot/boot.h)
 
 # ==== utils：没有领域含义、哪一层都可能用的基础件（docs/ai/architecture.md §2.3） ====
 # 只依赖标准库，用 utils_library()；只有头文件的用 framework_interface()（同样不链接迁移期构建开关）。

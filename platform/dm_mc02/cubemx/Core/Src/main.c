@@ -34,8 +34,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "Application/Entry.h"
-#include "Init.h"
+#include "boot/boot.h"
 
 /* USER CODE END Includes */
 
@@ -132,11 +131,7 @@ int main(void)
   MX_USART10_UART_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
-  if (!Port_Init())
-  {
-    Error_Handler();
-  }
-  if (!Application_Init())
+  if (!boot_init())
   {
     Error_Handler();
   }

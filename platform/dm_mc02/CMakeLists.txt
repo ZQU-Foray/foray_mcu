@@ -122,12 +122,12 @@ target_compile_definitions(mx_generated_${BOARD_ID}
     PRIVATE ARM_MATH_CM7)
 target_include_directories(mx_generated_${BOARD_ID}
     PUBLIC ${cubemx_include_dirs}
-    # 生成区接缝（例外 X-01）：main.c 调用 port 的 Port_Init（Init.h），USB_DEVICE 调用 port 私有的
-    # UsbCdcPort_*（UsbCdc.h）；两个头被生成代码按名字 include，所以保持原文件名。
-    # main.c/freertos.c 调用的 Application_*（例外 X-09）由 config/CMakeLists.txt 注入 include 路径。
+    # 生成区接缝（例外 X-01）：USB_DEVICE 调用 port 私有的 UsbCdcPort_*（UsbCdc.h），
+    # 这个头被生成代码按名字 include，所以保持原文件名。
     PRIVATE "${port_dir}")
 target_link_libraries(mx_generated_${BOARD_ID}
-    PRIVATE hal_detail
+    # main.c、freertos.c 的 USER CODE 区只调 boot_*（src/boot/boot.h，Decision-20261031-11）
+    PRIVATE boot hal_detail
     # 迁移源链接的库：libm 与预编译的 CMSIS-DSP（顺序与迁移源一致）。
     INTERFACE m "${cubemx_dir}/Middlewares/ST/ARM/DSP/Lib/libarm_cortexM7lfsp_math.a")
 
@@ -175,6 +175,7 @@ target_include_directories(os_freertos_${BOARD_ID} INTERFACE
 add_library(port_${BOARD_ID} OBJECT
     port/can.c
     port/gpio.c
+    port/hal_init.cpp
     port/init.c
     port/Init.h
     port/os/clock.cpp
@@ -191,7 +192,8 @@ add_library(port_${BOARD_ID} OBJECT
     port/UsbCdc.h)
 enable_strict_warnings(port_${BOARD_ID})
 # hal_os：OS 契约 v1 的实现在 port/os（C++，Decision-20261031-10）。
-target_link_libraries(port_${BOARD_ID} PRIVATE hal_detail hal_os)
+# hal：hal::init()（hal_init.cpp，Decision-20261031-11）。
+target_link_libraries(port_${BOARD_ID} PRIVATE hal hal_detail hal_os)
 link_object_library(port_${BOARD_ID}
     mx_generated_${BOARD_ID}
     rtos_${BOARD_ID}

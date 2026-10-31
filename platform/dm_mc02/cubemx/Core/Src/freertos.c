@@ -26,7 +26,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "Application/Entry.h"
+#include "boot/boot.h"
 
 /* USER CODE END Includes */
 
@@ -111,7 +111,7 @@ void MX_FREERTOS_Init(void) {
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
-  if (!Application_InitRtos())
+  if (!boot_init_rtos())
   {
     Error_Handler();
   }
@@ -138,7 +138,7 @@ void StartDefaultTask(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    (void)Application_Start();
+    boot_run();
     osDelay(1);
   }
   /* USER CODE END StartDefaultTask */
