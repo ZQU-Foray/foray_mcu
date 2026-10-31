@@ -96,7 +96,7 @@
 ### F2 契约 v1 与 DM-MC02 板级（6–10 人日）
 
 > 顺序（Decision-20261031-07）：先做与具体外设无关的第 1–4 步，每一步固件都可构建；第 5 步（外设）待负责人决定，AI 建议按外设纵向推进、与 F3 合起来排。旧 C port 定义了 HAL 回调，同一外设的新旧 port 不能并存。
-> 本地分支：第 1 步 `f2/firmware-ci`（从 `f1/ci` 切出）；第 2 步的分支先用 merge 合入 `f2/tim2-timebase`。PR 暂不开，以后按 `f1/topic` → `f1/ci` → `f2/firmware-ci` → `f2/tim2-timebase` → 第 2 步起的分支依次合入。
+> 本地分支（一个分支对应以后的一个 PR，依次叠在前一个上）：`f1/topic` → `f1/ci` → `f2/firmware-ci`（第 1 步 CI）→ `f2/tim2-timebase`（merge 合入）→ `f2/board-dir`（第 2 步）→ `f2/hal-os-port`（第 3 步）→ `f2/boot`（第 4 步）。PR 暂不开，以后按这个顺序依次合入 `dev`。
 
 - [x] 第 1 步 CI（2026-10-31，Decision-20261031-08）：`firmware` 作业的符号对照退役，改为段大小报告（`symbols.py report`，写入作业摘要）；加入 HAL 回调符号检查（规则 16，`arch_check.py callbacks`）。规则 1（`board.hpp`）、4、7、10、18 的检查随对应内容出现时加入
 - [x] 第 1 步（续）合入 `f2/tim2-timebase`（2026-10-31，在分支 `f2/board-dir` 用 merge 提交合入，保留提交号）：TIM2 作 1 MHz 时基计数源，CubeMX 6.18.1（Decision-20261031-04）
