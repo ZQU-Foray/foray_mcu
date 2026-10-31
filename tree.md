@@ -11,13 +11,13 @@ foray_mcu/
 ├── .gitignore / .gitattributes / .clang-format / .clang-tidy   仓库规则、格式与命名配置
 ├── .git-blame-ignore-revs     git blame 忽略的纯格式/纯改名提交
 ├── .foray-layer / CODEOWNERS  组织合规件（layer: MCU；@ZQU-Foray/电控组）
-├── .github/workflows/ci.yml   CI：lint-python、lint-c、lint-naming、lint-arch、host-tests、firmware（符号对照）
+├── .github/workflows/ci.yml   CI：lint-python、lint-c、lint-naming、lint-arch、host-tests、framework（框架独立构建、M0+ 原子检查）、firmware（符号对照）
 ├── .github/actions/setup-arm-gcc/   CI 共用：安装 xPack Arm GNU 工具链与 Ninja
 ├── README.md / AGENTS.md / plan.md / tree.md / decision.md   五件套
 ├── .clangd                    clangd 设置（P2 从迁移源的 DM_MC02 移来）
-├── CMakeLists.txt / CMakePresets.json   根工程（P1）：唯一开关 -DPROFILE；preset arm-debug、arm-release、host-tests
+├── CMakeLists.txt / CMakePresets.json   根工程（P1）：固件唯一开关 -DPROFILE；preset arm-debug、arm-release、host-tests、framework、framework-m0plus（框架独立构建，-DFRAMEWORK_ONLY=ON，F1）
 ├── cmake/
-│   ├── toolchains/           arm-gcc-cortex-m7、arm-gcc-cortex-m4f、host（-m4f 尚无使用者，阶段 B 用）
+│   ├── toolchains/           arm-gcc-cortex-m7、arm-gcc-cortex-m4f、arm-gcc-cortex-m0plus、host（-m4f 阶段 B 用；-m0plus 现只用于框架独立构建）
 │   ├── targets.cmake         严格告警、OBJECT 库目标文件传递、固件产物、烧录目标
 │   └── legacy.cmake          迁移期过渡件：legacy_build_options（迁移源的两个构建期开关，F2、F3 删）
 ├── src/                      框架（include 根：#include "hal/can.hpp"）
@@ -49,7 +49,8 @@ foray_mcu/
 ├── legacy/                   迁移源的 README 与既有架构图（源码已在 P2、P2.5 全部搬出）
 │   ├── .docs/images/         既有架构图
 │   └── README.md
-├── test/host/                宿主测试（由根工程 host-tests preset 引入，17 项 ctest；来源 fd1edbb，见 test/host/README.md）
+├── test/host/                宿主测试（由根工程 host-tests preset 引入，22 项 ctest；来源 fd1edbb 与 F1 新增，见 test/host/README.md）
+├── test/framework/           框架独立构建用：template_check.cpp 显式实例化只有头文件的模板（F1，Decision-20261031-06）
 ├── test/data/imu/            真实 IMU 数据（原固件静态陀螺采集 ×2）
 ├── test/data/heater/         原固件加热冷启动曲线（L6 重做的验收下限）
 ├── tool/debug/               SWD 只读轮询、IMU 采集与加热日志解码（Python）
@@ -86,9 +87,9 @@ foray_mcu/
 ```text
 foray_mcu/
 ├── CMakeLists.txt                构建入口（顶层只做工具链检查、选项与组合）；唯一开关 -DPROFILE
-├── CMakePresets.json             arm-debug、arm-release、host-tests（阶段 B 起扩成 profile × Debug/Release 矩阵）
+├── CMakePresets.json             arm-debug、arm-release、host-tests、framework、framework-m0plus（阶段 B 起扩成 profile × Debug/Release 矩阵）
 ├── cmake/
-│   ├── toolchains/               arm-gcc-cortex-m7 / arm-gcc-cortex-m4f / host；按需 cortex-r5、cortex-m0plus
+│   ├── toolchains/               arm-gcc-cortex-m7 / arm-gcc-cortex-m4f / arm-gcc-cortex-m0plus / host；按需 cortex-r5
 │   └── targets.cmake             严格告警、OBJECT 库目标文件传递、固件产物、烧录目标
 ├── src/                          框架：与产品、板都无关；零 RTOS
 │   ├── hal/                      硬件契约（C++ 自由函数 + 不透明句柄）：can、spi、uart、gpio、pwm、time、usb_cdc（F2）
@@ -119,11 +120,12 @@ foray_mcu/
 │   └── assembly/<profile>.cpp    组合根：构造对象、注入参数、任务表、实现 boot_*
 ├── test/
 │   ├── host/                     宿主单元测试（链接 platform/mock，ctest）
+│   ├── framework/                框架独立构建用的检查（实例化只有头文件的模板）
 │   └── data/                     录制数据（IMU、加热曲线等），回放回归
 ├── tool/
 │   ├── flash/                    OpenOCD 配置
 │   ├── debug/                    SWD 读取、数据解码
-│   └── ci/                       格式、命名、依赖图与文本扫描、（F2 起）HAL 回调符号检查
+│   └── ci/                       格式、命名、依赖图与文本扫描、M0+ 原子库调用、（F2 起）HAL 回调符号检查
 ├── docs/
 │   ├── <人写的文档>              人工撰写的设计文档、手册、指南（F4 的使用指南放这里）
 │   ├── assets/                   人工制作的图表等

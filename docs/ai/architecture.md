@@ -1,6 +1,6 @@
 # 架构判据与依赖规则（foray_mcu）
 
-> **状态**：v2.4（2026-10-31）。v2.0 见 Decision-20261027-01；v2.1 随 F1 第 1 步更新 utils、middleware、lib 的归类：math 进 utils，fsm 进 middleware（Decision-20261027-02）；v2.2 随 F1 第 2 步加入 utils 的并发原语 `concurrency`（Decision-20261029-01），§3.4 补充 seqlock 的读写竞态（Decision-20261029-02，待定）；v2.3 随 F1 第 3 步定稿 §3.2 的 OS 契约：1 µs 时基、`Signal` 的语义、临界区只屏蔽框架中断（Decision-20261031-01～03）；v2.4 随 F1 第 4 步定稿 §3.4 的 topic：发布时用临界区包住写入（Decision-20261029-02），接口、等待槽与清单约定（Decision-20261031-05）。v2 按负责人的骨架重写：迁移方式从"改造迁移源"改为"按新骨架重建，迁移源只作参考与零件来源"。v1.0–v1.4（P0–P2.5）见 git 历史与 decision.md。
+> **状态**：v2.5（2026-10-31）。v2.0 见 Decision-20261027-01；v2.1 随 F1 第 1 步更新 utils、middleware、lib 的归类：math 进 utils，fsm 进 middleware（Decision-20261027-02）；v2.2 随 F1 第 2 步加入 utils 的并发原语 `concurrency`（Decision-20261029-01），§3.4 补充 seqlock 的读写竞态（Decision-20261029-02，待定）；v2.3 随 F1 第 3 步定稿 §3.2 的 OS 契约：1 µs 时基、`Signal` 的语义、临界区只屏蔽框架中断（Decision-20261031-01～03）；v2.4 随 F1 第 4 步定稿 §3.4 的 topic：发布时用临界区包住写入（Decision-20261029-02），接口、等待槽与清单约定（Decision-20261031-05）；v2.5 随 F1 的 CI 加入框架独立构建与 Cortex-M0+ 原子检查，规则 13、17 的文本扫描生效，新增例外 X-17（Decision-20261031-06）。v2 按负责人的骨架重写：迁移方式从"改造迁移源"改为"按新骨架重建，迁移源只作参考与零件来源"。v1.0–v1.4（P0–P2.5）见 git 历史与 decision.md。
 > **权威来源**：[decision.md](../../decision.md) 中的 Accepted 条目，v2 起以 Decision-20261027-01 为准。[评审报告 v1.0](reviews/2026-10-25-foray_mcu-架构评审报告.md) 是历史记录，与本文件冲突的部分以本文件为准。
 > **修改流程**：新增或修改规则、例外、白名单，先在 decision.md 登记，再改本文件和对应的 CI 检查（§10）。
 
@@ -8,7 +8,7 @@
 
 - **写新代码前**：按 §2 判定位置，按 §3 的机制写，按 §5 核对依赖。
 - **评审 PR**：对照 §5 的规则表和 §7 的例外登记。违反规则又不在例外表里的改动，不合并。
-- **现阶段**：P0–P2.5 已完成（源码已搬出 `legacy/`）；F1 框架基础件进行中，utils、hal/os、topic 已完成，剩 CI 与验收（[plan.md](../../plan.md)）。现有代码中不符合本文件的部分（`hal/detail` 的 C 接口、旧任务外壳、`Application_*` 入口等）登记在 §7，按到期阶段清理，不再为它们调整新设计。
+- **现阶段**：P0–P2.5 已完成（源码已搬出 `legacy/`）；F1 框架基础件的各项已完成（utils、hal/os、topic、CI），待负责人验收（[plan.md](../../plan.md)）。现有代码中不符合本文件的部分（`hal/detail` 的 C 接口、旧任务外壳、`Application_*` 入口等）登记在 §7，按到期阶段清理，不再为它们调整新设计。
 
 ## 1. 原则与术语
 
@@ -276,7 +276,9 @@ EXECUTABLE  firmware_<profile>
  └─ OBJECT    port_<board>              platform/<board>/port → mx_generated、rtos、usb（OBJECT）
 
 宿主测试：test_<name> → 被测 target + platform_mock
-框架独立构建：只配置 src/ + platform/mock，不含 app/、config/，不提供 RTOS 头
+框架独立构建（preset framework、framework-m0plus，-DFRAMEWORK_ONLY=ON）：
+  只配置 src/（宿主上另加 platform/mock）与 check_templates（test/framework，实例化只有头文件的模板），
+  不含 app/、config/、test/host 与板卡，不提供 RTOS 头
 ```
 
 - 只有最终固件可以链接 `assembly_*`。
@@ -291,6 +293,7 @@ EXECUTABLE  firmware_<profile>
 每个 target 用 PRIVATE include 之后，大部分规则由 CMake 本身保证：看不到的头就 include 不了。CI 补三类检查：
 - **依赖图**：`cmake --graphviz` 导出后，由 `tool/ci/arch_check.py graph` 检查；
 - **文本扫描**：由 `arch_check.py scan` 完成；
+- **框架独立构建**：在只含框架文件的副本里构建（宿主与 Cortex-M0+），M0+ 的静态库由 `arch_check.py atomics` 检查原子库调用；
 - **符号与哈希**：HAL 回调未被 C++ 改名，生成区清单与 vendor 头哈希一致。
 
 ### 5.2 规则表
@@ -298,7 +301,7 @@ EXECUTABLE  firmware_<profile>
 | # | 规则 | 主要检查方式 | 生效 |
 |---|---|---|---|
 | 1 | `app` 不得链接或看见 `port_*`、`board_*`（含 `board.hpp`）、生成区、`assembly_*` | 依赖图 | 已执行；`board.hpp` 在 F2 |
-| 2 | `src` 不得 include 或链接 `platform` 实现、`app`、`config`；必须能只靠 `platform/mock` 在宿主机构建 | 依赖图；框架独立构建 | 已执行；独立构建在 F1 |
+| 2 | `src` 不得 include 或链接 `platform` 实现、`app`、`config`；必须能只靠 `platform/mock` 在宿主机构建 | 依赖图；框架独立构建 | 已执行（框架独立构建自 F1） |
 | 3 | 契约头（`src/hal` 含 `os`、`src/boot`）只用标准库头；类型只用 enum class、POD、不透明句柄；不出现厂商与 RTOS 名 | 文本扫描 | 已执行；`hal/detail` 见 X-07 |
 | 4 | `config/profiles` 只含数据：`params.hpp` 只能 include 能力的配置类型头与标准库头 | 文本扫描 | F2 |
 | 5 | 只有最终固件可以链接 `assembly_*` | 依赖图 | 已执行 |
@@ -309,20 +312,21 @@ EXECUTABLE  firmware_<profile>
 | 10 | RTOS 头只对 `app/common` 与 `config/assembly` 可见，用 FreeRTOS 原生 API；能力与 `src` 零 RTOS，只经 `hal/os` | 依赖图 + 文本扫描 | F2；之前见 X-04 |
 | 11 | 上位机链路协议只用 vendor 的 `lower_link.hpp`，不手写帧与校验（`utils` 的 CRC 只给设备协议用，如裁判系统） | vendor 哈希 + 文本扫描 | 链路能力重建时 |
 | 12 | `app`、`src`、`platform`、`config` 的一级目录有白名单（§5.4），新增先登记 | 文本扫描 | 已执行 |
-| 13 | 不用 `std::atomic` 的读改写（`fetch_*`、`exchange`、`compare_exchange_*`）；并发只用 `utils` 原语与 topic | 文本扫描 | F1；之前见 X-08 |
+| 13 | 不用 `std::atomic` 的读改写（`fetch_*`、`exchange`、`compare_exchange_*`）；并发只用 `utils` 原语与 topic | 文本扫描 + Cortex-M0+ 库调用检查 | 已执行（F1）；X-08、X-17 放行 |
 | 14 | 框架开启 `-Wdouble-promotion`，豁免清单见 X-06 | 编译选项 | F3 |
 | 15 | 框架（`src/`、`platform/`、`cmake/`）不得引用产品的路径或 target | 文本扫描 + 框架独立构建 | 已执行 |
 | 16 | C 链接只允许 §9.3 列出的几处；覆盖 HAL 弱符号的 `.cpp` 必须 include 对应 HAL 头 | `nm` 检查 `HAL_*Callback` | F2 |
-| 17 | topic 只在 `app/topics` 定义；每个 topic 一个发布者；消息可平凡拷贝，只用标准标量与定长数组 | `static_assert` + 初始化检查 + 文本扫描 | F1 |
+| 17 | topic 只在 `app/topics` 定义；每个 topic 一个发布者；消息可平凡拷贝，只用标准标量与定长数组 | `static_assert` + 初始化检查 + 文本扫描（定义位置、发布句柄只在一处取得、清单头的 include） | 已执行（F1） |
 | 18 | 能力之间只经 topic 通信：`app_<capability>` 不得依赖其他 `app_<capability>` | 依赖图 | F2 |
 
 ### 5.3 CI 检查
 
 | 作业 | 内容 | 变化 |
 |---|---|---|
-| `lint-python`、`lint-c`、`lint-naming` | ruff/black；clang-format 18.1.8；clang-tidy 18.1.8 命名 | 不变 |
-| `lint-arch` | `arch_check.py scan` | 随 F1、F2 加入规则 4、7、13、17 |
-| `host-tests` | host-tests preset 的 ctest；宿主依赖图 | F1 增加框架独立构建（`src` + `platform/mock`） |
+| `lint-python`、`lint-c`、`lint-naming` | ruff/black；clang-format 18.1.8；clang-tidy 18.1.8 命名 | F1 起命名检查加上 framework 的编译数据库 |
+| `lint-arch` | `arch_check.py scan` | F1 已加入规则 13、17；F2 加入规则 4、7 |
+| `host-tests` | host-tests preset 的 ctest；宿主依赖图 | 不变 |
+| `framework` | 只取出框架文件（`git archive`），在副本里：framework preset 构建 + `graph --mode framework`；framework-m0plus 构建 + `atomics` | F1 新增（Decision-20261031-06）；X-17 在 F3 解除后 M0+ 编译全部框架 |
 | `firmware` | arm-debug、arm-release 构建；固件依赖图；与 P1 存档的符号对照 | 符号对照在 F2 退役（行为开始改变），改为构建 + 段大小报告；F2 增加 HAL 回调符号检查 |
 
 ### 5.4 一级目录白名单（规则 12）
@@ -362,6 +366,7 @@ EXECUTABLE  firmware_<profile>
 | X-10 | **集成测试直接编译旧 app 源码**（底盘任务、控制器） | §2.4 | F2 随旧 app 归档 |
 | X-14 | **迁移期构建开关**：`legacy_build_options` 的 `BMI088_GYRO_BANDWIDTH_REGISTER`、`IMU_ENABLE_DIAGNOSTICS` | 9、15 | 诊断开关在 F2 随旧 app 删除；陀螺带宽在 F3 改为驱动 `Config` 参数 |
 | X-16 | **RTOS 头的可见范围**：`os_freertos_<board>` 只能整目录暴露 CubeMX 的 `Core/Inc` | 10 | 长期（CubeMX 生成布局决定） |
+| X-17 | **Cortex-M0+ 框架构建暂不编译**：`driver_bmi088`、`driver_motor_dji`（`static_assert(is_always_lock_free)`，后者另有 X-08）、`lib_estimate`（经 `imu_body_mapping` 依赖 `driver_bmi088`）；根 `CMakeLists.txt` 在交叉编译的框架构建里设 `EXCLUDE_FROM_ALL` | 13、§8.2 | F3 驱动适配后删除 |
 
 **框架阶段（F2、F3）必须处理的已知问题**：
 - `lib/estimate/imu_body_mapping` 依赖 BMI088 驱动类型（`lib → driver` 反向依赖），F3 改为 POD 入参；

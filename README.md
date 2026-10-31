@@ -40,9 +40,10 @@ cmake --preset arm-debug   && cmake --build --preset arm-debug     # build/arm-d
 cmake --preset arm-release && cmake --build --preset arm-release
 cmake --build --preset arm-debug --target flash                    # OpenOCD + CMSIS-DAP 烧录（会覆盖芯片固件）
 cmake --preset host-tests  && cmake --build --preset host-tests && ctest --preset host-tests
+cmake --preset framework   && cmake --build --preset framework     # 框架独立构建（不含产品）；framework-m0plus 为 Cortex-M0+ 构建
 ```
 
-- 唯一的开关是 `-DPROFILE=<名称>`（preset 中为 `baseline`，即 a2cfd16 基线固件 × DM-MC02）；板卡由 profile 声明，工具链在 `cmake/toolchains/`。本机路径（工具链、Windows 上的宿主编译器）写在 `CMakeUserPresets.json`，不入库。
+- 固件构建唯一的开关是 `-DPROFILE=<名称>`（preset 中为 `baseline`，即 a2cfd16 基线固件 × DM-MC02）；板卡由 profile 声明，工具链在 `cmake/toolchains/`。本机路径（工具链、Windows 上的宿主编译器）写在 `CMakeUserPresets.json`，不入库。
 - 兵种 profile 在阶段 A（能力重建）建立：`cmake -S . -B build/<目录> --toolchain cmake/toolchains/<工具链>.cmake -DPROFILE=<名称>`。
 - 迁移源自带的构建已在 P2 删除；固件不改行为的证据是符号集合与 P1 存档一致（CI 的 `firmware` 作业）。
 - 迁移验收用的基线对照（ControllerCode 可复现构建实测，2026-10-26 在本仓复现一致）：Debug `.bin` **238,320 B**，Release `.bin` **100,664 B**；SHA-256、工具链版本、符号表与对照判据见 [docs/ai/decisions/2026-10-25-迁移基线与对照.md](docs/ai/decisions/2026-10-25-迁移基线与对照.md)（证据来源已转存 [docs/ai/assets/controller_code-固件恢复可行性评估.md](docs/ai/assets/controller_code-固件恢复可行性评估.md)）。

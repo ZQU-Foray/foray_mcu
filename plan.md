@@ -90,7 +90,7 @@
 - [x] 第 3 步 `src/hal/os` 契约定稿（2026-10-31，Decision-20261031-01～03）：时基 `now_us()`（1 µs、32 位，去掉 `now_ticks()`、`tick_frequency_hz()`）；`Signal`（新增，通知不丢、多次合并、每次 `wait()` 登记等待者、可常量初始化）；`CriticalSection` 只屏蔽框架中断；`platform/mock` 改为线程安全（临界区为进程内锁，`Signal` 用条件变量，超时按测试推进的时间，检查误用）；宿主测试 `hal_os_mock`、`signal`、`signal_misuse`
 - [x] 第 4 步 `src/middleware/topic`（2026-10-31，Decision-20261029-02、Decision-20261031-05）：target `middleware_topic`（只有头文件）——`Topic`、`Publisher`（`claim_publisher()` 只成功一次）、`Subscriber`（`update`、`wait`、`enable_wait`、`lost_count`）、`TopicBase`（观测）；发布时用临界区包住写入（负责人选定方案 1），消息上限暂定 64 字节，每个 topic 4 个等待槽；`app/topics/README.md` 定清单约定，`app_topics` target 随第一个 topic（F2）建立
 - [x] 宿主测试：utils 与 topic 的单元测试，含多线程压力（发布线程 × 订阅线程、模拟中断读、等待超时、单发布者检查）。utils 在第 2 步、topic 在第 4 步完成（`topic`，另有消息约束的配置期检查）
-- [ ] CI：框架独立构建（只配置 `src` + `platform/mock`，无 RTOS 头）；文本扫描加入规则 13、17；Cortex-M0+ 编译 utils 与 topic，检查不出现 `__atomic_*`、`__sync_*` 库调用（代替 `is_always_lock_free` 的静态检查，Decision-20261029-01）
+- [x] CI（2026-10-31，Decision-20261031-06）：新增作业 `framework`，在只含框架文件的副本里做框架独立构建（preset `framework`：`src` + `platform/mock`，无 RTOS 头，依赖图 `--mode framework`）；Cortex-M0+ 构建整个框架（preset `framework-m0plus`），检查不出现 `__atomic_*`、`__sync_*` 库调用（代替 `is_always_lock_free`，Decision-20261029-01），范围从 utils 与 topic 扩大到全框架，`driver_bmi088`、`driver_motor_dji`、`lib_estimate` 暂不编译（X-17，F3 解除）；`test/framework/template_check.cpp` 实例化只有头文件的模板；文本扫描加入规则 13（X-08 放行）、17
 - [ ] 验收：宿主测试全绿；框架独立构建绿；现有固件仍可构建（F1 只新增，不改旧代码的行为）
 
 ### F2 契约 v1 与 DM-MC02 板级（6–10 人日）
@@ -158,7 +158,7 @@
 
 ## 当前 Agent State
 
-`EXECUTING`（P0–P2.5 已验收；F1 框架基础件进行中：第 1–4 步与宿主测试已完成，剩 CI 与验收；里程碑合并入 `main` 按负责人要求暂缓）。
+`EXECUTING`（P0–P2.5 已验收；F1 框架基础件各项已完成——第 1–4 步、宿主测试、CI，待负责人验收；里程碑合并入 `main` 按负责人要求暂缓）。
 状态词表：`REVIEW_PENDING`（等待评审）/ `PLANNING`（方案已批准、编制细节）/ `EXECUTING`（实施中）/ `BLOCKED`（外部阻塞）/ `DONE`（阶段完成）。
 
 ## Before Snapshot
@@ -235,3 +235,4 @@ Q1–Q18 已全部确认（见评审报告 v1.0 §11.1 与 decision.md）。仍�
 | 2026-10-29 | F1 | 第 2 步：crc16；`utils_concurrency`（`SpscQueue`、`LatestValue`）（Decision-20261029-01）。ctest 17/17，ThreadSanitizer 无报告，M0+/M4/M7 无原子读改写库调用，固件符号与 P1 存档一致。发现 seqlock 读写竞态在任务之间同样存在，登记为待定决策（Decision-20261029-02） | 已完成 |
 | 2026-10-31 | F1 | 第 3 步：hal/os 契约 v1——1 µs 时基、`Signal`、临界区只屏蔽框架中断（Decision-20261031-01～03）；`platform/mock` 改为线程安全。ctest 21/21，ThreadSanitizer 无报告，故意改坏 mock 的四处都被测试抓到，M0+/M4/M7 上全局 `Signal` 常量初始化，固件符号与 P1 存档一致 | 已完成 |
 | 2026-10-31 | F1 | 第 4 步：`middleware_topic`——发布时用临界区包住写入（Decision-20261029-02 定为方案 1）、单发布者、`update`/`wait`、等待槽、观测计数（Decision-20261031-05）；`app/topics` 清单约定。ctest 22/22，ThreadSanitizer 无报告，故意改坏的十处都被测试抓到，M0+/M4/M7 无原子读改写库调用、全局对象常量初始化，固件符号与 P1 存档一致 | 已完成 |
+| 2026-10-31 | F1 | CI：新增 `framework` 作业——只含框架文件的副本里做框架独立构建与依赖图检查；Cortex-M0+ 构建整个框架并检查原子库调用（X-17 的三个 target 暂不编译）；文本扫描加入规则 13、17（Decision-20261031-06）。反向验证七类违规都被拦下；ctest 22/22，固件符号与 P1 存档一致，命名检查 0 处 | 已完成，F1 待验收 |
