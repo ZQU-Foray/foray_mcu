@@ -1372,6 +1372,59 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 
 ---
 
+## Decision-20261031-13（归档旧能力代码：tag `archive/pre-rebuild`，X-04、X-10 关闭，Accepted）
+
+- **Date**：2026-10-31
+- **Status**：Accepted（F2 第 4 步的最后一部分；负责人同意"按 AI 的方案做 4c"）
+- **Source**：plan.md F2 第 4 步"归档旧能力代码"；Decision-20261027-01（能力在阶段 A 重建，从 tag 取参考）
+
+**Context**：
+
+- bringup profile 已经就位，preset 默认构建它（Decision-20261031-12），并已上板验证。旧 app（迁移源的 imu、chassis、gimbal、remote、tasks、TaskManager）只剩 profile `baseline` 在用。
+- 旧 app 带着三项例外：X-04（任务外壳用 CMSIS-RTOS2）、X-08 的 6 处原子读改写、X-10（集成测试直接编译 app 源码）。它们还让 `app_common` 依赖 `app_tasks`，让 `app/` 无法加入宿主构建。
+
+**Decision**：
+
+1. **打 tag**：在分支 `f2/bringup` 的末端（`9c11546`，旧 app 与 `baseline` 仍可构建）打附注 tag `archive/pre-rebuild`。阶段 A 重建能力时从 tag 取参考。
+   - PR 都用 merge 提交合入，所以这个提交会留在 `dev` 的历史里；
+   - tag 随这批分支一起推送。
+2. **删除**：
+   - `app/{imu,chassis,gimbal,remote,tasks}`；
+   - `app/common/task_manager.*`；
+   - `config/assembly/entry_legacy.cpp`；
+   - `config/profiles/baseline/`；
+   - `config/CMakeLists.txt` 里 `baseline` 的分支；
+   - 宿主测试：底盘集成测试（`chassis_controller`、`controller_equivalence`、`mock_*` 共 6 项）及其专用的支持文件（`mock_motor.*`、`task_runtime_stub.cpp`、`shadow/`），以及 `bmi088_acquisition` 中测旧 app 的两段。
+
+   `bmi088_acquisition` 删掉的两段：
+   - `ImuDataReadyMailbox`（`app/tasks`）：被 `utils` 的 `LatestValue` 与 topic 取代；
+   - `ImuDiagnostics` 的采集（`app/imu`）：随 IMU 能力在阶段 A 重建。
+
+   BMI088 驱动本身的测试全部保留。
+3. **`app/` 加入宿主构建**：
+   - `app_topics`、`app_bringup` 在宿主上编译；
+   - `app_common`（任务运行器，要 RTOS）只在固件构建里定义，改为 INTERFACE（只有头文件）；
+   - `bringup` 测试改为链接 `app_bringup`，不再直接编译源码。
+4. **迁移期构建开关（X-14）**：
+   - `IMU_ENABLE_DIAGNOSTICS` 已经没有使用者，删除；
+   - `BMI088_GYRO_BANDWIDTH_REGISTER` 留给 BMI088 驱动，驱动改写时改为 `Config` 参数；
+   - `app_library()` 不再链接 `legacy_build_options`。
+5. **`arch_check.py`**：
+   - 删除 `app_tasks` 层与"`app_common` → `app_tasks`"的放行边；
+   - 能力（`app`）不得依赖 `app_common`：任务运行器带 RTOS 头，规则 10；
+   - app 白名单去掉 `tasks`、`debug_comm`；
+   - 原子读改写的放行只剩 `dji_motor.cpp`（X-08）；
+   - 条件编译的放行只剩 `BMI088_GYRO_BANDWIDTH_REGISTER`；
+   - 文本扫描加入规则 10：`src/`、`app/` 中只有 `app/common` 可以 include FreeRTOS 与 CMSIS-RTOS 的头。
+6. **例外**：X-04、X-10 关闭；X-08 只剩 `dji_motor.cpp` 的 2 处；X-14 只剩陀螺带宽。
+7. **验证方式**：bringup 固件不链接旧 app，归档前后它的函数与对象符号应完全相同，用 `symbols.py compare` 对比。
+
+**Alternatives / Rejected**：
+- **保留旧 app，只移出构建**：留在树里的旧代码会被误用，也让 CI 的检查规则一直带着放行。否决，删除并以 tag 保存。
+- **保留 `bmi088_acquisition` 里的邮箱与诊断两段，把头文件挪进 test/**：等于在测试目录里维护一份旧 app 代码。否决。
+
+---
+
 ## 待登记
 
 - 分支保护的具体设置（组织规范 §6.1、§10，负责人在 GitHub 上操作后补记）。
