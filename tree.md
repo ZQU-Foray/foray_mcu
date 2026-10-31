@@ -23,7 +23,7 @@ foray_mcu/
 ├── src/                      框架（include 根：#include "hal/can.hpp"）
 │   ├── CMakeLists.txt        框架的全部 target：hal、hal_detail、hal_os、boot、utils_*、middleware_*、lib_*、driver_*
 │   ├── README.md             迁移源 Libraries/README.md（正文为旧路径，F1 更新）
-│   ├── hal/                  C++ 契约（can、gpio、pwm、spi、time、uart、usb_cdc）；detail/ 为迁移期 C ABI（F2 删）；os/ 为最小 OS 契约草案
+│   ├── hal/                  C++ 契约（can、gpio、pwm、spi、time、uart、usb_cdc）；detail/ 为迁移期 C ABI（F2 删）；os/ 为最小 OS 契约 v1（clock、critical_section、signal，F1）
 │   ├── utils/                math、crc（F1 第 1 步由 lib 移入）
 │   ├── middleware/           fsm（F1 第 1 步由 lib 移入）
 │   ├── lib/                  control（pid、slope）、estimate、filter、kinematics、component（目录名即命名空间名）
@@ -44,7 +44,7 @@ foray_mcu/
 │   ├── st/stm32h7/board_dm/  board.cmake（板标识 dm_mc02）+ CMakeLists.txt（mx_generated、rtos、usb、port、board、os_freertos）
 │   │   ├── cubemx/           CubeMX 生成物：Core、Drivers、Middlewares、USB_DEVICE、.ioc、启动文件、链接脚本（冻结）
 │   │   └── port/             契约的手写实现（C），含 port_kit（队列/通知/临界区）与 usb_cdc；Init.h、UsbCdc.h 被生成代码按名字 include，保持原名
-│   └── mock/                 platform_mock：hal_os 的宿主替身
+│   └── mock/                 platform_mock：hal_os 的宿主替身（线程安全，测试推进时间，Signal 检查误用）
 ├── legacy/                   迁移源的 README 与既有架构图（源码已在 P2、P2.5 全部搬出）
 │   ├── .docs/images/         既有架构图
 │   └── README.md
@@ -152,7 +152,7 @@ foray_mcu/
 | 迁移源 README 与架构图 | `legacy/` | ⛔ 只读（源码已在 P2、P2.5 全部搬出） |
 | 无领域含义的基础件 | `src/utils/` | ✅ math、crc 已移入（F1 第 1 步）；crc16、concurrency（spsc_queue、latest_value）已完成（F1 第 2 步） |
 | topic 机制 / 产品的 topic 清单 | `src/middleware/topic/` / `app/topics/` | 🟡 F1 |
-| OS 契约 | `src/hal/os/` | 📄 草案与宿主替身（P1）；定稿与 `Signal` 在 F1，port 实现在 F2 |
+| OS 契约 | `src/hal/os/` | ✅ 契约 v1 与宿主替身（F1 第 3 步，Decision-20261031-01～03）；port 实现在 F2 |
 | 硬件契约 v1 | `src/hal/` | 🟡 F2（现为旧契约 + `src/hal/detail` C 接口，F2 删除） |
 | 启动入口 | `src/boot/` | 🟡 F2（现为 `config/assembly` 的 `Application_*`，例外 X-09） |
 | 领域算法 | `src/lib/` | ✅ 已搬入（P2）、去掉 `alg_` 前缀（P2.5）；F1 调整 slope/fsm/crc 的归属 |
@@ -181,7 +181,7 @@ foray_mcu/
 | `Libraries/Algorithm/*`、`Component/*` | `src/lib/`；math、crc → `src/utils/`，fsm → `src/middleware/`，slope → `src/lib/control`（F1 第 1 步） |
 | `Libraries/Device/*`、`Protocol/*` | `src/driver/`，F3 适配 hal v1 |
 | `Platform/Interface/*.hpp` + `Detail/*.h` | 由 `src/hal` 契约 v1 取代（F2） |
-| `Platform/PortKit/*` | 队列 → `src/utils/concurrency/spsc_queue.hpp`（F1 ✅）；临界区 → `src/hal/os` 契约 + port 实现（F1、F2） |
+| `Platform/PortKit/*` | 队列 → `src/utils/concurrency/spsc_queue.hpp`（F1 ✅）；临界区 → `src/hal/os` 契约（F1 ✅）+ port 实现（F2） |
 | `Platform/STM32H7/DM_MC02/{Core,Drivers,Middlewares,USB_DEVICE,startup,.ld,.ioc}` | `platform/dm_mc02/cubemx/`（F2 起按板一级） |
 | `Platform/STM32H7/DM_MC02/Port/*` | `platform/dm_mc02/port/`，F2 用 C++ 重写 |
 | `Tests/`（历史，`fd1edbb`） | `test/host/` |

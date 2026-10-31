@@ -73,6 +73,25 @@ target_link_libraries(test_bmi088_acquisition PRIVATE Threads::Threads)
 host_test(hal_os_mock
     SOURCES unit/hal_os/mock_os_test.cpp
     LINK platform_mock)
+host_test(signal
+    SOURCES unit/hal_os/signal_test.cpp
+    LINK platform_mock)
+# 误用检查：每个场景都应打印 mock 的报错并 abort()，按输出判定（PASS_REGULAR_EXPRESSION 不看退出状态）。
+host_test(signal_misuse NO_TEST
+    SOURCES unit/hal_os/signal_misuse_test.cpp
+    LINK platform_mock)
+set(SIGNAL_MISUSE_SCENARIOS
+    "notify_in_critical|notify\\(\\) 不能在 CriticalSection 内调用"
+    "wait_in_critical|wait\\(\\) 不能在 CriticalSection 内调用"
+    "two_waiters|两个线程同时等同一个 Signal")
+foreach(entry IN LISTS SIGNAL_MISUSE_SCENARIOS)
+    string(FIND "${entry}" "|" split)
+    string(SUBSTRING "${entry}" 0 ${split} scenario)
+    math(EXPR split "${split} + 1")
+    string(SUBSTRING "${entry}" ${split} -1 message)
+    add_test(NAME signal_misuse_${scenario} COMMAND test_signal_misuse ${scenario})
+    set_tests_properties(signal_misuse_${scenario} PROPERTIES PASS_REGULAR_EXPRESSION "platform_mock: .*${message}")
+endforeach()
 host_test(crc16
     SOURCES unit/crc/crc16_test.cpp
     LINK utils_crc)

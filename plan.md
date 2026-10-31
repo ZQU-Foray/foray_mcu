@@ -87,7 +87,7 @@
 
 - [x] 第 1 步 归类调整（2026-10-27，Decision-20261027-02）：`crc`、`math` → `src/utils`（target `utils_crc`、`utils_math`，用 `utils_library()`，不带迁移期构建开关）；`fsm` → `src/middleware/fsm`（负责人决定）；`slope` 并入 `src/lib/control`（命名空间 `control`）；依赖图检查加入 lib → utils，middleware 按架构 v2 收紧
 - [x] 第 2 步 `src/utils` 补齐（2026-10-29，Decision-20261029-01）：并发原语放 `src/utils/concurrency`（target `utils_concurrency`，只有头文件）——`SpscQueue`（由 PortKit 的队列改写，acquire/release，不用原子读改写）、`LatestValue`（单写者 seqlock）；`crc` 补 crc16（CRC-16/MCRF4XX，裁判系统帧尾）；宿主测试 `spsc_queue`、`latest_value`、`crc16`
-- [ ] `src/hal/os` 契约定稿：`CriticalSection`、单调时基、`Signal`（等待/唤醒，中断里可唤醒）；`platform/mock` 实现（宿主线程，测试控制时间）
+- [x] 第 3 步 `src/hal/os` 契约定稿（2026-10-31，Decision-20261031-01～03）：时基 `now_us()`（1 µs、32 位，去掉 `now_ticks()`、`tick_frequency_hz()`）；`Signal`（新增，通知不丢、多次合并、每次 `wait()` 登记等待者、可常量初始化）；`CriticalSection` 只屏蔽框架中断；`platform/mock` 改为线程安全（临界区为进程内锁，`Signal` 用条件变量，超时按测试推进的时间，检查误用）；宿主测试 `hal_os_mock`、`signal`、`signal_misuse`
 - [ ] `src/middleware/topic`（target `middleware_topic`）：最新值、单发布者、中断里可发布、阻塞等待、观测计数（架构 v2 §3.4）；`app/topics` 目录与清单约定；先决定 seqlock 读写竞态的处理（Decision-20261029-02，Proposed）
 - [ ] 宿主测试：utils 与 topic 的单元测试，含多线程压力（发布线程 × 订阅线程、模拟中断发布、等待超时、单发布者检查）。utils 部分已完成（第 2 步）
 - [ ] CI：框架独立构建（只配置 `src` + `platform/mock`，无 RTOS 头）；文本扫描加入规则 13、17；Cortex-M0+ 编译 utils 与 topic，检查不出现 `__atomic_*`、`__sync_*` 库调用（代替 `is_always_lock_free` 的静态检查，Decision-20261029-01）
@@ -96,8 +96,9 @@
 ### F2 契约 v1 与 DM-MC02 板级（6–10 人日）
 
 - [ ] 旧能力代码归档：打 tag `archive/pre-rebuild`，移出构建并删除 `app/{imu,chassis,gimbal,remote,tasks,common}` 的旧代码、`config/assembly/entry_legacy.cpp` 与 `Application/Entry.h`、profile `baseline`、依赖旧 app 的宿主测试（底盘集成测试；`bmi088_acquisition` 引用 `imu_diagnostics.cpp` 的部分在 F3 改写）（例外 X-04、X-09、X-10 关闭）；能力重建时从 tag 取参考
-- [ ] `src/hal` 契约 v1：自由函数 + 不透明句柄 + 能力分级（can、spi、uart、gpio、pwm、time、usb_cdc、`hal::init`）；`platform/mock` 实现（可注入输入、检查输出）
-- [ ] `platform/dm_mc02/`（按板一级）：port 用 C++ 重写，实现 hal v1 与 hal/os（FreeRTOS 任务通知）；PortKit 拆分完成；`board/board.hpp`（物理资源句柄、能力常量）；删除 `src/hal/detail`（X-07 关闭）
+- [ ] `src/hal` 契约 v1：自由函数 + 不透明句柄 + 能力分级（can、spi、uart、gpio、pwm、usb_cdc、`hal::init`；时间归 `hal/os`，不再单列 time，Decision-20261031-01）；`platform/mock` 实现（可注入输入、检查输出）
+- [ ] `platform/dm_mc02/`（按板一级）：port 用 C++ 重写，实现 hal v1 与 hal/os；PortKit 拆分完成；`board/board.hpp`（物理资源句柄、能力常量）；删除 `src/hal/detail`（X-07 关闭）
+  - hal/os（Decision-20261031-01～03）：时基用 TIM2 分频到 1 MHz（`.ioc` 由负责人配置，加入后固件符号会变，随本阶段第一批提交）；临界区用 BASEPRI 抬到优先级 5；`Signal` 用 1 号任务通知槽，`configTASK_NOTIFICATION_ARRAY_ENTRIES` 改为 2（先查 CubeMX 有没有这一项，没有就登记例外）；调试暂停时是否冻结 TIM2 届时定
 - [ ] 启动入口：`src/boot/boot.h`；CubeMX USER CODE 区改为调用 `boot_*`（改动行登记在 decision.md）
 - [ ] `app/common` 任务运行器（FreeRTOS 原生 API，任务表驱动，栈水位巡检）
 - [ ] profile `bringup_dm_mc02` 与对应的 assembly：启动 → 任务表 → topic → LED/蜂鸣器，固件可构建、可烧录
@@ -106,7 +107,7 @@
 
 ### F3 驱动适配（4–7 人日）
 
-- [ ] 驱动改用 hal v1，经 `Config` 接收句柄与参数：bmi088（陀螺带宽改为 `Config` 参数，X-14 关闭）、motor/dji（去掉原子读改写，X-08 关闭）、buzzer、ws2812、protocol/{dji,sbus}；用 `platform/mock` 做单元测试
+- [ ] 驱动改用 hal v1，经 `Config` 接收句柄与参数：bmi088（陀螺带宽改为 `Config` 参数，X-14 关闭；时间改用 `hal::os::now_us()`，之后删除 `src/hal/time.hpp`，Decision-20261031-01）、motor/dji（去掉原子读改写，X-08 关闭）、buzzer、ws2812、protocol/{dji,sbus}；用 `platform/mock` 做单元测试
 - [ ] SPI 异步按能力分级使用：BMI088、WS2812 对可选能力做编译期检查或回退
 - [ ] `src/lib/estimate` 去掉对 BMI088 驱动的依赖（POD 入参）；框架开启 `-Wdouble-promotion`（`vqf.cpp` 豁免并加 FPU `#error` 检查）
 - [ ] bringup 固件加入各驱动的检查：CAN 收发（电机反馈）、SPI 读 BMI088、UART 收 SBUS、PWM/GPIO、USB CDC 回显、时基精度
@@ -232,3 +233,4 @@ Q1–Q18 已全部确认（见评审报告 v1.0 §11.1 与 decision.md）。仍�
 | 2026-10-27 | F1 | 第 1 步：crc、math 移入 `src/utils`，fsm 移入 `src/middleware`，slope 并入 `lib/control`（Decision-20261027-02）。纯移动、改写、构建三个提交；ctest 14/14，固件符号与 P1 存档一致 | 已完成 |
 | 2026-10-28 | F1 | template 声明单独一行（Decision-20261028-01）：配置、格式化、登记 blame 忽略三个提交 | 已完成 |
 | 2026-10-29 | F1 | 第 2 步：crc16；`utils_concurrency`（`SpscQueue`、`LatestValue`）（Decision-20261029-01）。ctest 17/17，ThreadSanitizer 无报告，M0+/M4/M7 无原子读改写库调用，固件符号与 P1 存档一致。发现 seqlock 读写竞态在任务之间同样存在，登记为待定决策（Decision-20261029-02） | 已完成 |
+| 2026-10-31 | F1 | 第 3 步：hal/os 契约 v1——1 µs 时基、`Signal`、临界区只屏蔽框架中断（Decision-20261031-01～03）；`platform/mock` 改为线程安全。ctest 21/21，ThreadSanitizer 无报告，故意改坏 mock 的四处都被测试抓到，M0+/M4/M7 上全局 `Signal` 常量初始化，固件符号与 P1 存档一致 | 已完成 |

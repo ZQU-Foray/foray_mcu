@@ -52,12 +52,12 @@ framework_interface(hal_detail
     hal/detail/uart.h
     hal/detail/usb_cdc.h)
 
-# hal_os：最小 OS 契约，只有 RAII 临界区与单调时基（评审报告 §5.7、Q10）。
-# 线程、队列、事件不进框架。实现：固件在 port（P3a），宿主测试在 platform/mock。
-# P1 是草案，P3a 冻结契约 v1 时可以调整。
+# hal_os：最小 OS 契约 v1——1 µs 单调时基、RAII 临界区、二值信号（Decision-20261031-01～03）。
+# 线程、队列、事件组不进框架。实现：固件在 port（F2），宿主测试在 platform/mock。
 framework_interface(hal_os
     hal/os/clock.hpp
-    hal/os/critical_section.hpp)
+    hal/os/critical_section.hpp
+    hal/os/signal.hpp)
 
 # boot：生成区可以调用的启动入口（extern "C"，评审报告 §5.6）。
 # 迁移期的启动入口仍是 legacy/Application/Entry.h 的 Application_*（例外 X-09），

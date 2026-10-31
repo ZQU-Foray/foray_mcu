@@ -20,7 +20,7 @@ Windows 上用 MSYS2 UCRT64 的 gcc/g++：在 `CMakeUserPresets.json`（不入�
 
 CI 的 `host-tests` 作业（`.github/workflows/ci.yml`）在 GitHub Actions 的 Ubuntu 上运行同样的三条命令，并检查宿主构建的依赖图。
 
-已验证环境：WSL Ubuntu 22.04 + g++ 11.4.0 + CMake 3.31.6（2026-10-29，17/17 通过）；Windows + MSYS2 UCRT64 g++ 16.2.0 + CMake 4.4.4（2026-10-26，14/14 通过；F1 新增的 `spsc_queue`、`latest_value` 于 2026-10-29 用同一编译器直接编译运行通过）。
+已验证环境：Ubuntu 24.04 + g++ 13.3.0 + CMake 3.28.3（2026-10-31，21/21 通过）；WSL Ubuntu 22.04 + g++ 11.4.0 + CMake 3.31.6（2026-10-29，17/17 通过）；Windows + MSYS2 UCRT64 g++ 16.2.0 + CMake 4.4.4（2026-10-26，14/14 通过；F1 新增的 `spsc_queue`、`latest_value` 于 2026-10-29 用同一编译器直接编译运行通过）。
 
 ## 测试清单
 
@@ -35,7 +35,9 @@ CI 的 `host-tests` 作业（`.github/workflows/ci.yml`）在 GitHub Actions 的
 | `motor_group` | `unit/motor/motor_group_test.cpp` | `driver_motor_dji` |
 | `brand_extension` | `unit/motor/brand_extension_test.cpp` | `driver_motor`（只用 `motor_group.hpp`，非 DJI 最小适配器） |
 | `bmi088_acquisition` | `unit/imu_acquisition/bmi088_acquisition_test.cpp` | `driver_bmi088`；测试源码直接 `#include` 了 `imu/imu_diagnostics.cpp`（`app/imu/`） |
-| `hal_os_mock` | `unit/hal_os/mock_os_test.cpp` | `platform_mock`（hal_os 的宿主替身：时基、临界区嵌套） |
+| `hal_os_mock` | `unit/hal_os/mock_os_test.cpp` | `platform_mock`（hal_os 的宿主替身：时基由测试控制、换算辅助跨回绕、临界区嵌套与两线程互斥） |
+| `signal` | `unit/hal_os/signal_test.cpp` | `platform_mock`（`Signal`：通知不丢、多次合并、超时按测试推进的时间且跨回绕、跨线程唤醒、一个线程先后等多个、多个线程轮流等、先检查后等待的写法在 20 万次通知下不丢唤醒） |
+| `signal_misuse_notify_in_critical` / `signal_misuse_wait_in_critical` / `signal_misuse_two_waiters` | `unit/hal_os/signal_misuse_test.cpp` | `platform_mock` 的误用检查：每个场景都应打印原因并 `abort()`，按输出判定 |
 | `crc16` | `unit/crc/crc16_test.cpp` | `utils_crc`（CRC-16/MCRF4XX：标准校验值、与逐位实现对照、裁判系统帧尾的小端约定） |
 | `spsc_queue` | `unit/concurrency/spsc_queue_test.cpp` | `utils_concurrency`（SPSC 队列：空与满、下标绕回、批量截断与绕回、`clear`、容量 1、计数器跨过 2^32；生产者、消费者、旁观者三线程压力；`-O2`） |
 | `latest_value` | `unit/concurrency/latest_value_test.cpp` | `utils_concurrency`（最新值邮箱：初值、覆盖、大小不是 4 的倍数、版本号按 2^31 回绕；一写三读的一致性压力；`-O2`） |
@@ -43,7 +45,7 @@ CI 的 `host-tests` 作业（`.github/workflows/ci.yml`）在 GitHub Actions 的
 | `controller_equivalence` | `integration/chassis/controller_equivalence_test.cpp` | 同上 |
 | `mock_normal` / `mock_read_failure` / `mock_command_failure` / `mock_init_failure` | `integration/chassis/chassis_mock_test.cpp` | 同上，按场景参数运行 |
 
-并发测试（`spsc_queue`、`latest_value`）可以加 `-fsanitize=thread` 在本地用 ThreadSanitizer 运行，CI 不跑。两个测试的回绕部分分别要读写 2^32 个字节、写 2^31 次，用 ThreadSanitizer 跑时先把轮数改小。WSL 上 ThreadSanitizer 程序启动即报 "unexpected memory mapping" 时，用 `setarch $(uname -m) -R ./test_xxx` 运行。
+并发测试（`spsc_queue`、`latest_value`、`hal_os_mock`、`signal`）可以加 `-fsanitize=thread` 在本地用 ThreadSanitizer 运行，CI 不跑。`spsc_queue`、`latest_value` 的回绕部分分别要读写 2^32 个字节、写 2^31 次，用 ThreadSanitizer 跑时先把轮数改小。ThreadSanitizer 程序启动即报 "unexpected memory mapping" 时（WSL 与 Ubuntu 24.04 都遇到过），用 `setarch $(uname -m) -R ./test_xxx` 运行。
 
 配置阶段另有两类断言，失败会直接中止配置：
 
@@ -68,6 +70,7 @@ test/host/
 
 ## 来源与适配记录
 
+> F1（2026-10-31）：`hal_os_mock` 随 hal/os 契约 v1 改写（时基改为 1 µs，补多线程互斥），新增 `signal`、`signal_misuse`，不来自 `fd1edbb`。
 > F1（2026-10-28、10-29）：新增 `crc16`、`spsc_queue`、`latest_value`，测 F1 新写的 utils 代码，不来自 `fd1edbb`。
 > P2.5（2026-10-26）：`Application/Imu` 搬到 `app/imu/` 后，测试改为 `#include "imu/imu_diagnostics.cpp"`，不再链接 `legacy_include`（Decision-20261026-10）。
 > P2（2026-10-26）：测试与支持文件名改为 snake_case，影子头随被替换的头文件改到 `shadow/driver/...`；include 改为相对层根目录的写法（Decision-20261026-08）。
