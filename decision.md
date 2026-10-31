@@ -1164,6 +1164,36 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 
 ---
 
+## Decision-20261031-09（板级目录按板一级：`platform/dm_mc02`，Accepted）
+
+- **Date**：2026-10-31
+- **Status**：Accepted（F2 第 2 步，负责人同意 Decision-20261031-07 的顺序）
+- **Source**：架构 v2 §2.1、§3.7、§5.4；plan.md F2 第 2 步
+
+**Context**：
+
+- 架构 v2 规定板级目录按板一级，目录名就是板标识（`platform/dm_mc02`）。现在的目录还是 P2 时的 `platform/st/stm32h7/board_dm`，是"厂商 / 芯片 / 板"三级。
+- `platform/st/stm32f4/board_c` 与 `platform/ti` 只是空目录，没有任何入库文件。
+
+**Decision**：
+
+1. `git mv platform/st/stm32h7/board_dm platform/dm_mc02`，生成区（`cubemx/`）随之整体移动，内容不变：
+   - `.ioc`、`.mxproject` 里只有相对路径，`ProjectManager.UnderRoot=false`；
+   - 板目录里的 CMake 都以 `CMAKE_CURRENT_SOURCE_DIR` 为基准。
+
+   负责人以后用 CubeMX 打开 `platform/dm_mc02/cubemx/mc02_cpp.ioc` 重新生成。
+2. 只改 4 处路径：
+   - profile `baseline` 的 `BOARD` 改为 `dm_mc02`，与 `board.cmake` 的 `BOARD_ID` 相同；
+   - CI 回调检查的 port 路径；
+   - `arch_check.py` 的 `platform/` 一级目录白名单由 `st`、`ti`、`mock` 改为 `dm_mc02`、`mock`，与架构 §5.4 一致；
+   - OpenOCD 配置里的注释。
+3. 验证方式：纯移动，固件的函数与对象符号集合应与移动前完全相同，用 `symbols.py compare` 对比移动前后的 dump（基准是本分支合入 TIM2 之后、移动之前的固件）。
+
+**Alternatives / Rejected**：
+- **保留"厂商 / 芯片 / 板"三级**：与架构 v2 不符；同一芯片出现第二块板时再决定共用代码放哪里（§3.7）。否决。
+
+---
+
 ## 待登记
 
 - 分支保护的具体设置（组织规范 §6.1、§10，负责人在 GitHub 上操作后补记）。
