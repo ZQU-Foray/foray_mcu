@@ -59,7 +59,6 @@ LAYERS = [
     ("driver", r"driver_\w+"),
     ("middleware", r"middleware_\w+"),
     ("app_common", r"app_common"),
-    ("app_tasks", r"app_tasks"),
     # 产品的 topic 清单（Decision-20261031-12）：能力之间只经它通信，它只依赖 topic 机制与契约
     ("topics", r"app_topics"),
     ("app", r"app_\w+"),
@@ -88,11 +87,10 @@ PRODUCT = {
     "profile",
     "app",
     "app_common",
-    "app_tasks",
     "topics",
 }
 PLATFORM = {"os", "port", "board", "vendor", "mock"}
-APP = {"app", "app_common", "app_tasks", "topics"}
+APP = {"app", "app_common", "topics"}
 FORBIDDEN_FOR_APP = {"port", "board", "vendor", "assembly"}
 FORBIDDEN_FOR_TEST = {
     "port",
@@ -128,8 +126,8 @@ ALLOWED = {
     # 架构 v2 §2.3：middleware 只依赖 utils 与契约（hal/os；传输类服务另可依赖 hal），不依赖 driver、lib。
     "middleware": {"middleware", "contract", "utils", "legacy"},
     "topics": {"middleware", "contract"},
-    "app": APP_DEPENDENCIES | {"app_common"},
-    "app_tasks": APP_DEPENDENCIES | {"app", "app_common", "os"},
+    # 能力零 RTOS：不得依赖任务运行器（app_common 带 RTOS 头，规则 10），也不得依赖其他能力（规则 18）
+    "app": APP_DEPENDENCIES,
     "app_common": APP_DEPENDENCIES | {"os"},
     "os": set(),
     "port": {"vendor", "contract", "hal_detail", "utils"},
@@ -150,10 +148,6 @@ TRANSITIONAL_EDGES = {
         "lib_estimate",
         "driver_bmi088",
     ): "已知结构债：ImuBodyMapping 依赖 BMI088 驱动，P3b 偿还",
-    (
-        "app_common",
-        "app_tasks",
-    ): "TaskManager 含任务表，P3b 把任务表拆到 assembly 后消除",
 }
 TRANSITIONAL_TARGETS = {
     # 生成区接缝：USB_DEVICE 调用 port 私有 C ABI（UsbCdc.h 引用 hal/detail）。
@@ -356,8 +350,6 @@ WHITELIST = {
         "remote",
         "link",
         "launch",
-        "debug_comm",
-        "tasks",
     },
     "src": {
         "hal",
@@ -378,8 +370,8 @@ GUARD = re.compile(r"^\s*#\s*ifndef\s+(\w+)\s*\n\s*#\s*define\s+\1\b", re.MULTIL
 GLOBAL_INCLUDE = re.compile(r"(?<![\w])include_directories\s*\(", re.IGNORECASE)
 FILE_GLOB = re.compile(r"\bfile\s*\(\s*GLOB", re.IGNORECASE)
 CONDITIONAL = re.compile(r"^\s*#\s*(if|ifdef|ifndef|elif)\b(.*)$")
-# 规则 9 迁移期放行的宏：迁移源的两个构建期开关（例外 X-14），P3b 收进 profile 后删除。
-CONDITIONAL_EXCEPTIONS = ("IMU_ENABLE_DIAGNOSTICS", "BMI088_GYRO_BANDWIDTH_REGISTER")
+# 规则 9 迁移期放行的宏：BMI088 驱动的构建期开关（例外 X-14），驱动改写时改为 Config 参数后删除。
+CONDITIONAL_EXCEPTIONS = ("BMI088_GYRO_BANDWIDTH_REGISTER",)
 PRODUCT_REFERENCE = re.compile(
     r"\b(app_\w+|assembly_\w+|profile_\w+|firmware_\w+)\b|(?<![\w/.])(app|config)/"
 )
@@ -392,11 +384,13 @@ ATOMIC_RMW = re.compile(
 )
 # 例外 X-08 放行的文件 → 到期。改掉后删除对应条目（文件里已经没有时，扫描会提示）。
 ATOMIC_RMW_EXCEPTIONS = {
-    "src/driver/motor/dji/dji_motor.cpp": "X-08，F3 驱动适配时改",
-    "app/remote/remote_receiver.cpp": "X-08，F2 随旧 app 归档",
-    "app/tasks/imu_data_ready_mailbox.hpp": "X-08，F2 随旧 app 归档",
-    "app/tasks/imu_task.cpp": "X-08，F2 随旧 app 归档",
+    "src/driver/motor/dji/dji_motor.cpp": "X-08，DJI 电机驱动改写时改",
 }
+# 规则 10：RTOS 头（FreeRTOS 与 CMSIS-RTOS）在 src/、app/ 中只有任务运行器（app/common）可以 include
+RTOS_HEADER = re.compile(
+    r"(?:FreeRTOS|task|queue|semphr|timers|event_groups|stream_buffer|message_buffer|cmsis_os2?)\.h"
+)
+RTOS_ALLOWED = ("app/common/",)
 # 规则 17：topic 只在产品清单（app/topics）定义；topic 机制本身在 src/middleware/topic。
 TOPIC_TYPE = re.compile(r"\bTopic\s*<")
 TOPIC_HOMES = ("app/topics/", "src/middleware/topic/")
@@ -508,6 +502,7 @@ def check_scan() -> list[str]:
     errors += check_atomic_rmw()
     errors += check_topics()
     errors += check_generated_includes()
+    errors += check_rtos_includes()
     for path in tracked("src/*", "platform/*", "cmake/*"):
         if "cubemx" in path.parts:
             continue  # 生成区由规则 7 与例外 X-09 管
@@ -520,7 +515,7 @@ def check_scan() -> list[str]:
             match = PRODUCT_REFERENCE.search(code)
             if match:
                 errors.append(f"规则 15：框架文件 {path} 引用了产品：{match.group(0)}")
-    print("文本扫描：规则 3、7（include）、8、9、12、13、15、17")
+    print("文本扫描：规则 3、7（include）、8、9、10、12、13、15、17")
     return sorted(set(errors))
 
 
@@ -558,6 +553,22 @@ def check_generated_includes() -> list[str]:
                         f'规则 7：生成区 {path.as_posix()} include 了 "{header}"：'
                         "生成区只能调用 boot_*（src/boot/boot.h）与登记过的接口"
                     )
+    return errors
+
+
+def check_rtos_includes() -> list[str]:
+    """规则 10：src/、app/ 中只有 app/common 可以 include RTOS 头（组合根在 config/，平台实现在 platform/）。"""
+    errors = []
+    for path in handwritten_sources("src", "app"):
+        name = path.as_posix()
+        if name.startswith(RTOS_ALLOWED):
+            continue
+        code = strip_comments(path, path.read_text("utf-8"))
+        for _, header in INCLUDE.findall(code):
+            if RTOS_HEADER.fullmatch(Path(header).name):
+                errors.append(
+                    f"规则 10：{name} include 了 RTOS 头 {header}：能力与框架零 RTOS，只经 hal/os"
+                )
     return errors
 
 

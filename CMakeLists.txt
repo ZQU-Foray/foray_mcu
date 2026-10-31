@@ -3,13 +3,13 @@
 # 三种构建，用 CMakePresets.json 选择：
 #   固件  cmake --preset arm-debug | arm-release    交叉编译，唯一的开关是 -DPROFILE=<名称>，
 #                                                   板卡、能力、参数都来自 config/profiles/<名称>/profile.cmake
-#   宿主  cmake --preset host-tests                 框架 + platform/mock + 宿主测试（ctest）
+#   宿主  cmake --preset host-tests                 框架 + platform/mock + 能力（app/，不含任务运行器）+ 宿主测试（ctest）
 #   框架  cmake --preset framework | framework-m0plus
 #                                                   只有框架（-DFRAMEWORK_ONLY=ON）：src + 模板实例化检查，
 #                                                   宿主上另加 platform/mock；不含 app/、config/、test/host 与任何板卡。
 #                                                   CI 在只含这些文件的副本里构建，证明框架不引用产品（规则 2、15）
 #
-# 迁移期：迁移源的两个构建期开关由 cmake/legacy.cmake 的 legacy_build_options 提供（例外 X-14，P3b 删除）。
+# 迁移期：BMI088 驱动的构建期开关由 cmake/legacy.cmake 的 legacy_build_options 提供（例外 X-14，驱动改写时删除）。
 cmake_minimum_required(VERSION 3.22)
 project(foray_mcu LANGUAGES C CXX)
 
@@ -88,9 +88,10 @@ else()
         message(FATAL_ERROR "宿主构建需要 GCC 或 Clang（当前为 ${CMAKE_CXX_COMPILER_ID}）")
     endif()
 
-    # 框架 + 平台替身 + 宿主测试；不含 app/、config/ 与任何板卡。
+    # 框架 + 平台替身 + 能力 + 宿主测试；不含 config/ 与任何板卡。能力零 RTOS，宿主测试直接链接（Decision-20261031-13）。
     add_subdirectory(src)
     add_subdirectory(platform/mock)
+    add_subdirectory(app)
     enable_testing()
     add_subdirectory(test/host)
 endif()

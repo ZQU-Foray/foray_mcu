@@ -1,8 +1,8 @@
-# 迁移期过渡件：迁移源的两个构建期开关（例外 X-14）。P3b 把它们收进 profile 后删除本文件。
-# P2.5 搬完 legacy/ 的源码后，legacy_include 与 legacy_library() 已删除（例外 X-11 关闭）。
+# 迁移期过渡件：BMI088 驱动的构建期开关（例外 X-14）。驱动改写为 hal v1 时改为 Config 参数，然后删除本文件。
+# P2.5 搬完 legacy/ 的源码后，legacy_include 与 legacy_library() 已删除（例外 X-11 关闭）；
+# 旧 app 的诊断开关 IMU_ENABLE_DIAGNOSTICS 随旧 app 归档删除（Decision-20261031-13）。
 
-# 迁移源的两个构建期开关（评审报告 §2.4、§5.4）。固件构建中所有业务代码都带上，与迁移源一致；
-# 宿主测试不带（与 P0 的测试工程一致，测试需要时在源码里自行定义）。
+# 固件构建中框架库（framework_library）都带上，与迁移源一致；宿主测试不带。
 add_library(legacy_build_options INTERFACE)
 if(CMAKE_CROSSCOMPILING)
     set(IMU_GYRO_BANDWIDTH "532" CACHE STRING "BMI088 陀螺带宽：532 或 116 Hz（只改传感器寄存器）")
@@ -15,6 +15,5 @@ if(CMAKE_CROSSCOMPILING)
         message(FATAL_ERROR "IMU_GYRO_BANDWIDTH 只能是 532 或 116")
     endif()
     target_compile_definitions(legacy_build_options INTERFACE
-        BMI088_GYRO_BANDWIDTH_REGISTER=${bandwidth_register}
-        $<$<CONFIG:Debug>:IMU_ENABLE_DIAGNOSTICS>)
+        BMI088_GYRO_BANDWIDTH_REGISTER=${bandwidth_register})
 endif()

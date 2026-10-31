@@ -4,41 +4,23 @@
 #   cmake --build --preset host-tests
 #   ctest --preset host-tests
 #
-# 测框架代码的单元测试直接链接框架 target（src/ 的 lib_*、driver_*）与 platform_mock；
-# 测产品代码（app）的集成测试要用影子头替换 DJI 映射与 cmsis_os2.h，仍在测试里直接编译 app 源码，
-# 路径随 P2/P2.5 搬迁更新（P3b 建立能力 target 的测试接缝后改为链接）。
-# 测试来源：ControllerCode 提交 fd1edbb 的 Tests/，适配记录见 README.md。
+# 单元测试直接链接被测 target（src/ 的框架库、app/ 的能力库）与 platform_mock（Decision-20261031-13）。
+# 测试来源：ControllerCode 提交 fd1edbb 的 Tests/ 与 F1 起新写的测试，适配记录见 README.md。
 find_package(Threads REQUIRED)
 
-set(SUPPORT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/support")
-
-# ---- 在测试里直接编译的产品代码（例外 X-10，P3b 改为链接能力 target） ----
-set(CHASSIS_CONTROLLER_SOURCES
-    "${PROJECT_SOURCE_DIR}/app/chassis/chassis_controller.cpp")
-set(CHASSIS_TASK_SOURCES
-    "${PROJECT_SOURCE_DIR}/app/tasks/chassis_task.cpp")
-
-# host_test(<名称> [MOCK_BACKEND] [NO_TEST] SOURCES <源文件>... [LINK <target>...])
+# host_test(<名称> [NO_TEST] SOURCES <源文件>... [LINK <target>...])
 #   可执行文件为 test_<名称>，ctest 名称为 <名称>。
-#   LINK：链接的被测 target（框架库、platform_mock）。
-#   MOCK_BACKEND：额外编译模拟电机适配器与生产 ChassisTask，并把 support/shadow
-#                 放在 include 路径最前，用同名影子头拦截生产的 DJI 映射头与
-#                 cmsis_os2.h（生产任务代码不改、不加测试开关）。
+#   LINK：链接的被测 target（框架库、能力库、platform_mock）。
 #   NO_TEST：只建可执行文件，由调用方自行登记测试（用于带参数的场景测试）。
 function(host_test name)
-    cmake_parse_arguments(PARSE_ARGV 1 ARG "MOCK_BACKEND;NO_TEST" "" "SOURCES;LINK")
+    cmake_parse_arguments(PARSE_ARGV 1 ARG "NO_TEST" "" "SOURCES;LINK")
     set(target test_${name})
     add_executable(${target} ${ARG_SOURCES})
     enable_strict_warnings(${target})
     target_compile_options(${target} PRIVATE -UNDEBUG)
-    # 测试以 test/host 为根引用支持文件（"support/..."），以 app/ 为根引用产品代码（"tasks/..."、"imu/..."）。
-    target_include_directories(${target} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/app")
+    # 测试以 test/host 为根引用支持文件（"support/..."）；被测代码的头文件随链接的 target 而来。
+    target_include_directories(${target} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
     target_link_libraries(${target} PRIVATE ${ARG_LINK})
-    if(ARG_MOCK_BACKEND)
-        target_sources(${target} PRIVATE "${SUPPORT_DIR}/mock_motor.cpp" ${CHASSIS_TASK_SOURCES})
-        target_include_directories(${target} BEFORE PRIVATE "${SUPPORT_DIR}/shadow")
-        target_link_libraries(${target} PRIVATE driver_motor)
-    endif()
     if(NOT ARG_NO_TEST)
         add_test(NAME ${name} COMMAND ${target})
     endif()
@@ -63,13 +45,11 @@ host_test(motor_group
 host_test(brand_extension
     SOURCES unit/motor/brand_extension_test.cpp
     LINK driver_motor)
-# 测试直接 #include 了 app 的 ImuDiagnostics.cpp（访问其内部状态），因此也看得到 app 头文件。
+# 旧 app 的数据就绪邮箱与诊断采集两段随旧 app 归档删除（Decision-20261031-13），只测驱动本身。沿用历史的 -O2。
 host_test(bmi088_acquisition
     SOURCES unit/imu_acquisition/bmi088_acquisition_test.cpp
     LINK driver_bmi088)
-# 含并发生产者场景，沿用历史的 -O2。
 target_compile_options(test_bmi088_acquisition PRIVATE -O2)
-target_link_libraries(test_bmi088_acquisition PRIVATE Threads::Threads)
 host_test(hal_os_mock
     SOURCES unit/hal_os/mock_os_test.cpp
     LINK platform_mock)
@@ -109,41 +89,16 @@ host_test(topic
     SOURCES unit/topic/topic_test.cpp
     LINK middleware_topic platform_mock Threads::Threads)
 target_compile_options(test_topic PRIVATE -O2)
-# bringup 能力：app/ 还没有加入宿主构建（旧 app 依赖 RTOS），暂时在测试里直接编译其源码，
-# 旧 app 归档后改为链接 app_bringup（Decision-20261031-12）。
+# bringup 能力（Decision-20261031-12）：直接链接 app_bringup（Decision-20261031-13）。
 host_test(bringup
     SOURCES unit/bringup/bringup_test.cpp
-            "${PROJECT_SOURCE_DIR}/app/bringup/heartbeat.cpp"
-            "${PROJECT_SOURCE_DIR}/app/bringup/monitor.cpp"
-    LINK middleware_topic platform_mock)
+    LINK app_bringup platform_mock)
 
-# ---- 集成测试（底盘任务 + 控制器 + 模拟电机） ----
-host_test(chassis_controller MOCK_BACKEND
-    SOURCES integration/chassis/chassis_controller_test.cpp
-            "${SUPPORT_DIR}/task_runtime_stub.cpp"
-            ${CHASSIS_CONTROLLER_SOURCES}
-    LINK lib_control)
-host_test(controller_equivalence MOCK_BACKEND
-    SOURCES integration/chassis/controller_equivalence_test.cpp
-            "${SUPPORT_DIR}/task_runtime_stub.cpp"
-            ${CHASSIS_CONTROLLER_SOURCES}
-    LINK lib_control)
-host_test(chassis_mock MOCK_BACKEND NO_TEST
-    SOURCES integration/chassis/chassis_mock_test.cpp
-            ${CHASSIS_CONTROLLER_SOURCES}
-    LINK lib_control)
-foreach(scenario IN ITEMS normal read_failure command_failure init_failure)
-    add_test(NAME mock_${scenario} COMMAND test_chassis_mock ${scenario})
-endforeach()
-
-# ---- 架构断言：任务层与通用电机头不得引用具体电机协议、适配器或驱动 ----
-# 任务允许声明通用型号、电机组与品牌映射包含（装配选择）。清单显式列出，
+# ---- 架构断言：通用电机头不得引用具体电机协议、适配器或驱动 ----
+# 通用头允许声明通用型号、电机组与品牌映射包含（装配选择）。清单显式列出，
 # 任一文件缺失即报错，提醒搬迁时同步更新；文件改动后会自动重新配置。
+# 旧 app 的底盘控制器与任务随旧 app 归档（Decision-20261031-13），阶段 A 重建底盘能力时把它的文件加回来。
 set(MOTOR_BOUNDARY_FILES
-    "${PROJECT_SOURCE_DIR}/app/chassis/chassis_controller.hpp"
-    "${PROJECT_SOURCE_DIR}/app/chassis/chassis_controller.cpp"
-    "${PROJECT_SOURCE_DIR}/app/tasks/chassis_task.hpp"
-    "${PROJECT_SOURCE_DIR}/app/tasks/chassis_task.cpp"
     "${PROJECT_SOURCE_DIR}/src/driver/motor/motor.hpp"
     "${PROJECT_SOURCE_DIR}/src/driver/motor/motor_group.hpp")
 foreach(source IN LISTS MOTOR_BOUNDARY_FILES)

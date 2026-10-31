@@ -14,30 +14,19 @@ target_include_directories(profile_${PROFILE_ID} INTERFACE
 # 只有最终固件可以链接它（规则 5）。
 #
 # 每个 profile 一个组合根 assembly/<profile>.cpp，链接 profile.cmake 的 CAPABILITIES（Decision-20261031-12）。
-# 迁移期例外：baseline 的组合根是 assembly/entry_legacy.cpp（迁移源的装配，Decision-20261031-11），
-# F2 第 4 步随旧 app 一起归档。
 set(assembly assembly_${PROFILE_ID})
 
-if(PROFILE_ID STREQUAL "baseline")
-    add_library(${assembly} STATIC
-        assembly/entry_legacy.cpp)
-    target_link_libraries(${assembly} PRIVATE
-        legacy_build_options
-        app_common
-        app_tasks
-        app_remote
-        hal)
-else()
-    add_library(${assembly} STATIC
-        "assembly/${PROFILE_ID}.cpp")
-    target_link_libraries(${assembly} PRIVATE app_common hal hal_os)
-    foreach(capability IN LISTS CAPABILITIES)
-        target_link_libraries(${assembly} PRIVATE app_${capability})
-    endforeach()
-endif()
+add_library(${assembly} STATIC
+    "assembly/${PROFILE_ID}.cpp")
 enable_strict_warnings(${assembly})
 target_link_libraries(${assembly} PRIVATE
+    app_common
     boot
+    hal
+    hal_os
     profile_${PROFILE_ID}
     os_freertos_${BOARD_ID})
+foreach(capability IN LISTS CAPABILITIES)
+    target_link_libraries(${assembly} PRIVATE app_${capability})
+endforeach()
 link_object_library(${assembly} board_${BOARD_ID})

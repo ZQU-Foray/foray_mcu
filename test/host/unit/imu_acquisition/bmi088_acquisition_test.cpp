@@ -1,13 +1,10 @@
+// BMI088 驱动的采集流程：初始化、进行中的数据就绪、共享 SPI、合并、有界队列、提前完成、时基回绕、DMA 错误。
+// 旧 app 的数据就绪邮箱（app/tasks）与诊断采集（app/imu）两段随旧 app 归档删除（Decision-20261031-13）：
+// 邮箱由 utils 的 LatestValue 与 topic 取代，诊断采集随 IMU 能力在阶段 A 重建。
 #include "driver/bmi088/bmi088.hpp"
-#include "tasks/imu_data_ready_mailbox.hpp"
-// Include the recorder in this test translation unit to inspect its private
-// frozen debugger ABI without adding a production-facing test interface.
-#define IMU_ENABLE_DIAGNOSTICS
-#include "imu/imu_diagnostics.cpp"
 #include <cassert>
 #include <cstring>
 #include <iostream>
-#include <thread>
 
 namespace
 {
@@ -117,22 +114,6 @@ extern "C" SpiPort_Result SpiPort_StartTransferAsync(SpiPort_Device d,
 
 int main()
 {
-    // Latest-edge snapshot must never pair a tick with the wrong sequence.
-    application::task::ImuDataReadyMailbox mailbox;
-    std::thread writer(
-        [&]
-        {
-            for (std::uint32_t i = 1; i <= 100000U; ++i)
-                mailbox.publish(i * 7U);
-        });
-    for (int i = 0; i < 100000; ++i)
-    {
-        const auto event = mailbox.snapshot();
-        assert(event.tick == event.sequence * 7U);
-    }
-    writer.join();
-    assert(mailbox.snapshot().sequence == 100000U);
-
     device::Bmi088 imu;
     device::Bmi088SampleRecord record{};
     initialize(imu);
@@ -279,30 +260,6 @@ int main()
     assert(!imu.pop_gyroscope_sample(record));
     assert(imu.get_state() == device::Bmi088::State::ERROR);
 
-    initialize(imu);
-    application::g_gyro_capture_request = 2U;
-    record = {};
-    for (std::uint32_t i = 1; i <= 20000; ++i)
-    {
-        record.sequence = record.drdy_sequence = i;
-        record.drdy_tick = i * 500U;
-        record.start_tick = record.drdy_tick + 5U;
-        record.completed_tick = record.drdy_tick + 15U;
-        record.harvested_tick = record.drdy_tick + 20U;
-        application::ImuDiagnostics::observe(imu, record, true);
-    }
-    assert(application::g_gyro_capture.state == 2U);
-    assert(application::g_gyro_capture.channels[1].count == 20000U);
-    assert(application::g_gyro_capture.channels[1].max_start_ticks == 5U);
-    assert(application::g_gyro_capture.channels[1].max_complete_ticks == 15U);
-    assert(application::g_gyro_capture.channels[1].elapsed_ticks == 19999ULL * 500U);
-    application::g_gyro_capture_request = 1U;
-    application::ImuDiagnostics::observe(imu, record, true);
-    assert(application::g_gyro_capture.state == 0U && application::g_gyro_capture.count == 0U);
-    application::g_gyro_capture_request = 2U;
-    application::ImuDiagnostics::observe(imu, record, true);
-    assert(application::g_gyro_capture.state == 1U && application::g_gyro_capture.count == 1U);
-    assert(application::g_gyro_capture.channels[1].read_gaps == 0U);
-    std::cout << "PASS: initialization, coherent ISR mailbox, in-flight DRDY, shared SPI, "
-                 "coalescing, bounded queue, early completion, tick wrap, DMA error, capture/rearm\n";
+    std::cout << "PASS: initialization, in-flight DRDY, shared SPI, "
+                 "coalescing, bounded queue, early completion, tick wrap, DMA error\n";
 }
