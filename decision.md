@@ -1241,6 +1241,54 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 
 ---
 
+## Decision-20261031-11（启动入口 `boot_*` 与 `hal::init()`；生成区只调 `boot_*`，X-09 关闭，Accepted）
+
+- **Date**：2026-10-31
+- **Status**：Accepted（F2 第 4 步的第一部分；负责人同意 Decision-20261031-07 的顺序）
+- **Source**：架构 v2 §3.1"初始化"、§3.3、§6；AGENTS.md §2"USER CODE 区里对 `boot_*` 的调用（改动行登记在 decision.md）"；plan.md F2 第 4 步
+
+**Context**：
+
+- 现在 `main.c` 的 USER CODE 区先调 port 的 `Port_Init()`，再调 `Application_Init()`；`freertos.c` 调 `Application_InitRtos()`，默认任务循环调 `Application_Start()`。头文件是 `config/assembly/Application/Entry.h`，由 config 把 assembly 目录注入生成区的 include 路径（例外 X-09）。
+- 架构 v2：生成区只调 `src/boot/boot.h` 的 `boot_*`，`hal::init()` 由 port 实现，assembly 在 `boot_init()` 里调用；生成区不直接调 port。
+- 第 4 步的任务运行器与 bringup 需要先确认设计，旧 app 要到 bringup 就位后才归档。启动入口可以先换，旧 app 照常运行。
+
+**Decision**：
+
+1. `src/boot/boot.h`（C 头，`extern "C"`）：
+   - `bool boot_init(void)`：外设初始化之后、内核初始化之前；
+   - `bool boot_init_rtos(void)`：内核初始化之后、启动之前，创建任务；
+   - `void boot_run(void)`：默认任务每拍调用一次，可以为空。
+
+   `boot` target 列出这个头。
+2. `src/hal/init.hpp`：`[[nodiscard]] bool hal::init() noexcept`，初始化本板外设与 hal/os 的时基，在 `boot_init()` 里调用一次。
+   - DM-MC02 的实现在 `platform/dm_mc02/port/hal_init.cpp`：先 `port::os::start_clock()`，再调迁移期的 C port `Port_Init()`；
+   - `Port_Init()` 第 5 步随外设逐个改写后去掉。
+3. **生成区的改动行**（只在 USER CODE 区，CRLF 行尾不变）：
+   - `Core/Src/main.c`：
+     - `USER CODE BEGIN Includes`：`#include "Application/Entry.h"`、`#include "Init.h"` 两行改为 `#include "boot/boot.h"`；
+     - `USER CODE BEGIN 2`：`Port_Init()`、`Application_Init()` 两段改为一段 `if (!boot_init()) { Error_Handler(); }`；
+   - `Core/Src/freertos.c`：
+     - `USER CODE BEGIN Includes`：`#include "Application/Entry.h"` 改为 `#include "boot/boot.h"`；
+     - `USER CODE BEGIN RTOS_THREADS`：`Application_InitRtos()` 改为 `boot_init_rtos()`；
+     - `USER CODE BEGIN StartDefaultTask`：循环里的 `(void)Application_Start();` 改为 `boot_run();`，`osDelay(1)` 不变。
+4. 迁移期的 assembly `entry_legacy.cpp` 改为实现 `boot_*`：
+   - `boot_init()` = `hal::init()` + 原 `Application_Init()` 的内容；
+   - `boot_init_rtos()` = 原 `Application_InitRtos()`；
+   - `boot_run()` = 原 `Application_Start()`，返回值不再需要。
+
+   删除 `Application/Entry.h` 与 config 向生成区注入 include 路径的那一行，**例外 X-09 关闭**。生成区经 `boot` target 取得 `src/` 的 include 路径。
+5. `arch_check.py`：
+   - `boot` 从契约层分出来单独成层，只有生成区（vendor）与 assembly 可以依赖它；
+   - 文本扫描加入规则 7 的 include 部分：生成区（`cubemx/`，`Drivers/`、`Middlewares/` 除外）的 `#include "…"` 只能指向生成区自己的头，或 `boot/boot.h`，或 X-01 的 `UsbCdc.h`。规则 7 中"USER CODE 区只调 `boot_*`"的部分靠本条登记的改动行与评审把关。
+6. 行为变化：启动时多启动了 TIM2（hal/os 时基），其余与原来相同。负责人上板确认旧固件照常运行。
+
+**Alternatives / Rejected**：
+- **等任务运行器与 bringup 一起换**：一次改动太大，出问题时不好定位。否决，先单独换入口。
+- **`hal::init()` 等第 5 步的契约写法定了再加**：三种写法里它都是同一个自由函数，不受写法影响。否决。
+
+---
+
 ## 待登记
 
 - 分支保护的具体设置（组织规范 §6.1、§10，负责人在 GitHub 上操作后补记）。
