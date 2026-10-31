@@ -1050,12 +1050,85 @@
 
 ---
 
+## Decision-20261031-07（F2 的顺序：第 1–4 步按外设无关的部分先做，第 5 步待定，Accepted）
+
+- **Date**：2026-10-31
+- **Status**：Accepted（第 1–4 步：负责人同意 AI 建议的顺序）；第 5 步 Proposed（负责人考虑中）
+- **Source**：plan.md F2、F3；待登记中"旧包装类与 `src/hal/detail` 的删除时机"（2026-10-31 登记）
+
+**Context**：
+
+- plan 的 F2 先归档旧 app，再建契约 v1、用 C++ 重写 port，最后删除 `src/hal/detail`。驱动改用 hal v1 放在 F3。
+- 2026-10-31 登记的问题：F2 一删旧接口，4 个驱动就编不过。当时 AI 建议方案 A，F2 先保留旧接口到 F3。
+- 补充发现：现在的 C port 自己定义了 9 个 HAL 回调（`HAL_FDCAN_RxFifo0Callback`、`HAL_SPI_TxCpltCallback` 等）。同一个回调只能有一份实现，所以同一个外设的新 C++ port 不能和旧 C port 同时存在。方案 A 要新旧并存，就得多写一层用完即弃的转接代码。
+
+**Decision**：
+
+F2 先做与具体外设无关的部分，每一步固件都可构建：
+
+1. CI 的固件符号对照退役，改为段大小报告，加入 HAL 回调符号检查（Decision-20261031-08）；合入 TIM2 分支（Decision-20261031-04）。
+2. 板级目录从 `platform/st/stm32h7/board_dm` 搬到 `platform/dm_mc02`（按板一级），只移动不改内容。
+3. hal/os 的 port 实现：TIM2 时基、BASEPRI 临界区、`Signal` 用 1 号任务通知槽（Decision-20261031-01～03）。
+4. 启动入口 `boot_*`、`app/common` 任务运行器、profile `bringup_dm_mc02` 就位后，归档旧 app 与 profile `baseline`，固件改为 bringup。
+
+第 5 步（外设）待负责人决定，见"待登记"。AI 建议按外设纵向推进，把 F2 与 F3 合起来排：
+
+- 每个外设依次做：契约 v1 + mock → port 用 C++ 重写这一块 → 改用它的驱动 → 删除这一块的旧包装与 `hal/detail`；
+- 顺序：gpio/pwm → can → spi → uart → usb_cdc。
+
+**本地分支**（PR 暂不开，负责人要求先在本地推进）：
+- 第 1 步在 `f2/firmware-ci`，从 `f1/ci` 切出；
+- 第 2 步的分支先用 merge 合入 `f2/tim2-timebase`，再搬目录；
+- 以后开 PR 的顺序：`f1/topic` → `f1/ci` → `f2/firmware-ci` → `f2/tim2-timebase`（merge 提交，保留提交号）→ 第 2 步起的分支。
+
+**Alternatives / Rejected**：
+- **原方案 A（新旧接口并存到 F3）**：要多写一层转接代码，port 的 C++ 重写也要推迟。否决。
+- **原 plan 的顺序（F2 开头就归档旧 app）**：bringup 就位之前没有可构建的固件。否决，改为第 4 步先建 bringup 再归档。
+
+---
+
+## Decision-20261031-08（固件 CI：符号对照退役，改为段大小报告；HAL 回调符号检查，Accepted）
+
+- **Date**：2026-10-31
+- **Status**：Accepted（plan.md F2 的 CI 项；负责人同意 F2 第 1 步）
+- **Source**：plan.md F2"CI"项；架构 v2 §5.2 规则 16、§5.3；AGENTS.md §4、§6；Decision-20261031-04
+
+**Context**：
+
+- P1–P2.5 的判据是"固件符号与迁移源一致"，基准是 P1 存档的符号表。F2 起固件行为开始改变（TIM2、port 重写、归档旧 app），这个判据不再适用。TIM2 的提交也一直在等它退役。
+- 规则 16：覆盖 HAL 弱符号的回调写在 `.cpp` 里却没有 include 对应 HAL 头时，定义会得到 C++ 链接（改名），HAL 的弱实现照旧生效，编译、链接都不报错。port 改用 C++ 之前，需要先有检查。
+
+**Decision**：
+
+1. firmware 作业删除符号对照。`tool/ci/symbols.py` 与 P1 存档保留：纯移动、纯改名的提交（如 F2 第 2 步）仍可在本地用 `symbols.py compare` 自证符号不变。
+2. 新增 `symbols.py report`：段大小报告（Markdown），写入作业摘要，并附 `.bin` 的 sha256。
+   - 存储区取自 map 文件的 Memory Configuration；
+   - 用量与链接器的 `--print-memory-usage` 一致：用到的最高地址减去起始地址；段按运行地址归入存储区，LOAD 段按装载地址归入（`.data` 的初值在 FLASH）；
+   - 只是报告，不设门槛。
+3. 新增 `arch_check.py callbacks`（规则 16）：
+   - 从 port 源码找出全部 `HAL_*Callback` 定义，每个在固件里都必须是强符号（nm 的 `T`）。仍是弱实现（`W`）或没有进入固件的，都报错；
+   - 固件里出现被 C++ 改名的 HAL 回调（`_Z…HAL_…Callback`）也报错；
+   - CI 对 arm-debug、arm-release 两个固件都检查，port 路径随第 2 步搬目录更新。
+
+**验证**：
+- 报告与链接器一致：Release FLASH 100652、RAM_D1 17408、DTCMRAM 91584 字节；Debug FLASH 238096、RAM_D1 86112 字节；
+- 回调检查：现有固件 Debug、Release 都是 9 个回调全部生效。反向验证：
+  - 把 GPIO 回调挪到不 include HAL 头的 `.cpp`：报"弱实现仍在生效"。被改名的定义没人引用，被 `--gc-sections` 回收了，所以靠强符号检查发现；
+  - 把 CAN 错误回调标成 `weak`：报"弱实现仍在生效"。
+
+**Alternatives / Rejected**：
+- **段大小设门槛**（如与 `dev` 比较，增长超过阈值即失败）：F2–A 阶段固件变化大，门槛只会频繁误报。暂不设，需要时再加。
+- **回调清单写死在 CI 里**：port 增减回调时容易漏改。否决，改为从 port 源码提取。
+
+---
+
 ## 待登记
 
 - 分支保护的具体设置（组织规范 §6.1、§10，负责人在 GitHub 上操作后补记）。
 - `-Wdouble-promotion` 豁免清单（P3a）。
 - 契约 v1 冻结记录（P3a 结束时）；TM4C、AM26x port 的启动条件与编译器选择（Q13）。
-- **F2 开始时定：旧包装类与 `src/hal/detail` 的删除时机**（2026-10-31 发现，负责人要求先登记）。plan 写的是 F2 删除，但 bmi088、dji 电机、buzzer、ws2812 这 4 个驱动要到 F3 才改用 hal v1，F2 一删固件就编不过，做不到 F2 验收的"固件可构建"。
-  - 方案 A（AI 建议）：F2 只建新契约与 port 的新实现，旧包装类和 `hal/detail` 保留到 F3，驱动逐个迁移后再删；X-07 的到期时间改为 F3。新旧接口并存期间，旧包装头与新契约同名（都是 `src/hal/can.hpp`），要先把旧的挪到别的位置。
-  - 方案 B：把驱动迁移并进 F2，F2 结束时一次删干净。F2 会变得很大（6–10 人日再加 F3 的 4–7 人日），驱动迁完之前固件一直编不过。
-- **F2 开始时定：hal 契约的写法**（2026-10-31）。负责人的草稿 `src/hal/temp/can.hpp`（未入库）用 `hal::Can` 类，架构 §3.1 用命名空间 + 自由函数 + 不透明句柄。
+- **F2 第 5 步（外设）怎么做**（负责人考虑中，Decision-20261031-07）：AI 建议按外设纵向推进，把 F2 与 F3 合起来排，每个外设做完"契约 v1 + mock → port 用 C++ 重写 → 驱动改用 → 删旧包装与 `hal/detail`"，顺序 gpio/pwm → can → spi → uart → usb_cdc。原方案 A（新旧并存到 F3）要写一次性的转接层，原因见 -07 的 Context；原方案 B 是把驱动迁移整个并进 F2。
+- **F2 第 5 步之前定：hal 契约的写法与谁来写**（2026-10-31）。负责人的草稿 `src/hal/temp/can.hpp`（未入库）用 `hal::Can` 类，架构 §3.1 用命名空间 + 自由函数 + 不透明句柄。三种写法都在链接时确定实现、没有虚函数：
+  - 甲：命名空间 + 自由函数 + 句柄（架构原文），`hal::can::send(bus, frame)`；
+  - 乙：静态类（草稿与旧 `platform::Can` 的写法），句柄仍作参数，`hal::Can::send(bus, frame)`；
+  - 丙（AI 建议）：句柄本身是类，成员函数由 port 实现，`bus.send(frame)`，`board.hpp` 给出 `inline constexpr hal::Can CAN_1{0};`。
