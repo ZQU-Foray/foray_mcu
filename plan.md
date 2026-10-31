@@ -100,7 +100,7 @@
 
 - [x] 第 1 步 CI（2026-10-31，Decision-20261031-08）：`firmware` 作业的符号对照退役，改为段大小报告（`symbols.py report`，写入作业摘要）；加入 HAL 回调符号检查（规则 16，`arch_check.py callbacks`）。规则 1（`board.hpp`）、4、7、10、18 的检查随对应内容出现时加入
 - [x] 第 1 步（续）合入 `f2/tim2-timebase`（2026-10-31，在分支 `f2/board-dir` 用 merge 提交合入，保留提交号）：TIM2 作 1 MHz 时基计数源，CubeMX 6.18.1（Decision-20261031-04）
-- [ ] 第 2 步 板级目录：`platform/st/stm32h7/board_dm` → `platform/dm_mc02`（按板一级），纯移动，用 `symbols.py compare` 自证固件符号不变
+- [x] 第 2 步 板级目录（2026-10-31，Decision-20261031-09）：`platform/st/stm32h7/board_dm` → `platform/dm_mc02`（按板一级），226 个文件纯移动（R100），只改 4 处路径；移动前后固件符号一致、`.bin` 逐字节相同。负责人以后从 `platform/dm_mc02/cubemx/mc02_cpp.ioc` 打开 CubeMX
 - [ ] 第 3 步 hal/os 的 port 实现（Decision-20261031-01～03）：时基读 TIM2（计数器在 `hal::init()` 里启动）；临界区用 BASEPRI 抬到优先级 5；`Signal` 用 1 号任务通知槽，`configTASK_NOTIFICATION_ARRAY_ENTRIES` 改为 2（先查 CubeMX 有没有这一项，没有就登记例外）；调试暂停时是否冻结 TIM2 届时定
 - [ ] 第 4 步 启动与 bringup：
   - 启动入口 `src/boot/boot.h`；CubeMX USER CODE 区改为调用 `boot_*`（改动行登记在 decision.md）；
@@ -243,3 +243,4 @@ Q1–Q18 已全部确认（见评审报告 v1.0 §11.1 与 decision.md）。仍�
 | 2026-10-31 | F1 | 第 4 步：`middleware_topic`——发布时用临界区包住写入（Decision-20261029-02 定为方案 1）、单发布者、`update`/`wait`、等待槽、观测计数（Decision-20261031-05）；`app/topics` 清单约定。ctest 22/22，ThreadSanitizer 无报告，故意改坏的十处都被测试抓到，M0+/M4/M7 无原子读改写库调用、全局对象常量初始化，固件符号与 P1 存档一致 | 已完成 |
 | 2026-10-31 | F1 | CI：新增 `framework` 作业——只含框架文件的副本里做框架独立构建与依赖图检查；Cortex-M0+ 构建整个框架并检查原子库调用（X-17 的三个 target 暂不编译）；文本扫描加入规则 13、17（Decision-20261031-06）。反向验证七类违规都被拦下；ctest 22/22，固件符号与 P1 存档一致，命名检查 0 处 | 已完成，F1 待验收 |
 | 2026-10-31 | F2 | F2 顺序调整（Decision-20261031-07）：先做与外设无关的第 1–4 步，第 5 步待定。第 1 步：固件 CI 的符号对照退役，改为段大小报告；加入 HAL 回调符号检查（Decision-20261031-08）。报告与链接器用量一致，回调检查反向验证两种失效都被抓到 | 第 1 步完成 |
+| 2026-10-31 | F2 | 合入 TIM2 分支（merge 提交，符号变化与 Decision-20261031-04 一致）；第 2 步：板级目录改为 `platform/dm_mc02`（Decision-20261031-09），移动前后固件符号一致、`.bin` 逐字节相同 | 第 2 步完成 |

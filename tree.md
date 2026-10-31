@@ -42,7 +42,7 @@ foray_mcu/
 │   ├── assembly/             entry_legacy.cpp（启动入口 Application_*）；Application/Entry.h 被生成代码按此路径 include（F2 改为 boot ABI）
 │   └── profiles/             baseline/profile.cmake（a2cfd16 基线固件，DM-MC02）；profile.hpp.in 生成 profile.hpp
 ├── platform/
-│   ├── st/stm32h7/board_dm/  board.cmake（板标识 dm_mc02）+ CMakeLists.txt（mx_generated、rtos、usb、port、board、os_freertos）
+│   ├── dm_mc02/              按板一级（F2 第 2 步由 st/stm32h7/board_dm 移来，Decision-20261031-09）：board.cmake（板标识 dm_mc02）+ CMakeLists.txt（mx_generated、rtos、usb、port、board、os_freertos）
 │   │   ├── cubemx/           CubeMX 生成物：Core、Drivers、Middlewares、USB_DEVICE、.ioc、启动文件、链接脚本（冻结）
 │   │   └── port/             契约的手写实现（C），含 port_kit（队列/通知/临界区）与 usb_cdc；Init.h、UsbCdc.h 被生成代码按名字 include，保持原名
 │   └── mock/                 platform_mock：hal_os 的宿主替身（线程安全，测试推进时间，Signal 检查误用）
@@ -160,7 +160,7 @@ foray_mcu/
 | 启动入口 | `src/boot/` | 🟡 F2（现为 `config/assembly` 的 `Application_*`，例外 X-09） |
 | 领域算法 | `src/lib/` | ✅ 已搬入（P2）、去掉 `alg_` 前缀（P2.5）；F1 调整 slope/fsm/crc 的归属 |
 | 设备驱动与协议 | `src/driver/` | ✅ 已搬入（P2）；F3 适配 hal v1 |
-| 板级（生成区、port、board） | `platform/<板>/{cubemx,port,board}` | 🟡 F2 改为按板一级（现为 `platform/st/stm32h7/board_dm`，port 仍是 C） |
+| 板级（生成区、port、board） | `platform/<板>/{cubemx,port,board}` | 🟡 已按板一级（`platform/dm_mc02`，F2 第 2 步）；port 仍是 C，`board/` 随第 5 步建立 |
 | 任务运行器 | `app/common/` | 🟡 F2（现为旧 TaskManager） |
 | 能力 | `app/<capability>/` | ⏳ 阶段 A 重建（现有旧代码 F2 归档到 tag `archive/pre-rebuild`） |
 | profile 与组合根 | `config/profiles/<兵种>_<板>/`、`config/assembly/<profile>.cpp` | 🟡 F2 建 `bringup_dm_mc02`；兵种 profile 在阶段 A |
