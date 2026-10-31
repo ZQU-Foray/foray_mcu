@@ -1301,6 +1301,66 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 
 ---
 
+## Decision-20261031-12（任务运行器、bringup 能力与 profile，第一个 topic，Accepted）
+
+- **Date**：2026-10-31
+- **Status**：Accepted（F2 第 4 步的第二部分；负责人选定 AI 推荐的三点：step 用函数指针、任务栈静态分配、公开 `TopicBase::add_waiter()`）
+- **Source**：架构 v2 §3.4、§3.5、§3.6；plan.md F2 第 4 步；Decision-20261031-05 第 9 点、`app/topics/README.md`"待第一个 topic 加入时处理"
+
+**Context**：
+
+- 架构 v2 §3.5 只定了任务表的内容（名称、栈、优先级、触发方式、按顺序调用的 step）与"运行器用 FreeRTOS 原生 API、巡检栈水位"，没有定写法。
+- 按 topic 触发的任务要在 topic 上登记自己的 `Signal`，而现在只有订阅者能登记（-05 第 9 点）。
+- bringup profile 不含 RM 能力，但它的行为（发布、订阅、统计）按架构属于能力，不能写进组合根；它用的 topic 也必须定义在 `app/topics`（规则 17）。
+
+**Decision**：
+
+1. **topic**：`TopicBase::add_waiter(hal::os::Signal &)` 改为公开，供任务运行器登记。语义不变：占一个等待槽，重复登记不占新槽，槽满返回 false。
+2. **任务运行器**（`app/common/task_runner.hpp`，命名空间 `common`，只有头文件，用 FreeRTOS 原生 API）：
+   - `using Step = void (*)(hal::os::Microseconds now)`。组合根用普通函数（或不捕获的 lambda）调能力对象；同一个任务的各 step 拿到同一个 `now`（本轮开始的时刻）；
+   - `TaskSpec{名称, 栈（字）, 优先级, 触发方式, step 列表}`，每个任务最多 `MAX_STEPS`（8）个 step，第一个 `nullptr` 之后的忽略。任务表是组合根里的 `constexpr std::array<TaskSpec, N>`；
+   - 触发方式：
+     - `common::every_ms(周期)`：`xTaskDelayUntil`；错过周期计入 `overrun_count`；
+     - `common::on_topic(topic)`：运行器的 `Signal` 经 `add_waiter()` 登记到 topic，`wait(WAIT_FOREVER)` 醒来就跑一轮。多次发布可能合并成一轮，step 用 `update()` 读最新值；
+   - `TaskRunner<TASKS>`：任务表作模板实参（`template <const auto &Tasks>`）：
+     - 任务数与栈总字数在编译期求出；
+     - 任务表在编译期检查（`static_assert`）：有名字和 step、栈不小于 `configMINIMAL_STACK_SIZE`、优先级在范围内、周期换成节拍后不为 0、按 topic 触发时给了 topic；
+     - 栈、任务控制块、`Signal` 都是成员，用 `xTaskCreateStatic`，不用堆；
+     - 全部成员初值为零，作全局对象时放在 `.bss`，不占 Flash 的初值空间。最初的写法是构造时传入任务表的指针，结果整个对象（含 2 KB 栈）进了 `.data`，所以改为模板实参；
+   - 三个入口，分别对应 `boot_*`：
+     - `init()`（`boot_init`）：登记 topic 等待者。等待槽满是唯一的运行期失败；
+     - `start()`（`boot_init_rtos`）：创建任务；
+     - `sample_stack_health(now)`（`boot_run`，1 Hz）：读各任务的栈高水位；
+   - 观测：每个任务的运行轮数、单轮最长耗时、错过周期次数、剩余栈（字），调试器可读。
+3. **bringup 能力**（`app/bringup`，target `app_bringup`，新增一级目录 `bringup`，命名空间 `bringup`）：
+   - `Heartbeat`：每轮发布一次 `topics::bringup::heartbeat`（序号 + 发布时刻）；
+   - `Monitor`：每轮用 `update()` 读心跳，统计收到次数、丢失次数（`lost_count()`）、乱序、延迟（本轮时刻 − 发布时刻）的最大值和超过 `Config::latency_limit_us` 的次数；
+   - 不依赖 RTOS。宿主测试暂时在测试里直接编译 `app/bringup` 的源码（与 X-10 相同的做法），旧 app 归档后 `app/` 再加入宿主构建。
+4. **第一个 topic**（`app/topics`）：
+   - `bringup.hpp`（`Heartbeat` 消息与 `heartbeat` 实例）、`all.hpp`（`topics::ALL`，全部 topic 的 `const TopicBase *`）；
+   - INTERFACE target `app_topics`，只依赖 `middleware_topic` 与 `hal_os`。`arch_check.py` 新增 `topics` 层，只能依赖 middleware 与契约，能力、运行器与组合根都可以依赖它；
+   - **命名**：`tool/ci/naming.py` 不对 `app/topics/` 下的全局变量要求 `g_` 前缀，topic 实例按清单命名（架构 §9.2）。清单头里的全局变量只能是 topic 实例，`ALL` 是编译期常量，按常量规则大写。
+5. **profile `bringup_dm_mc02`**：
+   - `profile.cmake`：板 `dm_mc02`，能力 `bringup`；
+   - `params.hpp`：`Monitor` 的配置，只含数据；
+   - 组合根 `config/assembly/bringup_dm_mc02.cpp`：构造 `Heartbeat`、`Monitor` 与运行器，定义任务表，实现 `boot_*`；
+   - 任务表：
+     - `heartbeat`：1 ms 周期，优先级 25；
+     - `monitor`：按 `bringup.heartbeat` 触发，优先级 26。
+
+     读者优先级高于写者，正好是 Decision-20261029-02 修好的情形。CubeMX 的默认任务是 24，只调 `boot_run`。
+   - `config/CMakeLists.txt` 按 profile 选组合根：`baseline` 仍用 `entry_legacy.cpp`，其他 profile 用 `assembly/<profile>.cpp`，链接 `CAPABILITIES` 列出的 `app_<能力>`。
+6. **preset**：`arm-debug`、`arm-release` 改为 `bringup_dm_mc02`。`baseline` 在第 4 步归档前仍可用 `-DPROFILE=baseline` 构建。CI 的固件路径改为 `firmware_*.elf`，不写死 profile。
+7. **待定**：F2 验收的"中断里发布的 topic 能被阻塞等待的任务收到"。现在没有不改生成区就能挂接的空闲中断源（TIM1 的周期回调在生成的 `main.c` 里，SysTick 钩子要改 CubeMX 配置，EXTI 只给 BMI088 的两个引脚）。方案另行提出，由负责人决定。
+
+**Alternatives / Rejected**：
+- **step 用"函数指针 + 上下文指针"**：任务表里要多一列 `void *`，组合根还要做类型转换。否决。
+- **任务栈用 FreeRTOS 的堆**（`xTaskCreate`）：违背"无堆分配"。否决。
+- **运行器内部建一个类型擦除的订阅者来等 topic**：要为每种消息类型实例化，或者另写一套等待接口。公开 `add_waiter()` 一处就够了。否决。
+- **bringup 的行为写在组合根里**：组合根只做构造、注入、任务表与入口（§3.6），topic 也只能在 `app/topics` 定义。否决。
+
+---
+
 ## 待登记
 
 - 分支保护的具体设置（组织规范 §6.1、§10，负责人在 GitHub 上操作后补记）。
