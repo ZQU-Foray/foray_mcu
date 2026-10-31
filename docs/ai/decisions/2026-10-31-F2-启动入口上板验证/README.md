@@ -8,11 +8,15 @@
 - `firmware_baseline.bin` 的 sha256：`e198afb3519500e0bd2197962cedd5eb44e5473c337163abbc94487426293a5d`
 - 调试器：Vllink Basic2（CMSIS-DAP，序列号 8D86347A76），OpenOCD 0.12.0，SWD 1800 kHz
 - 烧录前的板上固件已只读备份到仓库外的 `foray_mcu_archive/2026-10-31_DM-MC02_flash_before_f2/`，与 2026-10-26 的存档逐字节相同（原固件，含丢失的链路协议与遥控任务）
-- 烧录：`program <elf> verify reset exit`，`Verified OK`（`flash.log`）。只擦除了 0x08000000–0x0803FFFF；0x08040000–0x08045AE4 仍留着原固件的尾部，不会被执行
+- 烧录：`program <elf> verify reset exit`，`Verified OK`。只擦除了 0x08000000–0x0803FFFF；0x08040000–0x08045AE4 仍留着原固件的尾部，不会被执行
+
+## 原始日志
+
+仓库外的 `foray_mcu_archive/2026-10-31_F2_onboard/启动入口/`（`flash.log`、`probe.log`，日志不入库，sha256 见该目录的 `SHA256SUMS`）。
 
 ## 方法
 
-不停核，用 OpenOCD 的 `read_memory` 隔 1 s 读两次（`probe_runtime.tcl`、`probe_imu.tcl`），地址取自同一个 ELF 的符号表。读数见 `probe.log`。
+不停核，用 OpenOCD 的 `read_memory` 隔 1 s 读两次（`probe_runtime.tcl`、`probe_imu.tcl`），地址取自同一个 ELF 的符号表。
 
 ## 结果
 
