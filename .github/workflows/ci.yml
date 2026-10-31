@@ -288,7 +288,7 @@ jobs:
           nm="$ARM_GCC_ROOT/bin/arm-none-eabi-nm"
           for preset in arm-debug arm-release; do
             python3 tool/ci/arch_check.py callbacks "build/$preset/firmware_baseline.elf" \
-              --nm "$nm" --port platform/st/stm32h7/board_dm/port
+              --nm "$nm" --port platform/dm_mc02/port
           done
 
       - name: 段大小报告

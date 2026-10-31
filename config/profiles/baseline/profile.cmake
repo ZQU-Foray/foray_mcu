@@ -7,7 +7,7 @@
 set(PROFILE_ID baseline)
 
 # 板卡：platform/ 下的相对目录，其中 board.cmake 声明板标识、CPU 与链接脚本等。
-set(BOARD st/stm32h7/board_dm)
+set(BOARD dm_mc02)
 
 # 能力集合：P3b 起决定 assembly 链接哪些能力库；P1 只登记，装配仍是迁移源的固定组合。
 set(FEATURES imu chassis gimbal remote)

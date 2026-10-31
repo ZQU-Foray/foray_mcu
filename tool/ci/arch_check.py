@@ -334,7 +334,7 @@ WHITELIST = {
         "utils",
         "third_party",
     },
-    "platform": {"st", "ti", "mock"},
+    "platform": {"dm_mc02", "mock"},
 }
 # ST HAL 的名字都是 HAL_ 后跟字母（HAL_GPIO_WritePin、HAL_OK）。文件自己的头文件保护宏
 # （如 HAL_OS_CLOCK_HPP）扫描前先去掉，见 header_guard()。
