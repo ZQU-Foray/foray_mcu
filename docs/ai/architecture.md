@@ -1,6 +1,6 @@
 # 架构判据与依赖规则（foray_mcu）
 
-> **状态**：v2.9（2026-10-31）。v2.0 见 Decision-20261027-01；v2.1 随 F1 第 1 步更新 utils、middleware、lib 的归类：math 进 utils，fsm 进 middleware（Decision-20261027-02）；v2.2 随 F1 第 2 步加入 utils 的并发原语 `concurrency`（Decision-20261029-01），§3.4 补充 seqlock 的读写竞态（Decision-20261029-02，待定）；v2.3 随 F1 第 3 步定稿 §3.2 的 OS 契约：1 µs 时基、`Signal` 的语义、临界区只屏蔽框架中断（Decision-20261031-01～03）；v2.4 随 F1 第 4 步定稿 §3.4 的 topic：发布时用临界区包住写入（Decision-20261029-02），接口、等待槽与清单约定（Decision-20261031-05）；v2.5 随 F1 的 CI 加入框架独立构建与 Cortex-M0+ 原子检查，规则 13、17 的文本扫描生效，新增例外 X-17（Decision-20261031-06）；v2.6 随 F2 第 1 步把固件的符号对照换成段大小报告，规则 16 的 HAL 回调符号检查生效（Decision-20261031-08）；v2.7 随 F2 第 4 步换上启动入口 `boot_*` 与 `hal::init()`，规则 7 的 include 检查生效，`boot` 在依赖图里单独成层，X-09 关闭（Decision-20261031-11）；v2.8 随 F2 第 4 步定下 §3.5 的任务运行器写法，加入第一个 topic 与 bringup 能力，`topics` 在依赖图里单独成层（Decision-20261031-12）；v2.9 随 F2 第 4 步归档旧能力代码（tag `archive/pre-rebuild`），X-04、X-10 关闭，规则 10、18 生效，`app/` 加入宿主构建（Decision-20261031-13）。v2 按负责人的骨架重写：迁移方式从"改造迁移源"改为"按新骨架重建，迁移源只作参考与零件来源"。v1.0–v1.4（P0–P2.5）见 git 历史与 decision.md。
+> **状态**：v2.10（2026-11-01）。v2.0 见 Decision-20261027-01；v2.1 随 F1 第 1 步更新 utils、middleware、lib 的归类：math 进 utils，fsm 进 middleware（Decision-20261027-02）；v2.2 随 F1 第 2 步加入 utils 的并发原语 `concurrency`（Decision-20261029-01），§3.4 补充 seqlock 的读写竞态（Decision-20261029-02，待定）；v2.3 随 F1 第 3 步定稿 §3.2 的 OS 契约：1 µs 时基、`Signal` 的语义、临界区只屏蔽框架中断（Decision-20261031-01～03）；v2.4 随 F1 第 4 步定稿 §3.4 的 topic：发布时用临界区包住写入（Decision-20261029-02），接口、等待槽与清单约定（Decision-20261031-05）；v2.5 随 F1 的 CI 加入框架独立构建与 Cortex-M0+ 原子检查，规则 13、17 的文本扫描生效，新增例外 X-17（Decision-20261031-06）；v2.6 随 F2 第 1 步把固件的符号对照换成段大小报告，规则 16 的 HAL 回调符号检查生效（Decision-20261031-08）；v2.7 随 F2 第 4 步换上启动入口 `boot_*` 与 `hal::init()`，规则 7 的 include 检查生效，`boot` 在依赖图里单独成层，X-09 关闭（Decision-20261031-11）；v2.8 随 F2 第 4 步定下 §3.5 的任务运行器写法，加入第一个 topic 与 bringup 能力，`topics` 在依赖图里单独成层（Decision-20261031-12）；v2.9 随 F2 第 4 步归档旧能力代码（tag `archive/pre-rebuild`），X-04、X-10 关闭，规则 10、18 生效，`app/` 加入宿主构建（Decision-20261031-13）；v2.10 随 F2 第 5 步与 F3 定稿 §3.1 的 hal 契约 v1（句柄类）、`board.hpp`、C++ port 与 mock，删除 `hal/detail` 与 PortKit，X-07、X-08、X-14、X-17 关闭，规则 1（`board.hpp`）、4、14、16（C 链接位置）的检查生效；§3.5 加入 topic 触发的超时与能力 `Config` 的两部分（Decision-20261101-01～03）。v2 按负责人的骨架重写：迁移方式从"改造迁移源"改为"按新骨架重建，迁移源只作参考与零件来源"。v1.0–v1.4（P0–P2.5）见 git 历史与 decision.md。
 > **权威来源**：[decision.md](../../decision.md) 中的 Accepted 条目，v2 起以 Decision-20261027-01 为准。[评审报告 v1.0](reviews/2026-10-25-foray_mcu-架构评审报告.md) 是历史记录，与本文件冲突的部分以本文件为准。
 > **修改流程**：新增或修改规则、例外、白名单，先在 decision.md 登记，再改本文件和对应的 CI 检查（§10）。
 
@@ -8,7 +8,7 @@
 
 - **写新代码前**：按 §2 判定位置，按 §3 的机制写，按 §5 核对依赖。
 - **评审 PR**：对照 §5 的规则表和 §7 的例外登记。违反规则又不在例外表里的改动，不合并。
-- **现阶段**：P0–P2.5 已完成（源码已搬出 `legacy/`）；F1 框架基础件的各项已完成（utils、hal/os、topic、CI），待负责人验收（[plan.md](../../plan.md)）。现有代码中不符合本文件的部分（`hal/detail` 的 C 接口、旧任务外壳、`Application_*` 入口等）登记在 §7，按到期阶段清理，不再为它们调整新设计。
+- **现阶段**：F1 各项已完成，待负责人验收；F2 第 1–5 步与 F3 的代码已完成（hal 契约 v1、C++ port、驱动改用、bringup 外设检查），待上板验证（检查清单 `docs/ai/decisions/2026-11-01-F2-外设上板检查清单.md`）与负责人验收（[plan.md](../../plan.md)）。仍不符合本文件的只剩 §7 的例外。
 
 ## 1. 原则与术语
 
@@ -42,7 +42,7 @@
 ```text
 foray_mcu/
 ├── src/                      框架：与产品、板都无关；零 RTOS；只靠 platform/mock 就能在宿主机构建
-│   ├── hal/                  硬件契约（C++ 头）：can、spi、uart、gpio、pwm、time、usb_cdc
+│   ├── hal/                  硬件契约（C++ 句柄类）：can、spi、uart、gpio、pwm、usb_cdc，callback、init
 │   │   └── os/               OS 契约：临界区、单调时基、信号（等待/唤醒）
 │   ├── boot/                 启动入口 boot.h（extern "C"）：生成区只调它
 │   ├── utils/                无领域含义的基础件：math、crc、concurrency（SPSC 队列、最新值邮箱）
@@ -56,8 +56,8 @@ foray_mcu/
 │   ├── dm_mc02/              DM-MC02（STM32H723）：board.cmake + CMakeLists.txt
 │   │   ├── cubemx/           CubeMX 生成物（冻结）
 │   │   ├── port/             hal 与 hal/os 的 C++ 实现、HAL 回调
-│   │   └── board/            board.hpp：物理资源句柄、能力常量；链接脚本 overlay
-│   └── mock/                 hal 与 hal/os 的宿主替身：测试控制时间、注入外设输入、检查输出
+│   │   └── board/            board.hpp：物理资源句柄、外设个数、能力常量；链接脚本 overlay（以后）
+│   └── mock/                 hal 与 hal/os 的宿主替身：测试控制时间、注入外设输入、检查输出（mock_hal.hpp）
 ├── app/                      产品：RM 能力
 │   ├── topics/               本产品全部 topic 的清单（消息类型 + topic 实例），集中一处
 │   ├── common/               任务运行器（FreeRTOS 原生 API）
@@ -119,27 +119,49 @@ foray_mcu/
 
 ### 3.1 硬件契约 `src/hal`
 
-- **风格**：命名空间 + 自由函数 + 不透明句柄，链接期绑定。一次构建只链接一块板的 port，没有虚函数，没有运行期分派。示意（F2 定稿）：
+契约 v1 于 F2 第 5 步定稿（Decision-20261101-01）。
+
+- **写法：句柄类**。每类外设一个句柄类，成员函数由 port 实现（链接期绑定，没有虚函数，没有运行期分派），宿主测试由 `platform/mock` 实现：
 
   ```cpp
-  namespace hal::can
+  // src/hal/can.hpp（节选）
+  namespace hal
   {
-  struct Bus
+  class Can final
   {
-      std::uint8_t index;  // 不透明句柄，值由 board.hpp 提供
+    public:
+      static constexpr std::size_t MAX_DATA_LENGTH{8U};
+      enum class SendResult : std::uint8_t { QUEUED, QUEUE_FULL, NOT_READY, BUS_OFF, INVALID_ARGUMENT, ERROR };
+      struct Frame { /* … */ };
+
+      constexpr explicit Can(std::uint8_t index) noexcept : index_{index} {}
+      [[nodiscard]] bool claim_receiver() const noexcept; // 每条总线一个接收方
+      [[nodiscard]] SendResult send(const Frame &frame) const noexcept;
+      [[nodiscard]] ReceiveResult receive(Frame &frame) const noexcept;
+      [[nodiscard]] bool set_receive_notification(Callback callback, void *context) const noexcept;
+      [[nodiscard]] Statistics statistics() const noexcept;
+
+    private:
+      std::uint8_t index_; // 只有 port 与 mock 能读
   };
-  enum class SendResult : std::uint8_t { QUEUED, QUEUE_FULL, NOT_READY, BUS_OFF, INVALID_ARGUMENT };
-  SendResult send(Bus bus, const Frame &frame) noexcept;
-  bool receive(Bus bus, Frame &frame) noexcept;  // 从 port 的接收队列取一帧
-  void set_receive_notification(Bus bus, Notification notification, void *context) noexcept;
   }
+
+  // platform/dm_mc02/board/board.hpp
+  inline constexpr hal::Can CAN_1{0U};
+
+  // 组合根把句柄注入驱动；驱动按值保存，调用时 bus_.send(frame)
+  device::DjiMotor g_chassis_motors{board::CAN_1, device::DjiMotor::Profile::c620()};
   ```
 
-- **设备不进契约**：契约头不枚举"这台车有哪些设备"。`platform/<board>/board/board.hpp` 给出物理资源句柄（如 `board::CAN_1`、`board::SPI_IMU`）。整车用哪个资源、接哪个设备，由 profile 决定，assembly 注入驱动的 `Config`。
-- **能力分级**：每个外设接口分必选与可选。可选能力由 `board.hpp` 的 `constexpr` 常量声明（如 `board::SPI_ASYNC`），使用方用 `static_assert` 检查或提供回退，不留到运行期才发现。
-- **类型**：只用 `enum class`、POD 结构与句柄，不出现厂商或 RTOS 类型。每个函数注明能否在中断里调用；每个回调注明在什么上下文执行。
-- **初始化**：`hal::init()` 由 port 实现，assembly 在 `boot_init()` 里调用；生成区不直接调用 port。
-- 现有的 `src/hal/detail`（C 接口）和 `platform::Can` 这类包装类在 F2 删除。
+- **外设**：`hal::Gpio`、`hal::Pwm`、`hal::Can`、`hal::Spi`（设备 = 总线 + 片选）、`hal::Uart`、`hal::UsbCdc`。`Uart` 与 `UsbCdc` 的读写接口同形（`read`、`write`、`WriteResult`），处理字节流的代码可以对两者写成同一个模板。
+- **单例用自由函数**：全板只有一份、不需要句柄的用自由函数：`hal::init()`、`hal::os::now_us()`。与 hal/os 的规律相同：多实例的用类（`Signal`），单例的用自由函数。
+- **句柄**：只含一个私有编号（`std::uint8_t`），`constexpr explicit` 构造，可以拷贝，驱动按值存进自己的成员或 `Config`。编号由 `board.hpp` 给出，是 port 外设表的下标；驱动与能力读不到也改不了。
+- **设备不进契约**：契约头不枚举"这台车有哪些设备"。`board.hpp` 给出物理资源句柄（`board::CAN_1`、`board::SPI_IMU_GYRO`）；整车用哪个资源、接哪个设备，由组合根注入驱动。
+- **能力分级**：每个成员函数注明必选还是可选。可选能力不支持时返回 `UNSUPPORTED`（或 `false`），板级用 `board.hpp` 的 `constexpr` 常量声明（如 `board::SPI_ASYNC`）。要求可选能力的驱动给出编译期常量（`device::Bmi088::REQUIRES_SPI_ASYNC`），组合根 `static_assert`；能回退的驱动在运行期回退（WS2812 遇到 `UNSUPPORTED` 改用阻塞发送）。
+- **类型**：只用 `enum class`、POD 结构与句柄，收在类里（`hal::Can::Frame`），枚举只定义一份；不出现厂商或 RTOS 类型。时间参数用 `hal::os::Microseconds`。
+- **回调**：`hal::Callback`（`void (*)(void *context) noexcept`，`src/hal/callback.hpp`），在框架中断里执行，只做取数据、发布 topic、`Signal::notify()`。
+- **文档**：每个成员函数注明在任务还是中断里调用、是否阻塞。
+- **初始化**：`hal::init()` 由 port 实现，组合根在 `boot_init()` 里调用；生成区不直接调用 port（USB 的 X-01 例外）。
 
 ### 3.2 OS 契约 `src/hal/os`
 
@@ -232,7 +254,7 @@ void boot_run(void);        // 默认任务：留给 assembly 的周期工作（
   - 名称；
   - 栈（字）；
   - FreeRTOS 优先级；
-  - 触发方式：`common::every_ms(周期)`，或 `common::on_topic(topic)`（topic 每次发布后运行一轮）；
+  - 触发方式：`common::every_ms(周期)`；`common::on_topic(topic)`（topic 每次发布后运行一轮）；`common::on_topic(topic, 超时 ms)`（另外在超过这么久没有发布时也运行一轮，Decision-20261101-03）；
   - 按顺序调用的 step 列表，最多 8 个。每个 step 是 `void (*)(hal::os::Microseconds now)`，组合根用普通函数调能力的 `step(now)`；同一轮的各 step 拿到同一个 `now`。
 
   ```cpp
@@ -247,7 +269,14 @@ void boot_run(void);        // 默认任务：留给 assembly 的周期工作（
   - 栈与任务控制块静态分配，在 `.bss`；
   - `init()`、`start()`、`sample_stack_health()` 分别在 `boot_init`、`boot_init_rtos`、`boot_run` 里调用；
   - 记录每个任务的运行轮数、单轮最长耗时、错过周期次数、剩余栈。
-- 中断里只做"取数据 + 发布 topic"，计算放在任务里。
+- 中断里只做"取数据 + 发布 topic"，计算放在任务里。示范见 `app/bringup/imu_check.cpp`：两个数据就绪中断与 SPI 完成中断在临界区内更新计数、取快照，在临界区外发布 `bringup.imu_event`；IMU 任务按它触发（Decision-20261101-03）。
+- **能力的 `Config` 分两部分**：组合根注入的依赖（驱动对象的指针、引脚等句柄）与 profile 给的 `Parameters`（只含数据，写在 `params.hpp`）。`params.hpp` 看不到 `board.hpp` 与驱动对象（规则 1、4），由组合根组装：
+
+  ```cpp
+  // config/assembly/bringup_dm_mc02.cpp
+  g_imu_check.init(bringup::ImuCheck::Config{&g_imu, &g_heater, board::IMU_ACCEL_INTERRUPT,
+                                             board::IMU_GYRO_INTERRUPT, params::IMU});
+  ```
 
 ### 3.6 profile 与组合根
 
@@ -261,15 +290,17 @@ void boot_run(void);        // 默认任务：留给 assembly 的周期工作（
   - 定义任务表；
   - 实现启动入口。
 - **能力裁剪**：profile 不链接某个能力，它就不进镜像。不用 `#if`。
-- **框架验证**用 `bringup_dm_mc02` profile：不含 RM 能力，链接 `app_bringup`（心跳与监视），只演示并检查框架（plan.md F2–F4，Decision-20261031-12）。`profile.cmake` 的 `CAPABILITIES` 决定组合根链接哪些 `app_<能力>`。
+- **框架验证**用 `bringup_dm_mc02` profile：不含 RM 能力，链接 `app_bringup`（心跳与监视；IMU、CAN、SBUS、USB、指示的外设检查），只演示并检查框架（plan.md F2–F4，Decision-20261031-12、Decision-20261101-03）。`profile.cmake` 的 `CAPABILITIES` 决定组合根链接哪些 `app_<能力>`。
 
 ### 3.7 板级 `platform/<board>/`
 
 - 按板一级，目录名即板标识（`dm_mc02`）。`board.cmake` 声明 CPU 与烧录配置。
-- `cubemx/` 放生成物；`port/` 放 C++ 实现的 hal 与 hal/os、HAL 回调、FreeRTOS 相关实现；`board/` 放 `board.hpp`、链接脚本 overlay。
+- `cubemx/` 放生成物；`port/` 放 C++ 实现的 hal 与 hal/os（每个外设一个 `.cpp`）、HAL 回调、port 私有的 `port.hpp`（外设初始化、中断通知 `Notifier`）；`board/` 放 `board.hpp`、链接脚本 overlay。
+- `board.hpp`（命名空间 `board`）只 include `hal/*.hpp`：物理资源句柄、每类外设的个数、能力常量。只有组合根与本板的 port 能看到它（`board_<板>` 的 include 路径只开到 `board/`，规则 1）。port 的外设表按初始化列表推导长度，`static_assert` 与 `board.hpp` 的个数核对。
+- port 里与中断共享的状态用 `hal::os::CriticalSection` 保护（DM-MC02 的外设中断都在优先级 5，即框架线上）；接收队列用 `concurrency::SpscQueue`。
 - port 与 board 用 OBJECT 库：port 里有覆盖 HAL 弱符号的回调，放进静态库会被链接器静默丢弃。
 - 出现同一芯片的第二块板时，再决定共用代码放在哪里（先登记）。
-- `platform/mock` 实现 hal 与 hal/os，只供宿主测试。它是测试替身，不构成 `src` 对 `platform` 的依赖。
+- `platform/mock` 实现 hal 与 hal/os，只供宿主测试。它是测试替身，不构成 `src` 对 `platform` 的依赖。测试控制接口在 `mock_hal.hpp`（`mock::can::inject`、`mock::spi::set_responder`、`mock::gpio::trigger_interrupt` 等）：按编号注入输入、检查输出；SPI 由测试登记设备应答函数，异步事务由测试决定何时完成。
 
 ## 4. target 依赖图
 
@@ -289,8 +320,8 @@ EXECUTABLE  firmware_<profile>
  │   │   ├─ STATIC  utils_<名>          src/utils（只依赖标准库；只有头文件的是 INTERFACE，如 utils_concurrency）
  │   │   └─ INTERFACE hal、hal_os        src/hal（实现在 port）
  │   ├─ INTERFACE os_freertos_<board>   FreeRTOS 头（只对 app_common、assembly 可见）
- │   └─ OBJECT    board_<board>         platform/<board>/board（board.hpp、链接脚本）
- └─ OBJECT    port_<board>              platform/<board>/port → mx_generated、rtos、usb（OBJECT）
+ │   └─ OBJECT    board_<board>         platform/<board>/board（board.hpp、链接脚本）→ hal
+ └─ OBJECT    port_<board>              platform/<board>/port → board、hal、hal_os、utils、mx_generated、rtos、usb（OBJECT）
 
 宿主测试：test_<name> → 被测 target + platform_mock
 框架独立构建（preset framework、framework-m0plus，-DFRAMEWORK_ONLY=ON）：
@@ -317,22 +348,22 @@ EXECUTABLE  firmware_<profile>
 
 | # | 规则 | 主要检查方式 | 生效 |
 |---|---|---|---|
-| 1 | `app` 不得链接或看见 `port_*`、`board_*`（含 `board.hpp`）、生成区、`assembly_*` | 依赖图 | 已执行；`board.hpp` 在 F2 |
+| 1 | `app` 不得链接或看见 `port_*`、`board_*`（含 `board.hpp`）、生成区、`assembly_*` | 依赖图 + 文本扫描（只有组合根与本板的 port 可以 include `board.hpp`） | 已执行（`board.hpp` 自 F2 第 5 步） |
 | 2 | `src` 不得 include 或链接 `platform` 实现、`app`、`config`；必须能只靠 `platform/mock` 在宿主机构建 | 依赖图；框架独立构建 | 已执行（框架独立构建自 F1） |
-| 3 | 契约头（`src/hal` 含 `os`、`src/boot`）只用标准库头；类型只用 enum class、POD、不透明句柄；不出现厂商与 RTOS 名 | 文本扫描 | 已执行；`hal/detail` 见 X-07 |
-| 4 | `config/profiles` 只含数据：`params.hpp` 只能 include 能力的配置类型头与标准库头 | 文本扫描 | F2 |
+| 3 | 契约头（`src/hal` 含 `os`、`src/boot`）只用标准库头；类型只用 enum class、POD、不透明句柄；不出现厂商与 RTOS 名 | 文本扫描 | 已执行 |
+| 4 | `config/profiles` 只含数据：`params.hpp` 只能 include 能力的配置类型头与标准库头 | 文本扫描（include 只能指向 `app/` 下能力目录的头与标准库头） | 已执行（F2，Decision-20261101-03） |
 | 5 | 只有最终固件可以链接 `assembly_*` | 依赖图 | 已执行 |
 | 6 | 测试不得链接 port、board、生成区、assembly | 依赖图 | 已执行 |
 | 7 | 生成区只在 USER CODE 区调用 `boot_*`（及 X-01 的 USB 接口）；不得 include `app`、`config` 的头 | 文本扫描（include 只能指向生成区自己的头、厂商 HAL 头、`boot/boot.h` 与 X-01 的 `UsbCdc.h`）；USER CODE 的改动行登记在 decision.md | 已执行（F2 第 4 步，Decision-20261031-11） |
 | 8 | 禁止 `file(GLOB)` 收集源码；禁止全局 `include_directories()`；每个 target 显式声明 PRIVATE/PUBLIC/INTERFACE | 文本扫描 | 已执行 |
-| 9 | `app/`、`src/` 中不用 `#if` 做裁剪（头文件保护与 `__cplusplus` 除外） | 文本扫描 | 已执行；X-14 放行 |
+| 9 | `app/`、`src/` 中不用 `#if` 做裁剪（头文件保护与 `__cplusplus` 除外） | 文本扫描 | 已执行（X-14 在 F2 第 5 步关闭，没有放行） |
 | 10 | RTOS 头只对 `app/common` 与 `config/assembly` 可见，用 FreeRTOS 原生 API；能力与 `src` 零 RTOS，只经 `hal/os` | 依赖图（能力不得依赖 `app_common`）+ 文本扫描（`src/`、`app/` 只有 `app/common` 可以 include RTOS 头） | 已执行（F2 第 4 步，Decision-20261031-13） |
 | 11 | 上位机链路协议只用 vendor 的 `lower_link.hpp`，不手写帧与校验（`utils` 的 CRC 只给设备协议用，如裁判系统） | vendor 哈希 + 文本扫描 | 链路能力重建时 |
 | 12 | `app`、`src`、`platform`、`config` 的一级目录有白名单（§5.4），新增先登记 | 文本扫描 | 已执行 |
-| 13 | 不用 `std::atomic` 的读改写（`fetch_*`、`exchange`、`compare_exchange_*`）；并发只用 `utils` 原语与 topic | 文本扫描 + Cortex-M0+ 库调用检查 | 已执行（F1）；X-08、X-17 放行 |
-| 14 | 框架开启 `-Wdouble-promotion`，豁免清单见 X-06 | 编译选项 | F3 |
+| 13 | 不用 `std::atomic` 的读改写（`fetch_*`、`exchange`、`compare_exchange_*`）；并发只用 `utils` 原语与 topic | 文本扫描 + Cortex-M0+ 库调用检查（整个框架） | 已执行（F1；X-08、X-17 在 F2、F3 关闭，没有放行） |
+| 14 | 框架与能力开启 `-Wdouble-promotion`，豁免清单见 X-06 | 编译选项（`framework_library`、`utils_library`、`app_library`） | 已执行（F3，Decision-20261101-02） |
 | 15 | 框架（`src/`、`platform/`、`cmake/`）不得引用产品的路径或 target | 文本扫描 + 框架独立构建 | 已执行 |
-| 16 | C 链接只允许 §9.3 列出的几处；覆盖 HAL 弱符号的 `.cpp` 必须 include 对应 HAL 头 | `nm` 检查 `HAL_*Callback`：port 定义的回调都是强符号，没有被 C++ 改名的回调 | 回调检查已执行（F2 第 1 步）；C 链接位置的检查随 port 改写 |
+| 16 | C 链接只允许 §9.3 列出的几处；覆盖 HAL 弱符号的 `.cpp` 必须 include 对应 HAL 头 | `nm` 检查 `HAL_*Callback`：port 定义的回调都是强符号，没有被 C++ 改名的回调；文本扫描：`extern "C"` 只出现在 §9.3 的位置 | 已执行（回调自 F2 第 1 步，C 链接位置自 F2 第 5 步） |
 | 17 | topic 只在 `app/topics` 定义；每个 topic 一个发布者；消息可平凡拷贝，只用标准标量与定长数组 | `static_assert` + 初始化检查 + 文本扫描（定义位置、发布句柄只在一处取得、清单头的 include） | 已执行（F1） |
 | 18 | 能力之间只经 topic 通信：`app_<capability>` 不得依赖其他 `app_<capability>` | 依赖图（能力层只能依赖 `app_topics`，不能依赖能力层自己） | 已执行（F2 第 4 步，旧 app 归档后不再有放行） |
 
@@ -341,9 +372,9 @@ EXECUTABLE  firmware_<profile>
 | 作业 | 内容 | 变化 |
 |---|---|---|
 | `lint-python`、`lint-c`、`lint-naming` | ruff/black；clang-format 18.1.8；clang-tidy 18.1.8 命名 | F1 起命名检查加上 framework 的编译数据库 |
-| `lint-arch` | `arch_check.py scan` | F1 已加入规则 13、17；F2 加入规则 4、7 |
+| `lint-arch` | `arch_check.py scan` | F1 已加入规则 13、17；F2 加入规则 1（`board.hpp`）、4、7、10、16（C 链接位置） |
 | `host-tests` | host-tests preset 的 ctest；宿主依赖图 | 不变 |
-| `framework` | 只取出框架文件（`git archive`），在副本里：framework preset 构建 + `graph --mode framework`；framework-m0plus 构建 + `atomics` | F1 新增（Decision-20261031-06）；X-17 在 F3 解除后 M0+ 编译全部框架 |
+| `framework` | 只取出框架文件（`git archive`），在副本里：framework preset 构建 + `graph --mode framework`；framework-m0plus 构建 + `atomics` | F1 新增（Decision-20261031-06）；X-17 关闭后 M0+ 编译全部框架（Decision-20261101-02） |
 | `firmware` | arm-debug、arm-release 构建；固件依赖图；HAL 回调符号检查（`arch_check.py callbacks`）；段大小报告（`symbols.py report`，写入作业摘要） | F2 第 1 步：与 P1 存档的符号对照退役，加入回调检查与段大小报告（Decision-20261031-08） |
 
 ### 5.4 一级目录白名单（规则 12）
@@ -367,24 +398,18 @@ EXECUTABLE  firmware_<profile>
 
 ## 7. 例外登记
 
-本表是全部生效中例外的唯一清单。新增例外先在 decision.md 登记；到期项完成后标为已关闭。已关闭的 X-04、X-10（F2 第 4 步，Decision-20261031-13）、X-09（Decision-20261031-11）、X-11、X-12、X-13、X-15 见 decision.md。
+本表是全部生效中例外的唯一清单。新增例外先在 decision.md 登记；到期项完成后标为已关闭。已关闭的 X-04、X-10（F2 第 4 步，Decision-20261031-13）、X-09（Decision-20261031-11）、X-07、X-08、X-14（F2 第 5 步，Decision-20261101-01）、X-17（F3，Decision-20261101-02）、X-11、X-12、X-13、X-15 见 decision.md。
 
 | 编号 | 例外 | 涉及规则 | 处置与到期 |
 |---|---|---|---|
-| X-01 | **UsbCdc 边界**：USB 生成代码（`usb_device.c`、`usbd_cdc_if.c`）直接调用 port 的 C 接口 `UsbCdcPort_*`，`UsbCdc.h` 被生成代码按名字 include | 7、16 | F2 改写 port 时保留这组 C 接口；重建链路能力时按 Q8 改为回调注册 |
+| X-01 | **UsbCdc 边界**：USB 生成代码（`usb_device.c`、`usbd_cdc_if.c`）直接调用 port 的 C 接口 `UsbCdcPort_*`（`port/usb_cdc.cpp` 以 `extern "C"` 实现），`UsbCdc.h` 被生成代码按名字 include | 7、16 | 重建链路能力时按 Q8 改为回调注册 |
 | X-02 | **生成区链接接缝**：`-Wl,--wrap=HAL_PCD_EP_Transmit` | 16 | 随 X-01 删除 |
 | X-03 | **链接脚本 overlay**：自定义段用第二个 `-T` 追加，不改生成的 `.ld` | 生成区 | 第一个自定义段出现时落地 |
 | X-05 | **DJI 型号映射**：`dji_motor_model_map.hpp`（型号 → 电调档案、原生减速比）是品牌默认值，留在驱动层 | §2.3 | 长期 |
-| X-06 | **`-Wdouble-promotion` 豁免**：`src/lib/estimate/vqf.cpp`，须有"目标无双精度 FPU 即 `#error`"的检查 | 14 | 长期；M4F 板链接姿态解算时重新评估 |
-| X-07 | **C 接口层**：`src/hal/detail/*.h`（`hal_detail`），port 仍是 C | 3、16 | F2 port 改写为 C++ 后删除 |
-| X-08 | **原子读改写**：`src/driver/motor/dji/dji_motor.cpp` 2 处（旧 app 的 6 处已随归档删除） | 13 | DJI 电机驱动改写为 hal v1 时改 |
-| X-14 | **迁移期构建开关**：`legacy_build_options` 的 `BMI088_GYRO_BANDWIDTH_REGISTER`（`IMU_ENABLE_DIAGNOSTICS` 已随旧 app 删除） | 9、15 | BMI088 驱动改写时改为 `Config` 参数 |
+| X-06 | **`-Wdouble-promotion` 豁免**：`src/lib/estimate/vqf.cpp`（按文件关掉，有意用 double）；"目标没有双精度 FPU 就报错"的检查推迟到阶段 B（Decision-20261101-02） | 14 | 长期；F407 等 M4F 板链接姿态解算时由板级 CMake 声明 FPU 能力、组合根检查 |
 | X-16 | **RTOS 头的可见范围**：`os_freertos_<board>` 只能整目录暴露 CubeMX 的 `Core/Inc` | 10 | 长期（CubeMX 生成布局决定） |
-| X-17 | **Cortex-M0+ 框架构建暂不编译**：`driver_bmi088`、`driver_motor_dji`（`static_assert(is_always_lock_free)`，后者另有 X-08）、`lib_estimate`（经 `imu_body_mapping` 依赖 `driver_bmi088`）；根 `CMakeLists.txt` 在交叉编译的框架构建里设 `EXCLUDE_FROM_ALL` | 13、§8.2 | F3 驱动适配后删除 |
 
-**框架阶段（F2、F3）必须处理的已知问题**：
-- `lib/estimate/imu_body_mapping` 依赖 BMI088 驱动类型（`lib → driver` 反向依赖），F3 改为 POD 入参；
-- SPI 异步能力在契约里是可选，BMI088 与 WS2812 却当作必选（评审报告 §2.3 缺口 1），F2 契约中按 §3.1 的能力分级处理。
+**框架阶段（F2、F3）的已知问题**都已处理：`lib/estimate/imu_body_mapping` 不再依赖 BMI088 驱动（Decision-20261101-02）；SPI 异步按 §3.1 的能力分级使用，BMI088 编译期要求、WS2812 运行期回退（Decision-20261101-01）。
 
 迁移源的其他问题（评审报告 §2、附录 B）在重建对应能力时处理。
 
@@ -437,7 +462,7 @@ EXECUTABLE  firmware_<profile>
 | 头文件保护宏 | 路径大写，单下划线分隔 | `HAL_OS_CLOCK_HPP` |
 | 本项目自有的 C 链接函数 | 模块前缀 + snake_case | `boot_init` |
 
-不改名的：HAL 回调与中断入口（`HAL_*Callback`、`*_IRQHandler`）、CubeMX 生成代码、F2 删除前的 C 接口（`CanPort_*` 等"模块_函数"），由 `.clang-tidy` 的 `FunctionIgnoredRegexp` 排除。
+不改名的：HAL 回调与中断入口（`HAL_*Callback`、`*_IRQHandler`）、CubeMX 生成代码、USB 生成区接缝的 C 接口（`UsbCdcPort_*`，X-01），由 `.clang-tidy` 的 `FunctionIgnoredRegexp` 排除；链接器约定的名字（`__wrap_HAL_PCD_EP_Transmit`、`__usb_dma_buffer_start__`）与生成区的全局变量（`hUsbDeviceHS`）在声明处用 `// NOLINT(readability-identifier-naming)` 注明原因。
 
 标识符里的数字（`.clang-tidy` 查不出，评审把关，Decision-20261026-05）："数值+单位"和序号单独成段（`ACCEL_ODR_100_HZ`、`CHANNEL_1`）；名字里固有的数字不拆（`BMI088`、`GM6020_CURRENT`、`crc8`）。
 
@@ -448,7 +473,7 @@ EXECUTABLE  firmware_<profile>
 | 1 | 生成区调用的启动入口 `boot_*` | `main.c`、`freertos.c` 是 C 文件 | `src/boot/boot.h` 用 `extern "C"` 声明，实现在 `config/assembly` 的 C++ 里 |
 | 2 | 覆盖 HAL 弱符号的回调 `HAL_*Callback` | HAL 按 C 符号名调用 | 写在 port 的 `.cpp` 里，并 include 对应 HAL 头，让定义继承 C 链接；否则回调被 C++ 改名，HAL 弱实现照旧生效，编译链接都不报错 |
 | 3 | 中断入口 `*_IRQHandler` | 向量表按 C 符号名引用 | 保持在生成区的 C 文件里 |
-| 4 | USB 生成代码调用的 `UsbCdcPort_*` | 例外 X-01 | 在 port 中以 `extern "C"` 实现，Q8 落地后删除 |
+| 4 | USB 生成代码调用的 `UsbCdcPort_*`；`--wrap` 的 `__wrap_HAL_PCD_EP_Transmit` | 例外 X-01、X-02 | 在 `port/usb_cdc.cpp` 以 `extern "C"` 实现（声明在 `UsbCdc.h`），Q8 落地后删除 |
 
 ### 9.4 格式（组织规则，由根目录 `.clang-format` 执行）
 

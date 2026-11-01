@@ -2,7 +2,7 @@
 
 > **下位机（MCU）固件** · owner 角色：电控组
 > `layer: MCU` —— **不在 L1–L5 分层内**，位于 L2 下行 HAL **之下**
-> 当前状态：🟡 **P0–P2.5 已验收；2026-10-27 起按架构 v2 重建，先建框架（F1–F4），框架验收后再重建能力**（Decision-20261027-01）
+> 当前状态：🟡 **P0–P2.5 已验收；2026-10-27 起按架构 v2 重建，先建框架（F1–F4），框架验收后再重建能力**（Decision-20261027-01）。2026-11-01：框架代码完成（hal 契约 v1、C++ port、驱动改用、bringup 外设检查，Decision-20261101-01～03），待上板验证与负责人验收
 
 ## 1. 本仓是什么
 
@@ -10,7 +10,7 @@ RoboMaster 多兵种、多开发板的 MCU 下位机固件。本仓以 `Controll
 
 - 迁移源基线：`ControllerCode` `main` @ `a2cfd16`（2026-10-23，19 个提交，git 跟踪 333 个文件，项目自有代码约 2.3 万行）。
 - 目标平台：STM32H723（DM-MC02，主力，先行）、STM32F407（RM C 板）、TI TM4C / AM26x（按需）；`src/` + `platform/` 作为可复用框架，另供 MSPM0 等小项目（大概率裸机）使用。
-- 当前状态：基线 tag `baseline/a2cfd16`。P1–P2.5 期间，根工程用 profile `baseline` 构建出的固件与迁移源构建的符号集合一致；F2 起按架构 v2 重建，旧能力代码已归档到 tag `archive/pre-rebuild`（Decision-20261031-13），现在的固件是框架验证用的 `bringup_dm_mc02`；宿主测试由根工程引入（17 项 ctest，含 F1、F2 新增的 utils、hal/os、topic、bringup 测试，见 [test/host/README.md](test/host/README.md)）。P2、P2.5 已把全部源码搬到 `src/`、`app/`、`config/`、`platform/`，`src/lib` 去掉了 `alg_` 前缀，固件符号与迁移源一致（命名空间按改名表换算）。
+- 当前状态：基线 tag `baseline/a2cfd16`。P1–P2.5 期间，根工程用 profile `baseline` 构建出的固件与迁移源构建的符号集合一致；F2 起按架构 v2 重建，旧能力代码已归档到 tag `archive/pre-rebuild`（Decision-20261031-13），现在的固件是框架验证用的 `bringup_dm_mc02`（心跳、IMU 姿态、CAN、SBUS、USB 报告、指示）；宿主测试由根工程引入（27 项 ctest，含 hal 契约在替身上的语义、驱动与 bringup 能力的测试，见 [test/host/README.md](test/host/README.md)）。怎样在框架上加外设、驱动、topic、能力与 profile，见 [框架使用指南](docs/ai/guide/框架使用指南.md)。P2、P2.5 已把全部源码搬到 `src/`、`app/`、`config/`、`platform/`，`src/lib` 去掉了 `alg_` 前缀，固件符号与迁移源一致（命名空间按改名表换算）。
 - 架构：**[docs/ai/architecture.md](docs/ai/architecture.md) v2**（按负责人骨架重建，Decision-20261027-01）；执行计划与进度见 [plan.md](plan.md)。
 - 评审报告 [docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md](docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md) v1.0 是历史记录，与架构 v2 冲突处以 v2 为准。
 
@@ -21,7 +21,7 @@ RoboMaster 多兵种、多开发板的 MCU 下位机固件。本仓以 `Controll
 | `app/` | 业务能力：imu / chassis / gimbal / remote / launch / link …，**每个能力一个 target**，只提供 init/step、零 RTOS；`topics/` 集中定义产品的全部 topic；`common/` 是任务运行器 | → `src/`；能力之间只经 topic；**禁止**依赖 `platform/` 与 `config/` |
 | `config/` | `profiles/<兵种>_<板>/`：选板、选能力（`profile.cmake`）与 constexpr 参数（`params.hpp`）；`assembly/`：组合根（构造对象、注入参数、任务表、启动入口） | `assembly` → `profile` + `app` + `platform/<板>/board`；只有固件链接 assembly |
 | `platform/` | 按板一级：`<板>/{cubemx,port,board}`；`mock/` 供宿主测试 | → `src/hal` 契约（用 C++ 实现）；**禁止**依赖 app/config；**禁止**把 HAL/CMSIS/FreeRTOS 类型放进公共头 |
-| `src/` | 通用框架：`hal`（硬件契约 + `os`）、`boot`、`utils`（无领域含义的基础件）、`middleware`（系统服务，现有 topic 发布/订阅机制）、`lib`（领域算法）、`driver`（设备与设备协议）、`third_party` | 层内依赖见架构 v2 §2.3；**禁止**依赖 platform/app/config/RTOS/HAL；必须能独立构建、能裸机构建 |
+| `src/` | 通用框架：`hal`（硬件契约：句柄类 + `os`）、`boot`、`utils`（无领域含义的基础件）、`middleware`（系统服务，现有 topic 发布/订阅机制）、`lib`（领域算法）、`driver`（设备与设备协议）、`third_party` | 层内依赖见架构 v2 §2.3；**禁止**依赖 platform/app/config/RTOS/HAL；必须能独立构建、能裸机构建 |
 | `test/` | 宿主单元/集成测试（ctest），链接 `platform/mock`；**必须入库** | → 被测 target + `platform/mock`；**不进固件链接图** |
 | `tool/` | 烧录、调试、数据回放、代码生成、CI 脚本 | 无构建期依赖；不得再被 `.gitignore` 排除 |
 | `docs/` | 架构、评审、迁移、决策与证据链 | — |
@@ -97,7 +97,7 @@ cmake --preset framework   && cmake --build --preset framework     # 框架独�
 | [tree.md](tree.md) | 目录结构说明与关键位置 |
 | [decision.md](decision.md) | 关键工程决策日志（含本次重构的决策） |
 
-组织合规件：`.foray-layer`（layer: MCU）、`CODEOWNERS`（`@ZQU-Foray/电控组`）、`.github/workflows/ci.yml`（lint-c 增量格式检查、宿主测试、legacy 固件构建与 Release SHA 闸门，见 [decision.md](decision.md) Decision-20261026-01）。
+组织合规件：`.foray-layer`（layer: MCU）、`CODEOWNERS`（`@ZQU-Foray/电控组`）、`.github/workflows/ci.yml`（格式、命名、架构检查、宿主测试、框架独立构建与 Cortex-M0+ 原子检查、固件构建与 HAL 回调检查、段大小报告；见 [decision.md](decision.md) Decision-20261026-01、Decision-20261031-06、Decision-20261031-08）。
 
 ## 8. 参考
 

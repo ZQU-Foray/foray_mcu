@@ -3,7 +3,7 @@
 在宿主机上编译被测代码，用 ctest 运行，不需要开发板。由根工程在宿主构建中引入（`host-tests` preset）。
 
 - 单元测试直接链接被测 target：框架的 `lib_*`、`driver_*`、`middleware_*`，能力的 `app_*`（能力零 RTOS，`app/` 也加入宿主构建，任务运行器 `app_common` 除外），以及 `platform_mock`；
-- 测试以 `test/host` 为根引用支持文件（`"support/dji_platform_stub.hpp"`），被测代码的头文件随链接的 target 而来（`"driver/bmi088/bmi088.hpp"`、`"bringup/monitor.hpp"`）。
+- 外设与时间都经 `platform_mock` 的替身：测试用 `mock_hal.hpp`（`mock::can::inject`、`mock::spi::set_responder`、`mock::gpio::trigger_interrupt` 等）注入输入、检查输出，用 `mock_os.hpp` 控制时间（Decision-20261101-01）。迁移期的 C ABI 桩已删除。被测代码的头文件随链接的 target 而来（`"driver/bmi088/bmi088.hpp"`、`"bringup/monitor.hpp"`）。
 - 旧 app 的底盘集成测试已随旧 app 归档到 tag `archive/pre-rebuild`（Decision-20261031-13，例外 X-10 关闭）。
 
 ## 运行
@@ -20,7 +20,7 @@ Windows 上用 MSYS2 UCRT64 的 gcc/g++：在 `CMakeUserPresets.json`（不入�
 
 CI 的 `host-tests` 作业（`.github/workflows/ci.yml`）在 GitHub Actions 的 Ubuntu 上运行同样的三条命令，并检查宿主构建的依赖图。
 
-已验证环境：Ubuntu 24.04 + g++ 13.3.0 + CMake 3.28.3（2026-10-31，17/17 通过）；WSL Ubuntu 22.04 + g++ 11.4.0 + CMake 3.31.6（2026-10-29，17/17 通过）；Windows + MSYS2 UCRT64 g++ 16.2.0 + CMake 4.4.4（2026-10-26，14/14 通过；F1 新增的 `spsc_queue`、`latest_value` 于 2026-10-29 用同一编译器直接编译运行通过）。
+已验证环境：Ubuntu 24.04 + g++ 13.3.0 + CMake 3.28.3（2026-11-01，27/27 通过）；WSL Ubuntu 22.04 + g++ 11.4.0 + CMake 3.31.6（2026-10-29，17/17 通过）；Windows + MSYS2 UCRT64 g++ 16.2.0 + CMake 4.4.4（2026-10-26，14/14 通过；F1 新增的 `spsc_queue`、`latest_value` 于 2026-10-29 用同一编译器直接编译运行通过）。
 
 ## 测试清单
 
@@ -29,12 +29,16 @@ CI 的 `host-tests` 作业（`.github/workflows/ci.yml`）在 GitHub Actions 的
 | ctest 名称 | 测试源码 | 被测 target 或源码 |
 |---|---|---|
 | `dji_protocol` | `unit/protocol/dji_esc_test.cpp` | `driver_protocol_dji` |
-| `dji_motor` | `unit/motor/dji_motor_test.cpp` | `driver_motor_dji`（含协议） |
-| `dji_adapter` | `unit/motor/dji_motor_adapter_test.cpp` | `driver_motor_dji` |
-| `angle_wrap` | `unit/motor/angle_wrap_test.cpp` | `driver_motor_dji` |
-| `motor_group` | `unit/motor/motor_group_test.cpp` | `driver_motor_dji` |
+| `dji_motor` | `unit/motor/dji_motor_test.cpp` | `driver_motor_dji`（含协议）+ `platform_mock`（保活、反馈解析、多圈、指令换算、每条总线一个接收方、总线统计） |
+| `dji_adapter` | `unit/motor/dji_motor_adapter_test.cpp` | `driver_motor_dji` + `platform_mock` |
+| `angle_wrap` | `unit/motor/angle_wrap_test.cpp` | `driver_motor_dji` + `platform_mock` |
+| `motor_group` | `unit/motor/motor_group_test.cpp` | `driver_motor_dji` + `platform_mock`（总线占用由 `claim_receiver()` 检查） |
 | `brand_extension` | `unit/motor/brand_extension_test.cpp` | `driver_motor`（只用 `motor_group.hpp`，非 DJI 最小适配器） |
-| `bmi088_acquisition` | `unit/imu_acquisition/bmi088_acquisition_test.cpp` | `driver_bmi088`（初始化、进行中的数据就绪、共享 SPI、合并、有界队列、提前完成、时基回绕、DMA 错误；测旧 app 邮箱与诊断的两段已随归档删除） |
+| `bmi088_acquisition` | `unit/imu_acquisition/bmi088_acquisition_test.cpp` | `driver_bmi088` + `platform_mock`（SPI 应答函数扮演 BMI088：初始化、进行中的数据就绪、共享 SPI、合并、有界队列、提前完成、时基回绕、DMA 错误） |
+| `hal_gpio_pwm`、`hal_can`、`hal_spi`、`hal_uart`、`hal_usb_cdc` | `unit/hal/*_test.cpp` | `platform_mock`：hal 契约 v1 在替身上的语义（参数检查、结果优先级、通知时机、能力分级、Uart 与 UsbCdc 同形）。替身是驱动测试的依据 |
+| `buzzer` | `unit/buzzer/buzzer_test.cpp` | `driver_buzzer` + `platform_mock` |
+| `ws2812` | `unit/ws2812/ws2812_test.cpp` | `driver_ws2812` + `platform_mock`（波形编码、亮度、出错重发、不支持异步时的阻塞回退） |
+| `axis_mapping` | `unit/estimate/axis_mapping_test.cpp` | `lib_estimate`（传感器 → 机体的轴映射） |
 | `hal_os_mock` | `unit/hal_os/mock_os_test.cpp` | `platform_mock`（hal_os 的宿主替身：时基由测试控制、换算辅助跨回绕、临界区嵌套与两线程互斥） |
 | `signal` | `unit/hal_os/signal_test.cpp` | `platform_mock`（`Signal`：通知不丢、多次合并、超时按测试推进的时间且跨回绕、跨线程唤醒、一个线程先后等多个、多个线程轮流等、先检查后等待的写法在 20 万次通知下不丢唤醒） |
 | `signal_misuse_notify_in_critical` / `signal_misuse_wait_in_critical` / `signal_misuse_two_waiters` | `unit/hal_os/signal_misuse_test.cpp` | `platform_mock` 的误用检查：每个场景都应打印原因并 `abort()`，按输出判定 |
@@ -43,6 +47,8 @@ CI 的 `host-tests` 作业（`.github/workflows/ci.yml`）在 GitHub Actions 的
 | `latest_value` | `unit/concurrency/latest_value_test.cpp` | `utils_concurrency`（最新值邮箱：初值、覆盖、大小不是 4 的倍数、版本号按 2^31 回绕；一写三读的一致性压力；`-O2`） |
 | `topic` | `unit/topic/topic_test.cpp` | `middleware_topic` + `platform_mock`（常量初始化与清单写法、单发布者、新数据判断与丢失计数、观测计数、发布只进一次临界区、`wait()` 立即返回、跨线程唤醒、超时跨回绕、旧通知不提前结束等待、等待槽上限、直接登记的 `Signal`、一次发布叫醒全部等待者；一个发布线程对阻塞等待、轮询、模拟中断三个订阅者的压力测试；`-O2`） |
 | `bringup` | `unit/bringup/bringup_test.cpp` | `app_bringup` + `platform_mock`（Heartbeat 单发布者与序号；Monitor 的收到、丢失、延迟超限、延迟跨回绕；`topics::ALL`） |
+| `bringup_imu` | `unit/bringup/imu_check_test.cpp` | `app_bringup` + `platform_mock`（ImuCheck：中断里发布 `bringup.imu_event`、驱动初始化、样本换算与 VQF、限频发布、加热、延迟超限） |
+| `bringup_io` | `unit/bringup/io_checks_test.cpp` | `app_bringup` + `platform_mock`（CanCheck 只收、SbusCheck 跨段拼帧与失控保护、UsbReport 状态行与回显、Indicator 两声与灯的状态、TextLine 定点格式化） |
 
 并发测试（`spsc_queue`、`latest_value`、`hal_os_mock`、`signal`、`topic`）可以加 `-fsanitize=thread` 在本地用 ThreadSanitizer 运行，CI 不跑。GCC 12 起会对 `LatestValue` 里的 `atomic_thread_fence` 报 `-Wtsan`，与 `-Werror` 一起用时加 `-Wno-tsan`。`spsc_queue`、`latest_value` 的回绕部分分别要读写 2^32 个字节、写 2^31 次，用 ThreadSanitizer 跑时先把轮数改小。ThreadSanitizer 程序启动即报 "unexpected memory mapping" 时（WSL 与 Ubuntu 24.04 都遇到过），用 `setarch $(uname -m) -R ./test_xxx` 运行。
 
@@ -57,13 +63,12 @@ CI 的 `host-tests` 作业（`.github/workflows/ci.yml`）在 GitHub Actions 的
 ```text
 test/host/
 ├── CMakeLists.txt
-├── unit/{protocol,motor,imu_acquisition,hal_os,crc,concurrency,topic,bringup}/ 单元测试
-└── support/                                 测试替身
-    └── dji_platform_stub.hpp                CAN/时基 C ABI 桩（DJI 电机测试用）
+└── unit/{protocol,motor,imu_acquisition,hal,hal_os,crc,concurrency,topic,estimate,buzzer,ws2812,bringup}/ 单元测试
 ```
 
 ## 来源与适配记录
 
+> F2–F4（2026-11-01）：hal 契约 v1（Decision-20261101-01）——电机与 BMI088 的测试改用 `platform_mock`，删除 `support/dji_platform_stub.hpp`；新增 `hal_*`、`buzzer`、`ws2812`；`axis_mapping`（Decision-20261101-02）；`bringup_imu`、`bringup_io`（Decision-20261101-03）。
 > F2（2026-10-31）：归档旧 app（Decision-20261031-13）——删除底盘集成测试 `chassis_controller`、`controller_equivalence`、`mock_*`（6 项）及其支持文件；`bmi088_acquisition` 去掉测旧 app 的两段；`bringup` 改为链接 `app_bringup`；`host_test()` 去掉 `MOCK_BACKEND`。
 > F2（2026-10-31）：新增 `bringup`（测 `app/bringup` 的 Heartbeat、Monitor，测试里直接编译其源码，旧 app 归档后改为链接 `app_bringup`）；`topic` 补直接登记 `Signal` 的用例（Decision-20261031-12）。
 > F1（2026-10-31）：新增 `topic` 与消息约束的配置期检查，测 F1 第 4 步的 `middleware_topic`，不来自 `fd1edbb`。

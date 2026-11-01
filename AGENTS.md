@@ -5,13 +5,13 @@
 
 ## 0. 当前阶段
 
-本仓 **P0（基线与资产恢复）、P0.5（格式与命名统一）、P1（构建骨架）、P2（机械搬迁）、P2.5（混合文件拆分搬迁）已于 2026-10-26 验收。2026-10-27 起按负责人的骨架重建（Decision-20261027-01，架构 v2）：迁移源只作参考与零件来源，不为保持旧结构妥协；先建框架（F1–F4），负责人验收框架后再重建能力。F1 各项已完成、待验收；F2 第 1–4 步已完成（旧能力代码已归档到 tag `archive/pre-rebuild`），第 5 步（外设）待负责人决定**。评审报告 `docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md` v1.0 是历史记录，与架构 v2 冲突处以 v2 为准。
+本仓 **P0（基线与资产恢复）、P0.5（格式与命名统一）、P1（构建骨架）、P2（机械搬迁）、P2.5（混合文件拆分搬迁）已于 2026-10-26 验收。2026-10-27 起按负责人的骨架重建（Decision-20261027-01，架构 v2）：迁移源只作参考与零件来源，不为保持旧结构妥协；先建框架（F1–F4），负责人验收框架后再重建能力。F1 各项已完成、待验收；F2 第 1–5 步与 F3 的代码已完成（hal 契约 v1 为句柄类，Decision-20261101-01～03），待上板验证（`docs/ai/decisions/2026-11-01-F2-外设上板检查清单.md`）与验收；F4 的示范与指南（`docs/ai/guide/框架使用指南.md`）已交付**。评审报告 `docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md` v1.0 是历史记录，与架构 v2 冲突处以 v2 为准。
 迁移源 ControllerCode `a2cfd16` 的历史已导入（基线 tag `baseline/a2cfd16`）；根工程（`CMakeLists.txt`、`CMakePresets.json`）已按目标结构建立 target，源码已全部搬到 `src/`、`app/`、`config/`、`platform/`（P2、P2.5），`legacy/` 只剩迁移源 README 与架构图；新代码的 include 写成相对层根目录的路径（`"hal/can.hpp"`、`"tasks/imu_task.hpp"`），文件名 snake_case、C++ 头用 `.hpp`（Decision-20261026-08）；宿主测试由根工程的 host-tests preset 引入（见 `test/host/README.md`）。target、函数、变量名一律不加项目前缀（Decision-20261026-06）；`src/lib` 的子目录与命名空间同名，不加 `alg_` 前缀（Decision-20261026-09）。**按 [plan.md](plan.md) 的阶段顺序推进，不跨阶段混做。**
 
 ## 1. 语言与格式
 
 - 注释、文档、提交信息一律使用 **简体中文**；文件编码 **UTF-8（无 BOM）**。
-- 主语言 **C++17**（`-fno-rtti -fno-exceptions -fno-threadsafe-statics`，无堆分配，热路径不用虚函数）。C 只用于外部强制的接缝：CubeMX 生成区调用的启动入口 `boot_*`（`extern "C"` 声明，实现写在 C++ 里）、覆盖 HAL 弱符号的回调、生成区里的中断入口，以及例外 X-01 的 USB 接口（架构 v2 §9.3）。覆盖 HAL 回调的 `.cpp` 必须 include 对应 HAL 头，否则回调会被 C++ 改名而静默失效（评审报告 §5.11）。
+- 主语言 **C++17**（`-fno-rtti -fno-exceptions -fno-threadsafe-statics`，无堆分配，热路径不用虚函数）。C 只用于外部强制的接缝：CubeMX 生成区调用的启动入口 `boot_*`（`extern "C"` 声明，实现写在 C++ 里）、覆盖 HAL 弱符号的回调、生成区里的中断入口，以及例外 X-01、X-02 的 USB 接口（架构 v2 §9.3；`extern "C"` 的位置由 `arch_check.py scan` 检查）。覆盖 HAL 回调的 `.cpp` 必须 include 对应 HAL 头，否则回调会被 C++ 改名而静默失效（评审报告 §5.11）。
 - 命名按 ROS 2 C++ 风格，格式按组织规则（4 空格、LF、UTF-8、文件末尾换行），分别由根目录 `.clang-tidy` 与 `.clang-format` 执行；clang-format/clang-tidy 统一用 18（评审报告 §5.12、Decision-20261025-04）。格式化与改名必须单独提交，并登记到 `.git-blame-ignore-revs`。
 - `.clang-tidy` 查不出的命名约定（Decision-20261026-05）：标识符里"数值+单位"和序号单独成段（`ACCEL_ODR_100_HZ`、`POWER_24V_0`、`CHANNEL_1`），名字里固有的数字不拆（型号 `BMI088`、`GM6020_CURRENT`，术语 `crc8`，标号 `WHEEL_M1`）。C ABI 的"模块_函数"、`os*`、`HAL_*` 回调不按 C++ 规则改名。
 - 不提交编译产物（`build/`、`*.elf`、`*.hex`、`*.bin`、`*.map`）、IDE 配置、临时文件与日志。
@@ -22,7 +22,7 @@
 - `platform/**/cubemx/**`、`*.ioc`、`.mxproject`、startup 文件与链接脚本属于 **CubeMX 生成区**：只能通过重新生成修改，**禁止手工编辑**；唯一的例外是 USER CODE 区里对 `boot_*` 的调用（改动行登记在 decision.md，Decision-20261027-01；现行的改动行见 Decision-20261031-11）；自定义段用 `platform/.../board/link/overlay.ld` 以第二个 `-T` 追加（Q9），不改生成 `.ld`；生成前后必须可复现（CI regenerate-diff 或生成清单校验）。
 - `legacy/` 是迁移源的原样副本：只允许按 plan.md 的阶段做机械操作（搬出、改名、格式化），**禁止在 `legacy/` 里开发新功能或修 bug**；新代码从 P1 起按目标结构编写。
 - **禁止手写链路协议编解码**：链路协议只允许使用 `foray_interfaces` 生成的 `generated/lower_link.hpp`（vendor 到 `src/third_party/`，带版本与 sha256）。
-- 禁止引入反向/跨层依赖：`app → platform 实现`、`src → platform/app/config`、任何层 → 厂商 HAL/RTOS 头。**例外**：`src/hal` 契约头本身不得出现 HAL/RTOS 类型；`platform` 实现 `src/hal` 时可以使用厂商头。规则以评审报告 §5 与 [docs/ai/architecture.md](docs/ai/architecture.md) 为准；后者是分层判据、16 条依赖规则与例外登记表的人读入口（v1，Decision-20261026-02）。
+- 禁止引入反向/跨层依赖：`app → platform 实现`、`src → platform/app/config`、任何层 → 厂商 HAL/RTOS 头。**例外**：`src/hal` 契约头本身不得出现 HAL/RTOS 类型；`platform` 实现 `src/hal` 时可以使用厂商头。硬件契约是句柄类（`hal::Can` 等，Decision-20261101-01），板级句柄在 `platform/<板>/board/board.hpp`，只有组合根与本板的 port 能 include 它；驱动在构造时接收句柄。规则以评审报告 §5 与 [docs/ai/architecture.md](docs/ai/architecture.md) 为准；后者是分层判据、16 条依赖规则与例外登记表的人读入口（v1，Decision-20261026-02）。
 - 禁止 `file(GLOB)` 收集业务源码；禁止全局 `include_directories()`；禁止把仓库根加入 include 路径。
 - CMake 文件按层组织：一层的全部 target 写在该层的一个 `CMakeLists.txt` 里（根、`src/`、`app/`、`config/`、每块板、`platform/mock`、`test/host`），不在子目录里各放一个；需要拆分时先在 [decision.md](decision.md) 登记（Decision-20261026-07）。
 - 禁止在 `app/` 与 `src/` 代码中用 `#if` 兵种/能力宏做裁剪（能力用 target/装配表达；`#if` 只允许出现在生成头与 platform 适配层）。

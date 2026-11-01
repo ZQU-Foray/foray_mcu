@@ -1,9 +1,9 @@
 # 目录结构说明（foray_mcu）
 
-> 状态：**P0–P2.5 已验收（2026-10-26）；2026-10-27 起按架构 v2 重建（Decision-20261027-01）；F1 各项完成、待验收；F2 第 1–4 步完成，第 5 步（外设）待负责人决定**。本文件描述"目标结构"与"当前实际状态"的差异。
+> 状态：**P0–P2.5 已验收（2026-10-26）；2026-10-27 起按架构 v2 重建（Decision-20261027-01）；F1 各项完成、待验收；F2 第 1–5 步与 F3 的代码完成（2026-11-01，Decision-20261101-01～03），待上板验证与验收**。本文件描述"目标结构"与"当前实际状态"的差异。
 > 目标结构以 [docs/ai/architecture.md](docs/ai/architecture.md) v2 为准（评审报告 v1.0 是历史记录）；"目标位置"按阶段落地，是否已落地以状态图例为准。
 
-## 当前实际结构（2026-10-31，F2 第 4 步完成）
+## 当前实际结构（2026-11-01，F2 第 5 步与 F3 完成）
 
 ```text
 foray_mcu/
@@ -18,21 +18,20 @@ foray_mcu/
 ├── CMakeLists.txt / CMakePresets.json   根工程（P1）：固件唯一开关 -DPROFILE；preset arm-debug、arm-release、host-tests、framework、framework-m0plus（框架独立构建，-DFRAMEWORK_ONLY=ON，F1）
 ├── cmake/
 │   ├── toolchains/           arm-gcc-cortex-m7、arm-gcc-cortex-m4f、arm-gcc-cortex-m0plus、host（-m4f 阶段 B 用；-m0plus 现只用于框架独立构建）
-│   ├── targets.cmake         严格告警、OBJECT 库目标文件传递、固件产物、烧录目标
-│   └── legacy.cmake          迁移期过渡件：legacy_build_options（迁移源的两个构建期开关，F2、F3 删）
+│   └── targets.cmake         严格告警、OBJECT 库目标文件传递、固件产物、烧录目标
 ├── src/                      框架（include 根：#include "hal/can.hpp"）
-│   ├── CMakeLists.txt        框架的全部 target：hal、hal_detail、hal_os、boot、utils_*、middleware_*、lib_*、driver_*
+│   ├── CMakeLists.txt        框架的全部 target：hal、hal_os、boot、utils_*、middleware_*、lib_*、driver_*（框架库带 -Wdouble-promotion）
 │   ├── README.md             迁移源 Libraries/README.md（正文为旧路径，F1 更新）
-│   ├── hal/                  C++ 契约（can、gpio、pwm、spi、time、uart、usb_cdc，迁移期写法）、init.hpp（hal::init，F2）；detail/ 为迁移期 C ABI（F2 删）；os/ 为最小 OS 契约 v1（clock、critical_section、signal，F1）
+│   ├── hal/                  硬件契约 v1（句柄类 can、gpio、pwm、spi、uart、usb_cdc，callback.hpp、init.hpp，F2 第 5 步）；os/ 为最小 OS 契约 v1（clock、critical_section、signal，F1）
 │   ├── boot/                 boot.h：生成区唯一调用的启动入口（F2）
 │   ├── utils/                math、crc（F1 第 1 步由 lib 移入）、concurrency（spsc_queue、latest_value，F1 第 2 步）
 │   ├── middleware/           fsm（F1 第 1 步由 lib 移入）、topic（topic.hpp，F1 第 4 步）
 │   ├── lib/                  control（pid、slope）、estimate、filter、kinematics、component（目录名即命名空间名）
-│   └── driver/               bmi088、buzzer、motor（含 dji/）、ws2812、protocol/{dji,sbus}
+│   └── driver/               bmi088、buzzer、motor（含 dji/）、ws2812、protocol/{dji,sbus}（构造时接收 hal 句柄，F2 第 5 步）
 ├── app/                      产品（include 根：#include "topics/bringup.hpp"）；固件与宿主构建都加入
 │   ├── CMakeLists.txt        产品的全部 target：app_topics、app_bringup、app_common（只在固件构建中）
-│   ├── topics/               topic 清单：bringup.hpp（第一个 topic，F2）、all.hpp（topics::ALL）；约定见 README.md
-│   ├── bringup/              框架验证用的能力：Heartbeat、Monitor（F2，Decision-20261031-12）
+│   ├── topics/               topic 清单：bringup.hpp（heartbeat、imu_event、imu、sbus）、all.hpp（topics::ALL）；约定见 README.md
+│   ├── bringup/              框架验证用的能力：Heartbeat、Monitor（F2）；ImuCheck、CanCheck、SbusCheck、UsbReport、Indicator（外设检查，Decision-20261101-03）
 │   └── common/               task_runner.hpp：任务运行器（F2）
 ├── config/
 │   ├── CMakeLists.txt        profile_<名称>、assembly_<名称>：组合根 assembly/<profile>.cpp，链接 CAPABILITIES
@@ -41,23 +40,25 @@ foray_mcu/
 ├── platform/
 │   ├── dm_mc02/              按板一级（F2 第 2 步由 st/stm32h7/board_dm 移来，Decision-20261031-09）：board.cmake（板标识 dm_mc02）+ CMakeLists.txt（mx_generated、rtos、usb、port、board、os_freertos）
 │   │   ├── cubemx/           CubeMX 生成物：Core、Drivers、Middlewares、USB_DEVICE、.ioc、启动文件、链接脚本（冻结）
-│   │   └── port/             契约的手写实现（C，F2 起逐步改为 C++），含 port_kit（队列/通知/临界区）与 usb_cdc；os/ 是 hal/os 契约 v1 的 C++ 实现（TIM2、BASEPRI、任务通知槽，F2 第 3 步）；Init.h、UsbCdc.h 被生成代码按名字 include，保持原名
-│   └── mock/                 platform_mock：hal_os 的宿主替身（线程安全，测试推进时间，Signal 检查误用）
+│   │   ├── port/             hal 与 hal/os 契约的 C++ 实现（每个外设一个 .cpp，F2 第 5 步）、port.hpp（外设初始化、中断通知）；os/ 是 hal/os 的实现（TIM2、BASEPRI、任务通知槽）；UsbCdc.h 被 USB 生成代码按名字 include（X-01）
+│   │   └── board/            board.hpp：物理资源句柄、外设个数、能力常量（只给组合根与 port，F2 第 5 步）
+│   └── mock/                 platform_mock：hal 与 hal_os 的宿主替身（mock_hal.hpp、mock_os.hpp：注入输入、检查输出、测试推进时间）
 ├── legacy/                   迁移源的 README 与既有架构图（源码已在 P2、P2.5 全部搬出）
 │   ├── .docs/images/         既有架构图
 │   └── README.md
-├── test/host/                宿主测试（由根工程 host-tests preset 引入，22 项 ctest；来源 fd1edbb 与 F1 新增，见 test/host/README.md）
+├── test/host/                宿主测试（由根工程 host-tests preset 引入，27 项 ctest；来源 fd1edbb 与 F1–F4 新增，见 test/host/README.md）
 ├── test/framework/           框架独立构建用：template_check.cpp 显式实例化只有头文件的模板（F1，Decision-20261031-06）
 ├── test/data/imu/            真实 IMU 数据（原固件静态陀螺采集 ×2）
 ├── test/data/heater/         原固件加热冷启动曲线（L6 重做的验收下限）
-├── tool/debug/               SWD 只读轮询、IMU 采集与加热日志解码（Python）
+├── tool/debug/               SWD 只读轮询、bringup 上板探测（bringup_probe.py）、IMU 采集与加热日志解码（Python）
 ├── tool/flash/openocd/       OpenOCD 配置（DM-MC02 + CMSIS-DAP）
 ├── tool/ci/                  format.py（格式）、naming.py（命名）、symbols.py（符号对照与段大小报告）、arch_check.py（依赖图、文本扫描、M0+ 原子与 HAL 回调检查）
 └── docs/
     ├── assets/controller_code-架构图.png                    迁移源架构图（人工绘制，PNG 内嵌 5 页）
     └── ai/                      AI 撰写的文档（Decision-20261026-03）
         ├── README.md                docs/ai 索引
-        ├── architecture.md          分层判据、依赖规则、例外登记表（v1.4）
+        ├── architecture.md          分层判据、依赖规则、例外登记表（v2.10）
+        ├── guide/框架使用指南.md     怎样新增外设、驱动、topic、能力、profile、板（F4）
         ├── assets/controller_code-固件恢复可行性评估.md      迁移源基线证据（未入 git 的工作区文件转存）
         ├── reviews/2026-10-25-foray_mcu-架构评审报告.md      v1.0（已确认）
         ├── reviews/archive/                                  v0.1–v0.4 原文存档
@@ -74,8 +75,8 @@ foray_mcu/
 **事实**：
 - CMake 文件按层组织：手写的 `CMakeLists.txt` 共 7 个（根、`src/`、`app/`、`config/`、每块板一个、`platform/mock`、`test/host`），一层的全部 target 定义在该层的文件里（Decision-20261026-07）；
 - 根工程按目标结构组织 target；P1–P2.5 期间固件 `firmware_baseline` 的符号集合与迁移源一致。旧能力代码与 `baseline` 已在 F2 归档到 tag `archive/pre-rebuild`（Decision-20261031-13），现在的固件是 `firmware_bringup_dm_mc02`；
-- 源码已全部搬出 `legacy/`（P2、P2.5），`legacy/` 只剩迁移源 README 与架构图；迁移期过渡件只剩 `hal_detail`（F2）与 `legacy_build_options`（F2、F3）；
-- `src/utils`、`src/hal/os`、`src/middleware/topic` 已在 F1 建立；`platform/dm_mc02`（按板一级）、`src/boot/boot.h`、`src/hal/init.hpp`、任务运行器、第一个 topic 与 bringup profile 在 F2 建立。
+- 源码已全部搬出 `legacy/`（P2、P2.5），`legacy/` 只剩迁移源 README 与架构图；迁移期过渡件（`hal_detail`、PortKit、`legacy_build_options`、DWT 时基）已在 F2 第 5 步删除；
+- `src/utils`、`src/hal/os`、`src/middleware/topic` 已在 F1 建立；`platform/dm_mc02`（按板一级）、`src/boot/boot.h`、`src/hal/init.hpp`、任务运行器、第一个 topic 与 bringup profile 在 F2 建立；hal 契约 v1、`board.hpp`、C++ port 与全部外设的替身在 F2 第 5 步建立。
 
 ## 目标结构（架构 v2，Decision-20261027-01）
 
@@ -153,15 +154,16 @@ foray_mcu/
 | 无领域含义的基础件 | `src/utils/` | ✅ math、crc 已移入（F1 第 1 步）；crc16、concurrency（spsc_queue、latest_value）已完成（F1 第 2 步） |
 | topic 机制 / 产品的 topic 清单 | `src/middleware/topic/` / `app/topics/` | ✅ 机制（F1 第 4 步，Decision-20261031-05）；第一个 topic `bringup.heartbeat` 与 `topics::ALL`（F2，Decision-20261031-12） |
 | OS 契约 | `src/hal/os/` | ✅ 契约 v1 与宿主替身（F1 第 3 步，Decision-20261031-01～03）；port 实现在 F2 |
-| 硬件契约 v1 | `src/hal/` | 🟡 F2（现为旧契约 + `src/hal/detail` C 接口，F2 删除） |
+| 硬件契约 v1 | `src/hal/` | ✅ 句柄类（F2 第 5 步，Decision-20261101-01）；宿主测试全绿，待上板验证 |
 | 启动入口 | `src/boot/` | ✅ `boot.h`，生成区只调 `boot_*`（F2 第 4 步，X-09 关闭）；每个 profile 的组合根实现一份 |
 | 领域算法 | `src/lib/` | ✅ 已搬入（P2）、去掉 `alg_` 前缀（P2.5）；F1 调整 slope/fsm/crc 的归属 |
-| 设备驱动与协议 | `src/driver/` | ✅ 已搬入（P2）；F3 适配 hal v1 |
-| 板级（生成区、port、board） | `platform/<板>/{cubemx,port,board}` | 🟡 已按板一级（`platform/dm_mc02`，F2 第 2 步）；port 仍是 C，`board/` 随第 5 步建立 |
+| 设备驱动与协议 | `src/driver/` | ✅ 已改用 hal v1，构造时接收句柄（F2 第 5 步与 F3 合排） |
+| 板级（生成区、port、board） | `platform/<板>/{cubemx,port,board}` | ✅ 按板一级（F2 第 2 步）；port 全部为 C++、`board/board.hpp`（F2 第 5 步） |
 | 任务运行器 | `app/common/` | ✅ `task_runner.hpp`（F2 第 4 步，Decision-20261031-12） |
 | 能力 | `app/<capability>/` | ⏳ 阶段 A 重建；旧代码已归档到 tag `archive/pre-rebuild`（F2，Decision-20261031-13）；`app/bringup` 是框架验证用的能力 |
 | profile 与组合根 | `config/profiles/<兵种>_<板>/`、`config/assembly/<profile>.cpp` | ✅ `bringup_dm_mc02`（F2，preset 默认）；兵种 profile 在阶段 A |
-| 宿主测试 | `test/host/` | ✅ 由根工程引入（17 项全绿）；随 F1–F3 扩充，依赖旧 app 的测试在 F2 归档 |
+| 宿主测试 | `test/host/` | ✅ 由根工程引入（27 项全绿）；外设经 `platform_mock` 的替身 |
+| 框架使用指南 | `docs/ai/guide/框架使用指南.md` | 📄 F4（2026-11-01） |
 | 组织合规件 | `.foray-layer`、`CODEOWNERS`、`.github/workflows/ci.yml` | ✅ 已落地 |
 | 链路协议生成头 | `src/third_party/foray_interfaces/generated/lower_link.hpp` | ⏳ 阶段 A（链路能力） |
 | 架构判据 | `docs/ai/architecture.md` | 📄 v2（2026-10-27，待审阅） |
