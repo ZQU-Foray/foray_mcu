@@ -1,6 +1,6 @@
 # 开发计划（foray_mcu 结构重构）
 
-> 当前状态：**P0–P2.5 已验收（2026-10-26）；2026-10-27 起按架构 v2 重建。F1 完成待验收；F2 第 1–5 步与 F3 的代码完成（2026-11-01），待上板验证与验收；F4 的示范与指南已交付**（Decision-20261027-01、Decision-20261101-01～03；里程碑合并入 `main` 暂缓）。
+> 当前状态：**P0–P2.5 已验收（2026-10-26）；2026-10-27 起按架构 v2 重建。F1 完成待验收；F2 第 1–5 步与 F3 的代码完成并已上板验证（2026-11-01），待负责人验收；F4 的示范与指南已交付**（Decision-20261027-01、Decision-20261101-01～03；里程碑合并入 `main` 暂缓）。
 > 权威方案见 [docs/ai/architecture.md](docs/ai/architecture.md) v2 与 [decision.md](decision.md)；[评审报告 v1.0](docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md) 是历史记录。本文件只记录执行计划、进度与验收标准。
 > 各阶段的动作、验收与回滚以下文为准，不跨阶段混做。
 
@@ -96,7 +96,7 @@
 ### F2 契约 v1 与 DM-MC02 板级（6–10 人日）
 
 > 顺序（Decision-20261031-07）：先做与具体外设无关的第 1–4 步，每一步固件都可构建；第 5 步（外设）按外设纵向推进、与 F3 合起来排（Decision-20261101-01，负责人 2026-11-01 授权 AI 按最优方式推进）。旧 C port 定义了 HAL 回调，同一外设的新旧 port 不能并存。
-> 本地分支（一个分支对应以后的一个 PR，依次叠在前一个上）：`f1/topic` → `f1/ci` → `f2/firmware-ci`（第 1 步 CI）→ `f2/tim2-timebase`（merge 合入）→ `f2/board-dir`（第 2 步）→ `f2/hal-os-port`（第 3 步）→ `f2/boot`（第 4 步：启动入口）→ `f2/bringup`（第 4 步：任务运行器与 bringup）→ `f2/archive`（第 4 步：归档旧 app）→ `f2/peripheral-plan`（第 5 步的决策）→ `f2/gpio-pwm` → `f2/can` → `f2/spi` → `f2/uart` → `f2/usb-cdc` → `f2/port-cleanup` → `f3/estimate-decouple` → `f2/bringup-peripherals`（外设检查、上板探测脚本）→ `f2/docs-sync`（文档同步、框架使用指南）→ `f2/board-vendor-dir`（板级目录移到厂商目录下）。tag `archive/pre-rebuild` 随这批分支一起推送。PR 暂不开，以后按这个顺序依次合入 `dev`。
+> 本地分支（一个分支对应以后的一个 PR，依次叠在前一个上）：`f1/topic` → `f1/ci` → `f2/firmware-ci`（第 1 步 CI）→ `f2/tim2-timebase`（merge 合入）→ `f2/board-dir`（第 2 步）→ `f2/hal-os-port`（第 3 步）→ `f2/boot`（第 4 步：启动入口）→ `f2/bringup`（第 4 步：任务运行器与 bringup）→ `f2/archive`（第 4 步：归档旧 app）→ `f2/peripheral-plan`（第 5 步的决策）→ `f2/gpio-pwm` → `f2/can` → `f2/spi` → `f2/uart` → `f2/usb-cdc` → `f2/port-cleanup` → `f3/estimate-decouple` → `f2/bringup-peripherals`（外设检查、上板探测脚本）→ `f2/docs-sync`（文档同步、框架使用指南）→ `f2/board-vendor-dir`（板级目录移到厂商目录下）→ `f2/onboard-peripherals`（上板验证：修正 IMU 延迟的测量与探测脚本，验证记录）。tag `archive/pre-rebuild` 随这批分支一起推送。PR 暂不开，以后按这个顺序依次合入 `dev`。
 
 - [x] 第 1 步 CI（2026-10-31，Decision-20261031-08）：`firmware` 作业的符号对照退役，改为段大小报告（`symbols.py report`，写入作业摘要）；加入 HAL 回调符号检查（规则 16，`arch_check.py callbacks`）。规则 1（`board.hpp`）、4、7、10、18 的检查随对应内容出现时加入
 - [x] 第 1 步（续）合入 `f2/tim2-timebase`（2026-10-31，在分支 `f2/board-dir` 用 merge 提交合入，保留提交号）：TIM2 作 1 MHz 时基计数源，CubeMX 6.18.1（Decision-20261031-04）
@@ -110,7 +110,7 @@
   - [x] 归档旧能力代码（2026-10-31，Decision-20261031-13）：tag `archive/pre-rebuild`（`9c11546`，可用 `-DPROFILE=baseline` 构建旧固件）；删除 `app/{imu,chassis,gimbal,remote,tasks}`、旧 TaskManager、`entry_legacy.cpp`、profile `baseline`、底盘集成测试与 `bmi088_acquisition` 中测旧 app 的两段；`app/` 加入宿主构建；X-04、X-10 关闭，X-08、X-14 缩小；规则 10、18 生效。bringup 固件归档前后 `.bin` 逐字节相同；能力重建时从 tag 取参考
 - [x] 第 5 步 外设（2026-11-01，Decision-20261101-01）：`src/hal` 契约 v1 用句柄类（`hal::Gpio`、`Pwm`、`Can`、`Spi`、`Uart`、`UsbCdc`，`hal::Callback`，时间用 µs）；`platform/dm_mc02/board/board.hpp`（句柄、外设个数、能力常量，只给组合根与 port）；port 逐个外设用 C++ 重写，PortKit 拆分（队列 → `SpscQueue`，临界区 → `hal::os::CriticalSection`，通知 → `port::Notifier`）；`platform/mock` 实现全部外设（`mock_hal.hpp`）；驱动随外设改用（buzzer、BMI088 加热 → pwm；DJI 电机 → can，X-08 关闭；BMI088、WS2812 → spi，X-14 关闭）；删除 `src/hal/detail`、`hal/time.hpp`、DWT 时基、`Init.h`（X-07 关闭）；规则 1（`board.hpp`）、16（C 链接位置）的文本扫描生效。分支 `f2/peripheral-plan` → `f2/port-cleanup`
 - [x] bringup 外设检查（2026-11-01，Decision-20261101-03）：IMU（数据就绪与 SPI 完成中断里发布 `bringup.imu_event`，按它触发的任务读样本、VQF 姿态、加热）、CAN（只收）、SBUS、USB 报告、指示；任务运行器的 `on_topic` 支持超时；规则 4 的检查生效；上板探测脚本 `tool/debug/bringup_probe.py`
-- [ ] 验收：bringup 固件在板上启动，任务按表运行，中断发布的 topic 能被阻塞等待的任务收到；宿主测试全绿（宿主 27/27 已绿；上板按 [检查清单](docs/ai/decisions/2026-11-01-F2-外设上板检查清单.md) 待做，2026-11-01 调试器没有接）
+- [ ] 验收：bringup 固件在板上启动，任务按表运行，中断发布的 topic 能被阻塞等待的任务收到；宿主测试全绿（宿主 27/27 已绿；2026-11-01 按[检查清单](docs/ai/decisions/2026-11-01-F2-外设上板检查清单.md)上板验证，探测 20/20：中断里发布的 `bringup.imu_event` 叫醒 IMU 任务每秒约 6800 次，等待超时 0，最大延迟 73 µs，见[验证记录](docs/ai/decisions/2026-11-01-F2-外设上板验证/README.md)；待负责人验收）
 
 ### F3 驱动适配（4–7 人日）
 
@@ -118,7 +118,7 @@
 - [x] SPI 异步按能力分级使用：BMI088 编译期要求（`REQUIRES_SPI_ASYNC`，组合根 `static_assert`），WS2812 运行期回退阻塞发送
 - [x] `src/lib/estimate` 去掉对 BMI088 驱动的依赖（2026-11-01，Decision-20261101-02，X-17 关闭）；框架与能力开启 `-Wdouble-promotion`（`vqf.cpp` 豁免）。FPU 检查推迟到阶段 B（第一块没有双精度 FPU 的板）
 - [x] bringup 固件加入各驱动的检查（Decision-20261101-03）：CAN 接收、SPI 读 BMI088、UART 收 SBUS、PWM（蜂鸣器、加热）、GPIO 外部中断、SPI 发送（WS2812）、USB CDC 回显与状态行、时基；CAN 只收不发，电机反馈要等阶段 A 的电机能力发控制帧
-- [ ] 验收：驱动单元测试全绿（已绿）；bringup 固件上各驱动的检查通过（待上板，见检查清单）
+- [ ] 验收：驱动单元测试全绿（已绿）；bringup 固件上各驱动的检查通过（2026-11-01 上板：SPI 读 BMI088、GPIO 外部中断、PWM 加热闭环、SPI 发送 WS2812、USB CDC、时基通过；CAN、SBUS 只验证了端口启动，收帧待接设备；见[验证记录](docs/ai/decisions/2026-11-01-F2-外设上板验证/README.md)；待负责人验收）
 
 ### F4 框架验证（2–4 人日）
 
@@ -165,7 +165,7 @@
 
 ## 当前 Agent State
 
-`EXECUTING`（P0–P2.5 已验收；F1 各项已完成，待负责人验收；F2 第 1–5 步与 F3 的代码已完成、宿主测试全绿，待按检查清单上板验证；F4 的示范与指南已交付，待负责人实机检查与验收；PR 暂不开，提交留在本地分支；里程碑合并入 `main` 按负责人要求暂缓）。
+`EXECUTING`（P0–P2.5 已验收；F1 各项已完成，待负责人验收；F2 第 1–5 步与 F3 的代码已完成、宿主测试全绿，2026-11-01 已上板验证（CAN、SBUS 收帧待接设备），待负责人验收；F4 的示范与指南已交付，待负责人实机检查与验收；PR 暂不开，提交留在本地分支；里程碑合并入 `main` 按负责人要求暂缓）。
 状态词表：`REVIEW_PENDING`（等待评审）/ `PLANNING`（方案已批准、编制细节）/ `EXECUTING`（实施中）/ `BLOCKED`（外部阻塞）/ `DONE`（阶段完成）。
 
 ## Before Snapshot
@@ -255,3 +255,4 @@ Q1–Q18 已全部确认（见评审报告 v1.0 §11.1 与 decision.md）。仍�
 | 2026-11-01 | F3 | `lib/estimate` 去掉对 BMI088 驱动的依赖，X-17 关闭，Cortex-M0+ 构建全部框架；`-Wdouble-promotion` 生效（Decision-20261101-02） | 完成 |
 | 2026-11-01 | F2–F4 | bringup 外设检查与 IMU 最小示范、`on_topic` 超时、规则 4 的检查（Decision-20261101-03）；上板探测脚本与检查清单；ctest 27/27 | 完成，待上板 |
 | 2026-11-01 | F2 | 板级目录改为"厂商 / 板"两级：`platform/st/dm_mc02`（负责人要求，Decision-20261101-04）。纯移动 + 路径改写两个提交；移动前后符号一致、`.bin` 逐字节相同 | 完成 |
+| 2026-11-01 | F2、F3 | 上板验证（[记录](docs/ai/decisions/2026-11-01-F2-外设上板验证/README.md)，分支 `f2/onboard-peripherals`）：首轮 17/20，三项是测量问题——探测脚本按名义间隔算速率、两个计数先后读出，bringup IMU 检查的延迟在任务醒来后又有新发布时得负值（`978bec1` 修正并补宿主回归测试）；修正后 20/20，中断发布的 topic 叫醒 IMU 任务每秒约 6800 次、最大延迟 73 µs；接 24 V 后恒温 50 ±0.125 ℃；USB CDC 状态行与回显正常；CAN、SBUS 收帧待接设备 | F2、F3 待负责人验收 |

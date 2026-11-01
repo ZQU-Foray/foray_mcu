@@ -1,6 +1,6 @@
 # 目录结构说明（foray_mcu）
 
-> 状态：**P0–P2.5 已验收（2026-10-26）；2026-10-27 起按架构 v2 重建（Decision-20261027-01）；F1 各项完成、待验收；F2 第 1–5 步与 F3 的代码完成（2026-11-01，Decision-20261101-01～03），待上板验证与验收**。本文件描述"目标结构"与"当前实际状态"的差异。
+> 状态：**P0–P2.5 已验收（2026-10-26）；2026-10-27 起按架构 v2 重建（Decision-20261027-01）；F1 各项完成、待验收；F2 第 1–5 步与 F3 的代码完成并已上板验证（2026-11-01，Decision-20261101-01～03），待验收**。本文件描述"目标结构"与"当前实际状态"的差异。
 > 目标结构以 [docs/ai/architecture.md](docs/ai/architecture.md) v2 为准（评审报告 v1.0 是历史记录）；"目标位置"按阶段落地，是否已落地以状态图例为准。
 
 ## 当前实际结构（2026-11-01，F2 第 5 步与 F3 完成）
@@ -155,7 +155,7 @@ foray_mcu/
 | 无领域含义的基础件 | `src/utils/` | ✅ math、crc 已移入（F1 第 1 步）；crc16、concurrency（spsc_queue、latest_value）已完成（F1 第 2 步） |
 | topic 机制 / 产品的 topic 清单 | `src/middleware/topic/` / `app/topics/` | ✅ 机制（F1 第 4 步，Decision-20261031-05）；第一个 topic `bringup.heartbeat` 与 `topics::ALL`（F2，Decision-20261031-12） |
 | OS 契约 | `src/hal/os/` | ✅ 契约 v1 与宿主替身（F1 第 3 步，Decision-20261031-01～03）；port 实现在 F2 |
-| 硬件契约 v1 | `src/hal/` | ✅ 句柄类（F2 第 5 步，Decision-20261101-01）；宿主测试全绿，待上板验证 |
+| 硬件契约 v1 | `src/hal/` | ✅ 句柄类（F2 第 5 步，Decision-20261101-01）；宿主测试全绿，2026-11-01 已上板验证 |
 | 启动入口 | `src/boot/` | ✅ `boot.h`，生成区只调 `boot_*`（F2 第 4 步，X-09 关闭）；每个 profile 的组合根实现一份 |
 | 领域算法 | `src/lib/` | ✅ 已搬入（P2）、去掉 `alg_` 前缀（P2.5）；F1 调整 slope/fsm/crc 的归属 |
 | 设备驱动与协议 | `src/driver/` | ✅ 已改用 hal v1，构造时接收句柄（F2 第 5 步与 F3 合排） |
