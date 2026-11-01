@@ -1517,6 +1517,39 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 
 ---
 
+## Decision-20261101-03（bringup 固件加入外设检查；中断里发布 topic 的验收；任务运行器的 topic 超时，Accepted）
+
+- **Date**：2026-11-01
+- **Status**：Accepted（负责人 2026-11-01 授权 AI 按最优方式推进，同 Decision-20261101-01）。上板验证待负责人接上调试器后执行（检查清单见 `docs/ai/decisions/2026-11-01-F2-外设上板检查清单.md`）
+- **Source**：plan.md F2 验收"中断发布的 topic 能被阻塞等待的任务收到"、F3"bringup 固件加入各驱动的检查"、F4"用框架写一个最小示范：IMU 驱动 → 姿态 topic → USB 输出"；Decision-20261101-01 第 7 点；架构 §3.5、§3.6
+
+**Decision**：
+
+1. **bringup 能力加入外设检查**（`app/bringup`，仍是框架验证用，不含 RM 业务）：
+   - `ImuCheck`：板载 BMI088。两个数据就绪中断（GPIO 外部中断）与 SPI 事务完成中断在**框架中断里发布** `bringup.imu_event`（累计次数与时刻）；IMU 任务按它触发，把事件交给驱动、收割样本、换算到机体坐标系、喂 VQF，限频发布 `bringup.imu`（角速度、加速度、四元数、温度）；加热器按温度恒温（PWM）。报告事件数、样本数、中断发布到任务读到的延迟（最大值与超限次数）。这就是 F2 验收的"中断里发布"，也是 F4 的最小示范与阶段 A IMU 能力的起点；
+   - `CanCheck`：每条总线一个，**只收不发**（接在整车上也不会让电机动），统计帧数、见过的 DJI 反馈标识符、port 的计数；
+   - `SbusCheck`：UART → SBUS 解析 → 发布 `bringup.sbus`；
+   - `UsbReport`：USB 虚拟串口回显收到的字节，10 Hz 输出一行状态（心跳、IMU、SBUS），是 F4 示范的输出端；
+   - `Indicator`：上电蜂鸣器响两声（PWM），板载 RGB 灯按状态闪烁（SPI 发送）：IMU 在更新为绿、只有心跳为黄、都停为红。
+2. **能力的 `Config` 分两部分**：组合根注入的依赖（驱动对象的指针、引脚等句柄）与 profile 给的 `Parameters`（只含数据，写在 `params.hpp`）。`params.hpp` 不能 include `board.hpp` 与驱动对象，依赖由组合根组装（架构 §3.6）。
+3. **任务运行器**：`common::on_topic(topic, timeout_ms)` 新增可选的超时：超过这么久没有发布也运行一轮（`TaskStatus::timeout_count` 计数）。IMU 任务用 1 ms：数据就绪中断开始之前，驱动的初始化要按时间推进。
+4. **任务表**（组合根）：`imu`（按 `bringup.imu_event`，1 ms 超时，优先级 28）、`monitor`（26）、`heartbeat`（1 ms，25）、`io`（5 ms，20：CAN、SBUS、USB 报告、指示）。
+5. **规则 4 的检查生效**：`config/profiles/*/params.hpp` 只能 include 能力的头（`app/` 下除 `topics`、`common` 外的一级目录）与标准库头（`arch_check.py scan`）。
+6. 能力也加 `-Wdouble-promotion`（`app_library()`），与框架一致。
+
+**影响**：
+- Flash 与 RAM：Release 的 `.text` 约 87 KB；`.data` 由约 0.4 KB 增至约 5 KB——几个全局对象（BMI088 驱动、`ImuCheck` 里的 VQF、加热器等）有非零初值，整个对象带 Flash 初值。1 MB Flash 上可以接受；以后在意时可改为 `init()` 里赋值。
+- USB 在内核启动后才由生成区的默认任务初始化（`MX_USB_DEVICE_Init`），`UsbReport::init()` 不要求 USB 就绪。
+
+**验证**：宿主测试新增 `bringup_imu`（SPI 替身扮演 BMI088、GPIO 替身触发数据就绪：初始化、中断里发布、样本换算与 VQF、限频、加热器、延迟超限）与 `bringup_io`（CAN 只收、SBUS 跨段拼帧与失控保护、USB 状态行格式与回显、蜂鸣器两声与灯的三种状态、定点格式化）；固件 Debug、Release 构建、依赖图、回调、文本扫描、格式、命名通过。**上板验证待做**（调试器本次没有接）。
+
+**Alternatives / Rejected**：
+- **IMU 任务按 1 kHz 周期运行**：2 kHz 的陀螺数据就绪会被合并一半，也验证不了"中断里发布"。否决。
+- **SPI 完成中断直接叫醒任务的 `Signal`，不经 topic**：任务只能等一个触发源；三个中断都发布同一个 topic 最简单，发布在临界区内完成，多个中断共用一个发布者是安全的。否决。
+- **CAN 检查发送探测帧**：没有其他节点时帧得不到应答，接在整车上又可能干扰电调。否决，只收。
+
+---
+
 ## 待登记
 
 - 分支保护的具体设置（组织规范 §6.1、§10，负责人在 GitHub 上操作后补记）。
