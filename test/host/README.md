@@ -29,6 +29,7 @@ CI 的 `host-tests` 作业（`.github/workflows/ci.yml`）在 GitHub Actions 的
 | ctest 名称 | 测试源码 | 被测 target 或源码 |
 |---|---|---|
 | `dji_protocol` | `unit/protocol/dji_esc_test.cpp` | `driver_protocol_dji` |
+| `dm_protocol` | `unit/protocol/dm_esc_test.cpp` | `driver_protocol_dm`（达妙协议：四种模式的控制帧与帧 ID、系统命令、寄存器读写与存储、应答与反馈的解码；样例按说明书手算，寄存器应答取自 DM-J4310 实测帧） |
 | `dji_motor` | `unit/motor/dji_motor_test.cpp` | `driver_motor_dji`（含协议）+ `platform_mock`（保活、反馈解析、多圈、指令换算、每条总线一个接收方、总线统计） |
 | `dji_adapter` | `unit/motor/dji_motor_adapter_test.cpp` | `driver_motor_dji` + `platform_mock` |
 | `angle_wrap` | `unit/motor/angle_wrap_test.cpp` | `driver_motor_dji` + `platform_mock` |

@@ -30,6 +30,9 @@ endfunction()
 host_test(dji_protocol
     SOURCES unit/protocol/dji_esc_test.cpp
     LINK driver_protocol_dji)
+host_test(dm_protocol
+    SOURCES unit/protocol/dm_esc_test.cpp
+    LINK driver_protocol_dm)
 # DJI 电机：总线收发与时间经 platform_mock 的 hal::Can、hal_os 替身（Decision-20261101-01）。
 host_test(dji_motor
     SOURCES unit/motor/dji_motor_test.cpp

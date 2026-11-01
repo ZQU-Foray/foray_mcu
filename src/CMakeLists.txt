@@ -145,6 +145,10 @@ framework_library(driver_protocol_dji
     driver/protocol/dji/dji_esc.cpp
     driver/protocol/dji/dji_esc.hpp)
 
+framework_library(driver_protocol_dm
+    driver/protocol/dm/dm_esc.cpp
+    driver/protocol/dm/dm_esc.hpp)
+
 framework_library(driver_protocol_sbus
     driver/protocol/sbus/sbus.cpp
     driver/protocol/sbus/sbus.hpp)
