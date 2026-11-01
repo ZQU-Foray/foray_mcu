@@ -5,6 +5,7 @@
 #include "hal/gpio.hpp"
 #include "hal/pwm.hpp"
 #include "hal/spi.hpp"
+#include "hal/uart.hpp"
 
 #include <cstdint>
 
@@ -50,6 +51,13 @@ inline constexpr hal::Spi SPI_LED{2U};
 inline constexpr std::uint8_t SPI_COUNT{3U};
 // 可选能力：全部设备都支持 DMA 异步事务（start_transmit、start_transfer），单次最多 hal::Spi::MAX_ASYNC_LENGTH 字节。
 inline constexpr bool SPI_ASYNC{true};
+
+// ---- UART（port/uart.cpp）：波特率与帧格式由 CubeMX 配置 ----
+// UART5：板上的 SBUS 接口（100 kbps、8E2 + 硬件反相），只接了 RX，write() 返回 UNSUPPORTED。
+inline constexpr hal::Uart UART_SBUS{0U};
+// USART10：115200 bps 8N1，收发都可用。
+inline constexpr hal::Uart UART_10{1U};
+inline constexpr std::uint8_t UART_COUNT{2U};
 
 } // namespace board
 

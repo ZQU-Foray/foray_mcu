@@ -12,7 +12,8 @@ namespace hal
 
 bool init() noexcept
 {
-    return port::os::start_clock() && port::init_pwm() && port::init_can() && port::init_spi() && Port_Init();
+    return port::os::start_clock() && port::init_pwm() && port::init_can() && port::init_spi() && port::init_uart() &&
+           Port_Init();
 }
 
 } // namespace hal

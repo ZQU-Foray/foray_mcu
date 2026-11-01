@@ -5,6 +5,7 @@
 #include "hal/gpio.hpp"
 #include "hal/pwm.hpp"
 #include "hal/spi.hpp"
+#include "hal/uart.hpp"
 
 #include <array>
 #include <cstddef>
@@ -149,5 +150,32 @@ bool complete(std::uint8_t bus, bool error = false) noexcept;
 std::size_t last_transmit(std::uint8_t device, std::uint8_t *data, std::size_t capacity) noexcept;
 
 } // namespace mock::spi
+
+namespace mock::uart
+{
+
+inline constexpr std::uint8_t PORT_COUNT{8U};
+/** 软件接收队列的容量（字节），超出时与真实 port 一样丢弃并计数。 */
+inline constexpr std::size_t QUEUE_CAPACITY{256U};
+
+/** 全部端口恢复为：已启动、可发送、队列与发送记录为空、没有进行中的发送、统计为 0、没有登记通知。 */
+void reset() noexcept;
+
+/** 设置能力：未启动时 is_ready() 为 false、write() 返回 NOT_READY；不可发送时 write() 返回 UNSUPPORTED。 */
+void set_capabilities(std::uint8_t port, bool ready, bool writable) noexcept;
+
+/** 模拟收到字节：放进接收队列（满了丢弃并计数），收下了至少一个字节就调用接收通知。返回收下的字节数。 */
+std::size_t inject(std::uint8_t port, const std::uint8_t *data, std::size_t length) noexcept;
+
+/** 有没有进行中的发送（write() 返回 STARTED 之后、complete_write() 之前）。 */
+[[nodiscard]] bool write_pending(std::uint8_t port) noexcept;
+
+/** 结束进行中的发送并调用发送通知：成功计入 transmitted_byte_count，error 为 true 时计入 transmit_failure_count。 */
+bool complete_write(std::uint8_t port, bool error = false) noexcept;
+
+/** 取出已开始发送的字节（按顺序），返回字节数。 */
+std::size_t take_written(std::uint8_t port, std::uint8_t *data, std::size_t capacity) noexcept;
+
+} // namespace mock::uart
 
 #endif // PLATFORM_MOCK_MOCK_HAL_HPP

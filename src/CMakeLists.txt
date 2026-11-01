@@ -29,7 +29,7 @@ endfunction()
 # ==== 契约：hal、hal_detail、hal_os、boot ====
 
 # hal：硬件资源的 C++ 契约，由 platform 的 port 实现、宿主测试由 platform/mock 实现。
-# 契约 v1 是句柄类（Decision-20261101-01）：can、gpio、pwm、spi 已改写；time、uart、usb_cdc 仍是迁移期写法，
+# 契约 v1 是句柄类（Decision-20261101-01）：can、gpio、pwm、spi、uart 已改写；time、usb_cdc 仍是迁移期写法，
 # 经 hal_detail 的 C ABI 转到 C port，F2 第 5 步逐个改写。时间参数用 hal_os 的 Microseconds。
 framework_interface(hal
     hal/callback.hpp
@@ -48,7 +48,6 @@ target_link_libraries(hal INTERFACE hal_os hal_detail)
 # 不得把 src/hal/detail 本身加入 include 路径。
 framework_interface(hal_detail
     hal/detail/time.h
-    hal/detail/uart.h
     hal/detail/usb_cdc.h)
 
 # hal_os：最小 OS 契约 v1——1 µs 单调时基、RAII 临界区、二值信号（Decision-20261031-01～03）。

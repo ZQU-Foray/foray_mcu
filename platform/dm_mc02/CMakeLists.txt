@@ -2,7 +2,7 @@
 #   mx_generated_<板>  CubeMX 生成物（Core、USB_DEVICE、HAL 驱动、启动文件）  OBJECT
 #   rtos_<板>          FreeRTOS 与 CMSIS-RTOS2 适配                            OBJECT
 #   usb_<板>           ST USB Device 库（CDC）                                  OBJECT
-#   port_<板>          契约的手写实现（C++：hal/os、can、gpio、pwm、spi；其余仍是迁移期的 C，F2 第 5 步改写），含 PortKit   OBJECT
+#   port_<板>          契约的手写实现（C++：hal/os、can、gpio、pwm、spi、uart；其余仍是迁移期的 C，F2 第 5 步改写），含 PortKit   OBJECT
 #   board_<板>         board.hpp（句柄与能力常量）与链接脚本                       OBJECT
 #   os_freertos_<板>   RTOS 头文件，只给 app_tasks、app_common 与 assembly       INTERFACE
 #
@@ -188,12 +188,12 @@ add_library(port_${BOARD_ID} OBJECT
     port/pwm.cpp
     port/spi.cpp
     port/time.c
-    port/uart.c
+    port/uart.cpp
     port/usb_cdc.c
     port/UsbCdc.h)
 enable_strict_warnings(port_${BOARD_ID})
 # hal_os：OS 契约 v1 的实现在 port/os（C++，Decision-20261031-10）。
-# hal：hal::init()（hal_init.cpp，Decision-20261031-11）与契约 v1 的外设（can.cpp、gpio.cpp、pwm.cpp、spi.cpp，Decision-20261101-01）。
+# hal：hal::init()（hal_init.cpp，Decision-20261031-11）与契约 v1 的外设（can.cpp、gpio.cpp、pwm.cpp、spi.cpp、uart.cpp，Decision-20261101-01）。
 # board：board.hpp（句柄编号、外设个数），port 用 static_assert 核对自己的外设表（Decision-20261101-01）。
 target_link_libraries(port_${BOARD_ID} PRIVATE hal hal_detail hal_os utils_concurrency board_${BOARD_ID})
 link_object_library(port_${BOARD_ID}

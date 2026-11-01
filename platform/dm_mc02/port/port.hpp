@@ -20,6 +20,9 @@ namespace port
 /** 检查 SPI 与 DMA 的配置，复位总线状态，取消全部片选。 */
 [[nodiscard]] bool init_spi() noexcept;
 
+/** 在全部端口上开始 DMA 接收（接收到空闲）。 */
+[[nodiscard]] bool init_uart() noexcept;
+
 /**
  * @brief 中断通知：任务登记回调，中断取出并调用（代替旧 PortKit 的 Notifier）。
  *
