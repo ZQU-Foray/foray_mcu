@@ -4,6 +4,7 @@
 #include "driver/bmi088/bmi088_transfer.hpp"
 #include "hal/os/clock.hpp"
 #include "hal/spi.hpp"
+#include "utils/math/basic_math.hpp"
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -162,6 +163,15 @@ class Bmi088Gyro final
     [[nodiscard]] static float to_dps(std::int16_t raw) noexcept
     {
         return static_cast<float>(raw) * DPS_PER_LSB;
+    }
+
+    /**
+   * @brief 将原始计数换算为 SI 角速度，单位 rad/s。
+   * @note 先按 to_dps() 换算再乘 DEG_TO_RAD，与迁移源 imu_body_mapping 的结果逐位一致。
+   */
+    [[nodiscard]] static float to_radians_per_second(std::int16_t raw) noexcept
+    {
+        return to_dps(raw) * math::DEG_TO_RAD;
     }
 
   private:

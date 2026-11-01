@@ -138,12 +138,8 @@ ALLOWED = {
 }
 
 # 迁移期放行的具体边：(起点, 终点) → 依据。到期后删除对应条目。
-TRANSITIONAL_EDGES = {
-    (
-        "lib_estimate",
-        "driver_bmi088",
-    ): "已知结构债：ImuBodyMapping 依赖 BMI088 驱动，P3b 偿还",
-}
+# 现在没有：lib_estimate → driver_bmi088 在 F3 消除（Decision-20261101-02）。
+TRANSITIONAL_EDGES: dict[tuple[str, str], str] = {}
 # 迁移期放行的层间依赖：起点层 → (终点层集合, 依据)。现在没有：USB 生成代码经 UsbCdc.h 调用 port 的
 # C 接口（X-01）只是 include 路径，不是依赖图上的边；hal/detail 已删除（X-07，Decision-20261101-01）。
 TRANSITIONAL_TARGETS: dict[str, tuple[set[str], str]] = {}

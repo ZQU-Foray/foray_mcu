@@ -31,12 +31,8 @@ if(FRAMEWORK_ONLY)
     # 框架独立构建（规则 2、15，Decision-20261031-06）。交叉编译时不选板卡：框架只依赖契约，
     # 契约的实现在 port，这里只编译不链接。framework-m0plus 用它检查原子读改写（规则 13）。
     add_subdirectory(src)
-    if(CMAKE_CROSSCOMPILING)
-        # 还不能为 Cortex-M0+ 编译的 target（例外 X-17）：lib_estimate 经 imu_body_mapping 依赖 driver_bmi088
-        # （lib → driver 反向依赖），F3 改为 POD 入参后删掉这一行。driver_motor_dji、driver_bmi088 已在改用
-        # hal::Can、hal::Spi 时解除（Decision-20261101-01）。
-        set_target_properties(lib_estimate PROPERTIES EXCLUDE_FROM_ALL ON)
-    else()
+    # 交叉编译（Cortex-M0+）时整个框架都编译：例外 X-17 已在 F3 关闭（Decision-20261101-02）。
+    if(NOT CMAKE_CROSSCOMPILING)
         add_subdirectory(platform/mock)
     endif()
     # 只有头文件的模板没人用就不会被编译：在这里显式实例化，宿主与 Cortex-M0+ 上都编一遍。

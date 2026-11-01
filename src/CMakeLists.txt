@@ -3,12 +3,14 @@
 # 不在子目录里各放一个（Decision-20261026-07）。
 # 以 src/ 为 include 根：#include "hal/can.hpp"、"driver/bmi088/bmi088.hpp"。
 
-# framework_library(<名称> <源文件与头文件>...)：框架的 STATIC 库，带严格告警。
+# framework_library(<名称> <源文件与头文件>...)：框架的 STATIC 库，带严格告警与 -Wdouble-promotion
+#   （规则 14：float 被隐式提升为 double 时报错，Cortex-M4F 上 double 是软件库调用；豁免见例外 X-06）。
 #   头文件也列出来，表明它属于哪个 target。
 function(framework_library name)
     add_library(${name} STATIC ${ARGN})
     target_include_directories(${name} PUBLIC "${PROJECT_SOURCE_DIR}/src")
     enable_strict_warnings(${name})
+    target_compile_options(${name} PRIVATE $<$<COMPILE_LANGUAGE:C,CXX>:-Wdouble-promotion>)
 endfunction()
 
 # utils_library(<名称> <源文件与头文件>...)：utils 的 STATIC 库，带严格告警。与 framework_library 相同，
@@ -17,6 +19,7 @@ function(utils_library name)
     add_library(${name} STATIC ${ARGN})
     target_include_directories(${name} PUBLIC "${PROJECT_SOURCE_DIR}/src")
     enable_strict_warnings(${name})
+    target_compile_options(${name} PRIVATE $<$<COMPILE_LANGUAGE:C,CXX>:-Wdouble-promotion>)
 endfunction()
 
 # framework_interface(<名称> <头文件>...)：只有头文件的框架库。
@@ -111,8 +114,7 @@ framework_library(lib_filter
     lib/filter/filter.cpp
     lib/filter/filter.hpp)
 
-# 已知结构债：imu_body_mapping 依赖 BMI088 驱动（lib → driver 反向依赖），F3 改为 POD 入参
-# （docs/ai/architecture.md "已知结构债"）。依赖图检查对这条边单独放行。
+# imu_body_mapping 只处理三维向量（轴映射），不再依赖 BMI088 驱动（F3，Decision-20261101-02）。
 framework_library(lib_estimate
     lib/estimate/extended_state_observer.hpp
     lib/estimate/imu_body_mapping.cpp
@@ -122,7 +124,9 @@ framework_library(lib_estimate
     lib/estimate/quaternion_ekf.hpp
     lib/estimate/vqf.cpp
     lib/estimate/vqf.hpp)
-target_link_libraries(lib_estimate PUBLIC utils_math lib_filter driver_bmi088)
+target_link_libraries(lib_estimate PUBLIC utils_math lib_filter)
+# 规则 14 的豁免（例外 X-06）：VQF 有意用 double 保精度，只在这个文件关掉 -Wdouble-promotion。
+set_source_files_properties(lib/estimate/vqf.cpp PROPERTIES COMPILE_OPTIONS "-Wno-double-promotion")
 
 framework_library(lib_kinematics
     lib/kinematics/kinematics.cpp
@@ -171,7 +175,7 @@ framework_library(driver_bmi088
     driver/bmi088/bmi088_temperature.cpp
     driver/bmi088/bmi088_temperature.hpp
     driver/bmi088/bmi088_transfer.hpp)
-target_link_libraries(driver_bmi088 PUBLIC hal lib_control)
+target_link_libraries(driver_bmi088 PUBLIC hal lib_control utils_math)
 
 framework_library(driver_buzzer
     driver/buzzer/buzzer.cpp
