@@ -1619,6 +1619,25 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 
 ---
 
+## Decision-20261101-06（bringup 上电打开板上两路 24 V 输出，Accepted）
+
+- **Date**：2026-11-01
+- **Status**：Accepted（负责人 2026-11-01："帮我常态打开板载 24v"）
+- **Source**：bringup 接电机做检查（GM6020、DM-J4310）时，电机由板上两路可控 24 V 输出供电；此前每次复位后都要经 SWD 写 `GPIOC_BSRR` 打开
+
+**Context**：DM-MC02 的两路 24 V 输出由 PC14、PC13 控制（`board::POWER_24V_0/1`，高电平打开，2026-11-01 实测），CubeMX 初始化为低（关）。bringup 不碰它们，接在上面的电机没电。
+
+**Decision**：
+1. 新增 bringup 能力 `bringup::PowerOutputs`：`init()` 按 profile 参数把组合根注入的输出一次写好（打开或关闭），没有 `step()`。打开的电平由组合根给出（DM-MC02 为高），能力不假定极性。
+2. profile `bringup_dm_mc02` 的 `POWER_OUTPUTS` 为打开；组合根在 `hal::init()` 之后第一个初始化它，电机尽早上电（达妙电机上电自检约 1 s）。5 V 输出不动。
+3. 安全：达妙电机上电默认失能，大疆电调没有控制帧不出力，bringup 只收不发，打开电源不会让电机动。
+
+**Alternatives / Rejected**：
+- **在 port 的 `hal::init()` 里打开**：电源开不开是产品决定，不归平台层。否决。
+- **在组合根里直接写 GPIO**：组合根只装配、不含行为（架构 §3.6）。否决。
+
+---
+
 ## 待登记
 
 - 分支保护的具体设置（组织规范 §6.1、§10，负责人在 GitHub 上操作后补记）。
