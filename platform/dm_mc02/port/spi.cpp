@@ -76,11 +76,12 @@ std::array<Bus, 2U> g_buses{{
 }};
 
 // 顺序与 board.hpp 一致
-const std::array<Device, board::SPI_COUNT> DEVICES{{
-    {0U, BMI088_ACCEL_CS_GPIO_Port, BMI088_ACCEL_CS_Pin, true}, // SPI_IMU_ACCEL
-    {0U, BMI088_GYRO_CS_GPIO_Port, BMI088_GYRO_CS_Pin, true},   // SPI_IMU_GYRO
-    {1U, nullptr, 0U, false},                                   // SPI_LED：只接了 MOSI
-}};
+const std::array DEVICES{
+    Device{0U, BMI088_ACCEL_CS_GPIO_Port, BMI088_ACCEL_CS_Pin, true}, // SPI_IMU_ACCEL
+    Device{0U, BMI088_GYRO_CS_GPIO_Port, BMI088_GYRO_CS_Pin, true},   // SPI_IMU_GYRO
+    Device{1U, nullptr, 0U, false},                                   // SPI_LED：只接了 MOSI
+};
+static_assert(std::tuple_size_v<decltype(DEVICES)> == board::SPI_COUNT, "表长必须与 board.hpp 一致");
 
 std::array<std::atomic<hal::Spi::Result>, board::SPI_COUNT> g_results{};
 bool g_initialized{false};

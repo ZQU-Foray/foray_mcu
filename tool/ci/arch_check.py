@@ -49,7 +49,6 @@ LAYERS = [
     ("firmware", r"firmware_\w+"),
     ("assembly", r"assembly_\w+"),
     ("profile", r"profile_\w+"),
-    ("hal_detail", r"hal_detail"),
     # boot 单独成层：只有生成区与组合根可以依赖它（规则 7，Decision-20261031-11）
     ("boot", r"boot"),
     ("contract", r"hal|hal_os"),
@@ -73,7 +72,6 @@ LAYERS = [
 FRAMEWORK = {
     "contract",
     "boot",
-    "hal_detail",
     "utils",
     "msg",
     "lib",
@@ -117,7 +115,6 @@ ALLOWED = {
     "boot": set(),
     # hal 的外设契约用 hal/os 的时间单位与回调约定（Decision-20261101-01）
     "contract": {"contract"},
-    "hal_detail": set(),
     "utils": set(),
     "msg": {"utils", "contract"},
     "lib": {"lib", "utils"},
@@ -130,11 +127,11 @@ ALLOWED = {
     "app_common": APP_DEPENDENCIES | {"os"},
     "os": set(),
     # port 用本板的 board.hpp 核对外设表（Decision-20261101-01）
-    "port": {"vendor", "contract", "hal_detail", "utils", "board"},
-    "board": {"contract", "hal_detail"},
+    "port": {"vendor", "contract", "utils", "board"},
+    "board": {"contract"},
     # 生成区只调 boot_*（USER CODE 区）；X-01 的 USB 接缝见 TRANSITIONAL_TARGETS
     "vendor": {"boot"},
-    "mock": {"contract", "hal_detail", "utils"},
+    "mock": {"contract", "utils"},
     "test": FRAMEWORK | {"mock", "app", "app_common"},
     # 框架独立构建里的检查用 target（如 check_templates：实例化只有头文件的模板），只能依赖框架。
     "check": FRAMEWORK,
@@ -142,14 +139,13 @@ ALLOWED = {
 
 # 迁移期放行的具体边：(起点, 终点) → 依据。到期后删除对应条目。
 TRANSITIONAL_EDGES = {
-    ("hal", "hal_detail"): "X-07 迁移期 C ABI 层，P3a 删除",
     (
         "lib_estimate",
         "driver_bmi088",
     ): "已知结构债：ImuBodyMapping 依赖 BMI088 驱动，P3b 偿还",
 }
 # 迁移期放行的层间依赖：起点层 → (终点层集合, 依据)。现在没有：USB 生成代码经 UsbCdc.h 调用 port 的
-# C 接口（X-01）不再经过 hal_detail，只是 include 路径（Decision-20261101-01）。
+# C 接口（X-01）只是 include 路径，不是依赖图上的边；hal/detail 已删除（X-07，Decision-20261101-01）。
 TRANSITIONAL_TARGETS: dict[str, tuple[set[str], str]] = {}
 
 REQUIRED = {
@@ -397,6 +393,12 @@ TOPIC_QUOTED_INCLUDES = re.compile(
     r"middleware/topic/topic\.hpp|hal/os/clock\.hpp|topics/[\w/]+\.hpp"
 )
 STANDARD_HEADER = re.compile(r"[a-z_]+")
+# 规则 16：C 链接只允许 §9.3 的几处（启动入口、USB 生成区接缝 X-01/X-02）；HAL 回调靠 include HAL 头得到
+# C 链接，中断入口在生成区，都不写 extern "C"（Decision-20261101-01）
+EXTERN_C = re.compile(r'\bextern\s+"C"')
+EXTERN_C_ALLOWED = re.compile(
+    r"src/boot/boot\.h|platform/\w+/port/(?:UsbCdc\.h|usb_cdc\.cpp)"
+)
 # 规则 1：board.hpp 只给组合根与本板的 port（Decision-20261101-01）；依赖图另外保证能力与框架看不到 board_*
 BOARD_HEADER = re.compile(
     r'^\s*#\s*include\s*[<"](?:[\w/]*/)?board\.hpp[>"]', re.MULTILINE
@@ -505,6 +507,7 @@ def check_scan() -> list[str]:
     errors += check_generated_includes()
     errors += check_rtos_includes()
     errors += check_board_includes()
+    errors += check_c_linkage()
     for path in tracked("src/*", "platform/*", "cmake/*"):
         if "cubemx" in path.parts:
             continue  # 生成区由规则 7 与例外 X-09 管
@@ -517,7 +520,9 @@ def check_scan() -> list[str]:
             match = PRODUCT_REFERENCE.search(code)
             if match:
                 errors.append(f"规则 15：框架文件 {path} 引用了产品：{match.group(0)}")
-    print("文本扫描：规则 1（board.hpp）、3、7（include）、8、9、10、12、13、15、17")
+    print(
+        "文本扫描：规则 1（board.hpp）、3、7（include）、8、9、10、12、13、15、16（C 链接位置）、17"
+    )
     return sorted(set(errors))
 
 
@@ -571,6 +576,23 @@ def check_rtos_includes() -> list[str]:
                 errors.append(
                     f"规则 10：{name} include 了 RTOS 头 {header}：能力与框架零 RTOS，只经 hal/os"
                 )
+    return errors
+
+
+def check_c_linkage() -> list[str]:
+    """规则 16：手写代码里的 extern "C" 只出现在 §9.3 登记的位置。"""
+    errors = []
+    for path in handwritten_sources("src", "app", "config", "platform", "test"):
+        name = path.as_posix()
+        if EXTERN_C_ALLOWED.fullmatch(name):
+            continue
+        code = strip_comments(path, path.read_text("utf-8"))
+        match = EXTERN_C.search(code)
+        if match:
+            number = code.count("\n", 0, match.start()) + 1
+            errors.append(
+                f'规则 16：{name}:{number} 用了 extern "C"：C 链接只允许启动入口与 USB 生成区接缝（架构 §9.3）'
+            )
     return errors
 
 

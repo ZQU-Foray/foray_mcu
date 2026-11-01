@@ -52,10 +52,11 @@ struct Port
 };
 
 // 顺序与 board.hpp 一致
-const std::array<Mapping, board::UART_COUNT> MAPPINGS{{
-    {&huart5, g_uart5_receive_buffer, nullptr},                    // UART_SBUS：只接了 RX
-    {&huart10, g_uart10_receive_buffer, g_uart10_transmit_buffer}, // UART_10
-}};
+const std::array MAPPINGS{
+    Mapping{&huart5, g_uart5_receive_buffer, nullptr},                    // UART_SBUS：只接了 RX
+    Mapping{&huart10, g_uart10_receive_buffer, g_uart10_transmit_buffer}, // UART_10
+};
+static_assert(std::tuple_size_v<decltype(MAPPINGS)> == board::UART_COUNT, "表长必须与 board.hpp 一致");
 
 std::array<Port, board::UART_COUNT> g_ports{};
 

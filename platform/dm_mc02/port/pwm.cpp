@@ -19,10 +19,11 @@ struct Channel
 };
 
 // 顺序与 board.hpp 一致
-const std::array<Channel, board::PWM_COUNT> CHANNELS{{
-    {&htim12, TIM_CHANNEL_2}, // PWM_BUZZER
-    {&htim3, TIM_CHANNEL_4},  // PWM_IMU_HEATER
-}};
+const std::array CHANNELS{
+    Channel{&htim12, TIM_CHANNEL_2}, // PWM_BUZZER
+    Channel{&htim3, TIM_CHANNEL_4},  // PWM_IMU_HEATER
+};
+static_assert(std::tuple_size_v<decltype(CHANNELS)> == board::PWM_COUNT, "表长必须与 board.hpp 一致");
 
 constexpr std::uint32_t COUNTER_FREQUENCY_HZ{1000000U};
 constexpr std::uint32_t MAX_PERIOD_COUNTS{65536U}; // 16 位定时器

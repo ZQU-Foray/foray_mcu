@@ -21,14 +21,15 @@ struct Pin
 };
 
 // 顺序与 board.hpp 一致。SPI 片选（BMI088_*_CS）归 SPI 的 port 管，不在这里。
-const std::array<Pin, board::GPIO_COUNT> PINS{{
-    {DC24_0_OUTPUT_GPIO_Port, DC24_0_OUTPUT_Pin, true, false},
-    {DC24_1_OUTPUT_GPIO_Port, DC24_1_OUTPUT_Pin, true, false},
-    {DC5_OUTPUT_GPIO_Port, DC5_OUTPUT_Pin, true, false},
-    {BMI088_ACCEL_INTERRUPT_GPIO_Port, BMI088_ACCEL_INTERRUPT_Pin, false, true},
-    {BMI088_GYRO_INTERRUPT_GPIO_Port, BMI088_GYRO_INTERRUPT_Pin, false, true},
-    {KEY_INPUT_GPIO_Port, KEY_INPUT_Pin, false, false},
-}};
+const std::array PINS{
+    Pin{DC24_0_OUTPUT_GPIO_Port, DC24_0_OUTPUT_Pin, true, false},
+    Pin{DC24_1_OUTPUT_GPIO_Port, DC24_1_OUTPUT_Pin, true, false},
+    Pin{DC5_OUTPUT_GPIO_Port, DC5_OUTPUT_Pin, true, false},
+    Pin{BMI088_ACCEL_INTERRUPT_GPIO_Port, BMI088_ACCEL_INTERRUPT_Pin, false, true},
+    Pin{BMI088_GYRO_INTERRUPT_GPIO_Port, BMI088_GYRO_INTERRUPT_Pin, false, true},
+    Pin{KEY_INPUT_GPIO_Port, KEY_INPUT_Pin, false, false},
+};
+static_assert(std::tuple_size_v<decltype(PINS)> == board::GPIO_COUNT, "表长必须与 board.hpp 一致");
 
 std::array<port::Notifier, board::GPIO_COUNT> g_interrupts{};
 

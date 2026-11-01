@@ -33,7 +33,8 @@ struct Bus
 };
 
 // 顺序与 board.hpp 一致
-const std::array<FDCAN_HandleTypeDef *, board::CAN_COUNT> HANDLES{{&hfdcan1, &hfdcan2, &hfdcan3}};
+const std::array HANDLES{&hfdcan1, &hfdcan2, &hfdcan3};
+static_assert(std::tuple_size_v<decltype(HANDLES)> == board::CAN_COUNT, "表长必须与 board.hpp 一致");
 std::array<Bus, board::CAN_COUNT> g_buses{};
 bool g_ready{false};
 

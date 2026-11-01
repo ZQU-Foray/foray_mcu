@@ -9,7 +9,6 @@
 Checks: '-*,readability-identifier-naming'
 WarningsAsErrors: ''
 # 头文件过滤：路径分隔符兼容 / 与 \（Windows）。
-# src/hal/detail 下的 C ABI 头也在 src/ 内，由 tool/ci/naming.py 排除（不按 C++ 规则改名，例外 X-07）。
 HeaderFilterRegex: '[/\\](app|config|src|test)[/\\]'
 CheckOptions:
   # ---- 命名空间 ----
@@ -35,7 +34,7 @@ CheckOptions:
     value: lower_case
   - key: readability-identifier-naming.MethodCase
     value: lower_case
-  # 不改名的函数（外部约定的名字）：迁移源 C ABI 的"模块_函数"（如 Application_Init、CanPort_Init，P3a 重写）、
+  # 不改名的函数（外部约定的名字）：C ABI 的"模块_函数"（USB 生成区接缝 UsbCdcPort_*，例外 X-01）、
   # CMSIS-RTOS2 API（os 前缀，测试替身会重新声明）、覆盖 HAL 弱符号的回调（HAL_ 前缀）。
   - key: readability-identifier-naming.FunctionIgnoredRegexp
     value: '^([A-Z][A-Za-z0-9]*_[A-Z][A-Za-z0-9]*|os[A-Z][A-Za-z0-9]*|HAL_[A-Za-z0-9_]+)$'

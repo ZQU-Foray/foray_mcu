@@ -2,7 +2,7 @@
 #   mx_generated_<板>  CubeMX 生成物（Core、USB_DEVICE、HAL 驱动、启动文件）  OBJECT
 #   rtos_<板>          FreeRTOS 与 CMSIS-RTOS2 适配                            OBJECT
 #   usb_<板>           ST USB Device 库（CDC）                                  OBJECT
-#   port_<板>          契约的手写实现（C++：hal/os、can、gpio、pwm、spi、uart、usb_cdc；时基 time.c 仍是迁移期的 C，F2 第 5 步改写），含 PortKit   OBJECT
+#   port_<板>          hal 与 hal/os 契约的 C++ 实现、HAL 回调、USB 生成区接缝（Decision-20261101-01）   OBJECT
 #   board_<板>         board.hpp（句柄与能力常量）与链接脚本                       OBJECT
 #   os_freertos_<板>   RTOS 头文件，只给 app_tasks、app_common 与 assembly       INTERFACE
 #
@@ -169,33 +169,26 @@ target_include_directories(os_freertos_${BOARD_ID} INTERFACE
     "${freertos_dir}/portable/GCC/ARM_CM4F"
     "${cubemx_dir}/Drivers/CMSIS/RTOS2/Include")
 
-# ---- port：契约（迁移期为 hal_detail 的 C ABI）的手写实现 ----
-# port_kit.{c,h}：port 私有的 SPSC 队列、中断通知与短临界区（C，依赖 CMSIS 内联函数）。P3a 改写为 C++ 时拆分：
-# 队列与通知 → src/utils 并发原语，临界区 → src/hal/os 契约 + 各板 port 的实现（Decision-20261026-10）。
+# ---- port：hal 与 hal/os 契约 v1 的 C++ 实现（Decision-20261031-10、Decision-20261101-01）----
+# 每个外设一个 .cpp，覆盖 HAL 弱符号的回调写在对应的 .cpp 里（规则 16）；port.hpp、os/os.hpp 是 port 私有的头。
+# UsbCdc.h 是 USB 生成代码调用的 C 接口（例外 X-01），被生成代码按名字 include，保持原文件名。
 add_library(port_${BOARD_ID} OBJECT
     port/can.cpp
     port/gpio.cpp
     port/hal_init.cpp
-    port/init.c
-    port/Init.h
     port/os/clock.cpp
     port/os/critical_section.cpp
     port/os/os.hpp
     port/os/signal.cpp
     port/port.hpp
-    port/port_kit.c
-    port/port_kit.h
     port/pwm.cpp
     port/spi.cpp
-    port/time.c
     port/uart.cpp
     port/usb_cdc.cpp
     port/UsbCdc.h)
 enable_strict_warnings(port_${BOARD_ID})
-# hal_os：OS 契约 v1 的实现在 port/os（C++，Decision-20261031-10）。
-# hal：hal::init()（hal_init.cpp，Decision-20261031-11）与契约 v1 的外设（can.cpp、gpio.cpp、pwm.cpp、spi.cpp、uart.cpp、usb_cdc.cpp，Decision-20261101-01）。
-# board：board.hpp（句柄编号、外设个数），port 用 static_assert 核对自己的外设表（Decision-20261101-01）。
-target_link_libraries(port_${BOARD_ID} PRIVATE hal hal_detail hal_os utils_concurrency board_${BOARD_ID})
+# board：board.hpp（句柄编号、外设个数），port 用它核对自己的外设表；utils_concurrency：接收队列。
+target_link_libraries(port_${BOARD_ID} PRIVATE hal hal_os utils_concurrency board_${BOARD_ID})
 link_object_library(port_${BOARD_ID}
     mx_generated_${BOARD_ID}
     rtos_${BOARD_ID}

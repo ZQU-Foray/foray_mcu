@@ -335,11 +335,10 @@ def main() -> int:
     root = Path(git("rev-parse", "--show-toplevel")[0]).resolve()
     databases = [path.resolve() for path in args.databases]
     os.chdir(root)
-    # C ABI 头（迁移期的 src/hal/detail，例外 X-07）不按 C++ 规则命名，P3a 并入 C++ 契约后删除。
     scope = {
         path
         for path in git("ls-files", "--", "*.c", "*.h", "*.cpp", "*.hpp")
-        if not EXCLUDE.search(path) and not path.startswith("src/hal/detail/")
+        if not EXCLUDE.search(path)
     }
     units = load_units(databases, scope, root)
     if args.list:
