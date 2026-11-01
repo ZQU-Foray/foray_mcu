@@ -1,0 +1,37 @@
+{
+  "a2cfd16_pi": {
+    "rows": 2999,
+    "first_row_s": 0.26,
+    "start_temperature_c": 36.875,
+    "time_to_49_5_s": 3.618,
+    "time_to_50_s": 3.618,
+    "time_to_regulating_s": 2.362,
+    "peak_c": 56.875,
+    "overshoot_c": 6.875,
+    "peak_time_s": 4.881,
+    "settle_0_25_s": 28.021,
+    "settle_0_125_s": 256.605,
+    "ready_0_5_hold_3s": 22.041,
+    "ready_0_5_spread_0_25_hold_20s": 49.383,
+    "last_120s_min_c": 49.875,
+    "last_120s_max_c": 50.25,
+    "last_120s_duty_mean": 13.35,
+    "faults": 0
+  },
+  "heater_control": {
+    "first_row_s": 0.26,
+    "start_temperature_c": 39.5,
+    "time_to_49_5_s": 15.32,
+    "time_to_50_s": 16.57,
+    "time_to_regulate_s": 12.91,
+    "peak_c": 50.125,
+    "overshoot_c": 0.125,
+    "settle_0_25_s": 15.32,
+    "ready_0_5_spread_0_25_hold_20s": 35.41,
+    "last_120s_min_c": 49.75,
+    "last_120s_max_c": 50.0,
+    "last_120s_duty_mean": 11.24,
+    "gain_scale": 0.838,
+    "faults": 0
+  }
+}

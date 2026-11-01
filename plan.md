@@ -96,7 +96,7 @@
 ### F2 契约 v1 与 DM-MC02 板级（6–10 人日）
 
 > 顺序（Decision-20261031-07）：先做与具体外设无关的第 1–4 步，每一步固件都可构建；第 5 步（外设）按外设纵向推进、与 F3 合起来排（Decision-20261101-01，负责人 2026-11-01 授权 AI 按最优方式推进）。旧 C port 定义了 HAL 回调，同一外设的新旧 port 不能并存。
-> 本地分支（一个分支对应以后的一个 PR，依次叠在前一个上）：`f1/topic` → `f1/ci` → `f2/firmware-ci`（第 1 步 CI）→ `f2/tim2-timebase`（merge 合入）→ `f2/board-dir`（第 2 步）→ `f2/hal-os-port`（第 3 步）→ `f2/boot`（第 4 步：启动入口）→ `f2/bringup`（第 4 步：任务运行器与 bringup）→ `f2/archive`（第 4 步：归档旧 app）→ `f2/peripheral-plan`（第 5 步的决策）→ `f2/gpio-pwm` → `f2/can` → `f2/spi` → `f2/uart` → `f2/usb-cdc` → `f2/port-cleanup` → `f3/estimate-decouple` → `f2/bringup-peripherals`（外设检查、上板探测脚本）→ `f2/docs-sync`（文档同步、框架使用指南）→ `f2/board-vendor-dir`（板级目录移到厂商目录下）→ `f2/onboard-peripherals`（上板验证：修正 IMU 延迟的测量与探测脚本，验证记录）。tag `archive/pre-rebuild` 随这批分支一起推送。PR 暂不开，以后按这个顺序依次合入 `dev`。
+> 本地分支（一个分支对应以后的一个 PR，依次叠在前一个上）：`f1/topic` → `f1/ci` → `f2/firmware-ci`（第 1 步 CI）→ `f2/tim2-timebase`（merge 合入）→ `f2/board-dir`（第 2 步）→ `f2/hal-os-port`（第 3 步）→ `f2/boot`（第 4 步：启动入口）→ `f2/bringup`（第 4 步：任务运行器与 bringup）→ `f2/archive`（第 4 步：归档旧 app）→ `f2/peripheral-plan`（第 5 步的决策）→ `f2/gpio-pwm` → `f2/can` → `f2/spi` → `f2/uart` → `f2/usb-cdc` → `f2/port-cleanup` → `f3/estimate-decouple` → `f2/bringup-peripherals`（外设检查、上板探测脚本）→ `f2/docs-sync`（文档同步、框架使用指南）→ `f2/board-vendor-dir`（板级目录移到厂商目录下）→ `f2/onboard-peripherals`（上板验证：修正 IMU 延迟的测量与探测脚本，验证记录）→ `f3/heater-warmup`（BMI088 加热改为模型预测，Decision-20261101-05）。tag `archive/pre-rebuild` 随这批分支一起推送。PR 暂不开，以后按这个顺序依次合入 `dev`。
 
 - [x] 第 1 步 CI（2026-10-31，Decision-20261031-08）：`firmware` 作业的符号对照退役，改为段大小报告（`symbols.py report`，写入作业摘要）；加入 HAL 回调符号检查（规则 16，`arch_check.py callbacks`）。规则 1（`board.hpp`）、4、7、10、18 的检查随对应内容出现时加入
 - [x] 第 1 步（续）合入 `f2/tim2-timebase`（2026-10-31，在分支 `f2/board-dir` 用 merge 提交合入，保留提交号）：TIM2 作 1 MHz 时基计数源，CubeMX 6.18.1（Decision-20261031-04）
@@ -118,6 +118,7 @@
 - [x] SPI 异步按能力分级使用：BMI088 编译期要求（`REQUIRES_SPI_ASYNC`，组合根 `static_assert`），WS2812 运行期回退阻塞发送
 - [x] `src/lib/estimate` 去掉对 BMI088 驱动的依赖（2026-11-01，Decision-20261101-02，X-17 关闭）；框架与能力开启 `-Wdouble-promotion`（`vqf.cpp` 豁免）。FPU 检查推迟到阶段 B（第一块没有双精度 FPU 的板）
 - [x] bringup 固件加入各驱动的检查（Decision-20261101-03）：CAN 接收、SPI 读 BMI088、UART 收 SBUS、PWM（蜂鸣器、加热）、GPIO 外部中断、SPI 发送（WS2812）、USB CDC 回显与状态行、时基；CAN 只收不发，电机反馈要等阶段 A 的电机能力发控制帧
+- [x] BMI088 加热改为模型预测（2026-11-01，Decision-20261101-05，负责人要求提前做丢失功能 L6）：`control::HeaterControl`（两级预热 + 平台校正加热器强度 + 前馈 PI 恒温），`Bmi088Heater` 不再用 PID，DM-MC02 的热模型由实测辨识、写在 profile；上板从 39.5 ℃ 起过冲 +0.125 ℃、15.3 s 进入并保持 ±0.25 ℃（旧 PI +6.875 ℃、28 s；原固件 +0.375 ℃、111 s），见[验证记录](docs/ai/decisions/2026-11-01-L6-加热提速上板验证/README.md)。分支 `f3/heater-warmup`
 - [ ] 验收：驱动单元测试全绿（已绿）；bringup 固件上各驱动的检查通过（2026-11-01 上板：SPI 读 BMI088、GPIO 外部中断、PWM 加热闭环、SPI 发送 WS2812、USB CDC、UART 收 SBUS（含失控保护）、时基通过；CAN 只验证了端口启动，收帧待接设备；见[验证记录](docs/ai/decisions/2026-11-01-F2-外设上板验证/README.md)；待负责人验收）
 
 ### F4 框架验证（2–4 人日）
@@ -256,3 +257,4 @@ Q1–Q18 已全部确认（见评审报告 v1.0 §11.1 与 decision.md）。仍�
 | 2026-11-01 | F2–F4 | bringup 外设检查与 IMU 最小示范、`on_topic` 超时、规则 4 的检查（Decision-20261101-03）；上板探测脚本与检查清单；ctest 27/27 | 完成，待上板 |
 | 2026-11-01 | F2 | 板级目录改为"厂商 / 板"两级：`platform/st/dm_mc02`（负责人要求，Decision-20261101-04）。纯移动 + 路径改写两个提交；移动前后符号一致、`.bin` 逐字节相同 | 完成 |
 | 2026-11-01 | F2、F3 | 上板验证（[记录](docs/ai/decisions/2026-11-01-F2-外设上板验证/README.md)，分支 `f2/onboard-peripherals`）：首轮 17/20，三项是测量问题——探测脚本按名义间隔算速率、两个计数先后读出，bringup IMU 检查的延迟在任务醒来后又有新发布时得负值（`978bec1` 修正并补宿主回归测试）；修正后 20/20，中断发布的 topic 叫醒 IMU 任务每秒约 6800 次、最大延迟 73 µs；接 24 V 后恒温 50 ±0.125 ℃；USB CDC 状态行与回显正常；SBUS 收帧、摇杆与失控保护正常（16:55 补测）；CAN 收帧待接设备 | F2、F3 待负责人验收 |
+| 2026-11-01 | F3（L6） | BMI088 加热改为模型预测（Decision-20261101-05）：实测旧 PI 冲到 56.9 ℃、28 s 才稳；由实测数据辨识两级一阶滞后热模型（0.967 ℃/‰、15.5 s、0.95 s），`control::HeaterControl` 两级预热 + 平台校正加热器强度 + 前馈 PI 恒温；仿真在加热器强度 ±25% 下整定，宿主测试 28/28；上板 +0.125 ℃、15.3 s 进入 ±0.25 ℃、校准条件 35.4 s；断电不误修正、来电不过冲（[记录](docs/ai/decisions/2026-11-01-L6-加热提速上板验证/README.md)） | 完成，待负责人验收 |

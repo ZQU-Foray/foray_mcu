@@ -49,7 +49,7 @@ foray_mcu/
 │   ├── middleware/           给能力用的运行期机制与服务：建立在契约与基础件之上
 │   │   ├── topic/            topic 机制：最新值、单发布者、可在中断里发布、可阻塞等待
 │   │   └── fsm/              通用状态机
-│   ├── lib/                  领域算法：control（pid、slope）、estimate、filter、kinematics、component
+│   ├── lib/                  领域算法：control（pid、slope、heater_control）、estimate、filter、kinematics、component
 │   ├── driver/               设备驱动与设备协议：bmi088、motor（dji）、buzzer、ws2812、protocol/{dji,sbus}
 │   └── third_party/          vendor 进来的外部生成头（foray_interfaces 的 lower_link.hpp）
 ├── platform/                 厂商 / 板两级

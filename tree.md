@@ -26,7 +26,7 @@ foray_mcu/
 │   ├── boot/                 boot.h：生成区唯一调用的启动入口（F2）
 │   ├── utils/                math、crc（F1 第 1 步由 lib 移入）、concurrency（spsc_queue、latest_value，F1 第 2 步）
 │   ├── middleware/           fsm（F1 第 1 步由 lib 移入）、topic（topic.hpp，F1 第 4 步）
-│   ├── lib/                  control（pid、slope）、estimate、filter、kinematics、component（目录名即命名空间名）
+│   ├── lib/                  control（pid、slope、heater_control）、estimate、filter、kinematics、component（目录名即命名空间名）
 │   └── driver/               bmi088、buzzer、motor（含 dji/）、ws2812、protocol/{dji,sbus}（构造时接收 hal 句柄，F2 第 5 步）
 ├── app/                      产品（include 根：#include "topics/bringup.hpp"）；固件与宿主构建都加入
 │   ├── CMakeLists.txt        产品的全部 target：app_topics、app_bringup、app_common（只在固件构建中）
@@ -49,7 +49,7 @@ foray_mcu/
 ├── test/host/                宿主测试（由根工程 host-tests preset 引入，27 项 ctest；来源 fd1edbb 与 F1–F4 新增，见 test/host/README.md）
 ├── test/framework/           框架独立构建用：template_check.cpp 显式实例化只有头文件的模板（F1，Decision-20261031-06）
 ├── test/data/imu/            真实 IMU 数据（原固件静态陀螺采集 ×2）
-├── test/data/heater/         原固件加热冷启动曲线（L6 重做的验收下限）
+├── test/data/heater/         加热冷启动曲线：原固件（L6 的验收下限）、2026-11-01 旧 PI 与模型预测的对照
 ├── tool/debug/               SWD 只读轮询、bringup 上板探测（bringup_probe.py）、IMU 采集与加热日志解码（Python）
 ├── tool/flash/openocd/       OpenOCD 配置（DM-MC02 + CMSIS-DAP）
 ├── tool/ci/                  format.py（格式）、naming.py（命名）、symbols.py（符号对照与段大小报告）、arch_check.py（依赖图、文本扫描、M0+ 原子与 HAL 回调检查）
@@ -97,7 +97,7 @@ foray_mcu/
 │   ├── middleware/               给能力用的运行期机制与服务：topic（F1）、fsm；将来按需加调试遥测、参数存储、链路传输
 │   │   ├── topic/                topic 机制：最新值、单发布者、中断发布、阻塞等待
 │   │   └── fsm/                  通用状态机
-│   ├── lib/                      领域算法：control（pid、slope）、estimate、filter、kinematics、component
+│   ├── lib/                      领域算法：control（pid、slope、heater_control）、estimate、filter、kinematics、component
 │   ├── driver/                   设备驱动与设备协议：bmi088、motor/dji、buzzer、ws2812、protocol/{dji,sbus}（F3 适配 hal v1）
 │   └── third_party/              vendor 生成头：foray_interfaces/generated/lower_link.hpp + 版本/sha256（阶段 A）
 ├── platform/                     厂商 / 板两级
