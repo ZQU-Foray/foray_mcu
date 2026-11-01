@@ -3,9 +3,8 @@
 
 #include "driver/protocol/dji/dji_esc.hpp"
 #include "hal/can.hpp"
-#include "hal/time.hpp"
+#include "hal/os/clock.hpp"
 #include <array>
-#include <atomic>
 #include <cstddef>
 #include <cstdint>
 
@@ -24,9 +23,10 @@ namespace device
  * @note 一条总线只允许一种产品线：GM6020 反馈标识符 0x205~0x20B 与
  *       C610/C620 设备 5~8 的 0x205~0x208 重叠，且 0x1FF 在两条产品线上
  *       命令含义不同。分通道布局时每通道独立一个会话实例。
- * @note Process 必须由单一任务以约 1ms 周期调用：既是本通道软件队列的唯一
- *       消费者（见 platform::Can 契约），也决定控制帧节拍。指令写入与快照
- *       读取可来自其他任务；快照与统计内部用序列锁保证一致性。
+ * @note 全部接口在同一个任务里调用，process() 约 1 ms 一次：它是这条总线软件接收
+ *       队列的唯一消费者（init() 用 hal::Can::claim_receiver() 占住总线），也决定
+ *       控制帧节拍。驱动不做跨任务同步：电机状态要给别的能力用，由持有驱动的能力
+ *       发布 topic（架构 §3.4、§3.5）。
  * @note 多圈累计假设相邻两帧机械角差小于半圈（4096 计数）：1kHz 反馈下
  *       各款电机转子转速上限均满足。指令侧不做斜率限制与指令源失联清零，
  *       该策略由应用层负责（可调用 clear_all_commands 实现）。
@@ -35,7 +35,7 @@ class DjiMotor final
 {
   public:
     static constexpr std::size_t MAXIMUM_MOTORS{8U};
-    static constexpr std::uint32_t LINK_TIMEOUT_MS{50U};
+    static constexpr hal::os::Microseconds LINK_TIMEOUT_US{50000U}; // 超过这么久没有反馈即离线
 
     /**
    * @brief 产品档案：协议方言 + 电气满量程 + 反馈能力，按总线实际产品选择。
@@ -83,7 +83,7 @@ class DjiMotor final
         bool enabled{false};
         bool ever_received{false};
         bool online{false};
-        std::uint32_t last_update_tick{0U};
+        hal::os::Microseconds last_update_us{0U};
         std::uint32_t accepted_frame_count{0U};
         std::uint16_t rotor_angle_raw{0U};
         float rotor_angle_degrees{0.0F};
@@ -98,12 +98,12 @@ class DjiMotor final
 
     /**
    * @brief 总线级健康统计快照：发送结果分布、解码统计与平台丢帧统计。
-   * @note tx_result_counts 按 platform::Can::SendResult 枚举值索引，
-   *       [0]=Queued 持续增长表示控制帧正常完成（总线有节点 ACK）。
+   * @note tx_result_counts 按 hal::Can::SendResult 枚举值索引，
+   *       [0]=QUEUED 持续增长表示控制帧正常放进了硬件发送队列。
    */
     struct Statistics final
     {
-        std::array<std::uint32_t, 6> tx_result_counts{};
+        std::array<std::uint32_t, hal::Can::SEND_RESULT_COUNT> tx_result_counts{};
         std::uint32_t accepted_frame_count{0U};
         std::uint32_t rejected_frame_count{0U};
         std::uint32_t unknown_identifier_count{0U};
@@ -113,19 +113,19 @@ class DjiMotor final
     };
 
     /**
-   * @brief 绑定 CAN 通道与产品档案。档案方言必须至少支持一种命令种类。
+   * @brief 绑定 CAN 总线（由组合根注入句柄）与产品档案。档案方言必须至少支持一种命令种类。
    */
-    DjiMotor(platform::Can::Channel channel, const Profile &profile) noexcept;
+    DjiMotor(hal::Can bus, const Profile &profile) noexcept;
 
     /**
-   * @brief 校验通道与时基可用并复位会话状态。调度器启动前调用一次。
-   * @return 通道与时基均就绪且档案有效时返回 true。
+   * @brief 占住总线的接收、校验总线可用并复位会话状态。调度器启动前调用。
+   * @return 总线就绪、接收未被别人占用且档案有效时返回 true；失败时不占用总线。可以重复调用（复位状态）。
    */
     [[nodiscard]] bool init() noexcept;
 
     /**
    * @brief 周期服务：排空接收队列并更新电机状态、执行链路老化、向含在役
-   *        设备的组聚合发送控制帧、刷新并发布快照。
+   *        设备的组聚合发送控制帧、读取总线统计。
    */
     void process() noexcept;
 
@@ -177,13 +177,13 @@ class DjiMotor final
     void clear_all_commands() noexcept;
 
     /**
-   * @brief 读取指定设备的遥测快照（序列锁保证跨任务一致）。
+   * @brief 读取指定设备的遥测快照。
    * @return 设备编号在 [1, MAXIMUM_MOTORS] 内时返回 true。
    */
     [[nodiscard]] bool get_snapshot(std::uint8_t device_id, Snapshot &snapshot) const noexcept;
 
     /**
-   * @brief 读取总线健康统计快照（序列锁保证跨任务一致）。
+   * @brief 读取总线健康统计。
    */
     [[nodiscard]] bool get_statistics(Statistics &statistics) const noexcept;
 
@@ -194,7 +194,7 @@ class DjiMotor final
         bool ever_received{false};
         bool stale{false};
         bool has_angle{false};
-        std::uint32_t last_update_tick{0U};
+        hal::os::Microseconds last_update_us{0U};
         std::uint32_t accepted_frame_count{0U};
         std::uint16_t last_angle_raw{0U};
         std::int32_t total_angle_counts{0};
@@ -205,27 +205,20 @@ class DjiMotor final
     void receive_frames() noexcept;
     void update_link_aging() noexcept;
     void transmit_commands() noexcept;
-    void publish() noexcept;
     void fill_snapshot(std::size_t index, Snapshot &snapshot) const noexcept;
     [[nodiscard]] bool device_id_valid(std::uint8_t device_id) const noexcept;
     [[nodiscard]] bool group_enabled(protocol::DjiEsc::Group group) const noexcept;
 
-    platform::Can::Channel channel_;
+    hal::Can bus_;
     protocol::DjiEsc esc_;
     Profile profile_;
     protocol::DjiEsc::CommandKind command_kind_;
     bool ready_{false};
-    bool dirty_{false};
+    bool receiver_claimed_{false};
     protocol::DjiEsc::Feedback feedback_{};
     std::array<MotorState, MAXIMUM_MOTORS> motors_{};
-    std::array<std::uint32_t, 6> tx_result_counts_{};
-    platform::Can::Statistics port_statistics_{};
-
-    static_assert(std::atomic<std::uint32_t>::is_always_lock_free,
-                  "DjiMotor snapshot sequence lock requires lock-free atomics");
-    mutable std::atomic<std::uint32_t> snapshot_sequence_{0U};
-    std::array<Snapshot, MAXIMUM_MOTORS> published_snapshots_{};
-    Statistics published_statistics_{};
+    std::array<std::uint32_t, hal::Can::SEND_RESULT_COUNT> tx_result_counts_{};
+    hal::Can::Statistics bus_statistics_{};
 };
 
 } // namespace device

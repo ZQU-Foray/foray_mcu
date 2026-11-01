@@ -384,10 +384,9 @@ ATOMIC_RMW = re.compile(
     r"(?:\.|->)\s*(?:fetch_\w+|exchange|compare_exchange_\w+|test_and_set)\s*\("
     r"|\bstd::atomic_(?:fetch_\w+|exchange\w*|compare_exchange_\w+|flag_test_and_set\w*)\s*\("
 )
-# 例外 X-08 放行的文件 → 到期。改掉后删除对应条目（文件里已经没有时，扫描会提示）。
-ATOMIC_RMW_EXCEPTIONS = {
-    "src/driver/motor/dji/dji_motor.cpp": "X-08，DJI 电机驱动改写时改",
-}
+# 放行的文件 → 依据。改掉后删除对应条目（文件里已经没有时，扫描会提示）。
+# X-08 已关闭（DJI 电机驱动改用 hal::Can 时去掉了快照的手写序列锁，Decision-20261101-01）。
+ATOMIC_RMW_EXCEPTIONS: dict[str, str] = {}
 # 规则 10：RTOS 头（FreeRTOS 与 CMSIS-RTOS）在 src/、app/ 中只有任务运行器（app/common）可以 include
 RTOS_HEADER = re.compile(
     r"(?:FreeRTOS|task|queue|semphr|timers|event_groups|stream_buffer|message_buffer|cmsis_os2?)\.h"

@@ -7,7 +7,7 @@
 namespace device
 {
 
-// 一个适配器独占一路 CAN 会话；严禁同通道挂多个消费者。
+// 一个适配器独占一条 CAN 总线的接收（DjiMotor::init() 用 claim_receiver() 占住）；全部接口在同一个任务里调用。
 class DjiMotorAdapter final
 {
   public:
@@ -19,7 +19,7 @@ class DjiMotorAdapter final
     };
     struct Config final
     {
-        platform::Can::Channel channel;
+        hal::Can bus; // 组合根注入的总线句柄
         DjiMotor::Profile profile;
         std::array<Mapping, DjiMotor::MAXIMUM_MOTORS> mappings{};
         std::size_t count{0U};

@@ -25,7 +25,7 @@ class FictionalAdapter final
   public:
     struct Config final
     {
-        platform::Can::Channel channel{};
+        hal::Can bus{0U};
         std::array<device::MotorConnection, 2> connections{};
         std::size_t count{0U};
     };
@@ -83,10 +83,10 @@ struct MotorAdapterFor<K_FICTIONAL_MODEL>
     static constexpr std::size_t MAXIMUM_MOTORS{FictionalAdapter::MAXIMUM_MOTORS};
     template <std::size_t N>
     [[nodiscard]] static FictionalAdapter::Config
-    make_config(platform::Can::Channel channel, const std::array<MotorConnection, N> &connections) noexcept
+    make_config(hal::Can bus, const std::array<MotorConnection, N> &connections) noexcept
     {
         FictionalAdapter::Config config{};
-        config.channel = channel;
+        config.bus = bus;
         config.count = N;
         for (std::size_t index = 0U; index < N; ++index)
         {
@@ -103,19 +103,19 @@ static_assert(Fiction::count() == 2U);
 int main()
 {
     // 型号映射：适配器收到品牌装配参数（连接与数量）。
-    Fiction fiction{platform::Can::Channel::CHANNEL_1, {{{3U, 1}, {5U, -1}}}};
+    Fiction fiction{hal::Can{0U}, {{{3U, 1}, {5U, -1}}}};
 
-    // 通道占用检查位于通用电机组：与非 DJI 适配器同样生效。
+    // 电机组的 Init 直接交给适配器：失败照实返回，重复调用由适配器决定。
+    // 总线占用由用到 CAN 的适配器自己用 hal::Can::claim_receiver() 检查（DJI 见 motor_group 测试），
+    // 电机组本身不再维护占用表。
     g_init_result = false;
-    Fiction failing{platform::Can::Channel::CHANNEL_2, {{{1U, 1}, {2U, 1}}}};
+    Fiction failing{hal::Can{1U}, {{{1U, 1}, {2U, 1}}}};
     assert(!failing.init()); // 适配器 Init 失败
     assert(g_inits == 1U);
     g_init_result = true;
-    Fiction owner{platform::Can::Channel::CHANNEL_2, {{{1U, 1}, {2U, 1}}}};
-    assert(owner.init() && owner.init()); // 成功后幂等
+    Fiction owner{hal::Can{1U}, {{{1U, 1}, {2U, 1}}}};
+    assert(owner.init() && owner.init());
     assert(g_inits == 3U);
-    Fiction conflict{platform::Can::Channel::CHANNEL_2, {{{1U, 1}, {2U, 1}}}};
-    assert(!conflict.init()); // 同通道第二组拒绝（失败实例不占用通道）
 
     // 控制契约直通适配器：暂存、发送节拍、清零。
     assert(fiction.init());

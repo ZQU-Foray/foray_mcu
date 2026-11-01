@@ -17,24 +17,18 @@ namespace device
  *       - using Adapter：适配器类型，可由 Config 直接构造，并提供
  *         Init/Process/read_state/set_torque/clear_commands/maximum_torque_newton_meter 操作契约；
  *       - static constexpr MAXIMUM_MOTORS：该型号允许的最大电机数量；
- *       - template <N> make_config(channel, connections)：把品牌默认参数
+ *       - template <N> make_config(bus, connections)：把品牌默认参数
  *         （电调档案、型号原生减速比等）装配为 Adapter::Config。
  */
 template <MotorModel Model>
 struct MotorAdapterFor;
 
-namespace detail
-{
-// 全部电机组共享的通道占用表；仅调度前 Init 访问，成功占用后不提供释放。
-inline std::array<const void *, CAN_PORT_CHANNEL_COUNT> g_motor_channel_owners{};
-} // namespace detail
-
 /**
  * @brief 一个任务持有的同型号电机组，直接持有编译期选定的品牌适配器。
  * @note Init 先于调度执行，成功后实例须保持存活至固件结束；所有收发和
- *       读写由同一个任务调用。每组独占一路 CAN：同通道被第二个电机组
- *       （含同型号）占用时 Init 失败，失败实例不占用通道。
- *       输出为型号原生输出轴单位；外接传动不包含在型号档案内。
+ *       读写由同一个任务调用。每组独占一条 CAN 总线的接收：适配器在 Init 里用
+ *       hal::Can::claim_receiver() 占住总线，同一总线上的第二个电机组（含同型号）
+ *       Init 失败。输出为型号原生输出轴单位；外接传动不包含在型号档案内。
  */
 template <MotorModel Model, std::size_t N>
 class MotorGroup final
@@ -45,8 +39,8 @@ class MotorGroup final
     static_assert(N <= Mapping::MAXIMUM_MOTORS, "电机组数量超过型号能力");
 
   public:
-    MotorGroup(platform::Can::Channel channel, const std::array<MotorConnection, N> &connections) noexcept
-        : channel_{channel}, adapter_{Mapping::template make_config<N>(channel, connections)}
+    MotorGroup(hal::Can bus, const std::array<MotorConnection, N> &connections) noexcept
+        : adapter_{Mapping::template make_config<N>(bus, connections)}
     {
     }
     MotorGroup(const MotorGroup &) = delete;
@@ -56,21 +50,7 @@ class MotorGroup final
 
     [[nodiscard]] bool init() noexcept
     {
-        const std::size_t channel = static_cast<std::size_t>(channel_);
-        if (channel >= detail::g_motor_channel_owners.size())
-        {
-            return false;
-        }
-        if (detail::g_motor_channel_owners[channel] != nullptr && detail::g_motor_channel_owners[channel] != this)
-        {
-            return false;
-        }
-        if (!adapter_.init())
-        {
-            return false;
-        }
-        detail::g_motor_channel_owners[channel] = this;
-        return true;
+        return adapter_.init();
     }
     [[nodiscard]] static constexpr std::size_t count() noexcept
     {
@@ -103,7 +83,6 @@ class MotorGroup final
     }
 
   private:
-    platform::Can::Channel channel_;
     Adapter adapter_;
 };
 } // namespace device

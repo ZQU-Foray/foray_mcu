@@ -14,6 +14,9 @@ namespace port
 /** 检查 PWM 定时器的计数频率，以占空比 0 启动全部通道。 */
 [[nodiscard]] bool init_pwm() noexcept;
 
+/** 配置接收过滤器（收下全部标准帧与扩展帧），启动 FDCAN1–3 并打开接收与 Bus-Off 中断。 */
+[[nodiscard]] bool init_can() noexcept;
+
 /**
  * @brief 中断通知：任务登记回调，中断取出并调用（代替旧 PortKit 的 Notifier）。
  *

@@ -13,11 +13,11 @@ namespace dji
 template <std::size_t N>
 [[nodiscard]] DjiMotorAdapter::Config make_config(const DjiMotor::Profile &profile,
                                                   float gear_ratio,
-                                                  platform::Can::Channel channel,
+                                                  hal::Can bus,
                                                   const std::array<MotorConnection, N> &connections) noexcept
 {
     static_assert(N > 0U && N <= DjiMotorAdapter::MAXIMUM_MOTORS, "电机数量超出 DJI 适配器能力");
-    DjiMotorAdapter::Config config{channel, profile, {}, N};
+    DjiMotorAdapter::Config config{bus, profile, {}, N};
     for (std::size_t index = 0U; index < N; ++index)
     {
         config.mappings[index] = {connections[index].device_id, gear_ratio, connections[index].direction};
@@ -35,10 +35,10 @@ struct MotorAdapterFor<MotorModel::M2006>
     using Adapter = DjiMotorAdapter;
     static constexpr std::size_t MAXIMUM_MOTORS{DjiMotor::Profile::c610().dialect.maximum_device_count};
     template <std::size_t N>
-    [[nodiscard]] static DjiMotorAdapter::Config make_config(platform::Can::Channel channel,
+    [[nodiscard]] static DjiMotorAdapter::Config make_config(hal::Can bus,
                                                              const std::array<MotorConnection, N> &connections) noexcept
     {
-        return dji::make_config(DjiMotor::Profile::c610(), 36.0F, channel, connections);
+        return dji::make_config(DjiMotor::Profile::c610(), 36.0F, bus, connections);
     }
 };
 
@@ -48,10 +48,10 @@ struct MotorAdapterFor<MotorModel::M3508>
     using Adapter = DjiMotorAdapter;
     static constexpr std::size_t MAXIMUM_MOTORS{DjiMotor::Profile::c620().dialect.maximum_device_count};
     template <std::size_t N>
-    [[nodiscard]] static DjiMotorAdapter::Config make_config(platform::Can::Channel channel,
+    [[nodiscard]] static DjiMotorAdapter::Config make_config(hal::Can bus,
                                                              const std::array<MotorConnection, N> &connections) noexcept
     {
-        return dji::make_config(DjiMotor::Profile::c620(), 19.2F, channel, connections);
+        return dji::make_config(DjiMotor::Profile::c620(), 19.2F, bus, connections);
     }
 };
 
@@ -61,10 +61,10 @@ struct MotorAdapterFor<MotorModel::GM6020_CURRENT>
     using Adapter = DjiMotorAdapter;
     static constexpr std::size_t MAXIMUM_MOTORS{DjiMotor::Profile::gm6020_current().dialect.maximum_device_count};
     template <std::size_t N>
-    [[nodiscard]] static DjiMotorAdapter::Config make_config(platform::Can::Channel channel,
+    [[nodiscard]] static DjiMotorAdapter::Config make_config(hal::Can bus,
                                                              const std::array<MotorConnection, N> &connections) noexcept
     {
-        return dji::make_config(DjiMotor::Profile::gm6020_current(), 1.0F, channel, connections);
+        return dji::make_config(DjiMotor::Profile::gm6020_current(), 1.0F, bus, connections);
     }
 };
 

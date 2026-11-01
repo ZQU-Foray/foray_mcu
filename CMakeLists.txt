@@ -33,10 +33,10 @@ if(FRAMEWORK_ONLY)
     # 契约的实现在 port，这里只编译不链接。framework-m0plus 用它检查原子读改写（规则 13）。
     add_subdirectory(src)
     if(CMAKE_CROSSCOMPILING)
-        # 还不能为 Cortex-M0+ 编译的 target（例外 X-17，F3 驱动适配后删掉这一行）：
-        # driver_bmi088、driver_motor_dji 用 static_assert(is_always_lock_free) 要求原子读改写无锁，后者另有 X-08；
-        # lib_estimate 经 imu_body_mapping 依赖 driver_bmi088。
-        set_target_properties(driver_bmi088 driver_motor_dji lib_estimate PROPERTIES EXCLUDE_FROM_ALL ON)
+        # 还不能为 Cortex-M0+ 编译的 target（例外 X-17，BMI088 驱动改用 hal::Spi 后删掉这一行）：
+        # driver_bmi088 用 static_assert(is_always_lock_free) 要求原子读改写无锁；
+        # lib_estimate 经 imu_body_mapping 依赖 driver_bmi088。driver_motor_dji 已在改用 hal::Can 时解除。
+        set_target_properties(driver_bmi088 lib_estimate PROPERTIES EXCLUDE_FROM_ALL ON)
     else()
         add_subdirectory(platform/mock)
     endif()

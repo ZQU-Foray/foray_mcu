@@ -1,6 +1,7 @@
 #ifndef PLATFORM_DM_MC02_BOARD_BOARD_HPP
 #define PLATFORM_DM_MC02_BOARD_BOARD_HPP
 
+#include "hal/can.hpp"
 #include "hal/gpio.hpp"
 #include "hal/pwm.hpp"
 
@@ -12,6 +13,12 @@
 
 namespace board
 {
+
+// ---- CAN（port/can.cpp）：FDCAN1–3，Classic CAN 1 Mbps（CubeMX 配置）----
+inline constexpr hal::Can CAN_1{0U};
+inline constexpr hal::Can CAN_2{1U};
+inline constexpr hal::Can CAN_3{2U};
+inline constexpr std::uint8_t CAN_COUNT{3U};
 
 // ---- GPIO（port/gpio.cpp）----
 // 电源输出：高电平打开，上电为关。

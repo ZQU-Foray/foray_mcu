@@ -30,18 +30,19 @@ endfunction()
 host_test(dji_protocol
     SOURCES unit/protocol/dji_esc_test.cpp
     LINK driver_protocol_dji)
+# DJI 电机：总线收发与时间经 platform_mock 的 hal::Can、hal_os 替身（Decision-20261101-01）。
 host_test(dji_motor
     SOURCES unit/motor/dji_motor_test.cpp
-    LINK driver_motor_dji)
+    LINK driver_motor_dji platform_mock)
 host_test(dji_adapter
     SOURCES unit/motor/dji_motor_adapter_test.cpp
-    LINK driver_motor_dji)
+    LINK driver_motor_dji platform_mock)
 host_test(angle_wrap
     SOURCES unit/motor/angle_wrap_test.cpp
-    LINK driver_motor_dji)
+    LINK driver_motor_dji platform_mock)
 host_test(motor_group
     SOURCES unit/motor/motor_group_test.cpp
-    LINK driver_motor_dji)
+    LINK driver_motor_dji platform_mock)
 host_test(brand_extension
     SOURCES unit/motor/brand_extension_test.cpp
     LINK driver_motor)
@@ -53,6 +54,9 @@ target_compile_options(test_bmi088_acquisition PRIVATE -O2)
 # hal 契约 v1 在 platform/mock 上的语义与改用它的驱动（Decision-20261101-01）。
 host_test(hal_gpio_pwm
     SOURCES unit/hal/gpio_pwm_test.cpp
+    LINK platform_mock)
+host_test(hal_can
+    SOURCES unit/hal/can_test.cpp
     LINK platform_mock)
 host_test(buzzer
     SOURCES unit/buzzer/buzzer_test.cpp

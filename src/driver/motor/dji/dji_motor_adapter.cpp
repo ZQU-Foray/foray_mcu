@@ -3,9 +3,7 @@
 
 namespace device
 {
-DjiMotorAdapter::DjiMotorAdapter(const Config &config) noexcept : config_{config}, bus_{config.channel, config.profile}
-{
-}
+DjiMotorAdapter::DjiMotorAdapter(const Config &config) noexcept : config_{config}, bus_{config.bus, config.profile} {}
 
 bool DjiMotorAdapter::init() noexcept
 {
@@ -15,8 +13,7 @@ bool DjiMotorAdapter::init() noexcept
     }
     const auto &profile = config_.profile;
     const auto &current = profile.dialect.commands[static_cast<std::size_t>(protocol::DjiEsc::CommandKind::CURRENT)];
-    if (static_cast<unsigned>(config_.channel) > static_cast<unsigned>(platform::Can::Channel::CHANNEL_3) ||
-        config_.count == 0U || config_.count > config_.mappings.size() || current.group_one_control_identifier == 0U ||
+    if (config_.count == 0U || config_.count > config_.mappings.size() || current.group_one_control_identifier == 0U ||
         current.control_full_scale_counts == 0U || current.control_full_scale_counts > 32767U ||
         profile.dialect.maximum_device_count > DjiMotor::MAXIMUM_MOTORS ||
         !std::isfinite(profile.current_full_scale_ampere) || profile.current_full_scale_ampere <= 0.0F ||
@@ -85,7 +82,7 @@ bool DjiMotorAdapter::read_state(std::size_t id, MotorState &state) const noexce
     state.speed_rpm = static_cast<float>(snapshot.rotor_speed_rpm) * factor;
     state.feedback_valid = snapshot.ever_received;
     state.online = snapshot.online;
-    state.last_update_tick = snapshot.last_update_tick;
+    state.last_update_us = snapshot.last_update_us;
     return true;
 }
 

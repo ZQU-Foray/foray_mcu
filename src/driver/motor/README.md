@@ -7,7 +7,7 @@ Application/Configuration 或全局静态 Motor 绑定。底盘的型号、通�
 方向和 PID 参数均位于 Application/Task/1_chassis/ChassisTask.cpp。
 
     using ChassisMotors = device::MotorGroup<device::MotorModel::M2006, 4>;
-    ChassisMotors motors{platform::Can::Channel::Channel1,
+    ChassisMotors motors{board::CAN_1,   // 组合根注入 hal::Can 句柄（Decision-20261101-01）
                          {{{1U, 1}, {2U, 1}, {3U, 1}, {4U, 1}}}};
 
 后续代码统一使用 motors.Init / Process / ReadState / SetTorque / ClearCommands，
@@ -53,9 +53,11 @@ MotorModel 是任务允许知道的装配选择；品牌映射头（如 dji/DjiM
 
 ## 实例与总线所有权
 
-不同任务可在不同 CAN 通道创建不同型号的电机组，各组拥有独立状态和命令槽位。
-一组独占一个通道。所有组须在调度器启动前 Init；同一通道被第二个电机组占用时
-返回 false，包括同型号情况，避免抢走反馈或重复发送共享控制帧。
+不同任务可在不同 CAN 总线创建不同型号的电机组，各组拥有独立状态和命令槽位。
+一组独占一条总线的接收。所有组须在调度器启动前 Init；DJI 适配器在 Init 里用
+`hal::Can::claim_receiver()` 占住总线，同一总线被第二个电机组占用时返回 false，
+包括同型号情况，避免抢走反馈或重复发送共享控制帧（2026-11-01 起，原先的全局占用表
+随 hal 契约 v1 删除，Decision-20261101-01）。
 
 成功 Init 的对象须保持至固件结束，建议如底盘一样定义在任务 cpp 的匿名命名空间。
 禁止复制或移动；首版不提供运行期释放通道或热插拔对象。未成功初始化不占通道。

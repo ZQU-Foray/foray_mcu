@@ -1,9 +1,12 @@
 #ifndef PLATFORM_MOCK_MOCK_HAL_HPP
 #define PLATFORM_MOCK_MOCK_HAL_HPP
 
+#include "hal/can.hpp"
 #include "hal/gpio.hpp"
 #include "hal/pwm.hpp"
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
 
 // 宿主测试控制 hal 外设替身的接口（Decision-20261101-01）。
@@ -11,6 +14,47 @@
 // 超出范围的句柄在替身里和真实 port 一样当作无效编号处理。
 // 状态是进程内全局的，每个测试开始时调用对应外设的 reset()。全部函数线程安全；
 // 模拟中断的函数（trigger_interrupt 等）在调用线程里直接执行登记的回调，不持有替身内部的锁。
+
+namespace mock::can
+{
+
+inline constexpr std::uint8_t BUS_COUNT{8U};
+/** 每条总线的接收队列与发送记录最多保存的帧数，超出时与真实 port 一样丢弃并计数。 */
+inline constexpr std::size_t QUEUE_CAPACITY{64U};
+
+/**
+ * 全部总线恢复为：已启动、不在 Bus-Off、接收方未占用、队列与发送记录为空、统计为 0、send() 返回 QUEUED。
+ */
+void reset() noexcept;
+
+/** 设置总线是否已启动；未启动时 is_ready() 为 false，send()、空队列的 receive() 返回 NOT_READY。 */
+void set_ready(std::uint8_t bus, bool ready) noexcept;
+
+/** 模拟 Bus-Off：is_ready() 为 false，send() 与空队列的 receive() 返回 BUS_OFF。 */
+void set_bus_off(std::uint8_t bus, bool bus_off) noexcept;
+
+/** 强制 send() 返回 result（如 QUEUE_FULL）。只有 QUEUED 会把帧记进发送记录。 */
+void set_send_result(std::uint8_t bus, hal::Can::SendResult result) noexcept;
+
+/** 模拟收到一帧：放进接收队列并调用登记的接收通知。队列满时丢弃、计入 rx_dropped_count，返回 false。 */
+bool inject(std::uint8_t bus, const hal::Can::Frame &frame) noexcept;
+
+/** 便利写法：注入一帧 8 字节的标准帧。 */
+bool inject(std::uint8_t bus, std::uint32_t identifier, const std::array<std::uint8_t, 8> &data) noexcept;
+
+/** 发送记录里的帧数（send() 返回 QUEUED 的帧，按发送顺序）。 */
+[[nodiscard]] std::size_t sent_count(std::uint8_t bus) noexcept;
+
+/** 取出最早的一条发送记录；没有时返回 false。 */
+bool pop_sent(std::uint8_t bus, hal::Can::Frame &frame) noexcept;
+
+/** 最后一次 QUEUED 的帧（不从记录里取出）；从没发过时返回 false。 */
+bool last_sent(std::uint8_t bus, hal::Can::Frame &frame) noexcept;
+
+/** 设置 statistics() 返回的计数（rx_dropped_count 在 inject() 丢帧时还会再加）。 */
+void set_statistics(std::uint8_t bus, const hal::Can::Statistics &statistics) noexcept;
+
+} // namespace mock::can
 
 namespace mock::gpio
 {

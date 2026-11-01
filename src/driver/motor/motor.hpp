@@ -1,7 +1,7 @@
 #ifndef DRIVER_MOTOR_MOTOR_HPP
 #define DRIVER_MOTOR_MOTOR_HPP
 
-#include "hal/time.hpp"
+#include "hal/os/clock.hpp"
 #include <cstddef>
 #include <cstdint>
 
@@ -16,7 +16,7 @@ struct MotorState final
     float speed_rpm{0.0F};
     bool feedback_valid{false};
     bool online{false};
-    platform::Time::Tick last_update_tick{0U};
+    hal::os::Microseconds last_update_us{0U}; // 最后一次收到反馈的时刻
 };
 
 // 型号选择只用于装配；控制器不依赖本枚举。
