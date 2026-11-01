@@ -422,10 +422,16 @@ def judge(decoded, pcs, handlers) -> list[tuple[bool, str]]:
         )
     )
     if second["usb.connected"]:
+        lines = per_second("usb.lines")
+        # connected 指 USB 配置完成；主机没打开串口时第一行一直没被取走，之后的行都被跳过
+        hint = "" if lines >= 8 else "；只跳过不发送时是主机没打开串口，打开后重跑"
         checks.append(
             (
-                per_second("usb.lines") >= 8,
-                f"USB 状态行每秒 {per_second('usb.lines'):.0f} 行（应约 10）",
+                lines >= 8,
+                (
+                    f"USB 状态行每秒 {lines:.0f} 行（应约 10），"
+                    f"跳过每秒 {per_second('usb.skipped'):.0f} 次{hint}"
+                ),
             )
         )
     else:
