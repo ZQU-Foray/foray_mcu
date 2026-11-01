@@ -9,7 +9,7 @@
 #                                                   宿主上另加 platform/mock；不含 app/、config/、test/host 与任何板卡。
 #                                                   CI 在只含这些文件的副本里构建，证明框架不引用产品（规则 2、15）
 #
-# 迁移期：BMI088 驱动的构建期开关由 cmake/legacy.cmake 的 legacy_build_options 提供（例外 X-14，驱动改写时删除）。
+# 迁移期的构建开关已全部删除：BMI088 的陀螺带宽改为驱动 Config 参数（例外 X-14 关闭，Decision-20261101-01）。
 cmake_minimum_required(VERSION 3.22)
 project(foray_mcu LANGUAGES C CXX)
 
@@ -24,7 +24,6 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 include(targets)
-include(legacy)
 
 option(FRAMEWORK_ONLY "只构建框架（src；宿主上另加 platform/mock），不含产品、板卡与宿主测试" OFF)
 
@@ -33,10 +32,10 @@ if(FRAMEWORK_ONLY)
     # 契约的实现在 port，这里只编译不链接。framework-m0plus 用它检查原子读改写（规则 13）。
     add_subdirectory(src)
     if(CMAKE_CROSSCOMPILING)
-        # 还不能为 Cortex-M0+ 编译的 target（例外 X-17，BMI088 驱动改用 hal::Spi 后删掉这一行）：
-        # driver_bmi088 用 static_assert(is_always_lock_free) 要求原子读改写无锁；
-        # lib_estimate 经 imu_body_mapping 依赖 driver_bmi088。driver_motor_dji 已在改用 hal::Can 时解除。
-        set_target_properties(driver_bmi088 lib_estimate PROPERTIES EXCLUDE_FROM_ALL ON)
+        # 还不能为 Cortex-M0+ 编译的 target（例外 X-17）：lib_estimate 经 imu_body_mapping 依赖 driver_bmi088
+        # （lib → driver 反向依赖），F3 改为 POD 入参后删掉这一行。driver_motor_dji、driver_bmi088 已在改用
+        # hal::Can、hal::Spi 时解除（Decision-20261101-01）。
+        set_target_properties(lib_estimate PROPERTIES EXCLUDE_FROM_ALL ON)
     else()
         add_subdirectory(platform/mock)
     endif()

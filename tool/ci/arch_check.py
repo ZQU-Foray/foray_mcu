@@ -69,7 +69,6 @@ LAYERS = [
     ("mock", r"platform_mock"),
     ("test", r"test_\w+"),
     ("check", r"check_\w+"),
-    ("legacy", r"legacy_build_options"),
 ]
 FRAMEWORK = {
     "contract",
@@ -108,7 +107,6 @@ APP_DEPENDENCIES = {
     "driver",
     "middleware",
     "topics",
-    "legacy",
 }
 
 # 每一层可以直接依赖的层（docs/ai/architecture.md §2.3、§3）。
@@ -118,14 +116,14 @@ ALLOWED = {
     "profile": set(),
     "boot": set(),
     # hal 的外设契约用 hal/os 的时间单位与回调约定（Decision-20261101-01）
-    "contract": {"contract", "legacy"},
+    "contract": {"contract"},
     "hal_detail": set(),
     "utils": set(),
     "msg": {"utils", "contract"},
-    "lib": {"lib", "legacy", "utils"},
-    "driver": {"contract", "lib", "driver", "utils", "legacy"},
+    "lib": {"lib", "utils"},
+    "driver": {"contract", "lib", "driver", "utils"},
     # 架构 v2 §2.3：middleware 只依赖 utils 与契约（hal/os；传输类服务另可依赖 hal），不依赖 driver、lib。
-    "middleware": {"middleware", "contract", "utils", "legacy"},
+    "middleware": {"middleware", "contract", "utils"},
     "topics": {"middleware", "contract"},
     # 能力零 RTOS：不得依赖任务运行器（app_common 带 RTOS 头，规则 10），也不得依赖其他能力（规则 18）
     "app": APP_DEPENDENCIES,
@@ -139,8 +137,7 @@ ALLOWED = {
     "mock": {"contract", "hal_detail", "utils"},
     "test": FRAMEWORK | {"mock", "app", "app_common"},
     # 框架独立构建里的检查用 target（如 check_templates：实例化只有头文件的模板），只能依赖框架。
-    "check": FRAMEWORK | {"legacy"},
-    "legacy": set(),
+    "check": FRAMEWORK,
 }
 
 # 迁移期放行的具体边：(起点, 终点) → 依据。到期后删除对应条目。
@@ -372,8 +369,8 @@ GUARD = re.compile(r"^\s*#\s*ifndef\s+(\w+)\s*\n\s*#\s*define\s+\1\b", re.MULTIL
 GLOBAL_INCLUDE = re.compile(r"(?<![\w])include_directories\s*\(", re.IGNORECASE)
 FILE_GLOB = re.compile(r"\bfile\s*\(\s*GLOB", re.IGNORECASE)
 CONDITIONAL = re.compile(r"^\s*#\s*(if|ifdef|ifndef|elif)\b(.*)$")
-# 规则 9 迁移期放行的宏：BMI088 驱动的构建期开关（例外 X-14），驱动改写时改为 Config 参数后删除。
-CONDITIONAL_EXCEPTIONS = ("BMI088_GYRO_BANDWIDTH_REGISTER",)
+# 规则 9 放行的宏：没有（例外 X-14 已关闭：BMI088 的陀螺带宽改为驱动 Config 参数，Decision-20261101-01）。
+CONDITIONAL_EXCEPTIONS: tuple[str, ...] = ()
 PRODUCT_REFERENCE = re.compile(
     r"\b(app_\w+|assembly_\w+|profile_\w+|firmware_\w+)\b|(?<![\w/.])(app|config)/"
 )

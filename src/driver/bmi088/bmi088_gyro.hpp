@@ -2,7 +2,8 @@
 #define DRIVER_BMI088_BMI088_GYRO_HPP
 
 #include "driver/bmi088/bmi088_transfer.hpp"
-#include "hal/time.hpp"
+#include "hal/os/clock.hpp"
+#include "hal/spi.hpp"
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -14,10 +15,11 @@ namespace device
  * @brief BMI088 陀螺仪子设备驱动。
  * @note 全部 SPI 事务均通过 DMA 非阻塞接口完成，初始化配置链与数据读取
  *       由单一任务周期调用 Harvest 与 try_start 推进，任何路径都不阻塞。
- * @note 默认使用 2000 Hz ODR / 532 Hz 带宽；构建选项可选择 1000 Hz / 116 Hz
- * 对照测试。 （0x00，2000 Hz ODR、532 Hz 滤波带宽），量程 GYRO_RANGE_2000_DPS
- *       （±2000 °/s），并启用高有效推挽 INT3 DRDY；配置链完成后
- *       逐项读回校验（带宽保留位按掩码忽略），失败重试后进入 Error。
+ * @note 输出速率与带宽由 init() 的参数选择：默认 2000 Hz ODR / 532 Hz 带宽（0x00），
+ *       可选 1000 Hz / 116 Hz（0x02）作对照；量程 GYRO_RANGE_2000_DPS（±2000 °/s），
+ *       并启用高有效推挽 INT3 DRDY；配置链完成后逐项读回校验（带宽保留位按掩码忽略），
+ *       失败重试后进入 Error。
+ * @note SPI 设备句柄由组合根在构造时注入（如 board::SPI_IMU_GYRO），需要异步能力。
  */
 class Bmi088Gyro final
 {
@@ -41,12 +43,19 @@ class Bmi088Gyro final
     static constexpr std::uint8_t GYRO_BANDWIDTH_100_HZ_6_HZ{0x07U};
 
     static constexpr std::uint8_t RANGE_REGISTER_VALUE{GYRO_RANGE_2000_DPS};
-#ifndef BMI088_GYRO_BANDWIDTH_REGISTER
-#define BMI088_GYRO_BANDWIDTH_REGISTER 0x00U
-#endif
-    static constexpr std::uint8_t BANDWIDTH_REGISTER_VALUE{BMI088_GYRO_BANDWIDTH_REGISTER};
-    static_assert(BANDWIDTH_REGISTER_VALUE == GYRO_BANDWIDTH_2000_HZ_532_HZ ||
-                  BANDWIDTH_REGISTER_VALUE == GYRO_BANDWIDTH_1000_HZ_116_HZ);
+
+    /** 支持的输出速率与带宽组合（原迁移期构建开关 BMI088_GYRO_BANDWIDTH_REGISTER，例外 X-14）。 */
+    enum class Bandwidth : std::uint8_t
+    {
+        ODR_2000_HZ_532_HZ = GYRO_BANDWIDTH_2000_HZ_532_HZ,
+        ODR_1000_HZ_116_HZ = GYRO_BANDWIDTH_1000_HZ_116_HZ
+    };
+
+    /** 该组合的输出速率（Hz）。 */
+    [[nodiscard]] static constexpr std::uint32_t output_rate_hz(Bandwidth bandwidth) noexcept
+    {
+        return bandwidth == Bandwidth::ODR_2000_HZ_532_HZ ? 2000U : 1000U;
+    }
     static constexpr float DPS_PER_LSB{(RANGE_REGISTER_VALUE == GYRO_RANGE_1000_DPS
                                             ? 1000.0F
                                             : (RANGE_REGISTER_VALUE == GYRO_RANGE_500_DPS
@@ -69,14 +78,20 @@ class Bmi088Gyro final
         std::int16_t z_axis{0};
     };
 
-    Bmi088Gyro() noexcept = default;
+    constexpr explicit Bmi088Gyro(hal::Spi spi) noexcept : spi_{spi} {}
 
     /**
    * @brief 重置状态机并进入初始化序列，本函数不访问硬件。
+   * @param bandwidth 输出速率与带宽，配置链写入 GYRO_BANDWIDTH 寄存器。
    * @note 首个 ID 读取前等待 POWER_UP_SETTLE_MS；ID 与配置读回校验失败时
    *       按有限次数重试，超过上限才进入 Error。
    */
-    void init() noexcept;
+    void init(Bandwidth bandwidth = Bandwidth::ODR_2000_HZ_532_HZ) noexcept;
+
+    [[nodiscard]] Bandwidth bandwidth() const noexcept
+    {
+        return bandwidth_;
+    }
 
     /**
    * @brief 查询并收割在途异步事务的终态，完成配置步校验或样本解析。
@@ -90,13 +105,13 @@ class Bmi088Gyro final
     // 仅当本次调用启动了新传输（而非既有传输）时为 true。
     bool try_start() noexcept;
 
-    void set_completion_notification(platform::Spi::CompletionNotification callback, void *context) noexcept
+    void set_completion_notification(hal::Callback callback, void *context) noexcept
     {
         completion_.set_notification(callback, context);
     }
-    [[nodiscard]] std::uint32_t get_completion_tick() const noexcept
+    [[nodiscard]] hal::os::Microseconds get_completion_us() const noexcept
     {
-        return completion_.completed_tick();
+        return completion_.completed_us();
     }
 
     /**
@@ -165,24 +180,26 @@ class Bmi088Gyro final
     };
 
     static constexpr std::size_t MAXIMUM_TRANSFER_LENGTH{7U};
-    static constexpr std::uint32_t POWER_UP_SETTLE_MS{100U};
-    static constexpr std::uint32_t CHIP_ID_RETRY_WAIT_MS{100U};
+    static constexpr hal::os::Microseconds POWER_UP_SETTLE_US{100000U};
+    static constexpr hal::os::Microseconds CHIP_ID_RETRY_WAIT_US{100000U};
     static constexpr std::uint32_t CHIP_ID_MAX_ATTEMPTS{3U};
-    static constexpr std::uint32_t CONFIGURATION_VERIFY_RETRY_WAIT_MS{100U};
+    static constexpr hal::os::Microseconds CONFIGURATION_VERIFY_RETRY_WAIT_US{100000U};
     static constexpr std::uint32_t CONFIGURATION_VERIFY_MAX_ATTEMPTS{3U};
     static constexpr std::uint8_t RANGE_REGISTER_READ_MASK{0x03U};
     static constexpr std::uint8_t BANDWIDTH_REGISTER_READ_MASK{0x0FU};
 
     void begin_step() noexcept;
     void complete_step() noexcept;
-    void advance(Step next_step, std::uint32_t wait_ms) noexcept;
+    void advance(Step next_step, hal::os::Microseconds wait_us) noexcept;
     void fail() noexcept;
     [[nodiscard]] bool wait_elapsed() const noexcept;
 
+    hal::Spi spi_;
+    Bandwidth bandwidth_{Bandwidth::ODR_2000_HZ_532_HZ};
     State state_{State::SHUTDOWN};
     Step step_{Step::CHECK_CHIP_ID};
-    platform::Time::Tick step_tick_{0U};
-    std::uint32_t step_wait_ms_{0U};
+    hal::os::Microseconds step_us_{0U};
+    hal::os::Microseconds step_wait_us_{0U};
     Bmi088Transfer completion_{};
     bool transfer_active_{false};
     bool sample_valid_{false};

@@ -47,8 +47,13 @@ void Ws2812::process() noexcept
     }
 
     build_frame();
-    handle_start_result(
-        platform::Spi::start_transmit_async(platform::Spi::Device::ADDRESSABLE_LED, frame_, nullptr, nullptr));
+    hal::Spi::Result result = spi_.start_transmit(frame_.data(), frame_.size(), nullptr, nullptr);
+    if (result == hal::Spi::Result::UNSUPPORTED)
+    {
+        // 板不支持 SPI 异步（可选能力，Decision-20261101-01）：退回阻塞发送
+        result = spi_.transmit(frame_.data(), frame_.size(), BLOCKING_TIMEOUT_US);
+    }
+    handle_start_result(result);
 }
 
 std::uint8_t Ws2812::scale(std::uint8_t value, std::uint8_t brightness) noexcept
@@ -76,17 +81,17 @@ void Ws2812::build_frame() noexcept
 
 void Ws2812::handle_completed_transfer() noexcept
 {
-    switch (platform::Spi::get_async_result(platform::Spi::Device::ADDRESSABLE_LED))
+    switch (spi_.async_result())
     {
-    case platform::Spi::Result::BUSY:
-    case platform::Spi::Result::STARTED:
+    case hal::Spi::Result::BUSY:
+    case hal::Spi::Result::STARTED:
         return;
 
-    case platform::Spi::Result::COMPLETED:
+    case hal::Spi::Result::COMPLETED:
         state_ = State::IDLE;
         return;
 
-    case platform::Spi::Result::NOT_READY:
+    case hal::Spi::Result::NOT_READY:
         state_ = State::NOT_READY;
         refresh_pending_ = true;
         return;
@@ -98,25 +103,25 @@ void Ws2812::handle_completed_transfer() noexcept
     }
 }
 
-void Ws2812::handle_start_result(platform::Spi::Result result) noexcept
+void Ws2812::handle_start_result(hal::Spi::Result result) noexcept
 {
     switch (result)
     {
-    case platform::Spi::Result::STARTED:
+    case hal::Spi::Result::STARTED:
         state_ = State::TRANSMITTING;
         refresh_pending_ = false;
         return;
 
-    case platform::Spi::Result::COMPLETED:
+    case hal::Spi::Result::COMPLETED:
         state_ = State::IDLE;
         refresh_pending_ = false;
         return;
 
-    case platform::Spi::Result::BUSY:
+    case hal::Spi::Result::BUSY:
         state_ = State::BUSY;
         return;
 
-    case platform::Spi::Result::NOT_READY:
+    case hal::Spi::Result::NOT_READY:
         state_ = State::NOT_READY;
         return;
 

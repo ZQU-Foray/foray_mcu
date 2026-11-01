@@ -4,6 +4,7 @@
 #include "hal/can.hpp"
 #include "hal/gpio.hpp"
 #include "hal/pwm.hpp"
+#include "hal/spi.hpp"
 
 #include <cstdint>
 
@@ -39,6 +40,16 @@ inline constexpr hal::Pwm PWM_IMU_HEATER{1U}; // BMI088 加热电阻（TIM3 CH4�
 inline constexpr std::uint8_t PWM_COUNT{2U};
 inline constexpr std::uint32_t PWM_MIN_FREQUENCY_HZ{16U};
 inline constexpr std::uint32_t PWM_MAX_FREQUENCY_HZ{500000U};
+
+// ---- SPI（port/spi.cpp）：设备 = 总线 + 片选 ----
+// SPI2 上的板载 BMI088，加速度计与陀螺仪各有片选，共用总线；支持全双工。
+inline constexpr hal::Spi SPI_IMU_ACCEL{0U};
+inline constexpr hal::Spi SPI_IMU_GYRO{1U};
+// SPI6 只接了 MOSI，用来产生板载 WS2812 的波形：只能发送（transfer 返回 UNSUPPORTED）。
+inline constexpr hal::Spi SPI_LED{2U};
+inline constexpr std::uint8_t SPI_COUNT{3U};
+// 可选能力：全部设备都支持 DMA 异步事务（start_transmit、start_transfer），单次最多 hal::Spi::MAX_ASYNC_LENGTH 字节。
+inline constexpr bool SPI_ASYNC{true};
 
 } // namespace board
 

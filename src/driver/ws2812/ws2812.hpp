@@ -56,7 +56,11 @@ class Ws2812 final
         ERROR
     };
 
-    Ws2812() noexcept = default;
+    /**
+   * @brief 绑定发送波形用的 SPI 设备（组合根注入，如 board::SPI_LED）。
+   * @note 优先用异步发送（可选能力）；板不支持时（UNSUPPORTED）改用阻塞发送，一帧约 0.1 ms。
+   */
+    constexpr explicit Ws2812(hal::Spi spi) noexcept : spi_{spi} {}
 
     /**
    * @brief 设置下一次刷新使用的 RGB 颜色。
@@ -120,8 +124,11 @@ class Ws2812 final
     static void encode_byte(std::uint8_t value, Frame &frame, std::size_t offset) noexcept;
     void build_frame() noexcept;
     void handle_completed_transfer() noexcept;
-    void handle_start_result(platform::Spi::Result result) noexcept;
+    void handle_start_result(hal::Spi::Result result) noexcept;
 
+    static constexpr hal::os::Microseconds BLOCKING_TIMEOUT_US{2000U};
+
+    hal::Spi spi_;
     RgbColor color_{};
     std::uint8_t brightness_{255U};
     State state_{State::IDLE};
@@ -129,7 +136,7 @@ class Ws2812 final
     Frame frame_{};
 };
 
-static_assert(Ws2812::FRAME_SIZE <= platform::Spi::MAX_ASYNC_LENGTH,
+static_assert(Ws2812::FRAME_SIZE <= hal::Spi::MAX_ASYNC_LENGTH,
               "WS2812 frame exceeds the SPI asynchronous transfer limit");
 
 } // namespace device

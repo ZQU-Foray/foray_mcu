@@ -2,6 +2,8 @@
 #define DRIVER_BMI088_BMI088_TEMPERATURE_HPP
 
 #include "driver/bmi088/bmi088_transfer.hpp"
+#include "hal/os/clock.hpp"
+#include "hal/spi.hpp"
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -32,7 +34,8 @@ class Bmi088Temperature final
         std::int16_t raw{0};
     };
 
-    Bmi088Temperature() noexcept = default;
+    /** 温度寄存器在加速度计的片选域内：句柄与加速度计相同（如 board::SPI_IMU_ACCEL）。 */
+    constexpr explicit Bmi088Temperature(hal::Spi spi) noexcept : spi_{spi} {}
 
     /**
    * @brief 重置状态机并回到禁用状态，等待协调器在加速度计就绪后启用。
@@ -56,13 +59,13 @@ class Bmi088Temperature final
     // 仅当本次调用启动了新传输（而非既有传输）时为 true。
     bool try_start() noexcept;
 
-    void set_completion_notification(platform::Spi::CompletionNotification callback, void *context) noexcept
+    void set_completion_notification(hal::Callback callback, void *context) noexcept
     {
         completion_.set_notification(callback, context);
     }
-    [[nodiscard]] std::uint32_t get_completion_tick() const noexcept
+    [[nodiscard]] hal::os::Microseconds get_completion_us() const noexcept
     {
-        return completion_.completed_tick();
+        return completion_.completed_us();
     }
 
     /**
@@ -120,6 +123,7 @@ class Bmi088Temperature final
 
     void fail() noexcept;
 
+    hal::Spi spi_;
     State state_{State::DISABLED};
     Bmi088Transfer completion_{};
     bool transfer_active_{false};

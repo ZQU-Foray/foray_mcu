@@ -45,13 +45,13 @@ void Bmi088Temperature::harvest() noexcept
         return;
     }
 
-    switch (platform::Spi::get_async_result(platform::Spi::Device::IMU_ACCELEROMETER))
+    switch (spi_.async_result())
     {
-    case platform::Spi::Result::BUSY:
-    case platform::Spi::Result::STARTED:
+    case hal::Spi::Result::BUSY:
+    case hal::Spi::Result::STARTED:
         return;
 
-    case platform::Spi::Result::COMPLETED:
+    case hal::Spi::Result::COMPLETED:
         transfer_active_ = false;
         {
             // 接收布局：[0]地址 [1]保留字节 [2]TEMP_MSB(0x22) [3]TEMP_LSB(0x23)，
@@ -80,19 +80,18 @@ bool Bmi088Temperature::try_start() noexcept
 
     transmit_buffer_.fill(0U);
     transmit_buffer_[0] = static_cast<std::uint8_t>(READ_FLAG | DATA_REGISTER);
-    const platform::Spi::Result result = platform::Spi::start_transfer_async(platform::Spi::Device::IMU_ACCELEROMETER,
-                                                                             transmit_buffer_.data(),
-                                                                             receive_buffer_.data(),
-                                                                             transmit_buffer_.size(),
-                                                                             Bmi088Transfer::complete,
-                                                                             &completion_);
+    const hal::Spi::Result result = spi_.start_transfer(transmit_buffer_.data(),
+                                                        receive_buffer_.data(),
+                                                        transmit_buffer_.size(),
+                                                        Bmi088Transfer::complete,
+                                                        &completion_);
     switch (result)
     {
-    case platform::Spi::Result::STARTED:
+    case hal::Spi::Result::STARTED:
         transfer_active_ = true;
         return true;
 
-    case platform::Spi::Result::BUSY:
+    case hal::Spi::Result::BUSY:
         return false;
 
     default:

@@ -25,17 +25,18 @@ constexpr std::uint8_t ENABLE_DATA_READY_INTERRUPT{0x80U};
 constexpr std::uint8_t INTERRUPT3_ACTIVE_HIGH_PUSH_PULL{0x01U};
 constexpr std::uint8_t MAP_DATA_READY_TO_INTERRUPT3{0x01U};
 
-constexpr std::uint32_t CONFIG_SETTLE_MS{1U};
-constexpr std::uint32_t CONFIG_VERIFY_SETTLE_MS{1U};
+constexpr hal::os::Microseconds CONFIG_SETTLE_US{1000U};
+constexpr hal::os::Microseconds CONFIG_VERIFY_SETTLE_US{1000U};
 
 } // namespace
 
-void Bmi088Gyro::init() noexcept
+void Bmi088Gyro::init(Bandwidth bandwidth) noexcept
 {
+    bandwidth_ = bandwidth;
     state_ = State::INITIALIZING;
     step_ = Step::CHECK_CHIP_ID;
-    step_tick_ = platform::Time::now_ticks();
-    step_wait_ms_ = POWER_UP_SETTLE_MS;
+    step_us_ = hal::os::now_us();
+    step_wait_us_ = POWER_UP_SETTLE_US;
     transfer_active_ = false;
     sample_valid_ = false;
     sample_ = Sample{};
@@ -58,13 +59,13 @@ void Bmi088Gyro::harvest() noexcept
         return;
     }
 
-    switch (platform::Spi::get_async_result(platform::Spi::Device::IMU_GYROSCOPE))
+    switch (spi_.async_result())
     {
-    case platform::Spi::Result::BUSY:
-    case platform::Spi::Result::STARTED:
+    case hal::Spi::Result::BUSY:
+    case hal::Spi::Result::STARTED:
         return;
 
-    case platform::Spi::Result::COMPLETED:
+    case hal::Spi::Result::COMPLETED:
         transfer_active_ = false;
         complete_step();
         return;
@@ -105,7 +106,7 @@ bool Bmi088Gyro::try_get_sample(Sample &sample) const noexcept
 
 bool Bmi088Gyro::wait_elapsed() const noexcept
 {
-    return step_wait_ms_ == 0U || platform::Time::has_elapsed_ms(step_tick_, step_wait_ms_);
+    return step_wait_us_ == 0U || hal::os::has_elapsed(step_us_, step_wait_us_);
 }
 
 void Bmi088Gyro::begin_step() noexcept
@@ -128,7 +129,7 @@ void Bmi088Gyro::begin_step() noexcept
 
     case Step::WRITE_BANDWIDTH:
         transmit_buffer_[0] = BANDWIDTH_REGISTER;
-        transmit_buffer_[1] = BANDWIDTH_REGISTER_VALUE;
+        transmit_buffer_[1] = static_cast<std::uint8_t>(bandwidth_);
         length = 2U;
         break;
 
@@ -171,19 +172,15 @@ void Bmi088Gyro::begin_step() noexcept
         break;
     }
 
-    const platform::Spi::Result result = platform::Spi::start_transfer_async(platform::Spi::Device::IMU_GYROSCOPE,
-                                                                             transmit_buffer_.data(),
-                                                                             receive_buffer_.data(),
-                                                                             length,
-                                                                             Bmi088Transfer::complete,
-                                                                             &completion_);
+    const hal::Spi::Result result = spi_.start_transfer(
+        transmit_buffer_.data(), receive_buffer_.data(), length, Bmi088Transfer::complete, &completion_);
     switch (result)
     {
-    case platform::Spi::Result::STARTED:
+    case hal::Spi::Result::STARTED:
         transfer_active_ = true;
         return;
 
-    case platform::Spi::Result::BUSY:
+    case hal::Spi::Result::BUSY:
         return;
 
     default:
@@ -202,7 +199,7 @@ void Bmi088Gyro::complete_step() noexcept
             ++chip_id_attempts_;
             if (chip_id_attempts_ < CHIP_ID_MAX_ATTEMPTS)
             {
-                advance(Step::CHECK_CHIP_ID, CHIP_ID_RETRY_WAIT_MS);
+                advance(Step::CHECK_CHIP_ID, CHIP_ID_RETRY_WAIT_US);
                 return;
             }
             fail();
@@ -213,34 +210,34 @@ void Bmi088Gyro::complete_step() noexcept
         return;
 
     case Step::WRITE_RANGE:
-        advance(Step::WRITE_BANDWIDTH, CONFIG_SETTLE_MS);
+        advance(Step::WRITE_BANDWIDTH, CONFIG_SETTLE_US);
         return;
 
     case Step::WRITE_BANDWIDTH:
-        advance(Step::WRITE_INTERRUPT_CONTROL, CONFIG_SETTLE_MS);
+        advance(Step::WRITE_INTERRUPT_CONTROL, CONFIG_SETTLE_US);
         return;
 
     case Step::WRITE_INTERRUPT_CONTROL:
-        advance(Step::WRITE_INTERRUPT_IO, CONFIG_SETTLE_MS);
+        advance(Step::WRITE_INTERRUPT_IO, CONFIG_SETTLE_US);
         return;
 
     case Step::WRITE_INTERRUPT_IO:
-        advance(Step::WRITE_INTERRUPT_MAP, CONFIG_SETTLE_MS);
+        advance(Step::WRITE_INTERRUPT_MAP, CONFIG_SETTLE_US);
         return;
 
     case Step::WRITE_INTERRUPT_MAP:
-        advance(Step::VERIFY_CORE_CONFIGURATION, CONFIG_VERIFY_SETTLE_MS);
+        advance(Step::VERIFY_CORE_CONFIGURATION, CONFIG_VERIFY_SETTLE_US);
         return;
 
     case Step::VERIFY_CORE_CONFIGURATION:
         if ((receive_buffer_[1] & RANGE_REGISTER_READ_MASK) != (RANGE_REGISTER_VALUE & RANGE_REGISTER_READ_MASK) ||
             (receive_buffer_[2] & BANDWIDTH_REGISTER_READ_MASK) !=
-                (BANDWIDTH_REGISTER_VALUE & BANDWIDTH_REGISTER_READ_MASK))
+                (static_cast<std::uint8_t>(bandwidth_) & BANDWIDTH_REGISTER_READ_MASK))
         {
             ++configuration_verify_attempts_;
             if (configuration_verify_attempts_ < CONFIGURATION_VERIFY_MAX_ATTEMPTS)
             {
-                advance(Step::VERIFY_CORE_CONFIGURATION, CONFIGURATION_VERIFY_RETRY_WAIT_MS);
+                advance(Step::VERIFY_CORE_CONFIGURATION, CONFIGURATION_VERIFY_RETRY_WAIT_US);
                 return;
             }
             fail();
@@ -256,7 +253,7 @@ void Bmi088Gyro::complete_step() noexcept
             ++configuration_verify_attempts_;
             if (configuration_verify_attempts_ < CONFIGURATION_VERIFY_MAX_ATTEMPTS)
             {
-                advance(Step::VERIFY_INTERRUPT_CONTROL_AND_IO, CONFIGURATION_VERIFY_RETRY_WAIT_MS);
+                advance(Step::VERIFY_INTERRUPT_CONTROL_AND_IO, CONFIGURATION_VERIFY_RETRY_WAIT_US);
                 return;
             }
             fail();
@@ -271,7 +268,7 @@ void Bmi088Gyro::complete_step() noexcept
             ++configuration_verify_attempts_;
             if (configuration_verify_attempts_ < CONFIGURATION_VERIFY_MAX_ATTEMPTS)
             {
-                advance(Step::VERIFY_INTERRUPT_MAP, CONFIGURATION_VERIFY_RETRY_WAIT_MS);
+                advance(Step::VERIFY_INTERRUPT_MAP, CONFIGURATION_VERIFY_RETRY_WAIT_US);
                 return;
             }
             fail();
@@ -297,11 +294,11 @@ void Bmi088Gyro::complete_step() noexcept
     }
 }
 
-void Bmi088Gyro::advance(Step next_step, std::uint32_t wait_ms) noexcept
+void Bmi088Gyro::advance(Step next_step, hal::os::Microseconds wait_us) noexcept
 {
     step_ = next_step;
-    step_wait_ms_ = wait_ms;
-    step_tick_ = platform::Time::now_ticks();
+    step_wait_us_ = wait_us;
+    step_us_ = hal::os::now_us();
 }
 
 void Bmi088Gyro::fail() noexcept

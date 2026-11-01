@@ -17,6 +17,9 @@ namespace port
 /** 配置接收过滤器（收下全部标准帧与扩展帧），启动 FDCAN1–3 并打开接收与 Bus-Off 中断。 */
 [[nodiscard]] bool init_can() noexcept;
 
+/** 检查 SPI 与 DMA 的配置，复位总线状态，取消全部片选。 */
+[[nodiscard]] bool init_spi() noexcept;
+
 /**
  * @brief 中断通知：任务登记回调，中断取出并调用（代替旧 PortKit 的 Notifier）。
  *

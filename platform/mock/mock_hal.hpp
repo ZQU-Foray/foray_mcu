@@ -4,6 +4,7 @@
 #include "hal/can.hpp"
 #include "hal/gpio.hpp"
 #include "hal/pwm.hpp"
+#include "hal/spi.hpp"
 
 #include <array>
 #include <cstddef>
@@ -102,5 +103,51 @@ void set_ready(std::uint8_t channel, bool ready) noexcept;
 [[nodiscard]] Output output(std::uint8_t channel) noexcept;
 
 } // namespace mock::pwm
+
+namespace mock::spi
+{
+
+inline constexpr std::uint8_t DEVICE_COUNT{8U};
+
+/**
+ * 设备应答：替身在事务完成时调用它，由测试扮演设备——读 transmit、写 receive（各 length 字节）。
+ * 阻塞事务在 transmit()/transfer() 里调用；异步事务在 complete() 里、回调之前调用。只发送的事务 receive 为空。
+ */
+using Responder = void (*)(
+    void *context, std::uint8_t device, const std::uint8_t *transmit, std::uint8_t *receive, std::size_t length);
+
+/**
+ * 全部设备恢复为：已初始化、支持异步与全双工、各占一条总线（总线号 = 设备号）、没有应答函数（接收全 0）、
+ * async_result() 为 NOT_READY、没有进行中的事务；关闭立即完成模式。
+ */
+void reset() noexcept;
+
+/** 把设备放到某条总线上：同一条总线上同时只能有一个事务，其余设备得到 BUSY。 */
+void set_bus(std::uint8_t device, std::uint8_t bus) noexcept;
+
+/** 设置能力：未初始化时返回 NOT_READY；不支持异步或全双工的操作返回 UNSUPPORTED。 */
+void set_capabilities(std::uint8_t device, bool ready, bool async, bool transfer) noexcept;
+
+void set_responder(std::uint8_t device, Responder responder, void *context) noexcept;
+
+/** 立即完成模式：异步事务在 start_* 返回之前就完成并调用回调（模拟 DMA 完成中断抢在调用方之前）。 */
+void set_complete_immediately(bool enabled) noexcept;
+
+/** 总线上有没有进行中的异步事务；有时把设备号写进 device（可以为空）。 */
+bool busy(std::uint8_t bus, std::uint8_t *device = nullptr) noexcept;
+
+/**
+ * 结束总线上进行中的异步事务：成功时调用应答函数、把数据拷进调用方的接收缓冲区，async_result() 变为 COMPLETED；
+ * error 为 true 时不调用应答函数，结果为 ERROR。然后在调用线程里调用登记的回调。没有进行中的事务时返回 false。
+ */
+bool complete(std::uint8_t bus, bool error = false) noexcept;
+
+/** 设备开始过的事务数（阻塞与异步，不含被拒绝的）。 */
+[[nodiscard]] std::uint32_t transaction_count(std::uint8_t device) noexcept;
+
+/** 设备最后一次事务发出的字节（最多 hal::Spi::MAX_ASYNC_LENGTH 个）；返回字节数。 */
+std::size_t last_transmit(std::uint8_t device, std::uint8_t *data, std::size_t capacity) noexcept;
+
+} // namespace mock::spi
 
 #endif // PLATFORM_MOCK_MOCK_HAL_HPP

@@ -2,7 +2,8 @@
 #define DRIVER_BMI088_BMI088_ACCEL_HPP
 
 #include "driver/bmi088/bmi088_transfer.hpp"
-#include "hal/time.hpp"
+#include "hal/os/clock.hpp"
+#include "hal/spi.hpp"
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -68,11 +69,12 @@ class Bmi088Accel final
         std::int16_t z_axis{0};
     };
 
-    Bmi088Accel() noexcept = default;
+    /** SPI 设备句柄由组合根在构造时注入（如 board::SPI_IMU_ACCEL），需要异步能力。 */
+    constexpr explicit Bmi088Accel(hal::Spi spi) noexcept : spi_{spi} {}
 
     /**
    * @brief 重置状态机并进入初始化序列，本函数不访问硬件。
-   * @note 首个 ID 读取前等待 POWER_UP_SETTLE_MS；ID 与配置读回校验失败时
+   * @note 首个 ID 读取前等待 POWER_UP_SETTLE_US；ID 与配置读回校验失败时
    *       按有限次数重试，超过上限才进入 Error。
    */
     void init() noexcept;
@@ -89,13 +91,13 @@ class Bmi088Accel final
     // 仅当本次调用启动了新传输（而非既有传输）时为 true。
     bool try_start() noexcept;
 
-    void set_completion_notification(platform::Spi::CompletionNotification callback, void *context) noexcept
+    void set_completion_notification(hal::Callback callback, void *context) noexcept
     {
         completion_.set_notification(callback, context);
     }
-    [[nodiscard]] std::uint32_t get_completion_tick() const noexcept
+    [[nodiscard]] hal::os::Microseconds get_completion_us() const noexcept
     {
-        return completion_.completed_tick();
+        return completion_.completed_us();
     }
 
     /**
@@ -165,22 +167,23 @@ class Bmi088Accel final
     };
 
     static constexpr std::size_t MAXIMUM_TRANSFER_LENGTH{8U};
-    static constexpr std::uint32_t POWER_UP_SETTLE_MS{100U};
-    static constexpr std::uint32_t CHIP_ID_RETRY_WAIT_MS{100U};
+    static constexpr hal::os::Microseconds POWER_UP_SETTLE_US{100000U};
+    static constexpr hal::os::Microseconds CHIP_ID_RETRY_WAIT_US{100000U};
     static constexpr std::uint32_t CHIP_ID_MAX_ATTEMPTS{3U};
-    static constexpr std::uint32_t CONFIGURATION_VERIFY_RETRY_WAIT_MS{100U};
+    static constexpr hal::os::Microseconds CONFIGURATION_VERIFY_RETRY_WAIT_US{100000U};
     static constexpr std::uint32_t CONFIGURATION_VERIFY_MAX_ATTEMPTS{3U};
 
     void begin_step() noexcept;
     void complete_step() noexcept;
-    void advance(Step next_step, std::uint32_t wait_ms) noexcept;
+    void advance(Step next_step, hal::os::Microseconds wait_us) noexcept;
     void fail() noexcept;
     [[nodiscard]] bool wait_elapsed() const noexcept;
 
+    hal::Spi spi_;
     State state_{State::SHUTDOWN};
     Step step_{Step::CHECK_CHIP_ID};
-    platform::Time::Tick step_tick_{0U};
-    std::uint32_t step_wait_ms_{0U};
+    hal::os::Microseconds step_us_{0U};
+    hal::os::Microseconds step_wait_us_{0U};
     Bmi088Transfer completion_{};
     bool transfer_active_{false};
     bool sample_valid_{false};

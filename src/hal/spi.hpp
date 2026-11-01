@@ -1,269 +1,107 @@
 #ifndef HAL_SPI_HPP
 #define HAL_SPI_HPP
 
-#include "hal/detail/spi.h"
-#include <array>
+#include "hal/callback.hpp"
+#include "hal/os/clock.hpp"
+
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 
-namespace platform
+// 硬件契约：SPI 设备（Decision-20261101-01）。句柄由各板的 board.hpp 给出，实现由 port 提供，
+// 宿主测试由 platform/mock 提供。
+
+namespace hal
 {
 
+/**
+ * @brief 一个 SPI 设备的句柄：一条 SPI 总线加上这个设备的片选，片选由 port 管。
+ *
+ * 能力分级（各板的 board.hpp 写明）：
+ * - 必选：is_ready()、阻塞的 transmit()；
+ * - 可选（按设备）：全双工 transfer()（只接了 MOSI 的设备不支持）；
+ * - 可选（按板）：异步的 start_transmit()、start_transfer()、async_result()（用 DMA，板级常量 SPI_ASYNC）。
+ *   支持异步的板至少接受 MAX_ASYNC_LENGTH 字节。
+ * 不支持时返回 UNSUPPORTED。
+ *
+ * 同一条总线上的设备共用总线：一个事务没结束，同总线的其他设备得到 BUSY。
+ * 句柄只含一个编号，可以拷贝，按值存进驱动的配置。
+ */
 class Spi final
 {
   public:
-    static constexpr std::size_t MAX_ASYNC_LENGTH = SPI_PORT_MAX_ASYNC_LENGTH;
-
-    enum class Device : std::uint8_t
-    {
-        IMU_ACCELEROMETER = SPI_PORT_DEVICE_IMU_ACCELEROMETER,
-        IMU_GYROSCOPE = SPI_PORT_DEVICE_IMU_GYROSCOPE,
-        ADDRESSABLE_LED = SPI_PORT_DEVICE_ADDRESSABLE_LED
-    };
+    /** 支持异步的板，单次异步事务至少接受这么多字节。 */
+    static constexpr std::size_t MAX_ASYNC_LENGTH{512U};
 
     enum class Result : std::uint8_t
     {
-        COMPLETED = SPI_PORT_RESULT_COMPLETED,
-        BUSY = SPI_PORT_RESULT_BUSY,
-        TIMEOUT = SPI_PORT_RESULT_TIMEOUT,
-        NOT_READY = SPI_PORT_RESULT_NOT_READY,
-        UNSUPPORTED = SPI_PORT_RESULT_UNSUPPORTED,
-        INVALID_ARGUMENT = SPI_PORT_RESULT_INVALID_ARGUMENT,
-        ERROR = SPI_PORT_RESULT_ERROR,
-        STARTED = SPI_PORT_RESULT_STARTED
+        COMPLETED = 0U,        // 事务完成
+        STARTED = 1U,          // 异步事务已开始，结束时调用回调
+        BUSY = 2U,             // 总线正被本设备或同总线的其他设备占用，稍后再试
+        TIMEOUT = 3U,          // 阻塞事务超时
+        NOT_READY = 4U,        // hal::init() 还没有成功初始化
+        UNSUPPORTED = 5U,      // 这个设备或这块板不支持该操作
+        INVALID_ARGUMENT = 6U, // 编号无效、缓冲区为空、长度为 0 或超出上限
+        ERROR = 7U
     };
 
-    using CompletionNotification = SpiPort_CompletionNotification;
+    constexpr explicit Spi(std::uint8_t index) noexcept : index_{index} {}
 
     /**
-   * @brief 禁止创建 Spi 实例，所有能力均通过静态方法访问。
-   */
-    Spi() = delete;
+     * @brief 设备已初始化，且所在总线空闲，可以开始新事务。
+     * @note 任务与框架中断里都能调用，不阻塞。
+     */
+    [[nodiscard]] bool is_ready() const noexcept;
 
     /**
-   * @brief 查询指定 SPI 逻辑设备是否可以启动新事务。
-   * @param device 要查询的逻辑设备。
-   * @return 设备有效、底层外设就绪且共享总线空闲时返回 true。
-   */
-    [[nodiscard]] static bool is_ready(Device device) noexcept
-    {
-        return SpiPort_IsReady(to_port_device(device));
-    }
+     * @brief 阻塞发送：选中设备、发出 length 字节、取消选中。
+     * @param timeout 最长等待时间，超时返回 TIMEOUT（按实现的计时粒度向上取整，DM-MC02 上是 1 ms）。
+     * @note 只在任务里调用；总线忙时立即返回 BUSY，不等待。
+     */
+    [[nodiscard]] Result
+    transmit(const std::uint8_t *data, std::size_t length, os::Microseconds timeout) const noexcept;
 
     /**
-   * @brief 以阻塞方式向指定 SPI 逻辑设备发送一段连续数据。
-   * @param device 目标逻辑设备。
-   * @param data 指向待发送数据的缓冲区。
-   * @param length 待发送字节数。
-   * @param timeout_ms 允许阻塞等待的最长毫秒数。
-   * @return 返回完成、忙、超时、未就绪、不支持或参数错误等结果。
-   * @note 仅在线程或初始化上下文调用，事务期间由 Port 管理片选和共享总线。
-   */
-    [[nodiscard]] static Result
-    transmit(Device device, const std::uint8_t *data, std::size_t length, std::uint32_t timeout_ms) noexcept
-    {
-        if (length > std::numeric_limits<std::uint32_t>::max())
-        {
-            return Result::INVALID_ARGUMENT;
-        }
-
-        return to_result(
-            SpiPort_Transmit(to_port_device(device), data, static_cast<std::uint32_t>(length), timeout_ms));
-    }
+     * @brief 阻塞全双工：发出 transmit_data 的同时收进 receive_data，各 length 字节。
+     * @note 同 transmit()；设备不支持全双工时返回 UNSUPPORTED。
+     */
+    [[nodiscard]] Result transfer(const std::uint8_t *transmit_data,
+                                  std::uint8_t *receive_data,
+                                  std::size_t length,
+                                  os::Microseconds timeout) const noexcept;
 
     /**
-   * @brief 以阻塞方式向指定 SPI 逻辑设备发送整个定长数组。
-   * @tparam Size 数组字节数。
-   * @param device 目标逻辑设备。
-   * @param data 待发送的定长数组。
-   * @param timeout_ms 允许阻塞等待的最长毫秒数。
-   * @return 返回完成、忙、超时、未就绪、不支持或参数错误等结果。
-   */
-    template <std::size_t Size>
-    [[nodiscard]] static Result
-    transmit(Device device, const std::array<std::uint8_t, Size> &data, std::uint32_t timeout_ms) noexcept
-    {
-        return transmit(device, data.data(), data.size(), timeout_ms);
-    }
+     * @brief 开始一次异步发送（可选能力）。返回 STARTED 后，事务结束时在框架中断里调用 callback(context)，
+     *        最终结果用 async_result() 读。
+     * @param data 返回前已经拷走，调用方可以立即复用。
+     * @param callback 可以为 nullptr（只轮询 async_result()）。回调可能在本函数返回之前就被调用。
+     * @note 在任务里调用，不阻塞。总线忙返回 BUSY；不支持异步返回 UNSUPPORTED。
+     */
+    [[nodiscard]] Result
+    start_transmit(const std::uint8_t *data, std::size_t length, Callback callback, void *context) const noexcept;
 
     /**
-   * @brief 以阻塞方式与指定 SPI 逻辑设备进行全双工传输。
-   * @param device 目标逻辑设备。
-   * @param transmit_data 指向待发送数据的缓冲区。
-   * @param receive_data 用于接收数据的缓冲区。
-   * @param length 同时发送和接收的字节数。
-   * @param timeout_ms 允许阻塞等待的最长毫秒数。
-   * @return 返回完成、忙、超时、未就绪、不支持或参数错误等结果。
-   * @note 仅支持具有全双工能力的逻辑设备，且仅在线程或初始化上下文调用。
-   */
-    [[nodiscard]] static Result transfer(Device device,
-                                         const std::uint8_t *transmit_data,
-                                         std::uint8_t *receive_data,
-                                         std::size_t length,
-                                         std::uint32_t timeout_ms) noexcept
-    {
-        if (length > std::numeric_limits<std::uint32_t>::max())
-        {
-            return Result::INVALID_ARGUMENT;
-        }
-
-        return to_result(SpiPort_Transfer(
-            to_port_device(device), transmit_data, receive_data, static_cast<std::uint32_t>(length), timeout_ms));
-    }
+     * @brief 开始一次异步全双工（可选能力）。
+     * @param transmit_data 返回前已经拷走。
+     * @param receive_data 事务结束、回调被调用之前收齐；在那之前必须一直有效，调用方不能读写。
+     * @note 其余同 start_transmit()；设备不支持全双工时返回 UNSUPPORTED。
+     */
+    [[nodiscard]] Result start_transfer(const std::uint8_t *transmit_data,
+                                        std::uint8_t *receive_data,
+                                        std::size_t length,
+                                        Callback callback,
+                                        void *context) const noexcept;
 
     /**
-   * @brief 以阻塞方式使用两个等长数组完成 SPI 全双工传输。
-   * @tparam Size 发送和接收数组的字节数。
-   * @param device 目标逻辑设备。
-   * @param transmit_data 待发送的定长数组。
-   * @param receive_data 用于接收数据的定长数组。
-   * @param timeout_ms 允许阻塞等待的最长毫秒数。
-   * @return 返回完成、忙、超时、未就绪、不支持或参数错误等结果。
-   */
-    template <std::size_t Size>
-    [[nodiscard]] static Result transfer(Device device,
-                                         const std::array<std::uint8_t, Size> &transmit_data,
-                                         std::array<std::uint8_t, Size> &receive_data,
-                                         std::uint32_t timeout_ms) noexcept
-    {
-        return transfer(device, transmit_data.data(), receive_data.data(), transmit_data.size(), timeout_ms);
-    }
-
-    /**
-   * @brief 启动一次基于 DMA 的非阻塞 SPI 发送事务。
-   * @note MAY 能力：Port 可能返回 Result::Unsupported，业务须回退阻塞
-   * Transmit。
-   * @param device 目标逻辑设备。
-   * @param data 指向待发送数据的缓冲区，函数返回后调用者可立即复用该缓冲区。
-   * @param length 待发送字节数，不得超过 MAX_ASYNC_LENGTH。
-   * @param notification 事务终止时调用的通知函数，允许传入 nullptr。
-   * @param context 调用通知函数时原样传回的用户上下文。
-   * @return 返回已启动、忙、未就绪、不支持或参数错误等结果。
-   * @note 通知在中断上下文执行，最终结果应通过 get_async_result 查询。
-   */
-    [[nodiscard]] static Result start_transmit_async(Device device,
-                                                     const std::uint8_t *data,
-                                                     std::size_t length,
-                                                     CompletionNotification notification,
-                                                     void *context) noexcept
-    {
-        if (length > std::numeric_limits<std::uint32_t>::max())
-        {
-            return Result::INVALID_ARGUMENT;
-        }
-
-        return to_result(SpiPort_StartTransmitAsync(
-            to_port_device(device), data, static_cast<std::uint32_t>(length), notification, context));
-    }
-
-    /**
-   * @brief 使用整个定长数组启动一次非阻塞 SPI 发送事务。
-   * @tparam Size 数组字节数。
-   * @param device 目标逻辑设备。
-   * @param data 待发送的定长数组。
-   * @param notification 事务终止时调用的通知函数，允许传入 nullptr。
-   * @param context 调用通知函数时原样传回的用户上下文。
-   * @return 返回已启动、忙、未就绪、不支持或参数错误等结果。
-   */
-    template <std::size_t Size>
-    [[nodiscard]] static Result start_transmit_async(Device device,
-                                                     const std::array<std::uint8_t, Size> &data,
-                                                     CompletionNotification notification,
-                                                     void *context) noexcept
-    {
-        return start_transmit_async(device, data.data(), data.size(), notification, context);
-    }
-
-    /**
-   * @brief 启动一次基于 DMA 的非阻塞 SPI 全双工事务。
-   * @note MAY 能力：Port 可能返回 Result::Unsupported，业务须回退阻塞
-   * Transfer。
-   * @param device 目标逻辑设备。
-   * @param transmit_data
-   * 指向待发送数据的缓冲区，函数返回后调用者可立即复用该缓冲区。
-   * @param receive_data 用于接收数据的缓冲区，必须保持有效直至事务终止。
-   * @param length 同时发送和接收的字节数，不得超过 MAX_ASYNC_LENGTH。
-   * @param notification 事务终止时调用的通知函数，允许传入 nullptr。
-   * @param context 调用通知函数时原样传回的用户上下文。
-   * @return 返回已启动、忙、未就绪、不支持或参数错误等结果。
-   * @note 通知在中断上下文执行，最终结果应通过 get_async_result 查询。
-   */
-    [[nodiscard]] static Result start_transfer_async(Device device,
-                                                     const std::uint8_t *transmit_data,
-                                                     std::uint8_t *receive_data,
-                                                     std::size_t length,
-                                                     CompletionNotification notification,
-                                                     void *context) noexcept
-    {
-        if (length > std::numeric_limits<std::uint32_t>::max())
-        {
-            return Result::INVALID_ARGUMENT;
-        }
-
-        return to_result(SpiPort_StartTransferAsync(to_port_device(device),
-                                                    transmit_data,
-                                                    receive_data,
-                                                    static_cast<std::uint32_t>(length),
-                                                    notification,
-                                                    context));
-    }
-
-    /**
-   * @brief 使用两个等长数组启动一次非阻塞 SPI 全双工事务。
-   * @tparam Size 发送和接收数组的字节数。
-   * @param device 目标逻辑设备。
-   * @param transmit_data 待发送的定长数组。
-   * @param receive_data 用于接收数据的定长数组，必须保持有效直至事务终止。
-   * @param notification 事务终止时调用的通知函数，允许传入 nullptr。
-   * @param context 调用通知函数时原样传回的用户上下文。
-   * @return 返回已启动、忙、未就绪、不支持或参数错误等结果。
-   */
-    template <std::size_t Size>
-    [[nodiscard]] static Result start_transfer_async(Device device,
-                                                     const std::array<std::uint8_t, Size> &transmit_data,
-                                                     std::array<std::uint8_t, Size> &receive_data,
-                                                     CompletionNotification notification,
-                                                     void *context) noexcept
-    {
-        return start_transfer_async(
-            device, transmit_data.data(), receive_data.data(), transmit_data.size(), notification, context);
-    }
-
-    /**
-   * @brief 查询指定 SPI 逻辑设备最近一次异步事务的当前或最终结果。
-   * @param device 要查询的逻辑设备。
-   * @return
-   * 事务进行中时返回忙，终止后返回完成或错误，无有效设备时返回参数错误。
-   * @note MAY 能力：异步未实现时返回 Result::Unsupported。
-   */
-    [[nodiscard]] static Result get_async_result(Device device) noexcept
-    {
-        return to_result(SpiPort_GetAsyncResult(to_port_device(device)));
-    }
+     * @brief 本设备最近一次异步事务的结果：进行中为 BUSY，结束后为 COMPLETED 或 ERROR；
+     *        还没有开始过异步事务为 NOT_READY；不支持异步为 UNSUPPORTED。
+     * @note 任务与框架中断里都能调用，不阻塞。
+     */
+    [[nodiscard]] Result async_result() const noexcept;
 
   private:
-    /**
-   * @brief 将 C++ 逻辑设备转换为 Detail C ABI 使用的设备值。
-   * @param device C++ 逻辑设备。
-   * @return 对应的 C ABI 设备值。
-   */
-    [[nodiscard]] static constexpr SpiPort_Device to_port_device(Device device) noexcept
-    {
-        return static_cast<SpiPort_Device>(device);
-    }
-
-    /**
-   * @brief 将 Detail C ABI 的 SPI 结果转换为 C++ 结果枚举。
-   * @param result C ABI SPI 结果。
-   * @return 对应的 C++ 结果，未知值统一转换为 Result::Error。
-   */
-    [[nodiscard]] static constexpr Result to_result(SpiPort_Result result) noexcept
-    {
-        return result <= SPI_PORT_RESULT_STARTED ? static_cast<Result>(result) : Result::ERROR;
-    }
+    std::uint8_t index_; // 由 port 或 mock 解释
 };
 
-} // namespace platform
+} // namespace hal
 
-#endif
+#endif // HAL_SPI_HPP

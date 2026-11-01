@@ -7,12 +7,12 @@
 
 namespace device
 {
-// DRDY tick 是 MCU 中断观测时刻，不是传感器内部
-// 转换时刻。所有时间戳差值均用无符号回绕运算。
+// 时间戳都是 hal::os::now_us() 的读数（µs，按 2^32 回绕）。DRDY 时刻是 MCU 中断观测时刻，
+// 不是传感器内部转换时刻。所有时间戳差值均用无符号回绕运算。
 struct Bmi088DataReady final
 {
-    std::uint32_t sequence{0U};
-    std::uint32_t tick{0U};
+    std::uint32_t sequence{0U};     // 累计的数据就绪中断次数
+    std::uint32_t timestamp_us{0U}; // 最近一次中断的时刻
 };
 
 struct Bmi088SampleRecord final
@@ -24,10 +24,10 @@ struct Bmi088SampleRecord final
     };
     std::uint32_t sequence{0U}; // 驱动成功读取计数
     std::uint32_t drdy_sequence{0U};
-    std::uint32_t drdy_tick{0U};
-    std::uint32_t start_tick{0U};
-    std::uint32_t completed_tick{0U};
-    std::uint32_t harvested_tick{0U};
+    std::uint32_t drdy_us{0U};      // 触发这次读取的数据就绪中断时刻
+    std::uint32_t start_us{0U};     // SPI 事务开始时刻
+    std::uint32_t completed_us{0U}; // SPI 事务完成（中断）时刻
+    std::uint32_t harvested_us{0U}; // 任务收割时刻
     std::int16_t xyz[3]{};
     std::uint16_t flags{0U};
 };

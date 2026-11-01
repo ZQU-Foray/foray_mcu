@@ -4,16 +4,15 @@
 # 以 src/ 为 include 根：#include "hal/can.hpp"、"driver/bmi088/bmi088.hpp"。
 
 # framework_library(<名称> <源文件与头文件>...)：框架的 STATIC 库，带严格告警。
-#   头文件也列出来，表明它属于哪个 target。迁移期的构建开关见例外 X-14（F2、F3 去掉）。
+#   头文件也列出来，表明它属于哪个 target。
 function(framework_library name)
     add_library(${name} STATIC ${ARGN})
     target_include_directories(${name} PUBLIC "${PROJECT_SOURCE_DIR}/src")
-    target_link_libraries(${name} PRIVATE legacy_build_options)
     enable_strict_warnings(${name})
 endfunction()
 
-# utils_library(<名称> <源文件与头文件>...)：utils 的 STATIC 库，带严格告警。
-#   utils 只依赖标准库，不链接迁移期的构建开关（例外 X-14 不适用于 utils）。
+# utils_library(<名称> <源文件与头文件>...)：utils 的 STATIC 库，带严格告警。与 framework_library 相同，
+#   单独起名是为了在依赖图里一眼看出 utils 只依赖标准库。
 function(utils_library name)
     add_library(${name} STATIC ${ARGN})
     target_include_directories(${name} PUBLIC "${PROJECT_SOURCE_DIR}/src")
@@ -30,7 +29,7 @@ endfunction()
 # ==== 契约：hal、hal_detail、hal_os、boot ====
 
 # hal：硬件资源的 C++ 契约，由 platform 的 port 实现、宿主测试由 platform/mock 实现。
-# 契约 v1 是句柄类（Decision-20261101-01）：can、gpio、pwm 已改写；spi、time、uart、usb_cdc 仍是迁移期写法，
+# 契约 v1 是句柄类（Decision-20261101-01）：can、gpio、pwm、spi 已改写；time、uart、usb_cdc 仍是迁移期写法，
 # 经 hal_detail 的 C ABI 转到 C port，F2 第 5 步逐个改写。时间参数用 hal_os 的 Microseconds。
 framework_interface(hal
     hal/callback.hpp
@@ -48,7 +47,6 @@ target_link_libraries(hal INTERFACE hal_os hal_detail)
 # 只能经 src/ 根以 "hal/detail/xxx.h" 引用：其中的 time.h、spi.h 等与标准库、CubeMX 的头文件同名，
 # 不得把 src/hal/detail 本身加入 include 路径。
 framework_interface(hal_detail
-    hal/detail/spi.h
     hal/detail/time.h
     hal/detail/uart.h
     hal/detail/usb_cdc.h)
@@ -66,7 +64,7 @@ framework_interface(boot
     boot/boot.h)
 
 # ==== utils：没有领域含义、哪一层都可能用的基础件（docs/ai/architecture.md §2.3） ====
-# 只依赖标准库，用 utils_library()；只有头文件的用 framework_interface()（同样不链接迁移期构建开关）。
+# 只依赖标准库，用 utils_library()；只有头文件的用 framework_interface()。
 # 每个子目录一个 target：utils/<名> → utils_<名>，命名空间与子目录同名（math::、crc::、concurrency::）。
 
 utils_library(utils_math

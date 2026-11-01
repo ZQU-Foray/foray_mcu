@@ -5,7 +5,8 @@
 #include "driver/bmi088/bmi088_gyro.hpp"
 #include "driver/bmi088/bmi088_sample_queue.hpp"
 #include "driver/bmi088/bmi088_temperature.hpp"
-#include "hal/time.hpp"
+#include "hal/os/clock.hpp"
+#include "hal/spi.hpp"
 #include <cstdint>
 
 namespace device
@@ -18,11 +19,21 @@ namespace device
  *       逻辑 SPI 设备，双方启动前避让对方的在途事务。
  * @note 温度按 40 ms 时间周期读取；数据事件积压时只读取传感器输出
  *       寄存器中的最新样本，并记录无法逐个消费的合并事件数。
+ * @note 两个 SPI 设备句柄由组合根在构造时注入（如 board::SPI_IMU_ACCEL、board::SPI_IMU_GYRO）。
+ *       全部 SPI 事务都是异步的：要求板支持 SPI 异步（REQUIRES_SPI_ASYNC，组合根用
+ *       static_assert 对照 board::SPI_ASYNC，Decision-20261101-01）。
  */
 class Bmi088 final
 {
   public:
-    static constexpr std::uint32_t TEMPERATURE_PERIOD_MS{40U};
+    static constexpr hal::os::Microseconds TEMPERATURE_PERIOD_US{40000U};
+    /** 可选能力：本驱动只用 hal::Spi 的异步事务，没有阻塞回退。 */
+    static constexpr bool REQUIRES_SPI_ASYNC{true};
+
+    struct Config final
+    {
+        Bmi088Gyro::Bandwidth gyro_bandwidth{Bmi088Gyro::Bandwidth::ODR_2000_HZ_532_HZ};
+    };
 
     enum class State : std::uint8_t
     {
@@ -31,11 +42,17 @@ class Bmi088 final
         ERROR
     };
 
-    Bmi088() noexcept = default;
+    constexpr Bmi088(hal::Spi accelerometer, hal::Spi gyroscope) noexcept
+        : accelerometer_{accelerometer}, gyroscope_{gyroscope}, temperature_{accelerometer}
+    {
+    }
 
     /**
    * @brief 重置三个子设备状态机，本函数不访问硬件。
    */
+    void init(const Config &config) noexcept;
+
+    /** 用默认配置（陀螺 2000 Hz / 532 Hz）初始化。 */
     void init() noexcept;
 
     /**
@@ -53,7 +70,7 @@ class Bmi088 final
     void notify_data_ready(Bmi088DataReady accelerometer, Bmi088DataReady gyroscope) noexcept;
 
     // 在 Process 启动前设置；转发给全部共享总线事务。
-    void set_completion_notification(platform::Spi::CompletionNotification callback, void *context) noexcept;
+    void set_completion_notification(hal::Callback callback, void *context) noexcept;
     bool pop_gyroscope_sample(Bmi088SampleRecord &record) noexcept
     {
         return gyroscope_queue_.pop(record);
@@ -137,9 +154,9 @@ class Bmi088 final
     Bmi088DataReady accelerometer_event_{}, gyroscope_event_{};
     Bmi088SampleRecord accelerometer_inflight_{}, gyroscope_inflight_{};
     Bmi088SampleQueue<> accelerometer_queue_{}, gyroscope_queue_{};
-    Bmi088Accel accelerometer_{};
-    Bmi088Gyro gyroscope_{};
-    Bmi088Temperature temperature_{};
+    Bmi088Accel accelerometer_;
+    Bmi088Gyro gyroscope_;
+    Bmi088Temperature temperature_;
     bool accelerometer_data_ready_pending_{false};
     bool gyroscope_data_ready_pending_{false};
     std::uint32_t turn_{0U};
@@ -147,7 +164,7 @@ class Bmi088 final
     std::uint32_t gyroscope_data_ready_count_{0U};
     std::uint32_t accelerometer_coalesced_event_count_{0U};
     std::uint32_t gyroscope_coalesced_event_count_{0U};
-    platform::Time::Tick last_temperature_start_tick_{0U};
+    hal::os::Microseconds last_temperature_start_us_{0U};
 };
 
 } // namespace device

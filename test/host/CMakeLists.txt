@@ -49,7 +49,7 @@ host_test(brand_extension
 # 旧 app 的数据就绪邮箱与诊断采集两段随旧 app 归档删除（Decision-20261031-13），只测驱动本身。沿用历史的 -O2。
 host_test(bmi088_acquisition
     SOURCES unit/imu_acquisition/bmi088_acquisition_test.cpp
-    LINK driver_bmi088)
+    LINK driver_bmi088 platform_mock)
 target_compile_options(test_bmi088_acquisition PRIVATE -O2)
 # hal 契约 v1 在 platform/mock 上的语义与改用它的驱动（Decision-20261101-01）。
 host_test(hal_gpio_pwm
@@ -58,6 +58,12 @@ host_test(hal_gpio_pwm
 host_test(hal_can
     SOURCES unit/hal/can_test.cpp
     LINK platform_mock)
+host_test(hal_spi
+    SOURCES unit/hal/spi_test.cpp
+    LINK platform_mock)
+host_test(ws2812
+    SOURCES unit/ws2812/ws2812_test.cpp
+    LINK driver_ws2812 platform_mock)
 host_test(buzzer
     SOURCES unit/buzzer/buzzer_test.cpp
     LINK driver_buzzer platform_mock)
