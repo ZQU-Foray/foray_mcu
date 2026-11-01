@@ -1487,6 +1487,36 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 
 ---
 
+## Decision-20261101-02（F3：lib/estimate 去掉对 BMI088 驱动的依赖，X-17 关闭；规则 14 生效，Accepted）
+
+- **Date**：2026-11-01
+- **Status**：Accepted（负责人 2026-11-01 授权 AI 按最优方式推进，同 Decision-20261101-01）
+- **Source**：plan.md F3"`src/lib/estimate` 去掉对 BMI088 驱动的依赖（POD 入参）；框架开启 `-Wdouble-promotion`"；架构 §7"框架阶段必须处理的已知问题"；例外 X-17、X-06
+
+**Context**：
+
+- `lib/estimate/imu_body_mapping` include BMI088 驱动的头，把驱动的样本记录换算成机体系的角速度、加速度，是 lib → driver 的反向依赖（依赖图检查单独放行）；它也是 Cortex-M0+ 框架构建跳过 `lib_estimate` 的原因（X-17）。这些函数目前没有使用者。
+- 规则 14（框架开启 `-Wdouble-promotion`）还没有生效。
+
+**Decision**：
+
+1. `imu_body_mapping` 只保留与传感器无关的部分：`AxisMapping`、`is_valid_axis_mapping`、`map_sensor_vector_to_body`（三维 float 向量），新增 `IDENTITY_AXIS_MAPPING`。删除：
+   - `gyro_record_to_body`、`accel_record_to_body`（以驱动的样本记录为参数）；
+   - `BMI088_SENSOR_TO_BODY`：安装方向是整车参数，阶段 A 由 IMU 能力的 `Config` 接收，profile 给值；
+   - 关于 BMI088 量程的两条 `static_assert`：EKF 标度假设由阶段 A 的 IMU 能力检查。
+   陀螺的 rad/s 换算移到驱动：`Bmi088Gyro::to_radians_per_second()`（与原实现逐位一致：先 `to_dps` 再乘 `DEG_TO_RAD`）。
+2. `lib_estimate` 不再链接 `driver_bmi088`，依赖图检查删除这条放行边；Cortex-M0+ 框架构建编译全部框架 target，**X-17 关闭**。
+3. **规则 14 生效**：`framework_library()`、`utils_library()` 加 `-Wdouble-promotion`（随严格告警即为错误）。实测只有 `vqf.cpp` 有隐式提升（18 处，都是有意的双精度计算），按 X-06 单独对这个文件关掉。
+4. X-06 要求的"目标没有双精度 FPU 就报错"的检查推迟到阶段 B（第一块没有双精度 FPU 的板，F407）：现在的写法要么在 `src/` 里写 `#if`（规则 9），要么让 Cortex-M0+ 的框架构建失败，而现有的唯一固件目标（Cortex-M7）有双精度 FPU。阶段 B 在板级 CMake 声明 FPU 能力，由组合根检查。
+
+**验证**：宿主测试新增 `axis_mapping`（合法与不合法的映射、原地映射）；Cortex-M0+ 构建 14 个框架静态库，没有原子读改写的库调用；三套构建里 `-Wdouble-promotion` 只报 `vqf.cpp`。
+
+**Alternatives / Rejected**：
+- **把 BMI088 专用的换算留在 lib，改成以 POD 为参数**：换算本身依赖驱动的量程常量，放进 lib 仍要复制驱动的知识。换算属于驱动，组合属于 IMU 能力。否决。
+- **规则 14 的豁免按 target（整个 `lib_estimate`）**：会把 EKF、滤波器里的意外提升一起放过。否决，按文件豁免。
+
+---
+
 ## 待登记
 
 - 分支保护的具体设置（组织规范 §6.1、§10，负责人在 GitHub 上操作后补记）。
