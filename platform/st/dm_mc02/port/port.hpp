@@ -1,5 +1,5 @@
-#ifndef PLATFORM_DM_MC02_PORT_PORT_HPP
-#define PLATFORM_DM_MC02_PORT_PORT_HPP
+#ifndef PLATFORM_ST_DM_MC02_PORT_PORT_HPP
+#define PLATFORM_ST_DM_MC02_PORT_PORT_HPP
 
 #include "hal/callback.hpp"
 #include "hal/os/critical_section.hpp"
@@ -55,4 +55,4 @@ class Notifier final
 
 } // namespace port
 
-#endif // PLATFORM_DM_MC02_PORT_PORT_HPP
+#endif // PLATFORM_ST_DM_MC02_PORT_PORT_HPP

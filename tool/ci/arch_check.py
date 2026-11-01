@@ -350,8 +350,11 @@ WHITELIST = {
         "utils",
         "third_party",
     },
-    "platform": {"dm_mc02", "mock"},
+    # 板级目录是"厂商 / 板"两级（Decision-20261101-04）：一级是厂商与 mock，二级见 BOARD_WHITELIST
+    "platform": {"st", "mock"},
 }
+# 每个厂商目录下的板标识（规则 12）
+BOARD_WHITELIST = {"st": {"dm_mc02"}}
 # ST HAL 的名字都是 HAL_ 后跟字母（HAL_GPIO_WritePin、HAL_OK）。文件自己的头文件保护宏
 # （如 HAL_OS_CLOCK_HPP）扫描前先去掉，见 header_guard()。
 VENDOR_NAMES = re.compile(r"(?i:stm32|cmsis|freertos)|\bHAL_[A-Za-z]")
@@ -395,13 +398,13 @@ PARAMS_CAPABILITY_INCLUDE = re.compile(r"(\w+)/[\w/]+\.hpp")
 # C 链接，中断入口在生成区，都不写 extern "C"（Decision-20261101-01）
 EXTERN_C = re.compile(r'\bextern\s+"C"')
 EXTERN_C_ALLOWED = re.compile(
-    r"src/boot/boot\.h|platform/\w+/port/(?:UsbCdc\.h|usb_cdc\.cpp)"
+    r"src/boot/boot\.h|platform/\w+/\w+/port/(?:UsbCdc\.h|usb_cdc\.cpp)"
 )
 # 规则 1：board.hpp 只给组合根与本板的 port（Decision-20261101-01）；依赖图另外保证能力与框架看不到 board_*
 BOARD_HEADER = re.compile(
     r'^\s*#\s*include\s*[<"](?:[\w/]*/)?board\.hpp[>"]', re.MULTILINE
 )
-BOARD_HEADER_ALLOWED = re.compile(r"config/assembly/|platform/[\w]+/(?:port|board)/")
+BOARD_HEADER_ALLOWED = re.compile(r"config/assembly/|platform/\w+/\w+/(?:port|board)/")
 # 规则 7：生成区的 #include "…" 只能指向生成区自己的头，或下面这些（Decision-20261031-11）
 GENERATED_EXTERNAL_INCLUDES = {
     "boot/boot.h": "启动入口（规则 7）",
@@ -500,6 +503,12 @@ def check_scan() -> list[str]:
                 errors.append(
                     f"规则 12：{root}/{path.parts[1]} 不在一级目录白名单内（{path}）"
                 )
+    for vendor, boards in BOARD_WHITELIST.items():
+        for path in tracked(f"platform/{vendor}/*"):
+            if len(path.parts) > 3 and path.parts[2] not in boards:
+                errors.append(
+                    f"规则 12：platform/{vendor}/{path.parts[2]} 不在板目录白名单内（{path}）"
+                )
     errors += check_atomic_rmw()
     errors += check_topics()
     errors += check_generated_includes()
@@ -541,9 +550,13 @@ def check_generated_includes() -> list[str]:
     """规则 7：生成区（Drivers、Middlewares 之外）只 include 生成区自己的头与登记过的接口头。"""
     errors = []
     generated = tracked("platform/*/cubemx/*")
-    roots = {path.parts[1] for path in generated}
+
+    def board_of(path: Path) -> tuple[str, ...]:
+        return path.parts[: path.parts.index("cubemx")]  # platform/<厂商>/<板>
+
+    roots = {board_of(path) for path in generated}
     for board in sorted(roots):
-        files = [path for path in generated if path.parts[1] == board]
+        files = [path for path in generated if board_of(path) == board]
         headers = {path.name for path in files if path.suffix == ".h"}
         for path in files:
             if path.suffix not in (".c", ".h") or {"Drivers", "Middlewares"} & set(

@@ -288,7 +288,7 @@ jobs:
           nm="$ARM_GCC_ROOT/bin/arm-none-eabi-nm"
           for preset in arm-debug arm-release; do
             for elf in build/$preset/firmware_*.elf; do
-              python3 tool/ci/arch_check.py callbacks "$elf" --nm "$nm" --port platform/dm_mc02/port
+              python3 tool/ci/arch_check.py callbacks "$elf" --nm "$nm" --port platform/st/dm_mc02/port
             done
           done
 

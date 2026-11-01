@@ -1,5 +1,5 @@
-#ifndef PLATFORM_DM_MC02_PORT_OS_OS_HPP
-#define PLATFORM_DM_MC02_PORT_OS_OS_HPP
+#ifndef PLATFORM_ST_DM_MC02_PORT_OS_OS_HPP
+#define PLATFORM_ST_DM_MC02_PORT_OS_OS_HPP
 
 // hal::os 在 DM-MC02 上的实现（port 私有，Decision-20261031-10）。
 // 契约函数本身（now_us、CriticalSection、Signal）的定义在同目录的 .cpp 里，这里只放 port 内部的初始化。
@@ -16,4 +16,4 @@ namespace port::os
 
 } // namespace port::os
 
-#endif // PLATFORM_DM_MC02_PORT_OS_OS_HPP
+#endif // PLATFORM_ST_DM_MC02_PORT_OS_OS_HPP

@@ -1,5 +1,5 @@
-#ifndef ST_STM32H7_BOARD_DM_PORT_USBCDC_H
-#define ST_STM32H7_BOARD_DM_PORT_USBCDC_H
+#ifndef PLATFORM_ST_DM_MC02_PORT_USBCDC_H
+#define PLATFORM_ST_DM_MC02_PORT_USBCDC_H
 
 // USB 生成代码（usb_device.c、usbd_cdc_if.c 的 USER CODE 区）调用 port 的接口（例外 X-01），按名字 include，
 // 所以保持原文件名。实现在 usb_cdc.cpp（C++，extern "C"）。链路能力重建时按 Q8 改为回调注册后删除。

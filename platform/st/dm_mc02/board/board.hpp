@@ -1,5 +1,5 @@
-#ifndef PLATFORM_DM_MC02_BOARD_BOARD_HPP
-#define PLATFORM_DM_MC02_BOARD_BOARD_HPP
+#ifndef PLATFORM_ST_DM_MC02_BOARD_BOARD_HPP
+#define PLATFORM_ST_DM_MC02_BOARD_BOARD_HPP
 
 #include "hal/can.hpp"
 #include "hal/gpio.hpp"
@@ -67,4 +67,4 @@ inline constexpr std::uint8_t USB_CDC_COUNT{1U};
 
 } // namespace board
 
-#endif // PLATFORM_DM_MC02_BOARD_BOARD_HPP
+#endif // PLATFORM_ST_DM_MC02_BOARD_BOARD_HPP
