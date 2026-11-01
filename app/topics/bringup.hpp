@@ -27,11 +27,12 @@ inline topic::Topic<Heartbeat> heartbeat{"bringup.heartbeat"};
  */
 struct ImuEvent
 {
-    std::uint32_t accel_sequence;   // 加速度计数据就绪中断的累计次数
-    hal::os::Microseconds accel_us; // 最近一次加速度计数据就绪的时刻
-    std::uint32_t gyro_sequence;    // 陀螺仪数据就绪中断的累计次数
-    hal::os::Microseconds gyro_us;  // 最近一次陀螺仪数据就绪的时刻
-    std::uint32_t transfer_count;   // SPI 事务完成的累计次数
+    std::uint32_t accel_sequence;       // 加速度计数据就绪中断的累计次数
+    hal::os::Microseconds accel_us;     // 最近一次加速度计数据就绪的时刻
+    std::uint32_t gyro_sequence;        // 陀螺仪数据就绪中断的累计次数
+    hal::os::Microseconds gyro_us;      // 最近一次陀螺仪数据就绪的时刻
+    std::uint32_t transfer_count;       // SPI 事务完成的累计次数
+    hal::os::Microseconds published_us; // 发布这一份的时刻（与上面的时刻是同一次读取）
 };
 
 inline topic::Topic<ImuEvent> imu_event{"bringup.imu_event"};

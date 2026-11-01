@@ -63,8 +63,9 @@ void ImuCheck::step(hal::os::Microseconds now) noexcept
     topics::bringup::ImuEvent event{};
     if (event_.update(event))
     {
-        // 延迟：中断里发布到本轮开始
-        const hal::os::Microseconds latency = hal::os::elapsed_us(topics::bringup::imu_event.last_publish_us(), now);
+        // 延迟：中断里发布读到的这一份，到任务读到它。不用本轮开始的 now：中断每秒几千次，
+        // 任务醒来之后、读之前可能又有新的发布，读到的是更新的那份，用 now 会算出负数（2026-11-01 上板发现）
+        const hal::os::Microseconds latency = hal::os::elapsed_us(event.published_us, hal::os::now_us());
         ++report_.events;
         report_.lost_events = event_.lost_count();
         report_.last_latency_us = latency;
@@ -177,6 +178,7 @@ void ImuCheck::publish_event(bool accel, bool gyro, bool transfer) noexcept
         {
             ++interrupt_state_.transfer_count;
         }
+        interrupt_state_.published_us = now;
         snapshot = interrupt_state_;
     }
     event_publisher_.publish(snapshot);

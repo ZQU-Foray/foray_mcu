@@ -141,5 +141,22 @@ int main()
     mock::advance_us(500U);
     cycle(check, 0U);
     assert(check.report().late == 1U && check.report().max_latency_us >= 500U);
+
+    // 任务醒来之后、读 topic 之前又来一次中断发布：延迟按读到的那一份算，不会是负数（2026-11-01 上板发现：
+    // 原来用本轮开始的时刻减最近一次发布的时刻，得到 −3～−6 µs，按无符号数计成 42 亿 µs 并记为超限）
+    const hal::os::Microseconds woke_us = hal::os::now_us();
+    mock::advance_us(5U);
+    assert(mock::gpio::trigger_interrupt(GYRO_PIN));
+    const std::uint32_t late_before = check.report().late;
+    const hal::os::Microseconds max_before = check.report().max_latency_us;
+    check.step(woke_us);
+    assert(check.report().late == late_before);
+    assert(check.report().last_latency_us == 0U && check.report().max_latency_us == max_before);
+    while (mock::spi::busy(BUS))
+    {
+        mock::advance_us(20U);
+        assert(mock::spi::complete(BUS));
+        check.step(hal::os::now_us());
+    }
     return 0;
 }
