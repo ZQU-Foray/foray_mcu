@@ -1550,6 +1550,34 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 
 ---
 
+## Decision-20261101-04（板级目录改为"厂商 / 板"两级：`platform/st/dm_mc02`，Accepted）
+
+- **Date**：2026-11-01
+- **Status**：Accepted（负责人 2026-11-01："dm_mc02 移动到 st 里面就行"）
+- **Source**：负责人要求；修订 Decision-20261031-09（按板一级）与架构 §2.1、§3.7、§5.4
+
+**Context**：
+
+- Decision-20261031-09 把 `platform/st/stm32h7/board_dm`（厂商 / 芯片 / 板三级）改成了 `platform/dm_mc02`（按板一级）。
+- 负责人要求板级目录放在厂商目录下。以后的板（F407 C 板、TI 的板）按厂商归类，同一厂商的共用代码也有地方放。
+
+**Decision**：
+
+1. `git mv platform/dm_mc02 platform/st/dm_mc02`，生成区（`cubemx/`）随之整体移动，内容不变（`.ioc`、`.mxproject` 只有相对路径；板目录里的 CMake 都以 `CMAKE_CURRENT_SOURCE_DIR` 为基准）。负责人以后用 CubeMX 打开 `platform/st/dm_mc02/cubemx/mc02_cpp.ioc`。
+2. 布局为"厂商 / 板"两级，不再有芯片一级：`platform/<厂商>/<板标识>/{cubemx,port,board}`。板标识（`BOARD_ID`，target 名的后缀）仍是 `dm_mc02`；profile 的 `BOARD` 是 `platform/` 下的路径 `st/dm_mc02`。同一厂商的板之间要共用代码时，再登记放在 `platform/<厂商>/` 下的哪里。
+3. 路径改动：
+   - profile `bringup_dm_mc02` 的 `BOARD` 改为 `st/dm_mc02`；
+   - CI 回调检查的 port 路径；
+   - `arch_check.py`：`platform/` 一级目录白名单改为厂商（`st`）与 `mock`，另加二级白名单（`st` 下只有 `dm_mc02`）；`board.hpp`、`extern "C"`、生成区 include 的路径匹配改为允许厂商一级；
+   - 板内头文件的保护宏随路径改名（`PLATFORM_ST_DM_MC02_…`；`UsbCdc.h` 的保护宏还是 P2 前的旧路径，一并改正）；
+   - OpenOCD 配置里的注释。
+4. 验证方式：纯移动加路径改写，固件的函数与对象符号集合应与移动前完全相同（`symbols.py compare`），Release 的 `.bin` 应逐字节相同。
+
+**Alternatives / Rejected**：
+- **恢复"厂商 / 芯片 / 板"三级**（`platform/st/stm32h7/dm_mc02`）：负责人只要求放进厂商目录；芯片一级在只有一块 H7 板时是空层级。否决。
+
+---
+
 ## 待登记
 
 - 分支保护的具体设置（组织规范 §6.1、§10，负责人在 GitHub 上操作后补记）。
