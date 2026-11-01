@@ -1425,13 +1425,70 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 
 ---
 
+## Decision-20261101-01（hal 契约 v1 用句柄类写法；F2 第 5 步按外设纵向推进，Accepted）
+
+- **Date**：2026-11-01
+- **Status**：Accepted（负责人 2026-11-01："全部按照你认为的最优的方式就行，我想象中的架构就是文档那样"，由 AI 按建议推进，负责人事后学习、审阅）
+- **Source**：待登记中的"F2 第 5 步（外设）怎么做"与"hal 契约的写法与谁来写"；Decision-20261031-07 第 5 步；Decision-20261031-12 第 7 点（中断里发布的验收）
+- **修订**：架构 §3.1 的示意写法（命名空间 + 自由函数）；Decision-20261027-01 第 5 点"自由函数 + 不透明句柄"中的"自由函数"改为"句柄类的成员函数"。不透明句柄、链接期绑定、没有虚函数不变。**这是对负责人骨架答复的一处偏离**，理由见 Reason，负责人可以改回甲。
+
+**Context**：
+
+- 第 5 步要定稿 `src/hal` 契约 v1，用 C++ 重写 port，删除 `src/hal/detail`（X-07）。三种写法（甲：命名空间 + 自由函数；乙：静态类；丙：句柄类）的对比见待登记的原文，运行开销、mock、链接方式都相同，差别在调用形式与句柄能否被随意读写。
+- 负责人的草稿 `src/hal/temp/can.hpp` 把类型都收进 `class Can`，方向与乙、丙一致。
+- 旧 C port 自己定义了 9 个 HAL 回调，同一外设的新旧 port 不能并存（-07）。
+- F2 验收要求"中断发布的 topic 能被阻塞等待的任务收到"，不改生成区就能挂接的中断只有 BMI088 的两个数据就绪 EXTI（-12 第 7 点）。
+
+**Decision**：
+
+1. **写法：丙，句柄本身是类**：
+   - 每类外设一个句柄类：`hal::Gpio`、`hal::Pwm`、`hal::Can`、`hal::Spi`、`hal::Uart`、`hal::UsbCdc`，头文件 `src/hal/<外设>.hpp`；
+   - 句柄只有一个私有编号 `index_`（`std::uint8_t`），`constexpr explicit` 构造。编号由 `board.hpp` 给出，驱动与能力读不到也改不了；句柄可拷贝，驱动按值存进自己的 `Config`；
+   - 成员函数由 port 实现，宿主测试由 `platform/mock` 实现，一次构建只链接其中一份；
+   - 全板只有一份、不需要句柄的用自由函数：`hal::init()`、`hal::os::now_us()`。规律与 hal/os 相同：多实例的用类（`Signal`），单例的用自由函数；
+   - 结果、帧、统计等类型收在类里（`hal::Can::Frame`、`hal::Can::SendResult`），枚举只定义一份；
+   - 中断回调统一为 `hal::Callback`（`void (*)(void *context) noexcept`，`src/hal/callback.hpp`），在框架中断里执行，只做取数据、发布 topic、`notify()`；
+   - 时间参数用 `hal::os::Microseconds`；`src/hal/time.hpp` 随驱动改用 `hal::os::now_us()` 删除（Decision-20261031-01 第 4 点）；
+   - 每个成员函数注明：在任务还是中断里调用、是否阻塞、必选还是可选。
+2. **可选能力**（架构 §3.1"能力分级"）：
+   - 可选的成员函数在不支持时返回 `UNSUPPORTED`（或 `false`），板级用 `board.hpp` 的 `constexpr` 常量声明，如 `board::SPI_ASYNC`；
+   - 要求可选能力的驱动给出编译期常量（如 `device::Bmi088::REQUIRES_SPI_ASYNC`），组合根 `static_assert`；能回退的驱动在运行期回退（WS2812 遇到 `UNSUPPORTED` 改用阻塞发送）。
+3. **`board.hpp`**：`platform/<板>/board/board.hpp`，命名空间 `board`，只 include `hal/*.hpp`：
+   - 物理资源句柄（`board::CAN_1`、`board::SPI_IMU_GYRO`、`board::PWM_BUZZER` 等）、每类外设的个数与能力常量；
+   - 只有组合根与本板的 port 能看到（`board_<板>` 的 include 路径只开到 `board/`），规则 1 的 `board.hpp` 部分由依赖图与文本扫描检查；
+   - port 用 `static_assert` 核对自己的外设表与 `board.hpp` 的个数一致。
+4. **第 5 步按外设纵向推进，F2 与 F3 合排**。每个外设依次做完：契约 v1 + mock → port 用 C++ 重写 → 改用它的驱动 → 删除旧包装与 `hal/detail` 的对应文件 → 宿主测试。顺序与本地分支：
+   - `f2/gpio-pwm`：gpio、pwm；驱动 buzzer、BMI088 加热；
+   - `f2/can`：can；驱动 DJI 电机（X-08 的原子读改写一并去掉）；
+   - `f2/spi`：spi；驱动 BMI088、WS2812（X-14 的陀螺带宽改为 `Config` 参数）；
+   - `f2/uart`、`f2/usb-cdc`：uart、usb_cdc（X-01 的 `UsbCdcPort_Handle*` 保留为 port 的 C 接口）；
+   - `f2/port-cleanup`：删除 PortKit、`hal/time.hpp` 与 DWT 时基、`hal/detail`、`Init.h`（X-07 关闭）。
+5. **port**：C++，每个外设一个 `.cpp`，覆盖 HAL 回调的文件 include 对应 HAL 头（规则 16）。PortKit 拆分：
+   - 队列 → `concurrency::SpscQueue`；
+   - 临界区 → `hal::os::CriticalSection`。已核对生成代码：全部外设中断（FDCAN、SPI、UART、DMA、BDMA、EXTI、OTG_HS）都在优先级 5，即框架线上，BASEPRI 能屏蔽它们；
+   - 中断通知 → port 私有的 `Notifier`（回调 + 上下文，在临界区内设置）；
+   - D-cache 维护 → port 私有的 `cache.hpp`。
+6. **mock**：`platform/mock` 实现全部 hal 契约，测试控制接口在 `mock_hal.hpp`：按编号注入输入（CAN 帧、UART 字节、GPIO 电平与中断）、检查输出（发出的帧、PWM 设定、写出的字节），SPI 由测试登记设备应答函数，异步传输由测试决定何时完成。驱动的宿主测试改用 mock，删除测试里的 C ABI 桩。
+7. **中断里发布的验收**：用 BMI088 陀螺仪的数据就绪中断（2 kHz）。bringup 能力在 GPIO 中断回调里发布 topic，按 topic 触发的任务统计条数、丢失与延迟。BMI088 要先由驱动配置好才会产生中断，所以随 `f2/spi` 之后的 bringup 检查一起做。
+8. **谁来写**：AI 写，负责人事后审阅与学习（负责人 2026-11-01）。负责人的草稿 `src/hal/temp/can.hpp`（未入库）由 `src/hal/can.hpp` 取代，草稿里的 `QUEUED_FULL` 按旧代码改回 `QUEUE_FULL`，`MAX_DATA_LENGTH` 收进类里，避免以后 uart 等外设的同名常量在 `hal` 命名空间冲突。
+
+**Reason**（为什么不按 Decision-20261027-01 第 5 点的字面写成自由函数）：
+- 句柄的不透明由编译器保证：编号是私有的，甲、乙的句柄编号是公开字段；
+- 与已经定稿的 hal/os 是同一套规律（`Signal` 是类、`now_us()` 是自由函数），以后加外设不用再选写法；
+- 调用最短（`config_.bus.send(frame)`），IDE 能直接列出一个外设能做什么；
+- 与负责人草稿的方向一致；
+- 代价：类不能再打开，可选能力只能写在类里（不支持的板返回 `UNSUPPORTED`）；成员函数经 `this` 取编号，多一次内存读取，可以忽略。
+
+**Alternatives / Rejected**：
+- **甲（命名空间 + 自由函数，架构原文）**：完全可行，可选能力能拆到单独的头文件；但句柄编号是公开字段。负责人更看重这两点时可以改回，改动是机械的（成员函数改为以句柄为第一个参数的自由函数）。
+- **乙（静态类）**：没有甲的灵活，也没有丙的封装。否决。
+- **新旧接口并存到 F3（原方案 A）**：要多写一层转接代码，原因见 -07。否决。
+- **中断发布用软件触发的 EXTI 或改 CubeMX 配置腾出一个定时器**：前者要为测试加一条只在 bringup 用的路径，后者要改生成区。BMI088 的数据就绪中断是阶段 A 的 IMU 能力本来就要用的路径。否决。
+
+---
+
 ## 待登记
 
 - 分支保护的具体设置（组织规范 §6.1、§10，负责人在 GitHub 上操作后补记）。
 - `-Wdouble-promotion` 豁免清单（P3a）。
 - 契约 v1 冻结记录（P3a 结束时）；TM4C、AM26x port 的启动条件与编译器选择（Q13）。
-- **F2 第 5 步（外设）怎么做**（负责人考虑中，Decision-20261031-07）：AI 建议按外设纵向推进，把 F2 与 F3 合起来排，每个外设做完"契约 v1 + mock → port 用 C++ 重写 → 驱动改用 → 删旧包装与 `hal/detail`"，顺序 gpio/pwm → can → spi → uart → usb_cdc。原方案 A（新旧并存到 F3）要写一次性的转接层，原因见 -07 的 Context；原方案 B 是把驱动迁移整个并进 F2。
-- **F2 第 5 步之前定：hal 契约的写法与谁来写**（2026-10-31）。负责人的草稿 `src/hal/temp/can.hpp`（未入库）用 `hal::Can` 类，架构 §3.1 用命名空间 + 自由函数 + 不透明句柄。三种写法都在链接时确定实现、没有虚函数：
-  - 甲：命名空间 + 自由函数 + 句柄（架构原文），`hal::can::send(bus, frame)`；
-  - 乙：静态类（草稿与旧 `platform::Can` 的写法），句柄仍作参数，`hal::Can::send(bus, frame)`；
-  - 丙（AI 建议）：句柄本身是类，成员函数由 port 实现，`bus.send(frame)`，`board.hpp` 给出 `inline constexpr hal::Can CAN_1{0};`。
