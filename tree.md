@@ -37,8 +37,8 @@ foray_mcu/
 │   ├── CMakeLists.txt        profile_<名称>、assembly_<名称>：组合根 assembly/<profile>.cpp，链接 CAPABILITIES
 │   ├── assembly/             bringup_dm_mc02.cpp（任务表与 boot_*，F2）
 │   └── profiles/             bringup_dm_mc02/（profile.cmake、params.hpp，preset 默认）；profile.hpp.in 生成 profile.hpp
-├── platform/
-│   ├── dm_mc02/              按板一级（F2 第 2 步由 st/stm32h7/board_dm 移来，Decision-20261031-09）：board.cmake（板标识 dm_mc02）+ CMakeLists.txt（mx_generated、rtos、usb、port、board、os_freertos）
+├── platform/                 厂商 / 板两级（Decision-20261101-04）
+│   ├── st/dm_mc02/           DM-MC02：board.cmake（板标识 dm_mc02）+ CMakeLists.txt（mx_generated、rtos、usb、port、board、os_freertos）
 │   │   ├── cubemx/           CubeMX 生成物：Core、Drivers、Middlewares、USB_DEVICE、.ioc、启动文件、链接脚本（冻结）
 │   │   ├── port/             hal 与 hal/os 契约的 C++ 实现（每个外设一个 .cpp，F2 第 5 步）、port.hpp（外设初始化、中断通知）；os/ 是 hal/os 的实现（TIM2、BASEPRI、任务通知槽）；UsbCdc.h 被 USB 生成代码按名字 include（X-01）
 │   │   └── board/            board.hpp：物理资源句柄、外设个数、能力常量（只给组合根与 port，F2 第 5 步）
@@ -76,7 +76,7 @@ foray_mcu/
 - CMake 文件按层组织：手写的 `CMakeLists.txt` 共 7 个（根、`src/`、`app/`、`config/`、每块板一个、`platform/mock`、`test/host`），一层的全部 target 定义在该层的文件里（Decision-20261026-07）；
 - 根工程按目标结构组织 target；P1–P2.5 期间固件 `firmware_baseline` 的符号集合与迁移源一致。旧能力代码与 `baseline` 已在 F2 归档到 tag `archive/pre-rebuild`（Decision-20261031-13），现在的固件是 `firmware_bringup_dm_mc02`；
 - 源码已全部搬出 `legacy/`（P2、P2.5），`legacy/` 只剩迁移源 README 与架构图；迁移期过渡件（`hal_detail`、PortKit、`legacy_build_options`、DWT 时基）已在 F2 第 5 步删除；
-- `src/utils`、`src/hal/os`、`src/middleware/topic` 已在 F1 建立；`platform/dm_mc02`（按板一级）、`src/boot/boot.h`、`src/hal/init.hpp`、任务运行器、第一个 topic 与 bringup profile 在 F2 建立；hal 契约 v1、`board.hpp`、C++ port 与全部外设的替身在 F2 第 5 步建立。
+- `src/utils`、`src/hal/os`、`src/middleware/topic` 已在 F1 建立；`platform/st/dm_mc02`（厂商 / 板两级，Decision-20261101-04）、`src/boot/boot.h`、`src/hal/init.hpp`、任务运行器、第一个 topic 与 bringup profile 在 F2 建立；hal 契约 v1、`board.hpp`、C++ port 与全部外设的替身在 F2 第 5 步建立。
 
 ## 目标结构（架构 v2，Decision-20261027-01）
 
@@ -100,14 +100,15 @@ foray_mcu/
 │   ├── lib/                      领域算法：control（pid、slope）、estimate、filter、kinematics、component
 │   ├── driver/                   设备驱动与设备协议：bmi088、motor/dji、buzzer、ws2812、protocol/{dji,sbus}（F3 适配 hal v1）
 │   └── third_party/              vendor 生成头：foray_interfaces/generated/lower_link.hpp + 版本/sha256（阶段 A）
-├── platform/                     按板一级
-│   ├── dm_mc02/                  DM-MC02（STM32H723，F2）
-│   │   ├── cubemx/               生成物（冻结；USER CODE 区只调 boot_*）
-│   │   ├── port/                 hal 与 hal/os 的 C++ 实现、HAL 回调（OBJECT）
-│   │   ├── board/                board.hpp（物理资源句柄、能力常量）、overlay.ld（OBJECT）
-│   │   ├── board.cmake           板标识、CPU、烧录配置
-│   │   └── CMakeLists.txt        本板全部 target
-│   ├── <F407 C 板>/              阶段 B
+├── platform/                     厂商 / 板两级
+│   ├── st/                       厂商：ST
+│   │   ├── dm_mc02/              DM-MC02（STM32H723，F2）
+│   │   │   ├── cubemx/           生成物（冻结；USER CODE 区只调 boot_*）
+│   │   │   ├── port/             hal 与 hal/os 的 C++ 实现、HAL 回调（OBJECT）
+│   │   │   ├── board/            board.hpp（物理资源句柄、能力常量）、overlay.ld（OBJECT）
+│   │   │   ├── board.cmake       板标识、CPU、烧录配置
+│   │   │   └── CMakeLists.txt    本板全部 target
+│   │   └── <F407 C 板>/          阶段 B
 │   └── mock/                     hal 与 hal/os 的宿主替身（测试控制时间、注入输入、检查输出）
 ├── app/                          产品：RM 能力（按能力，不按兵种）
 │   ├── topics/                   全部 topic 的清单（消息类型 + 实例），集中一处；以后由描述文件生成
@@ -158,7 +159,7 @@ foray_mcu/
 | 启动入口 | `src/boot/` | ✅ `boot.h`，生成区只调 `boot_*`（F2 第 4 步，X-09 关闭）；每个 profile 的组合根实现一份 |
 | 领域算法 | `src/lib/` | ✅ 已搬入（P2）、去掉 `alg_` 前缀（P2.5）；F1 调整 slope/fsm/crc 的归属 |
 | 设备驱动与协议 | `src/driver/` | ✅ 已改用 hal v1，构造时接收句柄（F2 第 5 步与 F3 合排） |
-| 板级（生成区、port、board） | `platform/<板>/{cubemx,port,board}` | ✅ 按板一级（F2 第 2 步）；port 全部为 C++、`board/board.hpp`（F2 第 5 步） |
+| 板级（生成区、port、board） | `platform/<厂商>/<板>/{cubemx,port,board}` | ✅ 厂商 / 板两级（`platform/st/dm_mc02`，Decision-20261101-04）；port 全部为 C++、`board/board.hpp`（F2 第 5 步） |
 | 任务运行器 | `app/common/` | ✅ `task_runner.hpp`（F2 第 4 步，Decision-20261031-12） |
 | 能力 | `app/<capability>/` | ⏳ 阶段 A 重建；旧代码已归档到 tag `archive/pre-rebuild`（F2，Decision-20261031-13）；`app/bringup` 是框架验证用的能力 |
 | profile 与组合根 | `config/profiles/<兵种>_<板>/`、`config/assembly/<profile>.cpp` | ✅ `bringup_dm_mc02`（F2，preset 默认）；兵种 profile 在阶段 A |
@@ -184,8 +185,8 @@ foray_mcu/
 | `Libraries/Device/*`、`Protocol/*` | `src/driver/`，F3 适配 hal v1 |
 | `Platform/Interface/*.hpp` + `Detail/*.h` | 由 `src/hal` 契约 v1 取代（F2） |
 | `Platform/PortKit/*` | 队列 → `src/utils/concurrency/spsc_queue.hpp`（F1 ✅）；临界区 → `src/hal/os` 契约（F1 ✅）+ port 实现（F2） |
-| `Platform/STM32H7/DM_MC02/{Core,Drivers,Middlewares,USB_DEVICE,startup,.ld,.ioc}` | `platform/dm_mc02/cubemx/`（F2 起按板一级） |
-| `Platform/STM32H7/DM_MC02/Port/*` | `platform/dm_mc02/port/`，F2 用 C++ 重写 |
+| `Platform/STM32H7/DM_MC02/{Core,Drivers,Middlewares,USB_DEVICE,startup,.ld,.ioc}` | `platform/st/dm_mc02/cubemx/`（Decision-20261101-04） |
+| `Platform/STM32H7/DM_MC02/Port/*` | `platform/st/dm_mc02/port/`，F2 已用 C++ 重写 |
 | `Tests/`（历史，`fd1edbb`） | `test/host/` |
 | `Tools/`、`scripts/`（被 ignore/丢失） | `tool/`（必须入库） |
 

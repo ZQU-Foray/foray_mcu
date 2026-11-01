@@ -96,12 +96,13 @@
 ### F2 契约 v1 与 DM-MC02 板级（6–10 人日）
 
 > 顺序（Decision-20261031-07）：先做与具体外设无关的第 1–4 步，每一步固件都可构建；第 5 步（外设）按外设纵向推进、与 F3 合起来排（Decision-20261101-01，负责人 2026-11-01 授权 AI 按最优方式推进）。旧 C port 定义了 HAL 回调，同一外设的新旧 port 不能并存。
-> 本地分支（一个分支对应以后的一个 PR，依次叠在前一个上）：`f1/topic` → `f1/ci` → `f2/firmware-ci`（第 1 步 CI）→ `f2/tim2-timebase`（merge 合入）→ `f2/board-dir`（第 2 步）→ `f2/hal-os-port`（第 3 步）→ `f2/boot`（第 4 步：启动入口）→ `f2/bringup`（第 4 步：任务运行器与 bringup）→ `f2/archive`（第 4 步：归档旧 app）→ `f2/peripheral-plan`（第 5 步的决策）→ `f2/gpio-pwm` → `f2/can` → `f2/spi` → `f2/uart` → `f2/usb-cdc` → `f2/port-cleanup` → `f3/estimate-decouple` → `f2/bringup-peripherals`（外设检查、上板探测脚本）→ `f2/docs-sync`（文档同步、框架使用指南）。tag `archive/pre-rebuild` 随这批分支一起推送。PR 暂不开，以后按这个顺序依次合入 `dev`。
+> 本地分支（一个分支对应以后的一个 PR，依次叠在前一个上）：`f1/topic` → `f1/ci` → `f2/firmware-ci`（第 1 步 CI）→ `f2/tim2-timebase`（merge 合入）→ `f2/board-dir`（第 2 步）→ `f2/hal-os-port`（第 3 步）→ `f2/boot`（第 4 步：启动入口）→ `f2/bringup`（第 4 步：任务运行器与 bringup）→ `f2/archive`（第 4 步：归档旧 app）→ `f2/peripheral-plan`（第 5 步的决策）→ `f2/gpio-pwm` → `f2/can` → `f2/spi` → `f2/uart` → `f2/usb-cdc` → `f2/port-cleanup` → `f3/estimate-decouple` → `f2/bringup-peripherals`（外设检查、上板探测脚本）→ `f2/docs-sync`（文档同步、框架使用指南）→ `f2/board-vendor-dir`（板级目录移到厂商目录下）。tag `archive/pre-rebuild` 随这批分支一起推送。PR 暂不开，以后按这个顺序依次合入 `dev`。
 
 - [x] 第 1 步 CI（2026-10-31，Decision-20261031-08）：`firmware` 作业的符号对照退役，改为段大小报告（`symbols.py report`，写入作业摘要）；加入 HAL 回调符号检查（规则 16，`arch_check.py callbacks`）。规则 1（`board.hpp`）、4、7、10、18 的检查随对应内容出现时加入
 - [x] 第 1 步（续）合入 `f2/tim2-timebase`（2026-10-31，在分支 `f2/board-dir` 用 merge 提交合入，保留提交号）：TIM2 作 1 MHz 时基计数源，CubeMX 6.18.1（Decision-20261031-04）
 - [x] 第 2 步 板级目录（2026-10-31，Decision-20261031-09）：`platform/st/stm32h7/board_dm` → `platform/dm_mc02`（按板一级），226 个文件纯移动（R100），只改 4 处路径；移动前后固件符号一致、`.bin` 逐字节相同。负责人以后从 `platform/dm_mc02/cubemx/mc02_cpp.ioc` 打开 CubeMX
-- [x] 第 3 步 hal/os 的 port 实现（2026-10-31，Decision-20261031-10）：`platform/dm_mc02/port/os/`（C++）——时基读 TIM2，调试暂停时冻结，计数器由 `port::os::start_clock()` 启动（第 4 步由 `hal::init()` 调用）；临界区用 `BASEPRI_MAX` 抬到优先级 5；`Signal` 用 1 号任务通知槽。CubeMX 6.18.1 没有 `configTASK_NOTIFICATION_ARRAY_ENTRIES`，改用板级 CMake 的编译宏统一设为 2，不改生成区。要到第 4 步的 bringup 才在板上运行
+- [x] 第 2 步（续）板级目录改为"厂商 / 板"两级（2026-11-01，Decision-20261101-04，负责人要求）：`platform/dm_mc02` → `platform/st/dm_mc02`，228 个文件纯移动（R100）；移动前后固件符号一致、Debug 与 Release 的 `.bin` 逐字节相同
+- [x] 第 3 步 hal/os 的 port 实现（2026-10-31，Decision-20261031-10）：`platform/dm_mc02/port/os/`（C++，现在在 `platform/st/dm_mc02`）——时基读 TIM2，调试暂停时冻结，计数器由 `port::os::start_clock()` 启动（第 4 步由 `hal::init()` 调用）；临界区用 `BASEPRI_MAX` 抬到优先级 5；`Signal` 用 1 号任务通知槽。CubeMX 6.18.1 没有 `configTASK_NOTIFICATION_ARRAY_ENTRIES`，改用板级 CMake 的编译宏统一设为 2，不改生成区。要到第 4 步的 bringup 才在板上运行
 - [x] 第 4 步 启动与 bringup：
   - [x] 启动入口（2026-10-31，Decision-20261031-11）：`src/boot/boot.h`、`hal::init()`（port 实现：启动 TIM2 + 迁移期的 `Port_Init()`）；CubeMX USER CODE 区改为调用 `boot_*`（改动行登记在 -11）；迁移期的 `entry_legacy.cpp` 实现 `boot_*`，旧 app 照常运行；X-09 关闭；规则 7 的 include 检查；
   - [x] `app/common` 任务运行器（2026-10-31，Decision-20261031-12）：`common::TaskRunner<TASKS>`，FreeRTOS 原生 API，任务表在编译期检查，栈静态分配，`every_ms` / `on_topic` 两种触发，栈水位巡检；`TopicBase::add_waiter()` 公开；
@@ -253,3 +254,4 @@ Q1–Q18 已全部确认（见评审报告 v1.0 §11.1 与 decision.md）。仍�
 | 2026-11-01 | F2 | 第 5 步：gpio、pwm、can、spi、uart、usb_cdc 的契约 v1、C++ port、mock 与驱动改用；删除 `hal/detail`、PortKit、DWT 时基；X-07、X-08、X-14 关闭；规则 1、16 的文本扫描生效。每个外设一个分支，宿主测试 19 → 25 项 | 第 5 步完成，待上板 |
 | 2026-11-01 | F3 | `lib/estimate` 去掉对 BMI088 驱动的依赖，X-17 关闭，Cortex-M0+ 构建全部框架；`-Wdouble-promotion` 生效（Decision-20261101-02） | 完成 |
 | 2026-11-01 | F2–F4 | bringup 外设检查与 IMU 最小示范、`on_topic` 超时、规则 4 的检查（Decision-20261101-03）；上板探测脚本与检查清单；ctest 27/27 | 完成，待上板 |
+| 2026-11-01 | F2 | 板级目录改为"厂商 / 板"两级：`platform/st/dm_mc02`（负责人要求，Decision-20261101-04）。纯移动 + 路径改写两个提交；移动前后符号一致、`.bin` 逐字节相同 | 完成 |

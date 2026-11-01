@@ -1,6 +1,6 @@
 # 架构判据与依赖规则（foray_mcu）
 
-> **状态**：v2.10（2026-11-01）。v2.0 见 Decision-20261027-01；v2.1 随 F1 第 1 步更新 utils、middleware、lib 的归类：math 进 utils，fsm 进 middleware（Decision-20261027-02）；v2.2 随 F1 第 2 步加入 utils 的并发原语 `concurrency`（Decision-20261029-01），§3.4 补充 seqlock 的读写竞态（Decision-20261029-02，待定）；v2.3 随 F1 第 3 步定稿 §3.2 的 OS 契约：1 µs 时基、`Signal` 的语义、临界区只屏蔽框架中断（Decision-20261031-01～03）；v2.4 随 F1 第 4 步定稿 §3.4 的 topic：发布时用临界区包住写入（Decision-20261029-02），接口、等待槽与清单约定（Decision-20261031-05）；v2.5 随 F1 的 CI 加入框架独立构建与 Cortex-M0+ 原子检查，规则 13、17 的文本扫描生效，新增例外 X-17（Decision-20261031-06）；v2.6 随 F2 第 1 步把固件的符号对照换成段大小报告，规则 16 的 HAL 回调符号检查生效（Decision-20261031-08）；v2.7 随 F2 第 4 步换上启动入口 `boot_*` 与 `hal::init()`，规则 7 的 include 检查生效，`boot` 在依赖图里单独成层，X-09 关闭（Decision-20261031-11）；v2.8 随 F2 第 4 步定下 §3.5 的任务运行器写法，加入第一个 topic 与 bringup 能力，`topics` 在依赖图里单独成层（Decision-20261031-12）；v2.9 随 F2 第 4 步归档旧能力代码（tag `archive/pre-rebuild`），X-04、X-10 关闭，规则 10、18 生效，`app/` 加入宿主构建（Decision-20261031-13）；v2.10 随 F2 第 5 步与 F3 定稿 §3.1 的 hal 契约 v1（句柄类）、`board.hpp`、C++ port 与 mock，删除 `hal/detail` 与 PortKit，X-07、X-08、X-14、X-17 关闭，规则 1（`board.hpp`）、4、14、16（C 链接位置）的检查生效；§3.5 加入 topic 触发的超时与能力 `Config` 的两部分（Decision-20261101-01～03）。v2 按负责人的骨架重写：迁移方式从"改造迁移源"改为"按新骨架重建，迁移源只作参考与零件来源"。v1.0–v1.4（P0–P2.5）见 git 历史与 decision.md。
+> **状态**：v2.11（2026-11-01）。v2.0 见 Decision-20261027-01；v2.1 随 F1 第 1 步更新 utils、middleware、lib 的归类：math 进 utils，fsm 进 middleware（Decision-20261027-02）；v2.2 随 F1 第 2 步加入 utils 的并发原语 `concurrency`（Decision-20261029-01），§3.4 补充 seqlock 的读写竞态（Decision-20261029-02，待定）；v2.3 随 F1 第 3 步定稿 §3.2 的 OS 契约：1 µs 时基、`Signal` 的语义、临界区只屏蔽框架中断（Decision-20261031-01～03）；v2.4 随 F1 第 4 步定稿 §3.4 的 topic：发布时用临界区包住写入（Decision-20261029-02），接口、等待槽与清单约定（Decision-20261031-05）；v2.5 随 F1 的 CI 加入框架独立构建与 Cortex-M0+ 原子检查，规则 13、17 的文本扫描生效，新增例外 X-17（Decision-20261031-06）；v2.6 随 F2 第 1 步把固件的符号对照换成段大小报告，规则 16 的 HAL 回调符号检查生效（Decision-20261031-08）；v2.7 随 F2 第 4 步换上启动入口 `boot_*` 与 `hal::init()`，规则 7 的 include 检查生效，`boot` 在依赖图里单独成层，X-09 关闭（Decision-20261031-11）；v2.8 随 F2 第 4 步定下 §3.5 的任务运行器写法，加入第一个 topic 与 bringup 能力，`topics` 在依赖图里单独成层（Decision-20261031-12）；v2.9 随 F2 第 4 步归档旧能力代码（tag `archive/pre-rebuild`），X-04、X-10 关闭，规则 10、18 生效，`app/` 加入宿主构建（Decision-20261031-13）；v2.10 随 F2 第 5 步与 F3 定稿 §3.1 的 hal 契约 v1（句柄类）、`board.hpp`、C++ port 与 mock，删除 `hal/detail` 与 PortKit，X-07、X-08、X-14、X-17 关闭，规则 1（`board.hpp`）、4、14、16（C 链接位置）的检查生效；§3.5 加入 topic 触发的超时与能力 `Config` 的两部分（Decision-20261101-01～03）；v2.11 板级目录改为"厂商 / 板"两级：`platform/st/dm_mc02`（Decision-20261101-04）。v2 按负责人的骨架重写：迁移方式从"改造迁移源"改为"按新骨架重建，迁移源只作参考与零件来源"。v1.0–v1.4（P0–P2.5）见 git 历史与 decision.md。
 > **权威来源**：[decision.md](../../decision.md) 中的 Accepted 条目，v2 起以 Decision-20261027-01 为准。[评审报告 v1.0](reviews/2026-10-25-foray_mcu-架构评审报告.md) 是历史记录，与本文件冲突的部分以本文件为准。
 > **修改流程**：新增或修改规则、例外、白名单，先在 decision.md 登记，再改本文件和对应的 CI 检查（§10）。
 
@@ -52,11 +52,12 @@ foray_mcu/
 │   ├── lib/                  领域算法：control（pid、slope）、estimate、filter、kinematics、component
 │   ├── driver/               设备驱动与设备协议：bmi088、motor（dji）、buzzer、ws2812、protocol/{dji,sbus}
 │   └── third_party/          vendor 进来的外部生成头（foray_interfaces 的 lower_link.hpp）
-├── platform/                 按板一级
-│   ├── dm_mc02/              DM-MC02（STM32H723）：board.cmake + CMakeLists.txt
-│   │   ├── cubemx/           CubeMX 生成物（冻结）
-│   │   ├── port/             hal 与 hal/os 的 C++ 实现、HAL 回调
-│   │   └── board/            board.hpp：物理资源句柄、外设个数、能力常量；链接脚本 overlay（以后）
+├── platform/                 厂商 / 板两级
+│   ├── st/                   厂商：ST
+│   │   └── dm_mc02/          DM-MC02（STM32H723）：board.cmake + CMakeLists.txt
+│   │       ├── cubemx/       CubeMX 生成物（冻结）
+│   │       ├── port/         hal 与 hal/os 的 C++ 实现、HAL 回调
+│   │       └── board/        board.hpp：物理资源句柄、外设个数、能力常量；链接脚本 overlay（以后）
 │   └── mock/                 hal 与 hal/os 的宿主替身：测试控制时间、注入外设输入、检查输出（mock_hal.hpp）
 ├── app/                      产品：RM 能力
 │   ├── topics/               本产品全部 topic 的清单（消息类型 + topic 实例），集中一处
@@ -74,8 +75,8 @@ foray_mcu/
 
 按顺序问，第一个回答"是"的问题决定位置：
 
-1. **是 CubeMX 或厂商产生的吗？** → `platform/<board>/cubemx/`，只能重新生成；厂商库同理，不手改。
-2. **直接调用厂商 HAL、寄存器或 RTOS 实现吗？** → 实现契约的放 `platform/<board>/port/`；板的物理资源、能力常量、引脚放 `platform/<board>/board/`。
+1. **是 CubeMX 或厂商产生的吗？** → `platform/<厂商>/<board>/cubemx/`，只能重新生成；厂商库同理，不手改。
+2. **直接调用厂商 HAL、寄存器或 RTOS 实现吗？** → 实现契约的放 `platform/<厂商>/<board>/port/`；板的物理资源、能力常量、引脚放 `platform/<board>/board/`。
 3. **描述某个兵种 × 板吗**（用哪些能力、什么参数）？→ 数据放 `config/profiles/`；对象构造、参数注入、任务表、启动入口的实现放 `config/assembly/`。
 4. **是 RM 专用的吗？** → 行为放 `app/<capability>/`；产品的 topic 定义放 `app/topics/`；线程与调度机制放 `app/common/`。
 5. **与产品和板都无关吗？**
@@ -146,7 +147,7 @@ foray_mcu/
   };
   }
 
-  // platform/dm_mc02/board/board.hpp
+  // platform/st/dm_mc02/board/board.hpp
   inline constexpr hal::Can CAN_1{0U};
 
   // 组合根把句柄注入驱动；驱动按值保存，调用时 bus_.send(frame)
@@ -182,7 +183,7 @@ foray_mcu/
   - true 只说明"上次取走之后有过 `notify()`"，调用方醒来后重新检查条件；
   - `notify()` 在任务与框架中断里都能调用，`wait()` 只在任务里；超时常量 `NO_WAIT`、`WAIT_FOREVER`；
   - `constexpr` 构造，可以常量初始化。
-- **实现**：`platform/<board>/port/os`：时基用板上的 32 位定时器分频到 1 MHz（DM-MC02 为 TIM2，调试暂停时冻结）；`Signal` 用 FreeRTOS 的 1 号任务通知槽（槽数由板级 CMake 的编译宏设为 2，Decision-20261031-10），裸机板用标志位加 WFI。DM-MC02 的实现在 F2 第 3 步完成。`platform/mock`：时间由测试推进，临界区是一把进程内的锁，`Signal` 用条件变量并检查误用。
+- **实现**：`platform/<厂商>/<board>/port/os`：时基用板上的 32 位定时器分频到 1 MHz（DM-MC02 为 TIM2，调试暂停时冻结）；`Signal` 用 FreeRTOS 的 1 号任务通知槽（槽数由板级 CMake 的编译宏设为 2，Decision-20261031-10），裸机板用标志位加 WFI。DM-MC02 的实现在 F2 第 3 步完成。`platform/mock`：时间由测试推进，临界区是一把进程内的锁，`Signal` 用条件变量并检查误用。
 - 线程、队列、事件组不进框架。
 
 ### 3.3 启动入口 `src/boot`
@@ -292,14 +293,14 @@ void boot_run(void);        // 默认任务：留给 assembly 的周期工作（
 - **能力裁剪**：profile 不链接某个能力，它就不进镜像。不用 `#if`。
 - **框架验证**用 `bringup_dm_mc02` profile：不含 RM 能力，链接 `app_bringup`（心跳与监视；IMU、CAN、SBUS、USB、指示的外设检查），只演示并检查框架（plan.md F2–F4，Decision-20261031-12、Decision-20261101-03）。`profile.cmake` 的 `CAPABILITIES` 决定组合根链接哪些 `app_<能力>`。
 
-### 3.7 板级 `platform/<board>/`
+### 3.7 板级 `platform/<厂商>/<board>/`
 
-- 按板一级，目录名即板标识（`dm_mc02`）。`board.cmake` 声明 CPU 与烧录配置。
+- "厂商 / 板"两级（Decision-20261101-04）：`platform/st/dm_mc02`。板目录名即板标识（`BOARD_ID`，target 名的后缀）；profile 的 `BOARD` 写 `platform/` 下的路径（`st/dm_mc02`）。`board.cmake` 声明 CPU 与烧录配置。
 - `cubemx/` 放生成物；`port/` 放 C++ 实现的 hal 与 hal/os（每个外设一个 `.cpp`）、HAL 回调、port 私有的 `port.hpp`（外设初始化、中断通知 `Notifier`）；`board/` 放 `board.hpp`、链接脚本 overlay。
 - `board.hpp`（命名空间 `board`）只 include `hal/*.hpp`：物理资源句柄、每类外设的个数、能力常量。只有组合根与本板的 port 能看到它（`board_<板>` 的 include 路径只开到 `board/`，规则 1）。port 的外设表按初始化列表推导长度，`static_assert` 与 `board.hpp` 的个数核对。
 - port 里与中断共享的状态用 `hal::os::CriticalSection` 保护（DM-MC02 的外设中断都在优先级 5，即框架线上）；接收队列用 `concurrency::SpscQueue`。
 - port 与 board 用 OBJECT 库：port 里有覆盖 HAL 弱符号的回调，放进静态库会被链接器静默丢弃。
-- 出现同一芯片的第二块板时，再决定共用代码放在哪里（先登记）。
+- 同一厂商的板之间要共用代码时，再决定放在 `platform/<厂商>/` 下的哪里（先登记）。
 - `platform/mock` 实现 hal 与 hal/os，只供宿主测试。它是测试替身，不构成 `src` 对 `platform` 的依赖。测试控制接口在 `mock_hal.hpp`（`mock::can::inject`、`mock::spi::set_responder`、`mock::gpio::trigger_interrupt` 等）：按编号注入输入、检查输出；SPI 由测试登记设备应答函数，异步事务由测试决定何时完成。
 
 ## 4. target 依赖图
@@ -320,8 +321,8 @@ EXECUTABLE  firmware_<profile>
  │   │   ├─ STATIC  utils_<名>          src/utils（只依赖标准库；只有头文件的是 INTERFACE，如 utils_concurrency）
  │   │   └─ INTERFACE hal、hal_os        src/hal（实现在 port）
  │   ├─ INTERFACE os_freertos_<board>   FreeRTOS 头（只对 app_common、assembly 可见）
- │   └─ OBJECT    board_<board>         platform/<board>/board（board.hpp、链接脚本）→ hal
- └─ OBJECT    port_<board>              platform/<board>/port → board、hal、hal_os、utils、mx_generated、rtos、usb（OBJECT）
+ │   └─ OBJECT    board_<board>         platform/<厂商>/<board>/board（board.hpp、链接脚本）→ hal
+ └─ OBJECT    port_<board>              platform/<厂商>/<board>/port → board、hal、hal_os、utils、mx_generated、rtos、usb（OBJECT）
 
 宿主测试：test_<name> → 被测 target + platform_mock
 框架独立构建（preset framework、framework-m0plus，-DFRAMEWORK_ONLY=ON）：
@@ -383,16 +384,16 @@ EXECUTABLE  firmware_<profile>
 |---|---|
 | `src/` | `hal`（含 `os`）、`boot`、`utils`、`middleware`、`lib`、`driver`、`third_party` |
 | `app/` | `topics`、`common`、`bringup`（框架验证，Decision-20261031-12）、`imu`、`chassis`、`gimbal`、`remote`、`launch`、`link`（新增能力先登记） |
-| `platform/` | `mock` 与各板标识（`dm_mc02`；F407 C 板在阶段 B 加入） |
+| `platform/` | 一级：`mock` 与厂商（`st`）；二级：每个厂商下的板标识（`st/dm_mc02`；F407 C 板在阶段 B 加入）（Decision-20261101-04） |
 | `config/` | `profiles`、`assembly` |
 
 ## 6. 生成区与 vendor 治理
 
-- `platform/<board>/cubemx/` 只放生成物。手写内容只允许出现在 USER CODE 区，且只能是对 `boot_*` 的调用（以及 X-01 的 USB 接口调用）。这些行登记在 decision.md，由 CI 文本扫描检查。
+- `platform/<厂商>/<board>/cubemx/` 只放生成物。手写内容只允许出现在 USER CODE 区，且只能是对 `boot_*` 的调用（以及 X-01 的 USB 接口调用）。这些行登记在 decision.md，由 CI 文本扫描检查。
 - 生成区的其他变更只能通过重新生成，并先在 decision.md 登记。
 - 再生成可复现：CI 用 sha256 清单校验；有装 CubeMX 的 runner 时再加 regenerate-diff。
 - 板级 CMake 的再生成防护保留：USB OTG HS 内部 DMA 必须开启；USB port 必须含 PA11/PA12 复用配置。
-- 链接脚本：生成的 `.ld` 不改，自定义段放 `platform/<board>/board/overlay.ld`，作为第二个 `-T` 追加（Q9）。
+- 链接脚本：生成的 `.ld` 不改，自定义段放 `platform/<厂商>/<board>/board/overlay.ld`，作为第二个 `-T` 追加（Q9）。
 - vendor 生成头：`src/third_party/foray_interfaces/` 固定版本并记录 sha256，CI 校验，不手改。
 - 层级声明：`.foray-layer` 为 `layer: MCU`、`depends_on_layers: [X2]`，对 X2（`foray_interfaces`）只消费 vendor 的生成头。
 
