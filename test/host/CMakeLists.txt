@@ -64,6 +64,9 @@ host_test(hal_spi
 host_test(hal_uart
     SOURCES unit/hal/uart_test.cpp
     LINK platform_mock)
+host_test(hal_usb_cdc
+    SOURCES unit/hal/usb_cdc_test.cpp
+    LINK platform_mock)
 host_test(ws2812
     SOURCES unit/ws2812/ws2812_test.cpp
     LINK driver_ws2812 platform_mock)

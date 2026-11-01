@@ -1,215 +1,106 @@
 #ifndef HAL_USB_CDC_HPP
 #define HAL_USB_CDC_HPP
 
-#include "hal/detail/usb_cdc.h"
-#include <array>
+#include "hal/callback.hpp"
+
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 
-namespace platform
+// 硬件契约：USB CDC（虚拟串口）字节流（Decision-20261101-01）。句柄由各板的 board.hpp 给出，实现由 port 提供，
+// 宿主测试由 platform/mock 提供。
+
+namespace hal
 {
 
+/**
+ * @brief 一个 USB CDC 接口的句柄：设备端的虚拟串口。
+ *
+ * - 主机打开端口（USB 配置完成）之后才算连上（is_connected()）；断开时丢弃接收队列，进行中的发送算失败。
+ * - 接收：port 在 USB 中断里把收到的字节放进软件接收队列，read() 取；队列满时丢弃并计数。
+ * - 发送：write() 把数据拷走后开始发送就返回，同时只有一次发送在进行；结束（成功或失败）时调用发送通知。
+ *
+ * 读写接口与 hal::Uart 同形：处理字节流的代码可以对两者写成同一个模板。
+ * 句柄只含一个编号，可以拷贝，按值存进驱动的配置。
+ */
 class UsbCdc final
 {
   public:
-    static constexpr std::size_t MAXIMUM_TRANSMIT_SIZE{USB_CDC_PORT_MAX_TRANSMIT_SIZE};
+    /** 单次 write() 最多这么多字节。 */
+    static constexpr std::size_t MAX_WRITE_LENGTH{512U};
 
-    enum class ReceiveResult : std::uint8_t
+    enum class WriteResult : std::uint8_t
     {
-        RECEIVED = USB_CDC_PORT_RECEIVE_RECEIVED,
-        EMPTY = USB_CDC_PORT_RECEIVE_EMPTY,
-        NOT_READY = USB_CDC_PORT_RECEIVE_NOT_READY,
-        INVALID_ARGUMENT = USB_CDC_PORT_RECEIVE_INVALID_ARGUMENT,
-        ERROR = USB_CDC_PORT_RECEIVE_ERROR
+        STARTED = 0U,          // 已拷走并开始发送
+        BUSY = 1U,             // 上一次发送还没结束
+        NOT_READY = 2U,        // 没有连上主机
+        UNSUPPORTED = 3U,      // 保留，与 hal::Uart 同形
+        INVALID_ARGUMENT = 4U, // 编号无效、缓冲区为空、长度为 0 或超过 MAX_WRITE_LENGTH
+        ERROR = 5U
     };
 
-    enum class TransmitResult : std::uint8_t
-    {
-        STARTED = USB_CDC_PORT_TRANSMIT_STARTED,
-        BUSY = USB_CDC_PORT_TRANSMIT_BUSY,
-        NOT_READY = USB_CDC_PORT_TRANSMIT_NOT_READY,
-        INVALID_ARGUMENT = USB_CDC_PORT_TRANSMIT_INVALID_ARGUMENT,
-        ERROR = USB_CDC_PORT_TRANSMIT_ERROR
-    };
-
-    using ReceiveNotification = UsbCdcPort_ReceiveNotification;
-    using TransmitNotification = UsbCdcPort_TransmitNotification;
-
+    /** 计数从上电起累计，按 2^32 回绕。 */
     struct Statistics final
     {
-        std::uint32_t received_byte_count{0U};
-        std::uint32_t dropped_byte_count{0U};
-        std::uint32_t receive_error_count{0U};
-        std::uint32_t transmitted_byte_count{0U};
-        std::uint32_t transmit_failure_count{0U};
-        std::uint32_t connection_count{0U};
-        std::uint32_t disconnection_count{0U};
+        std::uint32_t received_byte_count{0U};    // 收到的字节（含丢弃的）
+        std::uint32_t dropped_byte_count{0U};     // 软件接收队列满而丢弃的字节
+        std::uint32_t receive_error_count{0U};    // 没连上时收到数据、重新开始接收失败等
+        std::uint32_t transmitted_byte_count{0U}; // 发送成功的字节
+        std::uint32_t transmit_failure_count{0U}; // 发送失败（含断开时进行中的发送）
+        std::uint32_t connection_count{0U};       // 连上主机的次数
+        std::uint32_t disconnection_count{0U};    // 断开的次数
     };
 
-    /**
-   * @brief 禁止创建 UsbCdc 实例，所有能力均通过静态方法访问。
-   */
-    UsbCdc() = delete;
+    constexpr explicit UsbCdc(std::uint8_t index) noexcept : index_{index} {}
 
     /**
-   * @brief 查询 USB CDC Port 的软件状态是否已经初始化。
-   * @return 已完成 Port 初始化时返回 true。
-   */
-    [[nodiscard]] static bool is_ready() noexcept
-    {
-        return UsbCdcPort_IsReady();
-    }
+     * @brief 接口已初始化（与有没有连上主机无关）。
+     * @note 任务与框架中断里都能调用，不阻塞。
+     */
+    [[nodiscard]] bool is_ready() const noexcept;
 
     /**
-   * @brief 查询 USB CDC 是否已由主机完成配置并可进行数据传输。
-   * @return Port 已初始化且 USB Device 处于配置状态时返回 true。
-   */
-    [[nodiscard]] static bool is_connected() noexcept
-    {
-        return UsbCdcPort_IsConnected();
-    }
+     * @brief 主机已打开端口，可以收发。
+     * @note 任务与框架中断里都能调用，不阻塞。
+     */
+    [[nodiscard]] bool is_connected() const noexcept;
 
     /**
-   * @brief 注册 USB CDC 接收通知函数及其上下文。
-   * @param notification 新数据进入软件队列后调用的通知函数，传入 nullptr
-   * 可取消通知。
-   * @param context 调用通知函数时原样传回的用户上下文。
-   * @return Port 已初始化且通知设置成功时返回 true。
-   * @note 通知在 USB 中断上下文执行，只应用于轻量唤醒，数据仍需通过 try_read
-   * 读取。
-   * @note MAY 能力：Port 可能返回 false（未注册），业务应回退轮询 try_read。
-   */
-    [[nodiscard]] static bool set_receive_notification(ReceiveNotification notification, void *context) noexcept
-    {
-        return UsbCdcPort_SetReceiveNotification(notification, context);
-    }
+     * @brief 从软件接收队列取最多 capacity 字节，不阻塞。
+     * @return 取到的字节数；没有数据、编号无效或参数无效时为 0。
+     * @note 只有一个消费者在任务里调用。
+     */
+    [[nodiscard]] std::size_t read(std::uint8_t *data, std::size_t capacity) const noexcept;
 
     /**
-   * @brief 注册 USB CDC 发送完成通知函数及其上下文。
-   * @param notification 当前发送完成后调用的通知函数，传入 nullptr 可取消通知。
-   * @param context 调用通知函数时原样传回的用户上下文。
-   * @return Port 已初始化且通知设置成功时返回 true。
-   * @note 通知在 USB 中断上下文执行，只应用于轻量唤醒。
-   * @note MAY 能力：Port 可能返回 false（未注册），业务应回退为轮询发送状态。
-   */
-    [[nodiscard]] static bool set_transmit_notification(TransmitNotification notification, void *context) noexcept
-    {
-        return UsbCdcPort_SetTransmitNotification(notification, context);
-    }
+     * @brief 开始发送 length 字节，不阻塞。data 在返回前已经拷走。
+     * @note 在任务里调用；同一接口只应有一个发送方。没有连上主机时返回 NOT_READY。
+     */
+    [[nodiscard]] WriteResult write(const std::uint8_t *data, std::size_t length) const noexcept;
 
     /**
-   * @brief 从 USB CDC 软件接收队列中非阻塞读取数据。
-   * @param data 用于接收数据的缓冲区。
-   * @param data_capacity data 缓冲区可容纳的字节数。
-   * @param length 用于接收实际读取字节数的输出引用。
-   * @return 返回读取成功、队列为空、Port 未就绪或参数错误等结果。
-   * @note 只允许一个任务作为软件队列消费者。
-   */
-    [[nodiscard]] static ReceiveResult
-    try_read(std::uint8_t *data, std::size_t data_capacity, std::size_t &length) noexcept
-    {
-        length = 0U;
-        if (data_capacity > std::numeric_limits<std::uint32_t>::max())
-        {
-            return ReceiveResult::INVALID_ARGUMENT;
-        }
-
-        std::uint32_t received_length = 0U;
-        const ReceiveResult result =
-            to_receive_result(UsbCdcPort_TryRead(data, static_cast<std::uint32_t>(data_capacity), &received_length));
-        length = received_length;
-        return result;
-    }
+     * @brief 登记接收通知：有字节放进软件接收队列后，在框架中断里调用 callback(context)。
+     * @param callback 传 nullptr 取消登记。
+     * @return 编号无效或接口没有初始化时返回 false。
+     * @note 在任务里调用，一般在初始化阶段。
+     */
+    [[nodiscard]] bool set_receive_notification(Callback callback, void *context) const noexcept;
 
     /**
-   * @brief 从 USB CDC 软件接收队列读取数据到定长数组中。
-   * @tparam Size 接收数组的字节数。
-   * @param data 用于接收数据的定长数组。
-   * @param length 用于接收实际读取字节数的输出引用。
-   * @return 返回读取成功、队列为空、Port 未就绪或参数错误等结果。
-   */
-    template <std::size_t Size>
-    [[nodiscard]] static ReceiveResult try_read(std::array<std::uint8_t, Size> &data, std::size_t &length) noexcept
-    {
-        return try_read(data.data(), data.size(), length);
-    }
+     * @brief 登记发送通知：一次 write() 的发送结束（成功或失败）后，在框架中断里调用 callback(context)。
+     * @note 同 set_receive_notification()。
+     */
+    [[nodiscard]] bool set_write_notification(Callback callback, void *context) const noexcept;
 
     /**
-   * @brief 尝试启动一次 USB CDC 非阻塞发送。
-   * @param data 指向待发送数据的缓冲区，函数返回后调用者可立即复用该缓冲区。
-   * @param length 待发送字节数，不得超过 MAXIMUM_TRANSMIT_SIZE。
-   * @return 返回已启动、忙、未连接或参数错误等结果。
-   * @note 仅供任务上下文调用，每次只允许一帧在途。
-   */
-    [[nodiscard]] static TransmitResult try_write(const std::uint8_t *data, std::size_t length) noexcept
-    {
-        if (length > std::numeric_limits<std::uint32_t>::max())
-        {
-            return TransmitResult::INVALID_ARGUMENT;
-        }
-
-        return to_transmit_result(UsbCdcPort_TryWrite(data, static_cast<std::uint32_t>(length)));
-    }
-
-    /**
-   * @brief 尝试通过 USB CDC 发送整个定长数组。
-   * @tparam Size 待发送数组的字节数。
-   * @param data 待发送的定长数组。
-   * @return 返回已启动、忙、未连接或参数错误等结果。
-   */
-    template <std::size_t Size>
-    [[nodiscard]] static TransmitResult try_write(const std::array<std::uint8_t, Size> &data) noexcept
-    {
-        return try_write(data.data(), data.size());
-    }
-
-    /**
-   * @brief 读取 USB CDC 的收发、丢弃、错误和连接统计。
-   * @param statistics 用于接收统计快照的输出对象。
-   * @return Port 已初始化并成功取得统计时返回 true。
-   * @note MAY 能力：Port 可能返回 false（未实现），业务应按全 0 统计处理。
-   */
-    [[nodiscard]] static bool get_statistics(Statistics &statistics) noexcept
-    {
-        UsbCdcPort_Statistics port_statistics{};
-        if (!UsbCdcPort_GetStatistics(&port_statistics))
-        {
-            return false;
-        }
-
-        statistics.received_byte_count = port_statistics.received_byte_count;
-        statistics.dropped_byte_count = port_statistics.dropped_byte_count;
-        statistics.receive_error_count = port_statistics.receive_error_count;
-        statistics.transmitted_byte_count = port_statistics.transmitted_byte_count;
-        statistics.transmit_failure_count = port_statistics.transmit_failure_count;
-        statistics.connection_count = port_statistics.connection_count;
-        statistics.disconnection_count = port_statistics.disconnection_count;
-        return true;
-    }
+     * @brief 读统计计数的一致快照。编号无效时返回全 0。
+     * @note 在任务里调用，不阻塞。
+     */
+    [[nodiscard]] Statistics statistics() const noexcept;
 
   private:
-    /**
-   * @brief 将 Detail C ABI 的接收结果转换为 C++ 结果枚举。
-   * @param result C ABI 接收结果。
-   * @return 对应的 C++ 接收结果，未知值统一转换为 ReceiveResult::Error。
-   */
-    [[nodiscard]] static constexpr ReceiveResult to_receive_result(UsbCdcPort_ReceiveResult result) noexcept
-    {
-        return result <= USB_CDC_PORT_RECEIVE_ERROR ? static_cast<ReceiveResult>(result) : ReceiveResult::ERROR;
-    }
-
-    /**
-   * @brief 将 Detail C ABI 的发送结果转换为 C++ 结果枚举。
-   * @param result C ABI 发送结果。
-   * @return 对应的 C++ 发送结果，未知值统一转换为 TransmitResult::Error。
-   */
-    [[nodiscard]] static constexpr TransmitResult to_transmit_result(UsbCdcPort_TransmitResult result) noexcept
-    {
-        return result <= USB_CDC_PORT_TRANSMIT_ERROR ? static_cast<TransmitResult>(result) : TransmitResult::ERROR;
-    }
+    std::uint8_t index_; // 由 port 或 mock 解释
 };
 
-} // namespace platform
+} // namespace hal
 
-#endif
+#endif // HAL_USB_CDC_HPP

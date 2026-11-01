@@ -148,11 +148,9 @@ TRANSITIONAL_EDGES = {
         "driver_bmi088",
     ): "已知结构债：ImuBodyMapping 依赖 BMI088 驱动，P3b 偿还",
 }
-TRANSITIONAL_TARGETS = {
-    # 生成区接缝：USB_DEVICE 调用 port 私有 C ABI（UsbCdc.h 引用 hal/detail）。
-    # main.c/freertos.c 调用 Application_*（X-09）只是 include 路径，由组合根注入，不是依赖图上的边。
-    "vendor": ({"hal_detail"}, "X-01 生成区接缝，P4 消除"),
-}
+# 迁移期放行的层间依赖：起点层 → (终点层集合, 依据)。现在没有：USB 生成代码经 UsbCdc.h 调用 port 的
+# C 接口（X-01）不再经过 hal_detail，只是 include 路径（Decision-20261101-01）。
+TRANSITIONAL_TARGETS: dict[str, tuple[set[str], str]] = {}
 
 REQUIRED = {
     "firmware": [

@@ -6,6 +6,7 @@
 #include "hal/pwm.hpp"
 #include "hal/spi.hpp"
 #include "hal/uart.hpp"
+#include "hal/usb_cdc.hpp"
 
 #include <array>
 #include <cstddef>
@@ -177,5 +178,33 @@ bool complete_write(std::uint8_t port, bool error = false) noexcept;
 std::size_t take_written(std::uint8_t port, std::uint8_t *data, std::size_t capacity) noexcept;
 
 } // namespace mock::uart
+
+namespace mock::usb_cdc
+{
+
+/** 替身只有一个接口，编号 0（与 DM-MC02 一致）。 */
+inline constexpr std::size_t QUEUE_CAPACITY{4096U};
+
+/** 恢复为：已初始化、未连接、队列与发送记录为空、没有进行中的发送、统计为 0、没有登记通知。 */
+void reset() noexcept;
+
+/**
+ * 模拟主机打开或关闭端口。连上：清空接收队列、计入 connection_count；断开：清空接收队列、计入
+ * disconnection_count，进行中的发送算失败并调用发送通知。
+ */
+void set_connected(bool connected) noexcept;
+
+/** 模拟收到字节（只在连上时收下）：放进接收队列（满了丢弃并计数），收下了就调用接收通知。返回收下的字节数。 */
+std::size_t inject(const std::uint8_t *data, std::size_t length) noexcept;
+
+[[nodiscard]] bool write_pending() noexcept;
+
+/** 结束进行中的发送并调用发送通知（同 mock::uart::complete_write）。 */
+bool complete_write(bool error = false) noexcept;
+
+/** 取出已开始发送的字节（按顺序），返回字节数。 */
+std::size_t take_written(std::uint8_t *data, std::size_t capacity) noexcept;
+
+} // namespace mock::usb_cdc
 
 #endif // PLATFORM_MOCK_MOCK_HAL_HPP

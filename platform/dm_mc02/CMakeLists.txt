@@ -2,7 +2,7 @@
 #   mx_generated_<板>  CubeMX 生成物（Core、USB_DEVICE、HAL 驱动、启动文件）  OBJECT
 #   rtos_<板>          FreeRTOS 与 CMSIS-RTOS2 适配                            OBJECT
 #   usb_<板>           ST USB Device 库（CDC）                                  OBJECT
-#   port_<板>          契约的手写实现（C++：hal/os、can、gpio、pwm、spi、uart；其余仍是迁移期的 C，F2 第 5 步改写），含 PortKit   OBJECT
+#   port_<板>          契约的手写实现（C++：hal/os、can、gpio、pwm、spi、uart、usb_cdc；时基 time.c 仍是迁移期的 C，F2 第 5 步改写），含 PortKit   OBJECT
 #   board_<板>         board.hpp（句柄与能力常量）与链接脚本                       OBJECT
 #   os_freertos_<板>   RTOS 头文件，只给 app_tasks、app_common 与 assembly       INTERFACE
 #
@@ -49,13 +49,13 @@ file(READ "${cubemx_dir}/USB_DEVICE/Target/usbd_conf.c" usbd_conf_source)
 if(NOT usbd_conf_source MATCHES "hpcd_USB_OTG_HS\\.Init\\.dma_enable[ \t]*=[ \t]*ENABLE")
     message(FATAL_ERROR "CubeMX 重新生成后必须保持 USB OTG HS 内部 DMA 开启")
 endif()
-file(READ "${port_dir}/usb_cdc.c" usb_cdc_port_source)
+file(READ "${port_dir}/usb_cdc.cpp" usb_cdc_port_source)
 if(NOT usb_cdc_port_source MATCHES "gpio_init\\.Alternate[ \t]*=[ \t]*GPIO_AF10_OTG1_FS")
     message(FATAL_ERROR "UsbCdc port 缺少 USB OTG HS PA11/PA12 的复用功能配置")
 endif()
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     "${cubemx_dir}/USB_DEVICE/Target/usbd_conf.c"
-    "${port_dir}/usb_cdc.c")
+    "${port_dir}/usb_cdc.cpp")
 
 # ---- mx_generated：CubeMX 生成的应用代码 + HAL 驱动 + 启动文件 ----
 set(cubemx_application_sources
@@ -127,7 +127,7 @@ target_include_directories(mx_generated_${BOARD_ID}
     PRIVATE "${port_dir}")
 target_link_libraries(mx_generated_${BOARD_ID}
     # main.c、freertos.c 的 USER CODE 区只调 boot_*（src/boot/boot.h，Decision-20261031-11）
-    PRIVATE boot hal_detail
+    PRIVATE boot
     # 迁移源链接的库：libm 与预编译的 CMSIS-DSP（顺序与迁移源一致）。
     INTERFACE m "${cubemx_dir}/Middlewares/ST/ARM/DSP/Lib/libarm_cortexM7lfsp_math.a")
 
@@ -189,11 +189,11 @@ add_library(port_${BOARD_ID} OBJECT
     port/spi.cpp
     port/time.c
     port/uart.cpp
-    port/usb_cdc.c
+    port/usb_cdc.cpp
     port/UsbCdc.h)
 enable_strict_warnings(port_${BOARD_ID})
 # hal_os：OS 契约 v1 的实现在 port/os（C++，Decision-20261031-10）。
-# hal：hal::init()（hal_init.cpp，Decision-20261031-11）与契约 v1 的外设（can.cpp、gpio.cpp、pwm.cpp、spi.cpp、uart.cpp，Decision-20261101-01）。
+# hal：hal::init()（hal_init.cpp，Decision-20261031-11）与契约 v1 的外设（can.cpp、gpio.cpp、pwm.cpp、spi.cpp、uart.cpp、usb_cdc.cpp，Decision-20261101-01）。
 # board：board.hpp（句柄编号、外设个数），port 用 static_assert 核对自己的外设表（Decision-20261101-01）。
 target_link_libraries(port_${BOARD_ID} PRIVATE hal hal_detail hal_os utils_concurrency board_${BOARD_ID})
 link_object_library(port_${BOARD_ID}

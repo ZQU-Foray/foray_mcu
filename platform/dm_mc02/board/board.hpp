@@ -6,6 +6,7 @@
 #include "hal/pwm.hpp"
 #include "hal/spi.hpp"
 #include "hal/uart.hpp"
+#include "hal/usb_cdc.hpp"
 
 #include <cstdint>
 
@@ -58,6 +59,10 @@ inline constexpr hal::Uart UART_SBUS{0U};
 // USART10：115200 bps 8N1，收发都可用。
 inline constexpr hal::Uart UART_10{1U};
 inline constexpr std::uint8_t UART_COUNT{2U};
+
+// ---- USB CDC（port/usb_cdc.cpp）：USB OTG HS 接口上的虚拟串口 ----
+inline constexpr hal::UsbCdc USB_CDC{0U};
+inline constexpr std::uint8_t USB_CDC_COUNT{1U};
 
 } // namespace board
 
