@@ -7,6 +7,7 @@
 #include "bringup/imu_check.hpp"
 #include "bringup/indicator.hpp"
 #include "bringup/monitor.hpp"
+#include "bringup/power_outputs.hpp"
 #include "bringup/sbus_check.hpp"
 #include "bringup/usb_report.hpp"
 #include "common/task_runner.hpp"
@@ -34,6 +35,9 @@ device::Buzzer g_buzzer{board::PWM_BUZZER};
 device::Ws2812 g_led{board::SPI_LED};
 
 // ---- 能力 ----
+// 板上两路 24 V 输出，高电平打开（Decision-20261101-06）
+constexpr std::array POWER_24V_OUTPUTS{board::POWER_24V_0, board::POWER_24V_1};
+bringup::PowerOutputs g_power_outputs;
 bringup::Heartbeat g_heartbeat;
 bringup::Monitor g_monitor;
 bringup::ImuCheck g_imu_check;
@@ -98,7 +102,11 @@ common::TaskRunner<TASKS> g_runner;
 
 bool boot_init(void)
 {
-    return hal::init() && g_heartbeat.init() && g_monitor.init(params::MONITOR) &&
+    // 电源输出最先打开：达妙电机上电自检约 1 s
+    return hal::init() &&
+           g_power_outputs.init(bringup::PowerOutputs::Config{
+               POWER_24V_OUTPUTS.data(), POWER_24V_OUTPUTS.size(), hal::Gpio::Level::HIGH, params::POWER_OUTPUTS}) &&
+           g_heartbeat.init() && g_monitor.init(params::MONITOR) &&
            g_imu_check.init(bringup::ImuCheck::Config{
                &g_imu, &g_heater, board::IMU_ACCEL_INTERRUPT, board::IMU_GYRO_INTERRUPT, params::IMU}) &&
            g_can_1.init() && g_can_2.init() && g_can_3.init() && g_sbus.init() &&

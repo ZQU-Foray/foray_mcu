@@ -96,7 +96,7 @@
 ### F2 契约 v1 与 DM-MC02 板级（6–10 人日）
 
 > 顺序（Decision-20261031-07）：先做与具体外设无关的第 1–4 步，每一步固件都可构建；第 5 步（外设）按外设纵向推进、与 F3 合起来排（Decision-20261101-01，负责人 2026-11-01 授权 AI 按最优方式推进）。旧 C port 定义了 HAL 回调，同一外设的新旧 port 不能并存。
-> 本地分支（一个分支对应以后的一个 PR，依次叠在前一个上）：`f1/topic` → `f1/ci` → `f2/firmware-ci`（第 1 步 CI）→ `f2/tim2-timebase`（merge 合入）→ `f2/board-dir`（第 2 步）→ `f2/hal-os-port`（第 3 步）→ `f2/boot`（第 4 步：启动入口）→ `f2/bringup`（第 4 步：任务运行器与 bringup）→ `f2/archive`（第 4 步：归档旧 app）→ `f2/peripheral-plan`（第 5 步的决策）→ `f2/gpio-pwm` → `f2/can` → `f2/spi` → `f2/uart` → `f2/usb-cdc` → `f2/port-cleanup` → `f3/estimate-decouple` → `f2/bringup-peripherals`（外设检查、上板探测脚本）→ `f2/docs-sync`（文档同步、框架使用指南）→ `f2/board-vendor-dir`（板级目录移到厂商目录下）→ `f2/onboard-peripherals`（上板验证：修正 IMU 延迟的测量与探测脚本，验证记录）→ `f3/heater-warmup`（BMI088 加热改为模型预测，Decision-20261101-05）→ `f2/onboard-can`（补记 CAN 接收的上板验证）→ `f3/dm-protocol`（达妙协议层与寄存器回读排查）。tag `archive/pre-rebuild` 随这批分支一起推送。PR 暂不开，以后按这个顺序依次合入 `dev`。
+> 本地分支（一个分支对应以后的一个 PR，依次叠在前一个上）：`f1/topic` → `f1/ci` → `f2/firmware-ci`（第 1 步 CI）→ `f2/tim2-timebase`（merge 合入）→ `f2/board-dir`（第 2 步）→ `f2/hal-os-port`（第 3 步）→ `f2/boot`（第 4 步：启动入口）→ `f2/bringup`（第 4 步：任务运行器与 bringup）→ `f2/archive`（第 4 步：归档旧 app）→ `f2/peripheral-plan`（第 5 步的决策）→ `f2/gpio-pwm` → `f2/can` → `f2/spi` → `f2/uart` → `f2/usb-cdc` → `f2/port-cleanup` → `f3/estimate-decouple` → `f2/bringup-peripherals`（外设检查、上板探测脚本）→ `f2/docs-sync`（文档同步、框架使用指南）→ `f2/board-vendor-dir`（板级目录移到厂商目录下）→ `f2/onboard-peripherals`（上板验证：修正 IMU 延迟的测量与探测脚本，验证记录）→ `f3/heater-warmup`（BMI088 加热改为模型预测，Decision-20261101-05）→ `f2/onboard-can`（补记 CAN 接收的上板验证）→ `f3/dm-protocol`（达妙协议层与寄存器回读排查）→ `f2/bringup-power`（bringup 上电打开 24 V 输出）。tag `archive/pre-rebuild` 随这批分支一起推送。PR 暂不开，以后按这个顺序依次合入 `dev`。
 
 - [x] 第 1 步 CI（2026-10-31，Decision-20261031-08）：`firmware` 作业的符号对照退役，改为段大小报告（`symbols.py report`，写入作业摘要）；加入 HAL 回调符号检查（规则 16，`arch_check.py callbacks`）。规则 1（`board.hpp`）、4、7、10、18 的检查随对应内容出现时加入
 - [x] 第 1 步（续）合入 `f2/tim2-timebase`（2026-10-31，在分支 `f2/board-dir` 用 merge 提交合入，保留提交号）：TIM2 作 1 MHz 时基计数源，CubeMX 6.18.1（Decision-20261031-04）
@@ -124,6 +124,7 @@
   - [x] 协议层 `protocol::DmEsc`（2026-11-01）：四种模式的控制帧与帧 ID、系统命令、寄存器读写与存储、应答与反馈解码，量程作参数；宿主测试 `dm_protocol`
   - [ ] 驱动：启动时回读控制模式与量程，与 profile 声明核对后才允许使能；MIT 零 Kp/Kd 的力矩控制接入 `MotorGroup`
   - [ ] bringup 检查：回读核对 → 使能 → MIT 零力矩 → 读反馈 → 失能（同时验证 CAN 发送）
+- [x] bringup 上电打开板上两路 24 V 输出（2026-11-01，Decision-20261101-06，负责人要求）：`bringup::PowerOutputs`，接电机检查时不必再经 SWD 打开
 - [ ] 验收：驱动单元测试全绿（已绿）；bringup 固件上各驱动的检查通过（2026-11-01 上板：SPI 读 BMI088、GPIO 外部中断、PWM 加热闭环、SPI 发送 WS2812、USB CDC、UART 收 SBUS（含失控保护）、CAN 接收（GM6020 反馈 1 kHz）、时基通过；CAN 发送等阶段 A 的电机能力；见[验证记录](docs/ai/decisions/2026-11-01-F2-外设上板验证/README.md)；待负责人验收）
 
 ### F4 框架验证（2–4 人日）

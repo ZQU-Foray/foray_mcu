@@ -6,6 +6,7 @@
 #include "bringup/imu_check.hpp"
 #include "bringup/indicator.hpp"
 #include "bringup/monitor.hpp"
+#include "bringup/power_outputs.hpp"
 #include "bringup/usb_report.hpp"
 
 namespace params
@@ -27,6 +28,9 @@ inline constexpr bringup::ImuCheck::Parameters IMU{
 // BMI088 加热：DM-MC02 的热模型，2026-11-01 接 24 V 实测辨识（Decision-20261101-05）——
 // 每 1‰ 占空比稳态高出环境 0.967 ℃；被加热区时间常数 15.5 s；传感器滞后 0.95 s。控制参数用默认值。
 inline constexpr device::Bmi088Heater::Config HEATER{control::HeaterControl::Model{0.967F, 15.5F, 0.95F}};
+
+// 上电打开板上两路 24 V 输出：接在上面的电机（GM6020、DM-J4310）随之上电（Decision-20261101-06）
+inline constexpr bringup::PowerOutputs::Parameters POWER_OUTPUTS{true};
 
 // USB 状态行 10 Hz
 inline constexpr bringup::UsbReport::Parameters USB_REPORT{100000U};
