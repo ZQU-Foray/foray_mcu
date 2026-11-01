@@ -24,6 +24,10 @@ inline constexpr bringup::ImuCheck::Parameters IMU{
     50.0F,
 };
 
+// BMI088 加热：DM-MC02 的热模型，2026-11-01 接 24 V 实测辨识（Decision-20261101-05）——
+// 每 1‰ 占空比稳态高出环境 0.967 ℃；被加热区时间常数 15.5 s；传感器滞后 0.95 s。控制参数用默认值。
+inline constexpr device::Bmi088Heater::Config HEATER{control::HeaterControl::Model{0.967F, 15.5F, 0.95F}};
+
 // USB 状态行 10 Hz
 inline constexpr bringup::UsbReport::Parameters USB_REPORT{100000U};
 

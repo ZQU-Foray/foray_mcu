@@ -29,7 +29,7 @@ static_assert(!device::Bmi088::REQUIRES_SPI_ASYNC || board::SPI_ASYNC, "BMI088 �
 
 // ---- 驱动：板级句柄在这里注入 ----
 device::Bmi088 g_imu{board::SPI_IMU_ACCEL, board::SPI_IMU_GYRO};
-device::Bmi088Heater g_heater{board::PWM_IMU_HEATER};
+device::Bmi088Heater g_heater{board::PWM_IMU_HEATER, params::HEATER};
 device::Buzzer g_buzzer{board::PWM_BUZZER};
 device::Ws2812 g_led{board::SPI_LED};
 

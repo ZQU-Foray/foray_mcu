@@ -103,6 +103,8 @@ target_link_libraries(middleware_topic INTERFACE hal_os utils_concurrency)
 # 子目录名即命名空间名、即 target 名的后缀（lib/control → control:: → lib_control）。
 
 framework_library(lib_control
+    lib/control/heater_control.cpp
+    lib/control/heater_control.hpp
     lib/control/pid.cpp
     lib/control/pid.hpp
     lib/control/slope.cpp

@@ -8,38 +8,19 @@ namespace device
 namespace
 {
 
-constexpr float PID_KP{10.0F};
-constexpr float PID_KI{1.0F};
-constexpr float PID_KD{0.0F};
-// 输出上限与积分上限按 PWM 千分比给出。实测原值 30‰（3%）不足以维持恒温服务点，
-// 因此放大到 30% 并保持原有增益不变：比例项偏弱、无微分项，响应慢但过阻尼，
-// 不会在预热门槛附近产生极限环。65 ℃ 硬保护与 500 ms 样本超时保持不变。
-constexpr float PID_MAXIMUM_OUTPUT{300.0F};
-constexpr float PID_INTEGRAL_LIMIT{300.0F};
-constexpr float DEFAULT_CONTROL_PERIOD_SECONDS{0.128F};
-constexpr float preheat_threshold_for(float target_celsius)
-{
-    return target_celsius - 2.0F < Bmi088Heater::PREHEAT_THRESHOLD_CELSIUS ? target_celsius - 2.0F
-                                                                           : Bmi088Heater::PREHEAT_THRESHOLD_CELSIUS;
-}
-// 默认服务点的预热门槛受 PREHEAT_THRESHOLD_CELSIUS 钳位（45 ℃）。
-static_assert(preheat_threshold_for(Bmi088Heater::DEFAULT_TARGET_CELSIUS) == Bmi088Heater::PREHEAT_THRESHOLD_CELSIUS);
-static_assert(preheat_threshold_for(32.0F) == 30.0F);
+constexpr float MAX_DUTY_PERMILLE{1000.0F};
 
 } // namespace
 
 bool Bmi088Heater::init() noexcept
 {
-    control::PID::Config config{};
-    config.mode = control::PIDMode::POSITION;
-    config.kp = PID_KP;
-    config.ki = PID_KI;
-    config.kd = PID_KD;
-    config.default_dt = DEFAULT_CONTROL_PERIOD_SECONDS;
-    config.maxout = PID_MAXIMUM_OUTPUT;
-    config.integral_limit = PID_INTEGRAL_LIMIT;
-
-    initialized_ = pid_.init(config) && pwm_.is_ready();
+    const control::HeaterControl::Config control_config{
+        config_.model,
+        control::HeaterControl::Sensor{
+            TEMPERATURE_UPDATE_PERIOD_S, Bmi088Temperature::CELSIUS_PER_LSB, TEMPERATURE_READ_LAG_S},
+        config_.tuning,
+    };
+    initialized_ = control_.init(control_config) && pwm_.is_ready();
     enabled_ = false;
     sample_seen_ = false;
     state_ = initialized_ ? State::DISABLED : State::FAULT;
@@ -48,6 +29,7 @@ bool Bmi088Heater::init() noexcept
     duty_permille_ = 0U;
     last_temperature_read_count_ = 0U;
     last_sample_us_ = hal::os::now_us();
+    last_change_us_ = last_sample_us_;
     last_control_us_ = last_sample_us_;
     last_pwm_result_ = pwm_.off();
     if (last_pwm_result_ != hal::Pwm::Result::COMPLETED)
@@ -67,7 +49,7 @@ void Bmi088Heater::set_enabled(bool enabled) noexcept
     }
 
     enabled_ = enabled;
-    pid_.reset();
+    control_.reset();
     last_control_us_ = hal::os::now_us();
     if (!enabled)
     {
@@ -100,7 +82,7 @@ void Bmi088Heater::process(const Bmi088Temperature &temperature) noexcept
     if (temperature.get_state() == Bmi088Temperature::State::ERROR)
     {
         disable_output(State::FAULT);
-        pid_.reset();
+        control_.reset();
         return;
     }
 
@@ -111,6 +93,12 @@ void Bmi088Heater::process(const Bmi088Temperature &temperature) noexcept
         last_temperature_read_count_ = read_count;
         temperature_celsius_ = Bmi088Temperature::to_celsius(sample.raw);
         last_sample_us_ = hal::os::now_us();
+        if (!sample_seen_ || sample.raw != last_raw_)
+        {
+            // 读数变化：传感器刚更新过，控制器据此锁定更新相位
+            last_raw_ = sample.raw;
+            last_change_us_ = temperature.get_completion_us();
+        }
         sample_seen_ = true;
     }
 
@@ -125,7 +113,7 @@ void Bmi088Heater::process(const Bmi088Temperature &temperature) noexcept
         hal::os::has_elapsed(last_sample_us_, SAMPLE_TIMEOUT_US, now))
     {
         disable_output(State::FAULT);
-        pid_.reset();
+        control_.reset();
         return;
     }
 
@@ -136,48 +124,12 @@ void Bmi088Heater::process(const Bmi088Temperature &temperature) noexcept
 
     const float delta_seconds = hal::os::to_seconds(hal::os::elapsed_us(last_control_us_, now));
     last_control_us_ = now;
-
-    // 默认 50 C 目标沿用原有 45 C 快速预热边界。
-    // 更低的诊断设定值不得被强行推过其目标。
-    const float preheat_threshold = preheat_threshold_for(target_celsius_);
-    if (temperature_celsius_ < preheat_threshold)
+    const float reading_age_seconds = hal::os::to_seconds(hal::os::elapsed_us(last_change_us_, now));
+    const float duty = control_.update(target_celsius_, temperature_celsius_, reading_age_seconds, delta_seconds);
+    const float rounded = std::round(duty < 0.0F ? 0.0F : (duty > MAX_DUTY_PERMILLE ? MAX_DUTY_PERMILLE : duty));
+    if (set_duty(static_cast<std::uint16_t>(rounded)))
     {
-        pid_.reset();
-        if (set_duty(PREHEAT_DUTY_PERMILLE))
-        {
-            state_ = State::PREHEATING;
-        }
-        return;
-    }
-
-    if (!pid_.calculate_loop(temperature_celsius_, target_celsius_, delta_seconds))
-    {
-        disable_output(State::FAULT);
-        pid_.reset();
-        return;
-    }
-
-    // 单向积分钳位：加热器只有加热权限，负输出恒被钳为 0，负积分没有物理意义，
-    // 只会在超温段持续累积（实测可达 −300‰ 饱和），温度跌回带内后压住比例项、
-    // 使加热器长时间无输出（实测 48 ℃ 以下仍为 0），显著拉长回摆时间。
-    if (pid_.get_integral_error() < 0.0F)
-    {
-        (void)pid_.set_integral_error(0.0F);
-    }
-
-    float output = pid_.get_out();
-    if (!std::isfinite(output) || output < 0.0F)
-    {
-        output = 0.0F;
-    }
-    if (output > PID_MAXIMUM_OUTPUT)
-    {
-        output = PID_MAXIMUM_OUTPUT;
-    }
-
-    if (set_duty(static_cast<std::uint16_t>(output + 0.5F)))
-    {
-        state_ = State::REGULATING;
+        state_ = control_.phase() == control::HeaterControl::Phase::REGULATE ? State::REGULATING : State::PREHEATING;
     }
 }
 

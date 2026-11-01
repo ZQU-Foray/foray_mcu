@@ -95,6 +95,9 @@ foreach(entry IN LISTS SIGNAL_MISUSE_SCENARIOS)
     add_test(NAME signal_misuse_${scenario} COMMAND test_signal_misuse ${scenario})
     set_tests_properties(signal_misuse_${scenario} PROPERTIES PASS_REGULAR_EXPRESSION "platform_mock: .*${message}")
 endforeach()
+host_test(heater_control
+    SOURCES unit/control/heater_control_test.cpp
+    LINK lib_control)
 host_test(axis_mapping
     SOURCES unit/estimate/axis_mapping_test.cpp
     LINK lib_estimate)

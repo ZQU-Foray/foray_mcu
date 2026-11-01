@@ -79,7 +79,8 @@ int main()
     put16(ACCEL, 0x16, 10923);
 
     device::Bmi088 imu{hal::Spi{ACCEL}, hal::Spi{GYRO}};
-    device::Bmi088Heater heater{hal::Pwm{HEATER}};
+    device::Bmi088Heater heater{hal::Pwm{HEATER},
+                                device::Bmi088Heater::Config{control::HeaterControl::Model{0.967F, 15.5F, 0.95F}}};
     bringup::ImuCheck check;
     const bringup::ImuCheck::Parameters parameters{
         device::Bmi088::Config{}, estimate::IDENTITY_AXIS_MAPPING, 1000U, 200U, 50.0F};
@@ -130,7 +131,7 @@ int main()
     assert(std::fabs(norm - 1.0F) < 1e-3F);
     assert(sample.quaternion[0] < 1.0F);
 
-    // 加热器已启动：PWM 有输出设置（50 ℃ 时预热门槛以上，按 PID 输出）
+    // 加热器已启动：PWM 有输出设置（读数 50 ℃ 已到目标，直接恒温）
     assert(mock::pwm::output(HEATER).set_count > 0U);
     assert(mock::pwm::output(HEATER).frequency_hz == device::Bmi088Heater::PWM_FREQUENCY_HZ ||
            mock::pwm::output(HEATER).frequency_hz == 0U);
