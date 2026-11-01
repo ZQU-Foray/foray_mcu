@@ -4,11 +4,18 @@
 
 | 工具 | 用途 |
 |---|---|
+| `bringup_probe.py` | bringup 固件的上板检查：从 ELF 算出各能力统计的地址（gdb，不连目标），隔 1 s 读两次，打印增量与判定（Decision-20261101-03，清单见 `docs/ai/decisions/2026-11-01-F2-外设上板检查清单.md`）；需要 arm-none-eabi-gdb |
 | `swd_poll.py` | 周期读取若干内存区域写成文本日志；可先等目标断电、上电后立即开始（记录冷启动过程）；结束后可整块转储内存 |
 | `imu_capture_decode.py` | 解码 `ImuDiagnostics` 的陀螺采集结构（Capture 版本 2），输出统计摘要、原始样本 CSV 与原始结构体 |
 | `heater_log_decode.py` | 解析 `swd_poll.py` 记录的 BMI088 加热器日志，输出逐行 CSV 与升温指标（到温时间、过冲、稳定时间、稳态波动） |
 
 ## 示例
+
+```sh
+# bringup 固件：读出各能力的统计并判定（ELF 必须是板上正在跑的那一个）
+python3 tool/debug/bringup_probe.py --elf build/arm-debug/firmware_bringup_dm_mc02.elf \
+    --gdb /opt/xpack-arm-none-eabi-gcc-15.2.1-1.1/bin/arm-none-eabi-gdb
+```
 
 在 WSL 中调用 Windows 版 OpenOCD 时，用 `--openocd` 指向 `openocd.exe`，并用 `--cwd /mnt/c` 让它在 Windows 路径下运行。
 

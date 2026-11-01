@@ -1,0 +1,409 @@
+#!/usr/bin/env python3
+"""bringup 固件的上板检查：不停核读出各能力的统计，隔 1 s 再读一次，给出增量与判定（Decision-20261101-03）。
+
+- 只读：不停核、不复位、不写目标内存（OpenOCD 连接时只写调试寄存器）。
+- 地址与结构布局由 gdb 从同一个 ELF 的调试信息离线算出（gdb 不连目标），所以 ELF 必须是板上正在跑的那一个。
+- 输出每一项的两次读数与增量，最后按检查清单（docs/ai/decisions/2026-11-01-F2-外设上板检查清单.md）给出判定。
+
+用法（DM-MC02 + CMSIS-DAP，先烧录同一个 ELF）：
+    bringup_probe.py --elf build/arm-debug/firmware_bringup_dm_mc02.elf
+    bringup_probe.py --elf ... --interval 2 --log probe.log     # 隔 2 s，原始输出另存
+需要 arm-none-eabi-gdb（--gdb）与 openocd（--openocd）在 PATH 上或显式给出。
+"""
+
+from __future__ import annotations
+
+import argparse
+import re
+import struct
+import subprocess
+import sys
+import tempfile
+from dataclasses import dataclass
+from pathlib import Path
+
+ANON = "'(anonymous namespace)::{}'"
+# (名称, gdb 表达式)。结构按字段展开；以 [] 结尾的是数组，按元素展开。
+ITEMS = [
+    ("runner", ANON.format("g_runner") + ".status_._M_elems[]"),
+    ("monitor", ANON.format("g_monitor") + ".report_"),
+    ("imu", ANON.format("g_imu_check") + ".report_"),
+    ("can_1", ANON.format("g_can_1") + ".report_"),
+    ("can_2", ANON.format("g_can_2") + ".report_"),
+    ("can_3", ANON.format("g_can_3") + ".report_"),
+    ("sbus", ANON.format("g_sbus") + ".report_"),
+    ("usb", ANON.format("g_usb_report") + ".report_"),
+    ("topic.heartbeat", "'topics::bringup::heartbeat'.publish_count_"),
+    ("topic.imu_event", "'topics::bringup::imu_event'.publish_count_"),
+    ("topic.imu", "'topics::bringup::imu'.publish_count_"),
+    ("topic.sbus", "'topics::bringup::sbus'.publish_count_"),
+]
+TASKS = ["imu", "monitor", "heartbeat", "io"]  # 与组合根的任务表同序
+TIM2_CNT = 0x40000024
+DWT_PCSR = 0xE000101C
+PC_SAMPLES = 16
+
+DEFAULT_SETUP = [
+    "-f",
+    "interface/cmsis-dap.cfg",
+    "-c",
+    "transport select swd",
+    "-f",
+    "target/stm32h7x.cfg",
+]
+
+LEAF = re.compile(r"^/\*\s+(\d+)\s+\|\s+(\d+)\s+\*/\s+(.+?)\s+(\w+);$")
+OPEN = re.compile(r"^/\*\s+(\d+)\s+\|\s+(\d+)\s+\*/\s+(?:struct|class)\s.*\{$")
+CLOSE = re.compile(r"^\}\s*(\w+);$")
+
+
+@dataclass
+class Field:
+    name: str
+    offset: int
+    size: int
+    kind: str  # struct 格式字符
+
+
+def field_kind(type_name: str, size: int) -> str:
+    if type_name == "float":
+        return "f"
+    if type_name == "bool":
+        return "?"
+    signed = not (
+        "unsigned" in type_name or type_name.startswith(("uint", "std::uint"))
+    )
+    if "Microseconds" in type_name:
+        signed = False
+    return (
+        {1: "b", 2: "h", 4: "i", 8: "q"}[size]
+        if signed
+        else {1: "B", 2: "H", 4: "I", 8: "Q"}[size]
+    )
+
+
+def parse_layout(text: str) -> list[Field]:
+    """解析 gdb 的 ptype/o 输出：叶子字段；没有叶子的 4 字节结构（std::atomic）当作 uint32。"""
+    fields: list[Field] = []
+    stack: list[tuple[int, int, int]] = []  # (偏移, 大小, 开始时的字段数)
+    for raw in text.splitlines():
+        line = raw.strip()
+        if (
+            line.startswith("/* offset")
+            or "type = " in line
+            and line.endswith("{")
+            and not stack
+        ):
+            stack.append((0, 0, 0))
+            continue
+        match = OPEN.match(line)
+        if match:
+            stack.append((int(match.group(1)), int(match.group(2)), len(fields)))
+            continue
+        match = CLOSE.match(line)
+        if match and len(stack) > 1:
+            offset, size, count = stack.pop()
+            name = match.group(1)
+            if len(fields) == count and size == 4:  # std::atomic<uint32_t> 等
+                fields.append(Field(name, offset, 4, "I"))
+            else:
+                for field in fields[count:]:
+                    field.name = f"{name}.{field.name}"
+            continue
+        match = LEAF.match(line)
+        if match and stack:
+            offset, size, type_name, name = match.groups()
+            if "static" in type_name:
+                continue
+            fields.append(
+                Field(name, int(offset), int(size), field_kind(type_name, int(size)))
+            )
+    return fields
+
+
+def gdb_query(gdb: str, elf: Path, expressions: list[str]) -> list[str]:
+    """逐条执行 gdb 命令，按分隔标记切开输出。"""
+    args = [gdb, "-batch", "-nx", str(elf)]
+    for expression in expressions:
+        args += ["-ex", expression, "-ex", "echo @@END@@\\n"]
+    result = subprocess.run(
+        args, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+    )
+    parts = result.stdout.split("@@END@@\n")
+    return parts[: len(expressions)]
+
+
+Region = tuple[str, int, list[Field], int]
+
+
+def resolve(gdb: str, elf: Path) -> tuple[list[Region], dict[str, int]]:
+    """每一项：(名称, 地址, 字段, 字节数)。数组展开成 名称[i]。"""
+    commands = []
+    for _, expression in ITEMS:
+        base = expression.removesuffix("[]")
+        element = base + "[0]" if expression.endswith("[]") else base
+        commands += [
+            f"print/x &({base})",
+            f"ptype/o {element}",
+            f"print sizeof({base})",
+            f"print sizeof({element})",
+        ]
+    commands += ["info address Error_Handler", "info address HardFault_Handler"]
+    outputs = gdb_query(gdb, elf, commands)
+    resolved = []
+    for index, (name, expression) in enumerate(ITEMS):
+        address_text, layout_text, total_text, element_text = outputs[
+            4 * index : 4 * index + 4
+        ]
+        address = int(re.search(r"0x[0-9a-fA-F]+", address_text).group(0), 16)
+        total = int(re.search(r"= (\d+)", total_text).group(1))
+        element = int(re.search(r"= (\d+)", element_text).group(1))
+        fields = parse_layout(layout_text) or [
+            Field("value", 0, element, field_kind("uint32_t", element))
+        ]
+        if expression.endswith("[]"):
+            for item in range(total // element):
+                resolved.append(
+                    (f"{name}[{item}]", address + item * element, fields, element)
+                )
+        else:
+            resolved.append((name, address, fields, total))
+    handlers = {}
+    for label, text in zip(("Error_Handler", "HardFault_Handler"), outputs[-2:]):
+        match = re.search(r"at address (0x[0-9a-fA-F]+)", text)
+        if match:
+            handlers[label] = int(match.group(1), 16) & ~1
+    return resolved, handlers
+
+
+def build_tcl(regions: list[Region], interval_ms: int) -> str:
+    lines = ["init"]
+    for sample in (0, 1):
+        lines.append(f'echo "@@SAMPLE {sample}"')
+        lines.append(f'echo "TIM2 [read_memory {TIM2_CNT:#x} 32 1]"')
+        for name, address, _, size in regions:
+            lines.append(f'echo "{name} [read_memory {address:#x} 8 {size}]"')
+        if sample == 0:
+            lines.append(f"sleep {interval_ms}")
+    for _ in range(PC_SAMPLES):
+        lines.append(f'echo "PC [read_memory {DWT_PCSR:#x} 32 1]"')
+        lines.append("sleep 30")
+    lines.append("shutdown")
+    return "\n".join(lines) + "\n"
+
+
+def decode(fields: list[Field], data: bytes) -> dict[str, object]:
+    values = {}
+    for field in fields:
+        chunk = data[field.offset : field.offset + field.size]
+        values[field.name] = (
+            struct.unpack("<" + field.kind, chunk)[0]
+            if len(chunk) == field.size
+            else None
+        )
+    return values
+
+
+def parse_samples(text: str) -> tuple[list[dict[str, list[int]]], list[int]]:
+    samples: list[dict[str, list[int]]] = []
+    pcs: list[int] = []
+    for line in text.splitlines():
+        if line.startswith("@@SAMPLE"):
+            samples.append({})
+        elif line.startswith("PC "):
+            pcs.append(int(line.split()[1], 0))
+        elif samples and " " in line:
+            name, _, rest = line.partition(" ")
+            try:
+                samples[-1][name] = [int(token, 0) for token in rest.split()]
+            except ValueError:
+                continue
+    return samples, pcs
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument(
+        "--elf", type=Path, required=True, help="板上正在运行的固件 ELF"
+    )
+    parser.add_argument("--gdb", default="arm-none-eabi-gdb")
+    parser.add_argument("--openocd", default="openocd")
+    parser.add_argument(
+        "--interval", type=float, default=1.0, help="两次读数的间隔（s）"
+    )
+    parser.add_argument("--log", type=Path, help="把 OpenOCD 的原始输出另存到这个文件")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="只解析 ELF，打印地址、字段与 OpenOCD 脚本，不连目标",
+    )
+    args = parser.parse_args()
+
+    regions, handlers = resolve(args.gdb, args.elf)
+    if args.dry_run:
+        for name, address, fields, size in regions:
+            print(f"{name} @ {address:#010x}（{size} 字节）")
+            for field in fields:
+                print(f"    +{field.offset:<3} {field.name}（{field.kind}）")
+        print({name: hex(address) for name, address in handlers.items()})
+        print(build_tcl(regions, int(args.interval * 1000)))
+        return 0
+    with tempfile.NamedTemporaryFile(
+        "w", suffix=".tcl", delete=False, encoding="utf-8"
+    ) as script:
+        script.write(build_tcl(regions, int(args.interval * 1000)))
+    result = subprocess.run(
+        [args.openocd, *DEFAULT_SETUP, "-f", script.name],
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    Path(script.name).unlink(missing_ok=True)
+    if args.log:
+        args.log.write_text(result.stdout, encoding="utf-8")
+    samples, pcs = parse_samples(result.stdout)
+    if len(samples) != 2:
+        print(result.stdout)
+        print("没有读到两组数据：检查调试器连接与目标供电", file=sys.stderr)
+        return 2
+
+    decoded = []
+    for sample in samples:
+        values = {"TIM2": sample.get("TIM2", [0])[0]}
+        for name, _, fields, _ in regions:
+            data = bytes(sample.get(name, []))
+            for field, value in decode(fields, data).items():
+                values[f"{name}.{field}"] = value
+        decoded.append(values)
+
+    seconds = args.interval
+    print(f"{'项':<44}{'第一次':>16}{'第二次':>16}{'增量':>12}")
+    for key in decoded[0]:
+        first, second = decoded[0][key], decoded[1][key]
+        delta = (
+            second - first if isinstance(first, int) and isinstance(second, int) else ""
+        )
+        print(f"{key:<44}{first!s:>16}{second!s:>16}{delta!s:>12}")
+
+    checks = judge(decoded, seconds, pcs, handlers)
+    print()
+    failed = 0
+    for passed, text in checks:
+        failed += 0 if passed else 1
+        print(("通过 " if passed else "未过 ") + text)
+    print(f"\n{len(checks) - failed}/{len(checks)} 项通过")
+    return 0 if failed == 0 else 1
+
+
+def judge(decoded, seconds, pcs, handlers) -> list[tuple[bool, str]]:
+    first, second = decoded
+
+    def delta(key: str) -> int:
+        return (second[key] - first[key]) & 0xFFFFFFFF
+
+    def per_second(key: str) -> float:
+        return delta(key) / seconds
+
+    checks = []
+    tim2 = per_second("TIM2")
+    checks.append(
+        (abs(tim2 - 1e6) < 2e4, f"时基：TIM2 每秒 {tim2:.0f} 个计数（应约 1,000,000）")
+    )
+    heartbeat_runs = per_second("runner[2].run_count")
+    checks.append(
+        (
+            900 <= heartbeat_runs <= 1100,
+            f"heartbeat 任务每秒 {heartbeat_runs:.0f} 轮（应约 1000）",
+        )
+    )
+    checks.append((delta("runner[2].overrun_count") == 0, "heartbeat 没有错过周期"))
+    checks.append(
+        (
+            delta("monitor.received") == delta("topic.heartbeat.value")
+            and delta("monitor.lost") == 0,
+            (
+                f"monitor 收到全部心跳：收到 {delta('monitor.received')}、"
+                f"发布 {delta('topic.heartbeat.value')}、丢失 {delta('monitor.lost')}"
+            ),
+        )
+    )
+    checks.append(
+        (
+            bool(second["imu.ready"]) and not second["imu.error"],
+            "BMI088 已配置好，没有出错",
+        )
+    )
+    gyro = per_second("imu.gyro_samples")
+    accel = per_second("imu.accel_samples")
+    checks.append((1900 <= gyro <= 2100, f"陀螺样本每秒 {gyro:.0f}（应约 2000）"))
+    checks.append((1500 <= accel <= 1700, f"加速度计样本每秒 {accel:.0f}（应约 1600）"))
+    events = per_second("topic.imu_event.value")
+    checks.append(
+        (
+            events >= gyro + accel,
+            f"中断里发布 bringup.imu_event 每秒 {events:.0f} 次（不少于数据就绪次数）",
+        )
+    )
+    checks.append(
+        (
+            delta("imu.events") > 0 and delta("imu.late") == 0,
+            (
+                f"IMU 任务被中断发布的 topic 叫醒：每秒 {per_second('imu.events'):.0f} 轮，"
+                f"超过 200 µs 的 {delta('imu.late')} 次，最大延迟 {second['imu.max_latency_us']} µs"
+            ),
+        )
+    )
+    temperature = second["imu.temperature_celsius"]
+    checks.append(
+        (
+            20.0 <= temperature <= 60.0,
+            f"BMI088 温度 {temperature:.1f} ℃（加热目标 50 ℃，冷启动约 25 s 到）",
+        )
+    )
+    for task_index, task in enumerate(TASKS):
+        free = second[f"runner[{task_index}].stack_free_words"]
+        checks.append((free > 32, f"{task} 任务剩余栈 {free} 字"))
+    for bus in ("can_1", "can_2", "can_3"):
+        checks.append(
+            (
+                bool(second[f"{bus}.bus_ready"]),
+                (
+                    f"{bus} 已启动：收到 {delta(f'{bus}.frames')} 帧，"
+                    f"Bus-Off {second[f'{bus}.statistics.bus_off_count']} 次（没接设备时收到 0 帧属正常）"
+                ),
+            )
+        )
+    checks.append(
+        (
+            bool(second["sbus.port_ready"]),
+            f"SBUS 端口在接收：每秒 {per_second('sbus.frames'):.0f} 帧",
+        )
+    )
+    if second["usb.connected"]:
+        checks.append(
+            (
+                per_second("usb.lines") >= 8,
+                f"USB 状态行每秒 {per_second('usb.lines'):.0f} 行（应约 10）",
+            )
+        )
+    else:
+        checks.append(
+            (True, "USB 没有连上主机：插上 USB 线并打开串口后重跑，可检查状态行")
+        )
+    bad = [
+        pc
+        for pc in pcs
+        if any(abs(pc - address) < 0x40 for address in handlers.values())
+    ]
+    checks.append(
+        (
+            not bad and pcs,
+            f"PC 采样 {len(pcs)} 次都不在 Error_Handler / HardFault_Handler",
+        )
+    )
+    return checks
+
+
+if __name__ == "__main__":
+    sys.exit(main())
