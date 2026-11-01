@@ -180,9 +180,17 @@ def build_tcl(regions: list[Region], interval_ms: int) -> str:
     lines = ["init"]
     for sample in (0, 1):
         lines.append(f'echo "@@SAMPLE {sample}"')
-        lines.append(f'echo "TIM2 [read_memory {TIM2_CNT:#x} 32 1]"')
+        # 主机毫秒数（OpenOCD 的 ms）紧跟 TIM2 读出：两次之差是 TIM2 的独立参照
+        lines.append(f'echo "TIM2 W [read_memory {TIM2_CNT:#x} 32 1] [ms]"')
         for name, address, _, size in regions:
-            lines.append(f'echo "{name} [read_memory {address:#x} 8 {size}]"')
+            # Tcl 双引号里的 [ ] 是命令替换，名字里的数组下标要转义
+            label = name.replace("[", "\\[").replace("]", "\\]")
+            if address % 4 == 0:
+                # 按 32 位字读：比逐字节快 4 倍，每个字段一次读出，不会读到任务改了一半的值
+                words = (size + 3) // 4
+                lines.append(f'echo "{label} W [read_memory {address:#x} 32 {words}]"')
+            else:
+                lines.append(f'echo "{label} B [read_memory {address:#x} 8 {size}]"')
         if sample == 0:
             lines.append(f"sleep {interval_ms}")
     for _ in range(PC_SAMPLES):
@@ -205,6 +213,7 @@ def decode(fields: list[Field], data: bytes) -> dict[str, object]:
 
 
 def parse_samples(text: str) -> tuple[list[dict[str, list[int]]], list[int]]:
+    """每组读数：名称 → 数值列表（W 为 32 位字，B 为字节）。"""
     samples: list[dict[str, list[int]]] = []
     pcs: list[int] = []
     for line in text.splitlines():
@@ -214,11 +223,22 @@ def parse_samples(text: str) -> tuple[list[dict[str, list[int]]], list[int]]:
             pcs.append(int(line.split()[1], 0))
         elif samples and " " in line:
             name, _, rest = line.partition(" ")
+            width, _, values = rest.partition(" ")
+            if width not in ("W", "B"):
+                continue
             try:
-                samples[-1][name] = [int(token, 0) for token in rest.split()]
+                samples[-1][name] = [int(token, 0) for token in values.split()]
             except ValueError:
                 continue
+            samples[-1][name + "@width"] = [4 if width == "W" else 1]
     return samples, pcs
+
+
+def region_bytes(sample: dict[str, list[int]], name: str) -> bytes:
+    values = sample.get(name, [])
+    if sample.get(name + "@width", [1])[0] == 4:
+        return b"".join(struct.pack("<I", value & 0xFFFFFFFF) for value in values)
+    return bytes(values)
 
 
 def main() -> int:
@@ -270,14 +290,14 @@ def main() -> int:
 
     decoded = []
     for sample in samples:
-        values = {"TIM2": sample.get("TIM2", [0])[0]}
-        for name, _, fields, _ in regions:
-            data = bytes(sample.get(name, []))
+        tim2, host_ms = (sample.get("TIM2", []) + [0, 0])[:2]
+        values = {"TIM2": tim2, "host_ms": host_ms}
+        for name, _, fields, size in regions:
+            data = region_bytes(sample, name)[:size]
             for field, value in decode(fields, data).items():
                 values[f"{name}.{field}"] = value
         decoded.append(values)
 
-    seconds = args.interval
     print(f"{'项':<44}{'第一次':>16}{'第二次':>16}{'增量':>12}")
     for key in decoded[0]:
         first, second = decoded[0][key], decoded[1][key]
@@ -286,7 +306,7 @@ def main() -> int:
         )
         print(f"{key:<44}{first!s:>16}{second!s:>16}{delta!s:>12}")
 
-    checks = judge(decoded, seconds, pcs, handlers)
+    checks = judge(decoded, pcs, handlers)
     print()
     failed = 0
     for passed, text in checks:
@@ -296,19 +316,27 @@ def main() -> int:
     return 0 if failed == 0 else 1
 
 
-def judge(decoded, seconds, pcs, handlers) -> list[tuple[bool, str]]:
+def judge(decoded, pcs, handlers) -> list[tuple[bool, str]]:
     first, second = decoded
 
     def delta(key: str) -> int:
         return (second[key] - first[key]) & 0xFFFFFFFF
 
+    # 两组读数之间除了 --interval 还有读取本身的时间：速率按目标自己的时基（TIM2 走过的时间）算，
+    # TIM2 再用主机时钟核对
+    host_ms = delta("host_ms")
+    seconds = delta("TIM2") / 1e6
+
     def per_second(key: str) -> float:
         return delta(key) / seconds
 
     checks = []
-    tim2 = per_second("TIM2")
+    tim2 = delta("TIM2") / (host_ms / 1000.0) if host_ms else 0.0
     checks.append(
-        (abs(tim2 - 1e6) < 2e4, f"时基：TIM2 每秒 {tim2:.0f} 个计数（应约 1,000,000）")
+        (
+            abs(tim2 - 1e6) < 2e4,
+            f"时基：TIM2 走了 {delta('TIM2')}，主机计时 {host_ms} ms，合每秒 {tim2:.0f}（应约 1,000,000）",
+        )
     )
     heartbeat_runs = per_second("runner[2].run_count")
     checks.append(
@@ -318,13 +346,23 @@ def judge(decoded, seconds, pcs, handlers) -> list[tuple[bool, str]]:
         )
     )
     checks.append((delta("runner[2].overrun_count") == 0, "heartbeat 没有错过周期"))
+    # 心跳序号从 1 起逐次加 1：收到次数等于最近序号，就是每一次发布都收到了。两者在同一个结构里，
+    # 但不是同一时刻读出，monitor 在两次读之间收到一次时序号会多 1
+    gaps = [
+        sample["monitor.last_sequence"] - sample["monitor.received"]
+        for sample in decoded
+    ]
     checks.append(
         (
-            delta("monitor.received") == delta("topic.heartbeat.value")
-            and delta("monitor.lost") == 0,
+            delta("monitor.received") > 0
+            and all(0 <= gap <= 1 for gap in gaps)
+            and second["monitor.lost"] == 0
+            and second["monitor.out_of_order"] == 0,
             (
-                f"monitor 收到全部心跳：收到 {delta('monitor.received')}、"
-                f"发布 {delta('topic.heartbeat.value')}、丢失 {delta('monitor.lost')}"
+                f"monitor 收到全部心跳：收到 {delta('monitor.received')}"
+                f"（同期发布 {delta('topic.heartbeat.value')}，读出时刻不同，可差一两次），"
+                f"最近序号减收到次数 {gaps}，丢失 {second['monitor.lost']}，"
+                f"乱序 {second['monitor.out_of_order']}"
             ),
         )
     )
@@ -347,9 +385,12 @@ def judge(decoded, seconds, pcs, handlers) -> list[tuple[bool, str]]:
     )
     checks.append(
         (
-            delta("imu.events") > 0 and delta("imu.late") == 0,
+            delta("imu.events") > 0
+            and delta("imu.late") == 0
+            and delta("runner[0].timeout_count") == 0,
             (
                 f"IMU 任务被中断发布的 topic 叫醒：每秒 {per_second('imu.events'):.0f} 轮，"
+                f"等待超时 {delta('runner[0].timeout_count')} 次，"
                 f"超过 200 µs 的 {delta('imu.late')} 次，最大延迟 {second['imu.max_latency_us']} µs"
             ),
         )
