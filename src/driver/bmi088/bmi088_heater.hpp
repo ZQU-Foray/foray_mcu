@@ -3,8 +3,8 @@
 
 #include "lib/control/pid.hpp"
 #include "driver/bmi088/bmi088_temperature.hpp"
+#include "hal/os/clock.hpp"
 #include "hal/pwm.hpp"
-#include "hal/time.hpp"
 #include <cstdint>
 
 namespace device
@@ -14,6 +14,7 @@ namespace device
  * @brief BMI088 恒温控制器，以新鲜温度样本驱动板载加热 PWM。
  * @note 控制参数由原工程 10000 计数量纲等比例换算为 PWM 千分比；
  *       温度无效、过温或样本超时时输出立即归零。
+ * @note 加热 PWM 的句柄由组合根在构造时注入（如 board::PWM_IMU_HEATER）。
  */
 class Bmi088Heater final
 {
@@ -25,8 +26,8 @@ class Bmi088Heater final
     static constexpr float MAXIMUM_TARGET_CELSIUS{60.0F};
     static constexpr float PREHEAT_THRESHOLD_CELSIUS{45.0F};
     static constexpr float MAXIMUM_SAFE_CELSIUS{65.0F};
-    static constexpr std::uint32_t CONTROL_PERIOD_MS{128U};
-    static constexpr std::uint32_t SAMPLE_TIMEOUT_MS{500U};
+    static constexpr hal::os::Microseconds CONTROL_PERIOD_US{128000U};
+    static constexpr hal::os::Microseconds SAMPLE_TIMEOUT_US{500000U};
     static constexpr std::uint32_t PWM_FREQUENCY_HZ{100U};
 
     enum class State : std::uint8_t
@@ -38,7 +39,7 @@ class Bmi088Heater final
         FAULT
     };
 
-    Bmi088Heater() noexcept = default;
+    constexpr explicit Bmi088Heater(hal::Pwm pwm) noexcept : pwm_{pwm} {}
 
     /**
    * @brief 初始化 PID 并确保加热输出为零。
@@ -83,7 +84,7 @@ class Bmi088Heater final
     {
         return duty_permille_;
     }
-    [[nodiscard]] platform::Pwm::Result get_last_pwm_result() const noexcept
+    [[nodiscard]] hal::Pwm::Result get_last_pwm_result() const noexcept
     {
         return last_pwm_result_;
     }
@@ -100,6 +101,7 @@ class Bmi088Heater final
     void disable_output(State next_state) noexcept;
     [[nodiscard]] bool set_duty(std::uint16_t duty_permille) noexcept;
 
+    hal::Pwm pwm_;
     control::PID pid_{};
     State state_{State::DISABLED};
     bool initialized_{false};
@@ -109,9 +111,9 @@ class Bmi088Heater final
     float temperature_celsius_{0.0F};
     std::uint16_t duty_permille_{0U};
     std::uint32_t last_temperature_read_count_{0U};
-    platform::Time::Tick last_sample_tick_{0U};
-    platform::Time::Tick last_control_tick_{0U};
-    platform::Pwm::Result last_pwm_result_{platform::Pwm::Result::NOT_READY};
+    hal::os::Microseconds last_sample_us_{0U};
+    hal::os::Microseconds last_control_us_{0U};
+    hal::Pwm::Result last_pwm_result_{hal::Pwm::Result::NOT_READY};
 };
 
 } // namespace device

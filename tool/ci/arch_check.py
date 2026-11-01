@@ -14,7 +14,7 @@ graph 检查（规则 1、2、5、6、15 与评审报告 §5.2）：
     测试到不了 port/board/生成区/assembly；只有固件可执行文件能链接 assembly；
   - 无环；port、board 与生成区必须是 OBJECT 库；必需的 target 都存在；
   - framework 模式（框架独立构建）：图里不得出现产品、板卡、RTOS 或测试，连未定义的同名库也不行。
-scan 检查（规则 3、8、9、12、13、15、17）：契约头不出现厂商与 RTOS 名；CMake 不用 file(GLOB) 与
+scan 检查（规则 1、3、7、8、9、10、12、13、15、17）：board.hpp 只给组合根与 port；契约头不出现厂商与 RTOS 名；CMake 不用 file(GLOB) 与
   全局 include_directories()；app/ 与 src/ 不用 #if 做裁剪（头文件保护与 __cplusplus 除外）；
   一级目录白名单；不用原子读改写；框架代码不引用产品的路径或 target；topic 只在 app/topics 定义、
   每个 topic 只在一处取得发布句柄、清单头只 include 标准库与 topic 机制。
@@ -117,7 +117,8 @@ ALLOWED = {
     "assembly": APP | APP_DEPENDENCIES | {"profile", "os", "board", "boot"},
     "profile": set(),
     "boot": set(),
-    "contract": {"legacy"},
+    # hal 的外设契约用 hal/os 的时间单位与回调约定（Decision-20261101-01）
+    "contract": {"contract", "legacy"},
     "hal_detail": set(),
     "utils": set(),
     "msg": {"utils", "contract"},
@@ -130,7 +131,8 @@ ALLOWED = {
     "app": APP_DEPENDENCIES,
     "app_common": APP_DEPENDENCIES | {"os"},
     "os": set(),
-    "port": {"vendor", "contract", "hal_detail", "utils"},
+    # port 用本板的 board.hpp 核对外设表（Decision-20261101-01）
+    "port": {"vendor", "contract", "hal_detail", "utils", "board"},
     "board": {"contract", "hal_detail"},
     # 生成区只调 boot_*（USER CODE 区）；X-01 的 USB 接缝见 TRANSITIONAL_TARGETS
     "vendor": {"boot"},
@@ -401,6 +403,11 @@ TOPIC_QUOTED_INCLUDES = re.compile(
     r"middleware/topic/topic\.hpp|hal/os/clock\.hpp|topics/[\w/]+\.hpp"
 )
 STANDARD_HEADER = re.compile(r"[a-z_]+")
+# 规则 1：board.hpp 只给组合根与本板的 port（Decision-20261101-01）；依赖图另外保证能力与框架看不到 board_*
+BOARD_HEADER = re.compile(
+    r'^\s*#\s*include\s*[<"](?:[\w/]*/)?board\.hpp[>"]', re.MULTILINE
+)
+BOARD_HEADER_ALLOWED = re.compile(r"config/assembly/|platform/[\w]+/(?:port|board)/")
 # 规则 7：生成区的 #include "…" 只能指向生成区自己的头，或下面这些（Decision-20261031-11）
 GENERATED_EXTERNAL_INCLUDES = {
     "boot/boot.h": "启动入口（规则 7）",
@@ -503,6 +510,7 @@ def check_scan() -> list[str]:
     errors += check_topics()
     errors += check_generated_includes()
     errors += check_rtos_includes()
+    errors += check_board_includes()
     for path in tracked("src/*", "platform/*", "cmake/*"):
         if "cubemx" in path.parts:
             continue  # 生成区由规则 7 与例外 X-09 管
@@ -515,7 +523,7 @@ def check_scan() -> list[str]:
             match = PRODUCT_REFERENCE.search(code)
             if match:
                 errors.append(f"规则 15：框架文件 {path} 引用了产品：{match.group(0)}")
-    print("文本扫描：规则 3、7（include）、8、9、10、12、13、15、17")
+    print("文本扫描：规则 1（board.hpp）、3、7（include）、8、9、10、12、13、15、17")
     return sorted(set(errors))
 
 
@@ -569,6 +577,24 @@ def check_rtos_includes() -> list[str]:
                 errors.append(
                     f"规则 10：{name} include 了 RTOS 头 {header}：能力与框架零 RTOS，只经 hal/os"
                 )
+    return errors
+
+
+def check_board_includes() -> list[str]:
+    """规则 1：只有组合根（config/assembly）与本板的 port、board 可以 include board.hpp。"""
+    errors = []
+    for path in handwritten_sources("src", "app", "config", "platform", "test"):
+        name = path.as_posix()
+        if BOARD_HEADER_ALLOWED.match(name):
+            continue
+        code = strip_comments(path, path.read_text("utf-8"))
+        match = BOARD_HEADER.search(code)
+        if match:
+            number = code.count("\n", 0, match.start()) + 1
+            errors.append(
+                f"规则 1：{name}:{number} include 了 board.hpp：只有组合根与本板的 port 能看到板级句柄，"
+                "驱动与能力从 Config 拿句柄"
+            )
     return errors
 
 

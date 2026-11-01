@@ -7,6 +7,10 @@
 namespace device
 {
 
+/**
+ * @brief 无源蜂鸣器：用一路 PWM 按频率与音量发声。
+ * @note 句柄由组合根在构造时注入（如 board::PWM_BUZZER）；在任务里调用，不阻塞。
+ */
 class Buzzer final
 {
   public:
@@ -20,9 +24,9 @@ class Buzzer final
         PLAYING
     };
 
-    using Result = platform::Pwm::Result;
+    using Result = hal::Pwm::Result;
 
-    Buzzer() noexcept = default;
+    constexpr explicit Buzzer(hal::Pwm pwm) noexcept : pwm_{pwm} {}
 
     /**
    * @brief 查询蜂鸣器底层 PWM 是否已经初始化。
@@ -85,6 +89,7 @@ class Buzzer final
 
     [[nodiscard]] static std::uint16_t volume_to_duty_permille(std::uint8_t volume) noexcept;
 
+    hal::Pwm pwm_;
     State state_{State::STOPPED};
     std::uint32_t frequency_hz_{0U};
     std::uint8_t volume_{0U};

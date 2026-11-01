@@ -1,90 +1,59 @@
 #ifndef HAL_PWM_HPP
 #define HAL_PWM_HPP
 
-#include "hal/detail/pwm.h"
 #include <cstdint>
 
-namespace platform
+// 硬件契约：PWM 输出通道（Decision-20261101-01）。句柄由各板的 board.hpp 给出，实现由 port 提供，
+// 宿主测试由 platform/mock 提供。
+
+namespace hal
 {
 
+/**
+ * @brief 一个 PWM 输出通道的句柄：频率与占空比都可以改。
+ *
+ * 可设的频率范围由板决定（见 board.hpp）。句柄只含一个编号，可以拷贝，按值存进驱动的配置。
+ */
 class Pwm final
 {
   public:
-    enum class Channel : std::uint8_t
-    {
-        BUZZER = PWM_PORT_CHANNEL_BUZZER,
-        IMU_HEATER = PWM_PORT_CHANNEL_IMU_HEATER
-    };
-
     enum class Result : std::uint8_t
     {
-        COMPLETED = PWM_PORT_RESULT_COMPLETED,
-        NOT_READY = PWM_PORT_RESULT_NOT_READY,
-        INVALID_ARGUMENT = PWM_PORT_RESULT_INVALID_ARGUMENT,
-        ERROR = PWM_PORT_RESULT_ERROR
+        COMPLETED = 0U,
+        NOT_READY = 1U,        // hal::init() 还没有成功启动这个通道
+        INVALID_ARGUMENT = 2U, // 编号无效、频率为 0 或超出本板范围、占空比超过 MAX_DUTY_PERMILLE
+        ERROR = 3U
     };
 
-    static constexpr std::uint16_t MAX_DUTY_PERMILLE{PWM_PORT_DUTY_PERMILLE_MAX};
+    /** 占空比的单位是千分之一，1000 为一直有效。 */
+    static constexpr std::uint16_t MAX_DUTY_PERMILLE{1000U};
+
+    constexpr explicit Pwm(std::uint8_t index) noexcept : index_{index} {}
 
     /**
-   * @brief 禁止创建 Pwm 实例，所有能力均通过静态方法访问。
-   */
-    Pwm() = delete;
+     * @brief 通道是否已经启动、可以设置输出。
+     * @note 任务与框架中断里都能调用，不阻塞。
+     */
+    [[nodiscard]] bool is_ready() const noexcept;
 
     /**
-   * @brief 查询指定 PWM 逻辑通道是否可以设置输出。
-   * @param channel 要查询的逻辑通道。
-   * @return 通道已初始化并可用时返回 true。
-   */
-    [[nodiscard]] static bool is_ready(Channel channel) noexcept
-    {
-        return PwmPort_IsReady(to_port_channel(channel));
-    }
+     * @brief 设置频率与占空比，立即生效。
+     * @param frequency_hz 输出频率（Hz），大于 0，上下限由板决定。
+     * @param duty_permille 占空比（‰），0 到 MAX_DUTY_PERMILLE。
+     * @note 在任务里调用，不阻塞。一个通道只应有一个写入方。
+     */
+    [[nodiscard]] Result set(std::uint32_t frequency_hz, std::uint16_t duty_permille) const noexcept;
 
     /**
-   * @brief 设置指定 PWM 逻辑通道的频率和占空比。
-   * @param channel 目标逻辑通道。
-   * @param frequency_hz 输出频率，单位 Hz，必须大于 0。
-   * @param duty_permille 占空比千分值，范围为 0 到 1000。
-   * @return 返回完成、未就绪、参数错误或底层错误。
-   */
-    [[nodiscard]] static Result set(Channel channel, std::uint32_t frequency_hz, std::uint16_t duty_permille) noexcept
-    {
-        return to_result(PwmPort_Set(to_port_channel(channel), frequency_hz, duty_permille));
-    }
-
-    /**
-   * @brief 将指定 PWM 逻辑通道的占空比设置为 0。
-   * @param channel 目标逻辑通道。
-   * @return 返回完成、未就绪或参数错误。
-   */
-    [[nodiscard]] static Result silence(Channel channel) noexcept
-    {
-        return to_result(PwmPort_Silence(to_port_channel(channel)));
-    }
+     * @brief 关闭输出：占空比设为 0，频率不变。
+     * @note 同 set()。
+     */
+    [[nodiscard]] Result off() const noexcept;
 
   private:
-    /**
-   * @brief 将 C++ 逻辑通道转换为 Detail C ABI 使用的通道值。
-   * @param channel C++ 逻辑通道。
-   * @return 对应的 C ABI 通道值。
-   */
-    [[nodiscard]] static constexpr PwmPort_Channel to_port_channel(Channel channel) noexcept
-    {
-        return static_cast<PwmPort_Channel>(channel);
-    }
-
-    /**
-   * @brief 将 Detail C ABI 的 PWM 结果转换为 C++ 结果枚举。
-   * @param result C ABI PWM 结果。
-   * @return 对应的 C++ 结果，未知值统一转换为 Error。
-   */
-    [[nodiscard]] static constexpr Result to_result(PwmPort_Result result) noexcept
-    {
-        return result <= PWM_PORT_RESULT_ERROR ? static_cast<Result>(result) : Result::ERROR;
-    }
+    std::uint8_t index_; // 由 port 或 mock 解释
 };
 
-} // namespace platform
+} // namespace hal
 
-#endif
+#endif // HAL_PWM_HPP

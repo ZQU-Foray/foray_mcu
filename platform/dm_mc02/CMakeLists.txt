@@ -2,8 +2,8 @@
 #   mx_generated_<板>  CubeMX 生成物（Core、USB_DEVICE、HAL 驱动、启动文件）  OBJECT
 #   rtos_<板>          FreeRTOS 与 CMSIS-RTOS2 适配                            OBJECT
 #   usb_<板>           ST USB Device 库（CDC）                                  OBJECT
-#   port_<板>          契约的手写实现（迁移期为 C，F2 起逐步改写为 C++；hal/os 已是 C++），含 PortKit   OBJECT
-#   board_<板>         链接脚本等板级内容（P1 只有链接脚本）                      OBJECT
+#   port_<板>          契约的手写实现（C++：hal/os、gpio、pwm；其余仍是迁移期的 C，F2 第 5 步改写），含 PortKit   OBJECT
+#   board_<板>         board.hpp（句柄与能力常量）与链接脚本                       OBJECT
 #   os_freertos_<板>   RTOS 头文件，只给 app_tasks、app_common 与 assembly       INTERFACE
 #
 # port 与 board 必须是 OBJECT 库（覆盖 HAL 弱符号的回调在静态库里会被静默丢弃）。
@@ -174,7 +174,7 @@ target_include_directories(os_freertos_${BOARD_ID} INTERFACE
 # 队列与通知 → src/utils 并发原语，临界区 → src/hal/os 契约 + 各板 port 的实现（Decision-20261026-10）。
 add_library(port_${BOARD_ID} OBJECT
     port/can.c
-    port/gpio.c
+    port/gpio.cpp
     port/hal_init.cpp
     port/init.c
     port/Init.h
@@ -182,9 +182,10 @@ add_library(port_${BOARD_ID} OBJECT
     port/os/critical_section.cpp
     port/os/os.hpp
     port/os/signal.cpp
+    port/port.hpp
     port/port_kit.c
     port/port_kit.h
-    port/pwm.c
+    port/pwm.cpp
     port/spi.c
     port/time.c
     port/uart.c
@@ -192,8 +193,9 @@ add_library(port_${BOARD_ID} OBJECT
     port/UsbCdc.h)
 enable_strict_warnings(port_${BOARD_ID})
 # hal_os：OS 契约 v1 的实现在 port/os（C++，Decision-20261031-10）。
-# hal：hal::init()（hal_init.cpp，Decision-20261031-11）。
-target_link_libraries(port_${BOARD_ID} PRIVATE hal hal_detail hal_os)
+# hal：hal::init()（hal_init.cpp，Decision-20261031-11）与契约 v1 的外设（gpio.cpp、pwm.cpp，Decision-20261101-01）。
+# board：board.hpp（句柄编号、外设个数），port 用 static_assert 核对自己的外设表（Decision-20261101-01）。
+target_link_libraries(port_${BOARD_ID} PRIVATE hal hal_detail hal_os board_${BOARD_ID})
 link_object_library(port_${BOARD_ID}
     mx_generated_${BOARD_ID}
     rtos_${BOARD_ID}
@@ -201,10 +203,13 @@ link_object_library(port_${BOARD_ID}
 # 生成区链接接缝（例外 X-02）：USB 发送经 port 包装，P4 改为回调注册后删除。
 target_link_options(port_${BOARD_ID} INTERFACE "-Wl,--wrap=HAL_PCD_EP_Transmit")
 
-# ---- board：板级内容。P1 只有链接脚本（CubeMX 生成，冻结）；
-#      引脚表、能力常量、设备 ID 在 P3a 加入，链接脚本 overlay 在 P4 加入（Q9） ----
+# ---- board：板级内容——board.hpp（物理资源句柄、外设个数与能力常量，Decision-20261101-01）与链接脚本
+#      （CubeMX 生成，冻结）；链接脚本 overlay 在第一个自定义段出现时加入（Q9） ----
+# board.hpp 只给组合根与本板的 port：include 路径只开到 board/，看不到 port/（规则 1）。
 set(linker_script "${cubemx_dir}/STM32H723xG_flash.ld")
-add_library(board_${BOARD_ID} OBJECT "${linker_script}")
+add_library(board_${BOARD_ID} OBJECT "${linker_script}" board/board.hpp)
 set_target_properties(board_${BOARD_ID} PROPERTIES LINKER_LANGUAGE C)
+target_include_directories(board_${BOARD_ID} INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/board")
+target_link_libraries(board_${BOARD_ID} INTERFACE hal)
 target_link_options(board_${BOARD_ID} INTERFACE "-T${linker_script}")
 set_property(TARGET board_${BOARD_ID} APPEND PROPERTY INTERFACE_LINK_DEPENDS "${linker_script}")

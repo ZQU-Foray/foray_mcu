@@ -39,7 +39,7 @@ bool Bmi088Heater::init() noexcept
     config.maxout = PID_MAXIMUM_OUTPUT;
     config.integral_limit = PID_INTEGRAL_LIMIT;
 
-    initialized_ = pid_.init(config) && platform::Pwm::is_ready(platform::Pwm::Channel::IMU_HEATER);
+    initialized_ = pid_.init(config) && pwm_.is_ready();
     enabled_ = false;
     sample_seen_ = false;
     state_ = initialized_ ? State::DISABLED : State::FAULT;
@@ -47,10 +47,10 @@ bool Bmi088Heater::init() noexcept
     temperature_celsius_ = 0.0F;
     duty_permille_ = 0U;
     last_temperature_read_count_ = 0U;
-    last_sample_tick_ = platform::Time::now_ticks();
-    last_control_tick_ = last_sample_tick_;
-    last_pwm_result_ = platform::Pwm::silence(platform::Pwm::Channel::IMU_HEATER);
-    if (last_pwm_result_ != platform::Pwm::Result::COMPLETED)
+    last_sample_us_ = hal::os::now_us();
+    last_control_us_ = last_sample_us_;
+    last_pwm_result_ = pwm_.off();
+    if (last_pwm_result_ != hal::Pwm::Result::COMPLETED)
     {
         initialized_ = false;
         state_ = State::FAULT;
@@ -68,7 +68,7 @@ void Bmi088Heater::set_enabled(bool enabled) noexcept
 
     enabled_ = enabled;
     pid_.reset();
-    last_control_tick_ = platform::Time::now_ticks();
+    last_control_us_ = hal::os::now_us();
     if (!enabled)
     {
         disable_output(State::DISABLED);
@@ -110,7 +110,7 @@ void Bmi088Heater::process(const Bmi088Temperature &temperature) noexcept
     {
         last_temperature_read_count_ = read_count;
         temperature_celsius_ = Bmi088Temperature::to_celsius(sample.raw);
-        last_sample_tick_ = platform::Time::now_ticks();
+        last_sample_us_ = hal::os::now_us();
         sample_seen_ = true;
     }
 
@@ -120,22 +120,22 @@ void Bmi088Heater::process(const Bmi088Temperature &temperature) noexcept
         return;
     }
 
+    const hal::os::Microseconds now = hal::os::now_us();
     if (!std::isfinite(temperature_celsius_) || temperature_celsius_ > MAXIMUM_SAFE_CELSIUS ||
-        platform::Time::has_elapsed_ms(last_sample_tick_, SAMPLE_TIMEOUT_MS))
+        hal::os::has_elapsed(last_sample_us_, SAMPLE_TIMEOUT_US, now))
     {
         disable_output(State::FAULT);
         pid_.reset();
         return;
     }
 
-    if (!platform::Time::has_elapsed_ms(last_control_tick_, CONTROL_PERIOD_MS))
+    if (!hal::os::has_elapsed(last_control_us_, CONTROL_PERIOD_US, now))
     {
         return;
     }
 
-    const platform::Time::Tick now = platform::Time::now_ticks();
-    const float delta_seconds = platform::Time::ticks_to_seconds(now - last_control_tick_);
-    last_control_tick_ = now;
+    const float delta_seconds = hal::os::to_seconds(hal::os::elapsed_us(last_control_us_, now));
+    last_control_us_ = now;
 
     // 默认 50 C 目标沿用原有 45 C 快速预热边界。
     // 更低的诊断设定值不得被强行推过其目标。
@@ -183,19 +183,19 @@ void Bmi088Heater::process(const Bmi088Temperature &temperature) noexcept
 
 void Bmi088Heater::disable_output(State next_state) noexcept
 {
-    last_pwm_result_ = platform::Pwm::silence(platform::Pwm::Channel::IMU_HEATER);
+    last_pwm_result_ = pwm_.off();
     duty_permille_ = 0U;
-    state_ = last_pwm_result_ == platform::Pwm::Result::COMPLETED ? next_state : State::FAULT;
+    state_ = last_pwm_result_ == hal::Pwm::Result::COMPLETED ? next_state : State::FAULT;
 }
 
 bool Bmi088Heater::set_duty(std::uint16_t duty_permille) noexcept
 {
-    last_pwm_result_ = platform::Pwm::set(platform::Pwm::Channel::IMU_HEATER, PWM_FREQUENCY_HZ, duty_permille);
-    if (last_pwm_result_ != platform::Pwm::Result::COMPLETED)
+    last_pwm_result_ = pwm_.set(PWM_FREQUENCY_HZ, duty_permille);
+    if (last_pwm_result_ != hal::Pwm::Result::COMPLETED)
     {
         duty_permille_ = 0U;
         state_ = State::FAULT;
-        (void)platform::Pwm::silence(platform::Pwm::Channel::IMU_HEATER);
+        (void)pwm_.off();
         return false;
     }
 

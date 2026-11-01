@@ -5,7 +5,7 @@ namespace device
 
 bool Buzzer::is_ready() const noexcept
 {
-    return platform::Pwm::is_ready(platform::Pwm::Channel::BUZZER);
+    return pwm_.is_ready();
 }
 
 Buzzer::Result Buzzer::play(std::uint32_t frequency_hz, std::uint8_t volume) noexcept
@@ -21,7 +21,7 @@ Buzzer::Result Buzzer::play(std::uint32_t frequency_hz, std::uint8_t volume) noe
         return last_result_;
     }
 
-    last_result_ = platform::Pwm::set(platform::Pwm::Channel::BUZZER, frequency_hz, volume_to_duty_permille(volume));
+    last_result_ = pwm_.set(frequency_hz, volume_to_duty_permille(volume));
     if (last_result_ == Result::COMPLETED)
     {
         state_ = State::PLAYING;
@@ -34,7 +34,7 @@ Buzzer::Result Buzzer::play(std::uint32_t frequency_hz, std::uint8_t volume) noe
 
 Buzzer::Result Buzzer::stop() noexcept
 {
-    last_result_ = platform::Pwm::silence(platform::Pwm::Channel::BUZZER);
+    last_result_ = pwm_.off();
     if (last_result_ == Result::COMPLETED)
     {
         state_ = State::STOPPED;

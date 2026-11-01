@@ -50,6 +50,13 @@ host_test(bmi088_acquisition
     SOURCES unit/imu_acquisition/bmi088_acquisition_test.cpp
     LINK driver_bmi088)
 target_compile_options(test_bmi088_acquisition PRIVATE -O2)
+# hal 契约 v1 在 platform/mock 上的语义与改用它的驱动（Decision-20261101-01）。
+host_test(hal_gpio_pwm
+    SOURCES unit/hal/gpio_pwm_test.cpp
+    LINK platform_mock)
+host_test(buzzer
+    SOURCES unit/buzzer/buzzer_test.cpp
+    LINK driver_buzzer platform_mock)
 host_test(hal_os_mock
     SOURCES unit/hal_os/mock_os_test.cpp
     LINK platform_mock)
