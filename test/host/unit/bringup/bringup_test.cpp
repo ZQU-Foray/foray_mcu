@@ -51,7 +51,7 @@ int main()
     assert(monitor.report().last_latency_us == 0x20U);
 
     // 清单列出全部 topic
-    assert(topics::ALL.size() == 1U);
+    assert(topics::ALL.size() == 4U);
     assert(topics::ALL[0] == &topics::bringup::heartbeat);
     assert(topics::bringup::heartbeat.publish_count() == 4U);
     return 0;

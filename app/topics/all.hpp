@@ -11,7 +11,12 @@
 namespace topics
 {
 
-inline constexpr std::array<const topic::TopicBase *, 1> ALL{&bringup::heartbeat};
+inline constexpr std::array<const topic::TopicBase *, 4> ALL{
+    &bringup::heartbeat,
+    &bringup::imu_event,
+    &bringup::imu,
+    &bringup::sbus,
+};
 
 } // namespace topics
 

@@ -14,7 +14,7 @@ graph 检查（规则 1、2、5、6、15 与评审报告 §5.2）：
     测试到不了 port/board/生成区/assembly；只有固件可执行文件能链接 assembly；
   - 无环；port、board 与生成区必须是 OBJECT 库；必需的 target 都存在；
   - framework 模式（框架独立构建）：图里不得出现产品、板卡、RTOS 或测试，连未定义的同名库也不行。
-scan 检查（规则 1、3、7、8、9、10、12、13、15、17）：board.hpp 只给组合根与 port；契约头不出现厂商与 RTOS 名；CMake 不用 file(GLOB) 与
+scan 检查（规则 1、3、4、7、8、9、10、12、13、15、16、17）：board.hpp 只给组合根与 port；契约头不出现厂商与 RTOS 名；CMake 不用 file(GLOB) 与
   全局 include_directories()；app/ 与 src/ 不用 #if 做裁剪（头文件保护与 __cplusplus 除外）；
   一级目录白名单；不用原子读改写；框架代码不引用产品的路径或 target；topic 只在 app/topics 定义、
   每个 topic 只在一处取得发布句柄、清单头只 include 标准库与 topic 机制。
@@ -389,6 +389,8 @@ TOPIC_QUOTED_INCLUDES = re.compile(
     r"middleware/topic/topic\.hpp|hal/os/clock\.hpp|topics/[\w/]+\.hpp"
 )
 STANDARD_HEADER = re.compile(r"[a-z_]+")
+# 规则 4：profile 的 params.hpp 只含数据，只能 include 能力的头（app/ 下除 topics、common 外的一级目录）与标准库头
+PARAMS_CAPABILITY_INCLUDE = re.compile(r"(\w+)/[\w/]+\.hpp")
 # 规则 16：C 链接只允许 §9.3 的几处（启动入口、USB 生成区接缝 X-01/X-02）；HAL 回调靠 include HAL 头得到
 # C 链接，中断入口在生成区，都不写 extern "C"（Decision-20261101-01）
 EXTERN_C = re.compile(r'\bextern\s+"C"')
@@ -504,6 +506,7 @@ def check_scan() -> list[str]:
     errors += check_rtos_includes()
     errors += check_board_includes()
     errors += check_c_linkage()
+    errors += check_params()
     for path in tracked("src/*", "platform/*", "cmake/*"):
         if "cubemx" in path.parts:
             continue  # 生成区由规则 7 与例外 X-09 管
@@ -517,7 +520,8 @@ def check_scan() -> list[str]:
             if match:
                 errors.append(f"规则 15：框架文件 {path} 引用了产品：{match.group(0)}")
     print(
-        "文本扫描：规则 1（board.hpp）、3、7（include）、8、9、10、12、13、15、16（C 链接位置）、17"
+        "文本扫描：规则 1（board.hpp）、3、4（params.hpp 的 include）、7（include）、8、9、10、12、13、15、"
+        "16（C 链接位置）、17"
     )
     return sorted(set(errors))
 
@@ -571,6 +575,27 @@ def check_rtos_includes() -> list[str]:
             if RTOS_HEADER.fullmatch(Path(header).name):
                 errors.append(
                     f"规则 10：{name} include 了 RTOS 头 {header}：能力与框架零 RTOS，只经 hal/os"
+                )
+    return errors
+
+
+def check_params() -> list[str]:
+    """规则 4：config/profiles/*/params.hpp 只 include 能力的头与标准库头。"""
+    errors = []
+    capabilities = WHITELIST["app"] - {"topics", "common"}
+    for path in tracked("config/profiles/*/params.hpp"):
+        code = strip_comments(path, path.read_text("utf-8"))
+        for kind, header in INCLUDE.findall(code):
+            if kind == "<":
+                allowed = STANDARD_HEADER.fullmatch(header) is not None
+            else:
+                match = PARAMS_CAPABILITY_INCLUDE.fullmatch(header)
+                allowed = match is not None and match.group(1) in capabilities
+            if not allowed:
+                shown = f'"{header}"' if kind == '"' else f"<{header}>"
+                errors.append(
+                    f"规则 4：{path.as_posix()} include 了 {shown}："
+                    "params.hpp 只含数据，只能 include 能力的头与标准库头"
                 )
     return errors
 

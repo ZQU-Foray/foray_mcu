@@ -119,6 +119,13 @@ target_compile_options(test_topic PRIVATE -O2)
 host_test(bringup
     SOURCES unit/bringup/bringup_test.cpp
     LINK app_bringup platform_mock)
+# bringup 的外设检查（Decision-20261101-03）：BMI088 由 SPI 替身扮演，中断由 GPIO 替身触发
+host_test(bringup_imu
+    SOURCES unit/bringup/imu_check_test.cpp
+    LINK app_bringup platform_mock)
+host_test(bringup_io
+    SOURCES unit/bringup/io_checks_test.cpp
+    LINK app_bringup platform_mock)
 
 # ---- 架构断言：通用电机头不得引用具体电机协议、适配器或驱动 ----
 # 通用头允许声明通用型号、电机组与品牌映射包含（装配选择）。清单显式列出，

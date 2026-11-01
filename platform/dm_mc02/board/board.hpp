@@ -61,6 +61,7 @@ inline constexpr hal::Uart UART_10{1U};
 inline constexpr std::uint8_t UART_COUNT{2U};
 
 // ---- USB CDC（port/usb_cdc.cpp）：USB OTG HS 接口上的虚拟串口 ----
+// 生成区在内核启动后的默认任务里初始化 USB（MX_USB_DEVICE_Init → UsbCdcPort_Init），之前 is_ready() 为 false。
 inline constexpr hal::UsbCdc USB_CDC{0U};
 inline constexpr std::uint8_t USB_CDC_COUNT{1U};
 
