@@ -1796,7 +1796,7 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 4. 帧的接收时刻可能晚于本轮开始时取的 `now`（M3 上板发现）：关节指令超时与达妙离线判定原来用无符号差，回绕成很大的值，指令一直算超时、电机只收到 0 力矩。改为有符号差（`2ec417b`），宿主测试补了回归。
 5. 安全门 `actuator::SafetyGate` 上电即锁定，收到"不急停"且 `arm_sequence` 与锁定时不同才放行；bringup 固件没有接安全门（bringup 的达妙检查自己管使能），阶段 A 的产品 profile 再接。
 
-**实施进度**：M0–M6 完成（分支 `f3/can-rx-timestamp` → `f3/motor-benchmark` → `f3/can-bus-joint` → `f3/dm-joint` → `f3/stamp-order-fix` → `f3/dji-joint` → `f3/actuator-safety` → `f3/motor-cleanup`），M7 基准复测见[基准记录](docs/ai/decisions/2026-11-02-电机控制环基准/README.md)。DJI 的新驱动只有宿主测试，上板要等 CAN2 接上 GM6020。
+**实施进度**：M0–M7 完成（分支 `f3/can-rx-timestamp` → `f3/motor-benchmark` → `f3/can-bus-joint` → `f3/dm-joint` → `f3/stamp-order-fix` → `f3/dji-joint` → `f3/actuator-safety` → `f3/motor-cleanup`）。M7 基准复测（[基准记录](docs/ai/decisions/2026-11-02-电机控制环基准/README.md)）：反馈 → 下发延迟 1753 → 753 µs，抖动不劣于重构前；单轮平均耗时稳定多 1.2 µs（Release 11.2 → 12.4 µs，最长不变），按判据第 8 条的字面不算"不劣于"，交负责人判断，AI 建议接受。DJI 的新驱动只有宿主测试，上板要等 CAN2 接上 GM6020。
 
 **Alternatives**：见方案第 5 节各项的其他选项。
 
