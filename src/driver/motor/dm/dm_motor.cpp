@@ -38,10 +38,20 @@ bool same_limit(float actual, float expected)
     return std::isfinite(actual) && std::fabs(actual - expected) <= LIMIT_TOLERANCE * std::fabs(expected);
 }
 
-bool finite(const Dm::MitCommand &command)
+float radians_per_count(const Dm::Limits &limits)
 {
-    return std::isfinite(command.position_rad) && std::isfinite(command.velocity_rad_per_second) &&
-           std::isfinite(command.kp) && std::isfinite(command.kd) && std::isfinite(command.torque_newton_meter);
+    return 2.0F * limits.position_rad / static_cast<float>((1UL << POSITION_BITS) - 1UL);
+}
+
+std::uint32_t timeout_ticks(const DmMotor::Profile &profile)
+{
+    return profile.communication_timeout_us / DmMotor::TIMEOUT_TICK_US;
+}
+
+bool model_valid(const DmMotor::Profile &profile)
+{
+    return Dm::is_valid(profile.limits) && std::isfinite(profile.peak_torque_newton_meter) &&
+           profile.peak_torque_newton_meter > 0.0F && timeout_ticks(profile) != 0U;
 }
 
 } // namespace
@@ -49,37 +59,127 @@ bool finite(const Dm::MitCommand &command)
 bool DmMotor::init() noexcept
 {
     ready_ = false;
-    slots_ = {};
+    if (!config_valid() || !attach())
+    {
+        return false;
+    }
     statistics_ = {};
-    if (!config_valid())
-    {
-        return false;
-    }
-
-    // 这条总线的接收队列只能有一个消费者。最后才占用：失败的实例不占住总线；重复 init() 时不再占用
-    if (!config_.bus.is_ready() || (!receiver_claimed_ && !config_.bus.claim_receiver()))
-    {
-        return false;
-    }
-    receiver_claimed_ = true;
-
     for (std::size_t index = 0U; index < config_.count; ++index)
     {
-        restart_verification(slots_[index]);
+        slots_[index] = Slot{};
+        restart_verification(index);
     }
     ready_ = true;
     return true;
 }
 
-void DmMotor::process() noexcept
+bool DmMotor::attach() noexcept
+{
+    if (attached_)
+    {
+        return true;
+    }
+    // 先登记到 CanBus：失败时关节还没接上，可以改好配置后重试
+    std::array<CanBus::Filter, MAXIMUM_MOTORS> filters{};
+    std::size_t filter_count = 0U;
+    for (std::size_t index = 0U; index < config_.count; ++index)
+    {
+        const std::uint16_t master_id = config_.motors[index].master_id;
+        bool seen = false;
+        for (std::size_t filter = 0U; filter < filter_count; ++filter)
+        {
+            seen = seen || filters[filter].first == master_id;
+        }
+        if (!seen)
+        {
+            filters[filter_count++] = CanBus::Filter{master_id, master_id, hal::Can::IdentifierType::STANDARD};
+        }
+    }
+    if (!bus_.attach(CanBus::Client{this, on_frame, on_transmit}, filters.data(), filter_count))
+    {
+        return false;
+    }
+    for (std::size_t index = 0U; index < config_.count; ++index)
+    {
+        const Motor &motor = config_.motors[index];
+        JointLink::Binding binding{};
+        binding.modes = JointLink::TORQUE_AND_IMPEDANCE;
+        binding.motor_maximum_torque_newton_meter = motor.profile.maximum_torque_newton_meter();
+        binding.position_absolute = true;
+        binding.has_temperature = true;
+        binding.mechanics = motor.mechanics;
+        // config_valid() 已经检查过关节与机构，这里不会失败
+        (void)JointLink::bind(*motor.joint, binding);
+    }
+    attached_ = true;
+    return true;
+}
+
+bool DmMotor::config_valid() const noexcept
+{
+    if (config_.count == 0U || config_.count > MAXIMUM_MOTORS)
+    {
+        return false;
+    }
+    for (std::size_t index = 0U; index < config_.count; ++index)
+    {
+        const Motor &motor = config_.motors[index];
+        const JointMechanics &mechanics = motor.mechanics;
+        if (motor.joint == nullptr || (!attached_ && motor.joint->supports(JointMode::TORQUE)) ||
+            !model_valid(motor.profile) || motor.esc_id == 0U || motor.esc_id > MAXIMUM_ESC_ID ||
+            motor.master_id > MAXIMUM_MASTER_ID || (mechanics.direction != 1 && mechanics.direction != -1) ||
+            !std::isfinite(mechanics.gear_ratio) || mechanics.gear_ratio <= 0.0F ||
+            !std::isfinite(mechanics.zero_offset_rad))
+        {
+            return false;
+        }
+        for (std::size_t other = 0U; other < config_.count; ++other)
+        {
+            const Motor &peer = config_.motors[other];
+            // 电机按帧 ID 低 8 位认帧：MST_ID 撞上谁的 ESC_ID，谁就会把反馈当成发给自己的帧
+            if ((motor.master_id & FRAME_ID_LOW_MASK) == peer.esc_id ||
+                (other < index && (peer.esc_id == motor.esc_id || peer.joint == motor.joint)))
+            {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+void DmMotor::on_frame(void *context, const hal::Can::Frame &frame) noexcept
+{
+    static_cast<DmMotor *>(context)->receive(frame);
+}
+
+void DmMotor::on_transmit(void *context, hal::os::Microseconds now) noexcept
+{
+    static_cast<DmMotor *>(context)->transmit(now);
+}
+
+void DmMotor::receive(const hal::Can::Frame &frame) noexcept
 {
     if (!ready_)
     {
         return;
     }
+    const Dm::Frame dm_frame{frame.identifier, frame.length, frame.data};
+    for (std::size_t index = 0U; index < config_.count; ++index)
+    {
+        if (config_.motors[index].master_id == frame.identifier && handle_frame(index, dm_frame, frame.received_us))
+        {
+            return;
+        }
+    }
+    ++statistics_.unknown_frame_count;
+}
 
-    const hal::os::Microseconds now = hal::os::now_us();
-    receive_frames();
+void DmMotor::transmit(hal::os::Microseconds now) noexcept
+{
+    if (!ready_)
+    {
+        return;
+    }
     for (std::size_t index = 0U; index < config_.count; ++index)
     {
         switch (slots_[index].phase)
@@ -94,73 +194,7 @@ void DmMotor::process() noexcept
         case Phase::MISMATCH:
             break;
         }
-    }
-
-    const hal::Can::Statistics bus = config_.bus.statistics();
-    statistics_.rx_dropped_count = bus.rx_dropped_count;
-    statistics_.rx_hardware_loss_event_count = bus.rx_hardware_loss_event_count;
-    statistics_.bus_off_count = bus.bus_off_count;
-}
-
-bool DmMotor::can_enable(std::size_t index) const noexcept
-{
-    return ready_ && index < config_.count && slots_[index].phase == Phase::READY;
-}
-
-bool DmMotor::enable(std::size_t index) noexcept
-{
-    if (!can_enable(index))
-    {
-        return false;
-    }
-    Slot &slot = slots_[index];
-    if (slot.output_requested)
-    {
-        return true;
-    }
-    drop_output(slot);
-    slot.output_requested = true;
-    slot.enable_failed = false;
-    return true;
-}
-
-bool DmMotor::disable(std::size_t index) noexcept
-{
-    if (index >= config_.count)
-    {
-        return false;
-    }
-    drop_output(slots_[index]);
-    return true;
-}
-
-bool DmMotor::set_command(std::size_t index, const protocol::DmEsc::MitCommand &command) noexcept
-{
-    if (!ready_ || index >= config_.count || !slots_[index].output_requested)
-    {
-        return false;
-    }
-    if (!finite(command))
-    {
-        slots_[index].command = {};
-        return false;
-    }
-    slots_[index].command = command;
-    return true;
-}
-
-bool DmMotor::set_torque(std::size_t index, float newton_meter) noexcept
-{
-    Dm::MitCommand command{};
-    command.torque_newton_meter = newton_meter;
-    return set_command(index, command);
-}
-
-void DmMotor::clear_all_commands() noexcept
-{
-    for (Slot &slot : slots_)
-    {
-        slot.command = {};
+        publish_status(index, now);
     }
 }
 
@@ -171,10 +205,12 @@ bool DmMotor::get_snapshot(std::size_t index, Snapshot &snapshot) const noexcept
         return false;
     }
     const Slot &slot = slots_[index];
-    const Dm::Limits &limits = config_.profile.limits;
+    const Motor &motor = config_.motors[index];
+    const Dm::Limits &limits = motor.profile.limits;
 
     Snapshot result{};
-    result.motor = config_.motors[index];
+    result.esc_id = motor.esc_id;
+    result.master_id = motor.master_id;
     result.phase = slot.phase;
     result.output_requested = slot.output_requested;
     result.output_active = slot.output_active;
@@ -187,10 +223,7 @@ bool DmMotor::get_snapshot(std::size_t index, Snapshot &snapshot) const noexcept
     result.state = slot.state;
     if (slot.has_feedback)
     {
-        const float radians_per_count = 2.0F * limits.position_rad / static_cast<float>((1UL << POSITION_BITS) - 1UL);
-        result.position_rad = static_cast<float>(slot.position_counts) * radians_per_count - limits.position_rad;
-        result.position_from_first_feedback_rad =
-            static_cast<float>(slot.position_counts - slot.origin_counts) * radians_per_count;
+        result.position_rad = position_rad(index);
         result.velocity_rad_per_second = Dm::from_unsigned(
             slot.feedback.velocity, -limits.velocity_rad_per_second, limits.velocity_rad_per_second, TWELVE_BITS);
         result.torque_newton_meter = Dm::from_unsigned(
@@ -212,66 +245,10 @@ bool DmMotor::get_statistics(Statistics &statistics) const noexcept
     return true;
 }
 
-float DmMotor::maximum_torque_newton_meter() const noexcept
+float DmMotor::position_rad(std::size_t index) const noexcept
 {
-    if (!ready_)
-    {
-        return 0.0F;
-    }
-    const Profile &profile = config_.profile;
-    return profile.peak_torque_newton_meter < profile.limits.torque_newton_meter ? profile.peak_torque_newton_meter
-                                                                                 : profile.limits.torque_newton_meter;
-}
-
-bool DmMotor::config_valid() const noexcept
-{
-    const Profile &profile = config_.profile;
-    if (config_.count == 0U || config_.count > MAXIMUM_MOTORS || !Dm::is_valid(profile.limits) ||
-        !std::isfinite(profile.peak_torque_newton_meter) || profile.peak_torque_newton_meter <= 0.0F ||
-        timeout_ticks_ == 0U)
-    {
-        return false;
-    }
-    for (std::size_t index = 0U; index < config_.count; ++index)
-    {
-        const Motor &motor = config_.motors[index];
-        if (motor.esc_id == 0U || motor.esc_id > MAXIMUM_ESC_ID || motor.master_id > MAXIMUM_MASTER_ID)
-        {
-            return false;
-        }
-        for (std::size_t other = 0U; other < config_.count; ++other)
-        {
-            // 电机按帧 ID 低 8 位认帧：MST_ID 撞上谁的 ESC_ID，谁就会把反馈当成发给自己的帧
-            if ((motor.master_id & FRAME_ID_LOW_MASK) == config_.motors[other].esc_id ||
-                (other < index && config_.motors[other].esc_id == motor.esc_id))
-            {
-                return false;
-            }
-        }
-    }
-    return true;
-}
-
-void DmMotor::receive_frames() noexcept
-{
-    hal::Can::Frame frame{};
-    while (config_.bus.receive(frame) == hal::Can::ReceiveResult::RECEIVED)
-    {
-        bool matched = false;
-        if (frame.identifier_type == hal::Can::IdentifierType::STANDARD)
-        {
-            const Dm::Frame dm_frame{frame.identifier, frame.length, frame.data};
-            for (std::size_t index = 0U; index < config_.count && !matched; ++index)
-            {
-                matched = config_.motors[index].master_id == frame.identifier &&
-                          handle_frame(index, dm_frame, frame.received_us);
-            }
-        }
-        if (!matched)
-        {
-            ++statistics_.unknown_frame_count;
-        }
-    }
+    const Dm::Limits &limits = config_.motors[index].profile.limits;
+    return static_cast<float>(slots_[index].position_counts) * radians_per_count(limits) - limits.position_rad;
 }
 
 bool DmMotor::handle_frame(std::size_t index,
@@ -311,7 +288,7 @@ bool DmMotor::handle_frame(std::size_t index,
     }
     else if (slot.phase == Phase::READY)
     {
-        accept_feedback(slot, feedback, received_us);
+        accept_feedback(index, feedback, received_us);
     }
     return true;
 }
@@ -381,16 +358,18 @@ void DmMotor::accept_reply(std::size_t index, const protocol::DmEsc::RegisterRep
         break;
     case Step::WRITE_TIMEOUT:
         slot.timeout_ticks = reply.value;
-        finish_verification(slot);
+        finish_verification(index);
         break;
     case Step::DISABLE:
         break;
     }
 }
 
-void DmMotor::finish_verification(Slot &slot) noexcept
+void DmMotor::finish_verification(std::size_t index) noexcept
 {
-    const Dm::Limits &expected = config_.profile.limits;
+    Slot &slot = slots_[index];
+    const Profile &profile = config_.motors[index].profile;
+    const Dm::Limits &expected = profile.limits;
     Dm::Register mismatch = Dm::Register::UNDER_VOLTAGE; // 占位，只在 has_mismatch 时使用
     bool has_mismatch = true;
     if (slot.control_mode != static_cast<std::uint32_t>(Dm::ControlMode::MIT))
@@ -409,7 +388,7 @@ void DmMotor::finish_verification(Slot &slot) noexcept
     {
         mismatch = Dm::Register::TORQUE_MAX;
     }
-    else if (slot.timeout_ticks != timeout_ticks_)
+    else if (slot.timeout_ticks != timeout_ticks(profile))
     {
         mismatch = Dm::Register::TIMEOUT;
     }
@@ -425,13 +404,15 @@ void DmMotor::finish_verification(Slot &slot) noexcept
         return;
     }
     slot.phase = Phase::READY;
-    drop_output(slot);
+    drop_output(index);
 }
 
-void DmMotor::accept_feedback(Slot &slot,
+void DmMotor::accept_feedback(std::size_t index,
                               const protocol::DmEsc::FeedbackRaw &feedback,
                               hal::os::Microseconds received_us) noexcept
 {
+    Slot &slot = slots_[index];
+    const Dm::Limits &limits = config_.motors[index].profile.limits;
     if (slot.has_feedback)
     {
         std::int32_t delta =
@@ -449,10 +430,19 @@ void DmMotor::accept_feedback(Slot &slot,
     else
     {
         slot.position_counts = static_cast<std::int32_t>(feedback.position);
-        slot.origin_counts = slot.position_counts;
         slot.has_feedback = true;
     }
     slot.feedback = feedback;
+
+    MotorFeedback motor_feedback{};
+    motor_feedback.position_rad = position_rad(index);
+    motor_feedback.velocity_rad_per_second = Dm::from_unsigned(
+        feedback.velocity, -limits.velocity_rad_per_second, limits.velocity_rad_per_second, TWELVE_BITS);
+    motor_feedback.torque_newton_meter =
+        Dm::from_unsigned(feedback.torque, -limits.torque_newton_meter, limits.torque_newton_meter, TWELVE_BITS);
+    motor_feedback.temperature_celsius = static_cast<float>(feedback.rotor_temperature_celsius);
+    motor_feedback.stamp_us = received_us;
+    JointLink::publish(*config_.motors[index].joint, motor_feedback);
 
     if (!slot.output_requested || !slot.clear_sent)
     {
@@ -473,7 +463,7 @@ void DmMotor::accept_feedback(Slot &slot,
         }
         else if (is_fault(feedback.state))
         {
-            drop_output(slot);
+            abandon_output(index);
             slot.enable_failed = true;
             ++statistics_.enable_failure_count;
         }
@@ -481,11 +471,11 @@ void DmMotor::accept_feedback(Slot &slot,
     }
     if (feedback.state != Dm::State::ENABLED)
     {
-        drop_output(slot);
+        abandon_output(index);
         if (feedback.state == Dm::State::DISABLED)
         {
             // 不是我们让它失能的：电机复位过，RAM 里写的超时已经丢了，重新核对
-            restart_verification(slot);
+            restart_verification(index);
         }
     }
 }
@@ -503,7 +493,8 @@ void DmMotor::service_verification(std::size_t index, hal::os::Microseconds now)
         slot.request_pending = false;
     }
 
-    const std::uint16_t esc_id = config_.motors[index].esc_id;
+    const Motor &motor = config_.motors[index];
+    const std::uint16_t esc_id = motor.esc_id;
     Dm::Frame frame{};
     bool encoded = false;
     switch (slot.step)
@@ -528,7 +519,7 @@ void DmMotor::service_verification(std::size_t index, hal::os::Microseconds now)
         encoded = Dm::encode_read_register(esc_id, Dm::Register::TORQUE_MAX, frame);
         break;
     case Step::WRITE_TIMEOUT:
-        encoded = Dm::encode_write_register(esc_id, Dm::Register::TIMEOUT, timeout_ticks_, frame);
+        encoded = Dm::encode_write_register(esc_id, Dm::Register::TIMEOUT, timeout_ticks(motor.profile), frame);
         break;
     }
     if (encoded && send(frame))
@@ -541,21 +532,37 @@ void DmMotor::service_verification(std::size_t index, hal::os::Microseconds now)
 void DmMotor::service_output(std::size_t index, hal::os::Microseconds now) noexcept
 {
     Slot &slot = slots_[index];
+    const Motor &motor = config_.motors[index];
+    Joint &joint = *motor.joint;
     if (hal::os::has_elapsed(slot.last_update_us, LINK_TIMEOUT_US, now))
     {
-        restart_verification(slot);
+        abandon_output(index);
+        restart_verification(index);
         service_verification(index, now);
         return;
+    }
+
+    // 关节的请求：新请求从清错开始；撤销就失能
+    const bool requested = JointLink::enable_requested(joint);
+    if (requested && !slot.output_requested)
+    {
+        drop_output(index);
+        slot.output_requested = true;
+        slot.enable_failed = false;
+    }
+    else if (!requested && slot.output_requested)
+    {
+        drop_output(index);
     }
     if (slot.output_requested && !slot.output_active && slot.clear_sent &&
         hal::os::has_elapsed(slot.clear_sent_us, ENABLE_TIMEOUT_US, now))
     {
-        drop_output(slot);
+        abandon_output(index);
         slot.enable_failed = true;
         ++statistics_.enable_failure_count;
     }
 
-    const std::uint16_t esc_id = config_.motors[index].esc_id;
+    const std::uint16_t esc_id = motor.esc_id;
     Dm::Frame frame{};
     bool encoded = false;
     const bool clearing = slot.output_requested && !slot.clear_sent;
@@ -573,13 +580,40 @@ void DmMotor::service_output(std::size_t index, hal::os::Microseconds now) noexc
     }
     else
     {
-        encoded = Dm::encode_mit(esc_id, slot.command, config_.profile.limits, frame);
+        // 关节的指令（电机输出轴单位）；超时、没有指令时 JointLink 给 0 力矩
+        const JointCommand command = JointLink::command(joint, now);
+        Dm::MitCommand mit{};
+        mit.torque_newton_meter = command.torque_newton_meter;
+        if (command.mode == JointMode::IMPEDANCE)
+        {
+            // 位置给定按电机当前所在的那一圈换算回电机的量程
+            const float wrap_rad = position_rad(index) - Dm::from_unsigned(slot.feedback.position,
+                                                                           -motor.profile.limits.position_rad,
+                                                                           motor.profile.limits.position_rad,
+                                                                           POSITION_BITS);
+            mit.position_rad = command.position_rad - wrap_rad;
+            mit.velocity_rad_per_second = command.velocity_rad_per_second;
+            mit.kp = command.stiffness;
+            mit.kd = command.damping;
+        }
+        encoded = Dm::encode_mit(esc_id, mit, motor.profile.limits, frame);
     }
     if (encoded && send(frame) && clearing)
     {
         slot.clear_sent = true;
         slot.clear_sent_us = now;
     }
+}
+
+void DmMotor::publish_status(std::size_t index, hal::os::Microseconds now) noexcept
+{
+    const Slot &slot = slots_[index];
+    Joint &joint = *config_.motors[index].joint;
+    const bool ready = slot.phase == Phase::READY;
+    JointLink::set_available(joint, ready);
+    const bool online = ready && !hal::os::has_elapsed(slot.last_update_us, LINK_TIMEOUT_US, now);
+    const bool fault = slot.phase == Phase::MISMATCH || slot.enable_failed || is_fault(slot.state);
+    JointLink::set_status(joint, online, slot.output_active, fault, static_cast<std::uint8_t>(slot.state));
 }
 
 bool DmMotor::send(const protocol::DmEsc::Frame &frame) noexcept
@@ -589,16 +623,17 @@ bool DmMotor::send(const protocol::DmEsc::Frame &frame) noexcept
     out.identifier_type = hal::Can::IdentifierType::STANDARD;
     out.length = frame.length;
     out.data = frame.data;
-    const hal::Can::SendResult result = config_.bus.send(out);
+    const hal::Can::SendResult result = bus_.bus().send(out);
     const std::size_t slot = static_cast<std::size_t>(result);
     std::array<std::uint32_t, hal::Can::SEND_RESULT_COUNT> &counts = statistics_.tx_result_counts;
     ++counts[slot < counts.size() ? slot : counts.size() - 1U];
     return result == hal::Can::SendResult::QUEUED;
 }
 
-void DmMotor::restart_verification(Slot &slot) noexcept
+void DmMotor::restart_verification(std::size_t index) noexcept
 {
-    drop_output(slot);
+    drop_output(index);
+    Slot &slot = slots_[index];
     slot.phase = Phase::VERIFYING;
     slot.step = Step::READ_CONTROL_MODE;
     slot.request_pending = false;
@@ -608,12 +643,19 @@ void DmMotor::restart_verification(Slot &slot) noexcept
     slot.mismatch_register = 0U;
 }
 
-void DmMotor::drop_output(Slot &slot) noexcept
+void DmMotor::drop_output(std::size_t index) noexcept
 {
+    Slot &slot = slots_[index];
     slot.output_requested = false;
     slot.clear_sent = false;
     slot.output_active = false;
-    slot.command = {};
+}
+
+void DmMotor::abandon_output(std::size_t index) noexcept
+{
+    // 驱动撤销出力（故障、离线、使能失败）：关节的请求一并清掉，能力要再 enable() 才会重试
+    drop_output(index);
+    JointLink::drop_enable(*config_.motors[index].joint);
 }
 
 } // namespace device

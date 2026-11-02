@@ -1,6 +1,9 @@
 // bringup::DmCheck（Decision-20261102-02）在 platform/mock 上：整个检查流程、跳过转动、没有电机、核对不符、
 // 使能失败。电机由 unit/motor/dm_fake_motor.hpp 扮演（含通讯超时与按指令的转速）。
 #include "bringup/dm_check.hpp"
+#include "driver/can_bus/can_bus.hpp"
+#include "driver/motor/dm/dm_models.hpp"
+#include "driver/motor/joint.hpp"
 #include "unit/motor/dm_fake_motor.hpp"
 
 #include <cassert>
@@ -23,7 +26,8 @@ constexpr std::uint8_t BUS{0U};
 
 // 与 bringup_dm_mc02 的 params.hpp 相同
 constexpr DmCheck::Parameters PARAMETERS{
-    {1U, 0x11U},
+    1U,
+    0x11U,
     true,
     1.0F,
     1.0F,
@@ -49,9 +53,13 @@ void reset()
     mock::set_now_us(1000U);
 }
 
-DmMotor::Config motor_config()
+DmMotor::Config motor_config(device::Joint &joint)
 {
-    return DmMotor::Config{hal::Can{BUS}, DmMotor::Profile::j4310(), {{PARAMETERS.motor}}, 1U};
+    DmMotor::Config config{};
+    config.count = 1U;
+    config.motors[0] =
+        DmMotor::Motor{&joint, device::dm::DM_J4310, PARAMETERS.esc_id, PARAMETERS.master_id, device::JointMechanics{}};
+    return config;
 }
 
 /** 1 ms 一轮跑到结束或失败，最多 rounds 轮；返回跑了多少轮。 */
@@ -83,9 +91,12 @@ void test_full_sequence()
     motor.simulate_motion = true;
     Bench bench{BUS};
     bench.add(motor);
-    DmMotor driver{motor_config()};
+    device::CanBus bus{hal::Can{BUS}};
+    device::Joint joint;
+    DmMotor driver{bus, motor_config(joint)};
+    assert(bus.init());
     DmCheck check;
-    assert(check.init(DmCheck::Config{&driver, PARAMETERS}));
+    assert(check.init(DmCheck::Config{&bus, &driver, &joint, PARAMETERS}));
     run(check, bench);
 
     const DmCheck::Report &report = check.report();
@@ -111,12 +122,13 @@ void test_full_sequence()
            report.torque_max_newton_meter == 10.0F);
     assert(report.tx_queued > 0U && report.tx_rejected == 0U && report.unknown_frames == 0U);
     assert(report.request_timeouts == 0U && report.enable_failures == 0U);
-    // 1 kHz 基准（M0）：10 s 约 10000 轮；模拟时间在一轮里不走，单轮耗时与抖动为 0。
-    // 现在的驱动先暂存、下一轮才发：反馈在上一轮应答时到，这一轮取用，指令下一轮发出，延迟 2 ms
+    // 1 kHz 基准：10 s 约 10000 轮；模拟时间在一轮里不走，单轮耗时与抖动为 0。
+    // 收 → 算 → 发在同一轮（Decision-20261102-03）：反馈在上一轮应答时到，这一轮取用并发出，延迟 1 ms
+    //（重构前先暂存、下一轮才发，延迟是 2 ms）
     assert(report.bench_duration_us == 10000000U);
     assert(report.bench_cycles >= 9990U && report.bench_cycles <= 10001U);
-    assert(report.bench_latency_samples == report.bench_cycles - 1U && report.bench_latency_max_us == 2000U);
-    assert(report.bench_latency_sum_us == 2000U * report.bench_latency_samples);
+    assert(report.bench_latency_samples == report.bench_cycles && report.bench_latency_max_us == 1000U);
+    assert(report.bench_latency_sum_us == 1000U * report.bench_latency_samples);
     assert(report.bench_feedback_age_max_us == 1000U && report.bench_jitter_max_us == 0U);
     assert(report.bench_late_cycles == 0U && report.bench_exec_max_us == 0U);
     assert(report.bench_hold_error_max_rad == 0.0F); // 模拟电机在力矩模式下不动
@@ -139,12 +151,15 @@ void test_without_spin()
     motor.simulate_motion = true;
     Bench bench{BUS};
     bench.add(motor);
-    DmMotor driver{motor_config()};
+    device::CanBus bus{hal::Can{BUS}};
+    device::Joint joint;
+    DmMotor driver{bus, motor_config(joint)};
+    assert(bus.init());
     DmCheck::Parameters parameters = PARAMETERS;
     parameters.spin = false;
     parameters.benchmark = false;
     DmCheck check;
-    assert(check.init(DmCheck::Config{&driver, parameters}));
+    assert(check.init(DmCheck::Config{&bus, &driver, &joint, parameters}));
     run(check, bench);
     const DmCheck::Report &report = check.report();
     assert(report.passed && !report.motion_ok && report.spin_max_velocity_rad_per_second == 0.0F);
@@ -160,9 +175,12 @@ void test_no_motor()
     motor.powered = false;
     Bench bench{BUS};
     bench.add(motor);
-    DmMotor driver{motor_config()};
+    device::CanBus bus{hal::Can{BUS}};
+    device::Joint joint;
+    DmMotor driver{bus, motor_config(joint)};
+    assert(bus.init());
     DmCheck check;
-    assert(check.init(DmCheck::Config{&driver, PARAMETERS}));
+    assert(check.init(DmCheck::Config{&bus, &driver, &joint, PARAMETERS}));
     std::size_t control_frames = 0U;
     for (std::size_t round = 0U; round < 6000U && check.report().stage != Stage::FAILED; ++round)
     {
@@ -186,9 +204,12 @@ void test_mismatch()
     motor.torque_max = 7.0F;
     Bench bench{BUS};
     bench.add(motor);
-    DmMotor driver{motor_config()};
+    device::CanBus bus{hal::Can{BUS}};
+    device::Joint joint;
+    DmMotor driver{bus, motor_config(joint)};
+    assert(bus.init());
     DmCheck check;
-    assert(check.init(DmCheck::Config{&driver, PARAMETERS}));
+    assert(check.init(DmCheck::Config{&bus, &driver, &joint, PARAMETERS}));
     assert(run(check, bench) < 20U); // 核对一读完就判定
     const DmCheck::Report &report = check.report();
     assert(report.stage == Stage::FAILED && report.failed_stage == Stage::VERIFY);
@@ -203,19 +224,24 @@ void test_enable_failure()
     motor.refuse_enable = true;
     Bench bench{BUS};
     bench.add(motor);
-    DmMotor driver{motor_config()};
+    device::CanBus bus{hal::Can{BUS}};
+    device::Joint joint;
+    DmMotor driver{bus, motor_config(joint)};
+    assert(bus.init());
     DmCheck check;
-    assert(check.init(DmCheck::Config{&driver, PARAMETERS}));
+    assert(check.init(DmCheck::Config{&bus, &driver, &joint, PARAMETERS}));
     run(check, bench);
     const DmCheck::Report &report = check.report();
     assert(report.stage == Stage::FAILED && report.failed_stage == Stage::ENABLE && report.enable_failures == 1U);
     assert(motor.state == Dm::State::DISABLED && !report.output_active);
 
     // 驱动初始化失败（总线被占）：init() 返回 false
-    DmMotor second{motor_config()};
+    device::Joint second_joint;
+    DmMotor second{bus, motor_config(second_joint)};
     DmCheck other;
-    assert(!other.init(DmCheck::Config{&second, PARAMETERS}));
-    assert(!other.init(DmCheck::Config{nullptr, PARAMETERS}));
+    assert(!other.init(DmCheck::Config{&bus, &second, &second_joint, PARAMETERS})); // 同一条总线上 MST_ID 重叠
+    assert(!other.init(DmCheck::Config{&bus, nullptr, &second_joint, PARAMETERS}));
+    assert(!other.init(DmCheck::Config{nullptr, &second, &second_joint, PARAMETERS}));
 }
 
 } // namespace

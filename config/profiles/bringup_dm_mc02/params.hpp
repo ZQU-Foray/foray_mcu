@@ -47,7 +47,8 @@ inline constexpr bringup::Indicator::Parameters INDICATOR{200000U, 32U, true};
 // 之后是 1 kHz 控制环基准（Decision-20261102-03 的 M0）：使能 10 s，PD 保持位置（Kp 2 N·m/rad、Kd 0.05，限 0.5 N·m）。
 // 装到整车上之前把 spin 与 benchmark 改为 false，或者去掉这个检查
 inline constexpr bringup::DmCheck::Parameters DM_CHECK{
-    {1U, 0x11U},
+    1U,
+    0x11U,
     true,
     1.0F,
     1.0F,

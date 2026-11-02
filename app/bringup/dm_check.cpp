@@ -33,12 +33,12 @@ bool DmCheck::init(const Config &config) noexcept
     report_.spin_damping = config.parameters.damping;
     report_.bench_duration_us = config.parameters.benchmark ? config.parameters.benchmark_us : 0U;
     started_ = false;
-    return config.motor != nullptr && config.motor->init();
+    return config.bus != nullptr && config.motor != nullptr && config.joint != nullptr && config.motor->init();
 }
 
 void DmCheck::step(hal::os::Microseconds now) noexcept
 {
-    if (config_.motor == nullptr)
+    if (config_.bus == nullptr || config_.motor == nullptr || config_.joint == nullptr)
     {
         return;
     }
@@ -49,12 +49,12 @@ void DmCheck::step(hal::os::Microseconds now) noexcept
         enter(Stage::VERIFY, now);
     }
 
-    // 通讯超时一步故意不调 process()：电机收不到帧，应按写进去的超时自己失能
-    if (report_.stage != Stage::SILENCE)
+    // 收 → 算 → 发在同一轮里（Decision-20261102-03）。通讯超时一步故意两头都不做：电机收不到帧，应按写进去的超时自己失能
+    const bool silent = report_.stage == Stage::SILENCE;
+    if (!silent)
     {
-        config_.motor->process();
+        config_.bus->receive();
     }
-    processed_us_ = hal::os::now_us();
     bench_measured_ = false;
     Motor::Snapshot snapshot{};
     if (!config_.motor->get_snapshot(MOTOR, snapshot))
@@ -63,43 +63,50 @@ void DmCheck::step(hal::os::Microseconds now) noexcept
     }
     record(snapshot);
     advance(snapshot, now);
+    if (!silent && report_.stage != Stage::SILENCE)
+    {
+        config_.bus->transmit(now);
+    }
     if (bench_measured_)
     {
-        // 单轮耗时：本轮开始 → 驱动收发、算 PD、指令暂存完
-        const hal::os::Microseconds exec = hal::os::now_us() - now;
-        report_.bench_exec_max_us = exec > report_.bench_exec_max_us ? exec : report_.bench_exec_max_us;
-        report_.bench_exec_sum_us += exec;
+        finish_measure(now, hal::os::now_us());
     }
 }
 
-void DmCheck::measure(const device::DmMotor::Snapshot &snapshot,
-                      hal::os::Microseconds now,
-                      hal::os::Microseconds processed_us) noexcept
+void DmCheck::measure(hal::os::Microseconds now, hal::os::Microseconds computed_us) noexcept
 {
     if (bench_previous_)
     {
         const hal::os::Microseconds jitter = distance(now - bench_previous_start_us_, PERIOD_US);
         report_.bench_jitter_max_us = jitter > report_.bench_jitter_max_us ? jitter : report_.bench_jitter_max_us;
         report_.bench_late_cycles += now - bench_previous_start_us_ > LATE_PERIOD_US ? 1U : 0U;
-        // 现在的驱动：上一轮暂存的指令在本轮 process() 里发出。延迟 = 本轮发完 − 上一轮所用反馈的接收时刻
-        const hal::os::Microseconds latency = processed_us - bench_previous_feedback_us_;
-        report_.bench_latency_max_us = latency > report_.bench_latency_max_us ? latency : report_.bench_latency_max_us;
-        report_.bench_latency_sum_us += latency;
-        ++report_.bench_latency_samples;
     }
-    const hal::os::Microseconds age = processed_us - snapshot.last_update_us;
+    bench_feedback_us_ = config_.joint->state().stamp_us;
+    const hal::os::Microseconds age = computed_us - bench_feedback_us_;
     report_.bench_feedback_age_max_us =
         age > report_.bench_feedback_age_max_us ? age : report_.bench_feedback_age_max_us;
     bench_previous_ = true;
     bench_previous_start_us_ = now;
-    bench_previous_feedback_us_ = snapshot.last_update_us;
     bench_measured_ = true;
     ++report_.bench_cycles;
 }
 
+void DmCheck::finish_measure(hal::os::Microseconds now, hal::os::Microseconds transmitted_us) noexcept
+{
+    // 单轮耗时：本轮开始 → 收帧、算 PD、指令放进发送队列
+    const hal::os::Microseconds exec = transmitted_us - now;
+    report_.bench_exec_max_us = exec > report_.bench_exec_max_us ? exec : report_.bench_exec_max_us;
+    report_.bench_exec_sum_us += exec;
+    // 延迟：本轮算指令所用反馈的接收时刻 → 这条指令在本轮放进发送队列
+    const hal::os::Microseconds latency = transmitted_us - bench_feedback_us_;
+    report_.bench_latency_max_us = latency > report_.bench_latency_max_us ? latency : report_.bench_latency_max_us;
+    report_.bench_latency_sum_us += latency;
+    ++report_.bench_latency_samples;
+}
+
 void DmCheck::advance(const device::DmMotor::Snapshot &snapshot, hal::os::Microseconds now) noexcept
 {
-    Motor &motor = *config_.motor;
+    device::Joint &joint = *config_.joint;
     const Parameters &parameters = config_.parameters;
     const hal::os::Microseconds in_stage = now - stage_start_us_;
 
@@ -122,7 +129,7 @@ void DmCheck::advance(const device::DmMotor::Snapshot &snapshot, hal::os::Micros
         {
             break;
         }
-        if (!snapshot.online || !motor.enable(MOTOR))
+        if (!snapshot.online || !joint.enable())
         {
             fail();
             break;
@@ -144,7 +151,7 @@ void DmCheck::advance(const device::DmMotor::Snapshot &snapshot, hal::os::Micros
         break;
 
     case Stage::ZERO_TORQUE:
-        if (!snapshot.output_active || !motor.set_command(MOTOR, Dm::MitCommand{}))
+        if (!snapshot.output_active || !joint.set_torque(0.0F))
         {
             fail();
             break;
@@ -163,8 +170,7 @@ void DmCheck::advance(const device::DmMotor::Snapshot &snapshot, hal::os::Micros
 
     case Stage::SPIN:
         if (!snapshot.output_active ||
-            !motor.set_command(
-                MOTOR, Dm::MitCommand{0.0F, 0.0F, 0.0F, parameters.damping, parameters.spin_torque_newton_meter}))
+            !joint.set_impedance(0.0F, 0.0F, 0.0F, parameters.damping, parameters.spin_torque_newton_meter))
         {
             fail();
             break;
@@ -184,8 +190,7 @@ void DmCheck::advance(const device::DmMotor::Snapshot &snapshot, hal::os::Micros
         break;
 
     case Stage::BRAKE:
-        if (!snapshot.output_active ||
-            !motor.set_command(MOTOR, Dm::MitCommand{0.0F, 0.0F, 0.0F, parameters.damping, 0.0F}))
+        if (!snapshot.output_active || !joint.set_impedance(0.0F, 0.0F, 0.0F, parameters.damping, 0.0F))
         {
             fail();
             break;
@@ -220,7 +225,7 @@ void DmCheck::advance(const device::DmMotor::Snapshot &snapshot, hal::os::Micros
             snapshot.feedback_count >= stage_start_feedback_count_ + 2U)
         {
             report_.recover_after_us = in_stage;
-            if (!motor.enable(MOTOR))
+            if (!joint.enable())
             {
                 fail();
                 break;
@@ -237,7 +242,7 @@ void DmCheck::advance(const device::DmMotor::Snapshot &snapshot, hal::os::Micros
         if (snapshot.output_active)
         {
             report_.reenable_latency_us = in_stage;
-            (void)motor.disable(MOTOR);
+            joint.disable();
             enter(Stage::DISABLE, now);
         }
         else if (snapshot.enable_failed || !snapshot.output_requested || in_stage >= parameters.enable_timeout_us)
@@ -255,7 +260,7 @@ void DmCheck::advance(const device::DmMotor::Snapshot &snapshot, hal::os::Micros
             {
                 enter(Stage::DONE, now);
             }
-            else if (!motor.enable(MOTOR))
+            else if (!joint.enable())
             {
                 fail();
             }
@@ -289,7 +294,7 @@ void DmCheck::advance(const device::DmMotor::Snapshot &snapshot, hal::os::Micros
             fail();
             break;
         }
-        measure(snapshot, now, processed_us_);
+        measure(now, hal::os::now_us());
         {
             const float error = bench_target_rad_ - snapshot.position_rad;
             const float magnitude = std::fabs(error);
@@ -299,7 +304,7 @@ void DmCheck::advance(const device::DmMotor::Snapshot &snapshot, hal::os::Micros
                 parameters.hold_stiffness * error - parameters.hold_damping * snapshot.velocity_rad_per_second;
             const float limit = parameters.hold_torque_limit_newton_meter;
             torque = torque > limit ? limit : (torque < -limit ? -limit : torque);
-            if (!motor.set_torque(MOTOR, torque))
+            if (!joint.set_torque(torque))
             {
                 fail();
                 break;
@@ -307,7 +312,7 @@ void DmCheck::advance(const device::DmMotor::Snapshot &snapshot, hal::os::Micros
         }
         if (in_stage >= parameters.benchmark_us)
         {
-            (void)motor.disable(MOTOR);
+            joint.disable();
             enter(Stage::BENCH_DISABLE, now);
         }
         break;
@@ -368,9 +373,10 @@ void DmCheck::record(const device::DmMotor::Snapshot &snapshot) noexcept
         report_.request_timeouts = statistics.request_timeout_count;
         report_.enable_failures = statistics.enable_failure_count;
         report_.unknown_frames = statistics.unknown_frame_count;
-        report_.rx_dropped = statistics.rx_dropped_count;
-        report_.bus_off = statistics.bus_off_count;
     }
+    const hal::Can::Statistics port = config_.bus->statistics().port;
+    report_.rx_dropped = port.rx_dropped_count;
+    report_.bus_off = port.bus_off_count;
 }
 
 void DmCheck::enter(Stage stage, hal::os::Microseconds now) noexcept
@@ -383,7 +389,7 @@ void DmCheck::fail() noexcept
 {
     report_.failed_stage = report_.stage;
     report_.stage = Stage::FAILED;
-    (void)config_.motor->disable(MOTOR);
+    config_.joint->disable();
 }
 
 } // namespace bringup

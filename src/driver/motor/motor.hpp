@@ -28,15 +28,13 @@ enum class MotorModel : std::uint8_t
 {
     M2006,
     M3508,
-    GM6020_CURRENT,
-    DM_J4310
+    GM6020_CURRENT
 };
 
 struct MotorConnection final
 {
-    std::uint8_t device_id{0U}; // DJI：电调编号；达妙：ESC_ID
+    std::uint8_t device_id{0U}; // DJI 电调编号
     int direction{1};
-    std::uint16_t master_id{0U}; // 达妙：反馈与应答的帧 ID（MST_ID）；DJI 不用
 };
 
 } // namespace device

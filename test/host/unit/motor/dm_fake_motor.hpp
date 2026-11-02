@@ -7,6 +7,7 @@
 // - 使能只在没有故障时生效；故障要"清除错误"才回到失能。
 // - update()：使能时超过 TIMEOUT × 50 µs 没收到控制帧，自己失能并报"通讯丢失"（TIMEOUT 为 0 时不保护）。
 // - simulate_motion：按 MIT 指令的力矩与 Kd 取稳态转速（力矩 / Kd，不计惯量与摩擦），位置按收到 MIT 帧的间隔积分。
+#include "driver/can_bus/can_bus.hpp"
 #include "driver/protocol/dm/dm_esc.hpp"
 #include "hal/can.hpp"
 #include "hal/os/clock.hpp"
@@ -323,7 +324,18 @@ class Bench final
     std::size_t sent_count_{0U};
 };
 
-/** 一轮：驱动 process()（收上一轮的应答、发本轮的帧）→ 电机应答 → 时间前进 step_us。 */
+/** 一条总线的一轮：CanBus 收帧分给驱动，再让驱动推进与发送（Decision-20261102-03）。 */
+struct BusLoop final
+{
+    device::CanBus &bus;
+    void process() const
+    {
+        bus.receive();
+        bus.transmit(hal::os::now_us());
+    }
+};
+
+/** 一轮：driver.process()（收上一轮的应答、发本轮的帧）→ 电机应答 → 时间前进 step_us。 */
 template <typename Driver>
 void cycle(Driver &driver, Bench &bench, std::size_t rounds = 1U, hal::os::Microseconds step_us = 1000U)
 {

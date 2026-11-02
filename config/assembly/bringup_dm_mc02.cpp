@@ -15,7 +15,10 @@
 #include "driver/bmi088/bmi088.hpp"
 #include "driver/bmi088/bmi088_heater.hpp"
 #include "driver/buzzer/buzzer.hpp"
+#include "driver/can_bus/can_bus.hpp"
+#include "driver/motor/dm/dm_models.hpp"
 #include "driver/motor/dm/dm_motor.hpp"
+#include "driver/motor/joint.hpp"
 #include "driver/ws2812/ws2812.hpp"
 #include "hal/init.hpp"
 #include "hal/os/clock.hpp"
@@ -35,9 +38,23 @@ device::Bmi088 g_imu{board::SPI_IMU_ACCEL, board::SPI_IMU_GYRO};
 device::Bmi088Heater g_heater{board::PWM_IMU_HEATER, params::HEATER};
 device::Buzzer g_buzzer{board::PWM_BUZZER};
 device::Ws2812 g_led{board::SPI_LED};
-// 达妙电机：CAN1 一台 DM-J4310（Decision-20261102-02）
-device::DmMotor g_dm_motor{
-    device::DmMotor::Config{board::CAN_1, device::DmMotor::Profile::j4310(), {{params::DM_CHECK.motor}}, 1U}};
+// CAN1：总线分发与一台 DM-J4310（Decision-20261102-02、-03）。关节在电机输出轴上（机构 1:1）
+device::CanBus g_can_1{board::CAN_1};
+device::Joint g_dm_joint;
+constexpr device::DmMotor::Config dm_config()
+{
+    device::DmMotor::Config config{};
+    config.count = 1U;
+    config.motors[0] = device::DmMotor::Motor{&g_dm_joint,
+                                              device::dm::DM_J4310,
+                                              params::DM_CHECK.esc_id,
+                                              params::DM_CHECK.master_id,
+                                              device::JointMechanics{}};
+    return config;
+}
+device::DmMotor g_dm_motor{g_can_1, dm_config()};
+// 总线负载：1 kHz 下一台达妙电机每秒 2000 帧，约 27%（Decision-20261102-03 的编译期检查）
+static_assert(device::can_load_percent(device::DmMotor::frames_per_second(1U, 1000U)) <= 80U, "CAN1 在 1 kHz 下超载");
 
 // ---- 能力 ----
 // 板上两路 24 V 输出，高电平打开（Decision-20261101-06）
@@ -120,8 +137,9 @@ bool boot_init(void)
            g_heartbeat.init() && g_monitor.init(params::MONITOR) &&
            g_imu_check.init(bringup::ImuCheck::Config{
                &g_imu, &g_heater, board::IMU_ACCEL_INTERRUPT, board::IMU_GYRO_INTERRUPT, params::IMU}) &&
-           g_dm_check.init(bringup::DmCheck::Config{&g_dm_motor, params::DM_CHECK}) && g_can_2.init() &&
-           g_can_3.init() && g_sbus.init() && g_usb_report.init(params::USB_REPORT) &&
+           g_can_1.init() &&
+           g_dm_check.init(bringup::DmCheck::Config{&g_can_1, &g_dm_motor, &g_dm_joint, params::DM_CHECK}) &&
+           g_can_2.init() && g_can_3.init() && g_sbus.init() && g_usb_report.init(params::USB_REPORT) &&
            g_indicator.init(bringup::Indicator::Config{&g_buzzer, &g_led, params::INDICATOR}) && g_runner.init();
 }
 
