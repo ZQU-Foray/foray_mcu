@@ -79,7 +79,7 @@ void DmMotor::process() noexcept
     }
 
     const hal::os::Microseconds now = hal::os::now_us();
-    receive_frames(now);
+    receive_frames();
     for (std::size_t index = 0U; index < config_.count; ++index)
     {
         switch (slots_[index].phase)
@@ -252,7 +252,7 @@ bool DmMotor::config_valid() const noexcept
     return true;
 }
 
-void DmMotor::receive_frames(hal::os::Microseconds now) noexcept
+void DmMotor::receive_frames() noexcept
 {
     hal::Can::Frame frame{};
     while (config_.bus.receive(frame) == hal::Can::ReceiveResult::RECEIVED)
@@ -263,7 +263,8 @@ void DmMotor::receive_frames(hal::os::Microseconds now) noexcept
             const Dm::Frame dm_frame{frame.identifier, frame.length, frame.data};
             for (std::size_t index = 0U; index < config_.count && !matched; ++index)
             {
-                matched = config_.motors[index].master_id == frame.identifier && handle_frame(index, dm_frame, now);
+                matched = config_.motors[index].master_id == frame.identifier &&
+                          handle_frame(index, dm_frame, frame.received_us);
             }
         }
         if (!matched)
@@ -273,7 +274,9 @@ void DmMotor::receive_frames(hal::os::Microseconds now) noexcept
     }
 }
 
-bool DmMotor::handle_frame(std::size_t index, const protocol::DmEsc::Frame &frame, hal::os::Microseconds now) noexcept
+bool DmMotor::handle_frame(std::size_t index,
+                           const protocol::DmEsc::Frame &frame,
+                           hal::os::Microseconds received_us) noexcept
 {
     Slot &slot = slots_[index];
     const Motor &motor = config_.motors[index];
@@ -282,7 +285,7 @@ bool DmMotor::handle_frame(std::size_t index, const protocol::DmEsc::Frame &fram
     Dm::RegisterReply reply{};
     if (Dm::decode_register_reply(frame, motor.esc_id, reply) && is_verification_register(reply.register_address))
     {
-        slot.last_update_us = now;
+        slot.last_update_us = received_us;
         ++statistics_.register_reply_count;
         accept_reply(index, reply);
         return true;
@@ -293,7 +296,7 @@ bool DmMotor::handle_frame(std::size_t index, const protocol::DmEsc::Frame &fram
     {
         return false;
     }
-    slot.last_update_us = now;
+    slot.last_update_us = received_us;
     slot.state = feedback.state;
     ++slot.feedback_count;
     ++statistics_.feedback_count;
@@ -308,7 +311,7 @@ bool DmMotor::handle_frame(std::size_t index, const protocol::DmEsc::Frame &fram
     }
     else if (slot.phase == Phase::READY)
     {
-        accept_feedback(slot, feedback, now);
+        accept_feedback(slot, feedback, received_us);
     }
     return true;
 }
@@ -427,7 +430,7 @@ void DmMotor::finish_verification(Slot &slot) noexcept
 
 void DmMotor::accept_feedback(Slot &slot,
                               const protocol::DmEsc::FeedbackRaw &feedback,
-                              hal::os::Microseconds now) noexcept
+                              hal::os::Microseconds received_us) noexcept
 {
     if (slot.has_feedback)
     {
@@ -457,8 +460,10 @@ void DmMotor::accept_feedback(Slot &slot,
     }
     if (!slot.output_active)
     {
-        // 清除错误之前发出的帧，其反馈可能还在路上：守护时间之后的反馈才作数
-        if (!hal::os::has_elapsed(slot.clear_sent_us, ENABLE_CONFIRM_GUARD_US, now))
+        // 清除错误之前发出的帧，其反馈可能还在路上：清除错误之后、守护时间以后收到的反馈才作数。
+        // 用有符号差：这帧可能早于 clear_sent_us 收到，无符号相减会回绕成很大的数
+        if (static_cast<std::int32_t>(received_us - slot.clear_sent_us) <
+            static_cast<std::int32_t>(ENABLE_CONFIRM_GUARD_US))
         {
             return;
         }

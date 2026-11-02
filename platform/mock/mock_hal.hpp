@@ -39,7 +39,7 @@ void set_bus_off(std::uint8_t bus, bool bus_off) noexcept;
 /** 强制 send() 返回 result（如 QUEUE_FULL）。只有 QUEUED 会把帧记进发送记录。 */
 void set_send_result(std::uint8_t bus, hal::Can::SendResult result) noexcept;
 
-/** 模拟收到一帧：放进接收队列并调用登记的接收通知。队列满时丢弃、计入 rx_dropped_count，返回 false。 */
+/** 模拟收到一帧：received_us 写为当时的模拟时刻，放进接收队列并调用登记的接收通知。队列满时丢弃、计入 rx_dropped_count，返回 false。 */
 bool inject(std::uint8_t bus, const hal::Can::Frame &frame) noexcept;
 
 /** 便利写法：注入一帧 8 字节的标准帧。 */

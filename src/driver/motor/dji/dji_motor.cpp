@@ -157,7 +157,6 @@ bool DjiMotor::get_statistics(Statistics &statistics) const noexcept
 void DjiMotor::receive_frames() noexcept
 {
     hal::Can::Frame frame{};
-    const hal::os::Microseconds now = hal::os::now_us();
     while (bus_.receive(frame) == hal::Can::ReceiveResult::RECEIVED)
     {
         if (esc_.decode_feedback(frame.identifier,
@@ -198,7 +197,7 @@ void DjiMotor::receive_frames() noexcept
         }
         motor.last_angle_raw = feedback_.rotor_angle_raw;
         motor.feedback = feedback_;
-        motor.last_update_us = now;
+        motor.last_update_us = frame.received_us; // 帧进入接收队列的时刻，不是取出的时刻（Decision-20261102-04）
         motor.ever_received = true;
         motor.stale = false;
         ++motor.accepted_frame_count;

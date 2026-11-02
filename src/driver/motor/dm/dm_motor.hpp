@@ -37,8 +37,8 @@ namespace device
  *       （init() 用 hal::Can::claim_receiver() 占住总线），也决定发送节拍。READY 时每台电机每次 process()
  *       发一帧、收一帧反馈，1 Mbps、1 kHz 时每台约占 26% 总线负载，一条总线建议不超过 3 台。
  * @note 驱动不做跨任务同步：电机状态要给别的能力用，由持有驱动的能力发布 topic（架构 §3.4、§3.5）。
- * @note 收到帧的时刻按 process() 取帧时计（hal::Can::Frame 不带时间戳）。process() 很久没调用时，
- *       接收队列里的旧帧会让离线晚一个 LINK_TIMEOUT_US 才判出。
+ * @note 收到帧的时刻用 hal::Can::Frame::received_us（帧进入接收队列的时刻，Decision-20261102-04）：
+ *       process() 很久没调用时，队列里的旧帧不会让电机看起来还在线。
  * @note 位置在 ±PMAX 处回绕，驱动按 65536 个计数累计多圈，前提是相邻两帧之间转过不到 PMAX。电机掉电重启后
  *       位置从 [−π, π] 重新开始，累计值可能差 2π 的整数倍；离线期间的运动不做推断。
  */
@@ -50,7 +50,8 @@ class DmMotor final
     static constexpr std::uint16_t MAXIMUM_MASTER_ID{0x7FEU};          // 0x7FF 是寄存器请求的帧 ID
     static constexpr hal::os::Microseconds REQUEST_TIMEOUT_US{20000U}; // 核对时一步没有应答就重发
     static constexpr hal::os::Microseconds ENABLE_TIMEOUT_US{50000U};  // enable() 后这么久没确认就放弃
-    static constexpr hal::os::Microseconds ENABLE_CONFIRM_GUARD_US{2000U}; // 清除错误后这段时间内的反馈不算确认
+    // 清除错误后这段时间内收到的反馈不算确认：排除清错之前发出的帧的应答（按接收时刻计，Decision-20261102-04）
+    static constexpr hal::os::Microseconds ENABLE_CONFIRM_GUARD_US{1000U};
     static constexpr hal::os::Microseconds LINK_TIMEOUT_US{50000U}; // READY 时这么久没有反馈即离线
     static constexpr hal::os::Microseconds TIMEOUT_TICK_US{50U};    // 通讯超时寄存器（0x09）的计数周期
 
@@ -233,11 +234,13 @@ class DmMotor final
     };
 
     [[nodiscard]] bool config_valid() const noexcept;
-    void receive_frames(hal::os::Microseconds now) noexcept;
+    void receive_frames() noexcept;
     [[nodiscard]] bool
-    handle_frame(std::size_t index, const protocol::DmEsc::Frame &frame, hal::os::Microseconds now) noexcept;
+    handle_frame(std::size_t index, const protocol::DmEsc::Frame &frame, hal::os::Microseconds received_us) noexcept;
     void accept_reply(std::size_t index, const protocol::DmEsc::RegisterReply &reply) noexcept;
-    void accept_feedback(Slot &slot, const protocol::DmEsc::FeedbackRaw &feedback, hal::os::Microseconds now) noexcept;
+    void accept_feedback(Slot &slot,
+                         const protocol::DmEsc::FeedbackRaw &feedback,
+                         hal::os::Microseconds received_us) noexcept;
     void finish_verification(Slot &slot) noexcept;
     void service_verification(std::size_t index, hal::os::Microseconds now) noexcept;
     void service_output(std::size_t index, hal::os::Microseconds now) noexcept;

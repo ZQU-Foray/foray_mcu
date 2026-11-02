@@ -6,6 +6,7 @@
 
 #include "board.hpp"
 #include "fdcan.h" // hfdcan1–3；带进 stm32h7xx_hal.h
+#include "hal/os/clock.hpp"
 #include "hal/os/critical_section.hpp"
 #include "port.hpp"
 #include "utils/concurrency/spsc_queue.hpp"
@@ -118,6 +119,7 @@ void drain(Bus &bus, FDCAN_HandleTypeDef *handle) noexcept
         frame.identifier_type = header.IdType == FDCAN_STANDARD_ID ? hal::Can::IdentifierType::STANDARD
                                                                    : hal::Can::IdentifierType::EXTENDED;
         frame.length = static_cast<std::uint8_t>(header.DataLength); // H7 HAL 的 DataLength 在 Classic CAN 下就是字节数
+        frame.received_us = hal::os::now_us();
         if (!bus.receive_queue.push(frame))
         {
             ++bus.statistics.rx_dropped_count;

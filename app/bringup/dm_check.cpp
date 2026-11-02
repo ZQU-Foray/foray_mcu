@@ -172,8 +172,8 @@ void DmCheck::advance(const device::DmMotor::Snapshot &snapshot, hal::os::Micros
         {
             report_.silence_fault_state = static_cast<std::uint8_t>(snapshot.state);
         }
-        // 停发期间留在接收队列里的那帧旧反馈先被取出，之后的反馈才是停发以后的：电机应报"通讯丢失"，
-        // 驱动随之撤销出力。电机没有复位，RAM 里的设置还在，驱动不必重新核对（复位过的话会重新核对）
+        // 停发后：驱动按帧的接收时刻判出离线，撤销出力并重新核对，核对时读到电机报"通讯丢失"。
+        // 停发期间留在接收队列里的旧反馈不算数（Decision-20261102-04）；它也计入 feedback_count，所以要多等一帧
         if (snapshot.phase == Motor::Phase::READY && !snapshot.output_requested && snapshot.online &&
             snapshot.feedback_count >= stage_start_feedback_count_ + 2U)
         {

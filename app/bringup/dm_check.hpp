@@ -14,7 +14,7 @@ namespace bringup
  *        使能、MIT 指令、通讯超时与 CAN 发送。只检查驱动里的第一台电机。
  *
  * 阶段：核对 → 失能保活 → 使能 → 零力矩 → 转动（小力矩加阻尼）→ 刹车 → 通讯超时（暂停调用 process()）
- * → 恢复（电机按写进去的超时报"通讯丢失"，驱动撤销出力）→ 再使能（先清错）→ 失能 → 结束。
+ * → 恢复（电机按写进去的超时报"通讯丢失"；驱动按帧的接收时刻判出离线、撤销出力并重新核对）→ 再使能（先清错）→ 失能 → 结束。
  * 结束或失败后一直发失能保活。
  * 每轮 step() 先调驱动的 process()（通讯超时一步除外），再按阶段推进；step() 约 1 ms 一次。
  *
@@ -71,12 +71,12 @@ class DmCheck final
         Stage failed_stage; // stage 为 FAILED 时：失败在哪一步
         bool passed;        // 必过项（状态机与时限）全部通过
         bool motion_ok;     // 转动时速度与位置都朝正方向变（跳过转动时为 false）
-        bool reverified; // 通讯超时后驱动重新核对过：只有电机复位或离线时才会，记录用，不是必过项
+        bool reverified;    // 通讯超时后驱动重新核对过（因为离线），记录用，不是必过项
         std::uint8_t silence_fault_state; // 通讯超时后读到的故障状态码（应为 0xD 通讯丢失），0：没看到
         hal::os::Microseconds verified_after_us;   // 第一次 step() 到核对完成
         hal::os::Microseconds enable_latency_us;   // enable() 到电机确认使能
         hal::os::Microseconds reenable_latency_us; // 通讯超时恢复后再使能的确认时间
-        hal::os::Microseconds recover_after_us;    // 恢复调用 process() 到驱动撤销出力、又收到反馈
+        hal::os::Microseconds recover_after_us;    // 恢复调用 process() 到驱动不再出力、又收到反馈
         float zero_torque_drift_rad;               // 零力矩期间离起点最远的位置差
         float spin_max_velocity_rad_per_second;
         float spin_position_delta_rad;

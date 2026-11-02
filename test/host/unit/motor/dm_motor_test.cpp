@@ -384,12 +384,14 @@ void test_enable_confirm_guard()
     assert(driver.init());
     verify(driver, bench);
     assert(driver.enable(0U));
-    cycle(driver, bench);
+    driver.process();
+    bench.respond();
     assert(sent_system(bench, 0x001U, Dm::SystemCommand::CLEAR_ERROR));
-    // 清除错误之前发出的帧，其"使能"反馈晚到：不算确认
+    // 清除错误之前发出的帧，其"使能"反馈在守护时间内晚到：不算确认
     motor.state = Dm::State::ENABLED;
     motor.send_feedback();
     motor.state = Dm::State::DISABLED;
+    mock::advance_us(1000U);
     cycle(driver, bench);
     assert(!snapshot_of(driver).output_active);
     assert(sent_system(bench, 0x001U, Dm::SystemCommand::ENABLE));
@@ -479,8 +481,9 @@ void test_link_timeout()
     verify(driver, bench);
     enable_and_confirm(driver, bench);
 
+    // 最后一帧反馈的接收时刻起算 50 ms（Decision-20261102-04）：48 轮后还在线，再两轮判出离线
     motor.powered = false;
-    cycle(driver, bench, 49U);
+    cycle(driver, bench, 48U);
     DmMotor::Snapshot snapshot = snapshot_of(driver);
     assert(snapshot.phase == Phase::READY && snapshot.output_active && snapshot.online);
     cycle(driver, bench, 2U);

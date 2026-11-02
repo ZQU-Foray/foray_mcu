@@ -95,10 +95,10 @@ void test_full_sequence()
     assert(near(report.spin_torque_feedback_newton_meter, 1.0F, 0.01F));
     assert(report.spin_command_newton_meter == 1.0F && report.spin_damping == 1.0F);
     assert(near(report.brake_end_velocity_rad_per_second, 0.0F, 0.05F));
-    // 通讯超时：电机按写进去的 50 ms 自己失能并报"通讯丢失"，驱动撤销出力；电机没复位，不必重新核对；
+    // 通讯超时：电机按写进去的 50 ms 自己失能并报"通讯丢失"；驱动按接收时刻判出离线，撤销出力并重新核对；
     // 再使能时先清错
     assert(report.silence_fault_state == static_cast<std::uint8_t>(Dm::State::COMMUNICATION_LOST));
-    assert(!report.reverified && report.recover_after_us > 0U && report.reenable_latency_us > 0U);
+    assert(report.reverified && report.recover_after_us > 0U && report.reenable_latency_us > 0U);
     // 结束：失能，读到的设置与档案一致，保活继续
     assert(report.phase == DmMotor::Phase::READY && report.state == 0U && !report.output_active);
     assert(report.control_mode == 1U && report.timeout_ticks == 1000U && report.mismatch_register == 0U);

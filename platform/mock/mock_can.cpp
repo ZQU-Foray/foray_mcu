@@ -1,5 +1,6 @@
 // hal::Can 的宿主替身（Decision-20261101-01）。参数检查、结果优先级与 DM-MC02 的 port 一致。
 #include "hal/can.hpp"
+#include "hal/os/clock.hpp"
 #include "mock_hal.hpp"
 
 #include <array>
@@ -166,6 +167,9 @@ void set_send_result(std::uint8_t bus, hal::Can::SendResult result) noexcept
 
 bool inject(std::uint8_t bus, const hal::Can::Frame &frame) noexcept
 {
+    // 与 port 一样，入队时写接收时刻（模拟时刻）
+    hal::Can::Frame stamped = frame;
+    stamped.received_us = hal::os::now_us();
     hal::Callback notification = nullptr;
     void *context = nullptr;
     {
@@ -180,7 +184,7 @@ bool inject(std::uint8_t bus, const hal::Can::Frame &frame) noexcept
             ++target.statistics.rx_dropped_count;
             return false;
         }
-        target.received.push_back(frame);
+        target.received.push_back(stamped);
         notification = target.notification;
         context = target.context;
     }

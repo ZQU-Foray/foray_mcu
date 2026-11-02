@@ -504,8 +504,8 @@ def judge_dm(dm, delta, per_second) -> list[tuple[bool, str]]:
             dm["dm.silence_fault_state"] == DM_COMMUNICATION_LOST,
             (
                 f"通讯超时保护：停发 300 ms 后电机报状态 0x{dm['dm.silence_fault_state']:X}"
-                f"（应为 0xD 通讯丢失），驱动撤销出力用时 {dm['dm.recover_after_us'] / 1000:.0f} ms；"
-                f"重新核对{'了（电机复位过）' if dm['dm.reverified'] else '：没有（电机没复位，不需要）'}"
+                f"（应为 0xD 通讯丢失），恢复用时 {dm['dm.recover_after_us'] / 1000:.0f} ms；"
+                f"驱动{'因离线重新核对了' if dm['dm.reverified'] else '没有重新核对（只撤销了出力）'}"
             ),
         ),
     ]

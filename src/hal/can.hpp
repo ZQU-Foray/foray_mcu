@@ -2,6 +2,7 @@
 #define HAL_CAN_HPP
 
 #include "hal/callback.hpp"
+#include "hal/os/clock.hpp"
 
 #include <array>
 #include <cstddef>
@@ -20,6 +21,7 @@ namespace hal
  * - 接收：port 在中断里把收到的帧放进软件接收队列，接收方用 receive() 取。软件队列只有一个消费者，
  *   所以每条总线只有一个接收方，它在初始化阶段用 claim_receiver() 占住总线；
  * - port 接收全部标准帧与扩展帧（不做硬件过滤），远程帧与 CAN FD 帧丢弃并计入 rx_dropped_count；
+ * - 收到的帧带接收时刻 received_us：port 在中断里把帧放进软件队列时写入（Decision-20261102-04）；
  * - 进入 Bus-Off 后 port 自动发起恢复（按 ISO 11898 等待 128 × 11 个隐性位后重新加入总线），每次计入 bus_off_count。
  *
  * 全部函数都是必选能力。句柄只含一个编号，可以拷贝，按值存进驱动的配置。
@@ -62,6 +64,8 @@ class Can final
         IdentifierType identifier_type{IdentifierType::STANDARD};
         std::uint8_t length{0U};
         std::array<std::uint8_t, MAX_DATA_LENGTH> data{};
+        // 接收：帧放进软件接收队列的时刻（在中断里取 hal::os::now_us()）；发送时忽略
+        hal::os::Microseconds received_us{0U};
     };
 
     /** 计数从 hal::init() 起累计，按 2^32 回绕。 */
