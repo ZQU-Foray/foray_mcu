@@ -138,6 +138,10 @@ host_test(bringup_imu
 host_test(bringup_io
     SOURCES unit/bringup/io_checks_test.cpp
     LINK app_bringup platform_mock)
+# 安全门（Decision-20261102-03 D7）：关节由测试经 JointLink 扮演驱动
+host_test(safety_gate
+    SOURCES unit/actuator/safety_gate_test.cpp
+    LINK app_actuator platform_mock)
 # 达妙电机检查（Decision-20261102-02）：电机由 unit/motor/dm_fake_motor.hpp 扮演
 host_test(bringup_dm
     SOURCES unit/bringup/dm_check_test.cpp

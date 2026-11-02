@@ -383,7 +383,7 @@ EXECUTABLE  firmware_<profile>
 | 目录 | 白名单 |
 |---|---|
 | `src/` | `hal`（含 `os`）、`boot`、`utils`、`middleware`、`lib`、`driver`、`third_party` |
-| `app/` | `topics`、`common`、`bringup`（框架验证，Decision-20261031-12）、`imu`、`chassis`、`gimbal`、`remote`、`launch`、`link`（新增能力先登记） |
+| `app/` | `topics`、`common`、`bringup`（框架验证，Decision-20261031-12）、`actuator`（安全门，Decision-20261102-03）、`imu`、`chassis`、`gimbal`、`remote`、`launch`、`link`（新增能力先登记） |
 | `platform/` | 一级：`mock` 与厂商（`st`）；二级：每个厂商下的板标识（`st/dm_mc02`；F407 C 板在阶段 B 加入）（Decision-20261101-04） |
 | `config/` | `profiles`、`assembly` |
 

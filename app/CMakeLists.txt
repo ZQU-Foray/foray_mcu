@@ -18,9 +18,16 @@ endfunction()
 # app_topics：本产品的全部 topic（消息类型 + 实例，规则 17），只依赖 topic 机制与时基（Decision-20261031-12）。
 add_library(app_topics INTERFACE
     topics/all.hpp
-    topics/bringup.hpp)
+    topics/bringup.hpp
+    topics/safety.hpp)
 target_include_directories(app_topics INTERFACE "${PROJECT_SOURCE_DIR}/app")
 target_link_libraries(app_topics INTERFACE middleware_topic hal_os)
+
+# app_actuator：安全门，按 safety.stop 集中决定一组关节能不能出力（Decision-20261102-03 D7）。
+app_library(app_actuator
+    actuator/safety_gate.cpp
+    actuator/safety_gate.hpp)
+target_link_libraries(app_actuator PUBLIC app_topics middleware_topic driver_motor hal_os)
 
 # app_bringup：框架验证用的能力（心跳与监视），不含 RM 业务，零 RTOS（Decision-20261031-12）。
 # 外设检查（Decision-20261101-03）：IMU（BMI088 + 中断里发布 + VQF + 加热）、CAN（只收）、SBUS、USB 报告、指示；

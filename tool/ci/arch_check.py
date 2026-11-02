@@ -333,6 +333,7 @@ WHITELIST = {
         "topics",
         "common",
         "bringup",
+        "actuator",  # 安全门（Decision-20261102-03 D7）
         "imu",
         "chassis",
         "gimbal",
