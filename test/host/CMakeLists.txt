@@ -56,6 +56,13 @@ host_test(dm_adapter
 host_test(brand_extension
     SOURCES unit/motor/brand_extension_test.cpp
     LINK driver_motor)
+# 关节与 CAN 总线分发（Decision-20261102-03）
+host_test(joint
+    SOURCES unit/motor/joint_test.cpp
+    LINK driver_motor platform_mock)
+host_test(can_bus
+    SOURCES unit/can_bus/can_bus_test.cpp
+    LINK driver_can_bus platform_mock)
 # 旧 app 的数据就绪邮箱与诊断采集两段随旧 app 归档删除（Decision-20261031-13），只测驱动本身。沿用历史的 -O2。
 host_test(bmi088_acquisition
     SOURCES unit/imu_acquisition/bmi088_acquisition_test.cpp
@@ -149,6 +156,7 @@ host_test(bringup_dm
 # 任一文件缺失即报错，提醒搬迁时同步更新；文件改动后会自动重新配置。
 # 旧 app 的底盘控制器与任务随旧 app 归档（Decision-20261031-13），阶段 A 重建底盘能力时把它的文件加回来。
 set(MOTOR_BOUNDARY_FILES
+    "${PROJECT_SOURCE_DIR}/src/driver/motor/joint.hpp"
     "${PROJECT_SOURCE_DIR}/src/driver/motor/motor.hpp"
     "${PROJECT_SOURCE_DIR}/src/driver/motor/motor_group.hpp")
 foreach(source IN LISTS MOTOR_BOUNDARY_FILES)

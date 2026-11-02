@@ -153,11 +153,19 @@ framework_library(driver_protocol_sbus
     driver/protocol/sbus/sbus.cpp
     driver/protocol/sbus/sbus.hpp)
 
-# 电机的通用接口与编译期装配（不含任何具体品牌）。
-framework_interface(driver_motor
+# CAN 总线的帧分发：一条总线唯一的接收方，按帧 ID 分给登记的驱动（Decision-20261102-03 D9）。
+framework_library(driver_can_bus
+    driver/can_bus/can_bus.cpp
+    driver/can_bus/can_bus.hpp)
+target_link_libraries(driver_can_bus PUBLIC hal hal_os)
+
+# 电机的通用接口（不含任何具体品牌）：关节 Joint（Decision-20261102-03）；电机组 MotorGroup 在迁移完成后删除。
+framework_library(driver_motor
+    driver/motor/joint.cpp
+    driver/motor/joint.hpp
     driver/motor/motor.hpp
     driver/motor/motor_group.hpp)
-target_link_libraries(driver_motor INTERFACE hal)
+target_link_libraries(driver_motor PUBLIC hal hal_os)
 
 # DJI 电机：驱动、适配器与型号映射（型号固有参数属驱动层，Q11、例外 X-05）。
 framework_library(driver_motor_dji
