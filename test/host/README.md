@@ -20,7 +20,7 @@ Windows 上用 MSYS2 UCRT64 的 gcc/g++：在 `CMakeUserPresets.json`（不入�
 
 CI 的 `host-tests` 作业（`.github/workflows/ci.yml`）在 GitHub Actions 的 Ubuntu 上运行同样的三条命令，并检查宿主构建的依赖图。
 
-已验证环境：Ubuntu 24.04 + g++ 13.3.0 + CMake 3.28.3（2026-11-02，31/31 通过）；WSL Ubuntu 22.04 + g++ 11.4.0 + CMake 3.31.6（2026-10-29，17/17 通过）；Windows + MSYS2 UCRT64 g++ 16.2.0 + CMake 4.4.4（2026-10-26，14/14 通过；F1 新增的 `spsc_queue`、`latest_value` 于 2026-10-29 用同一编译器直接编译运行通过）。
+已验证环境：Ubuntu 24.04 + g++ 13.3.0 + CMake 3.28.3（2026-11-02，32/32 通过）；WSL Ubuntu 22.04 + g++ 11.4.0 + CMake 3.31.6（2026-10-29，17/17 通过）；Windows + MSYS2 UCRT64 g++ 16.2.0 + CMake 4.4.4（2026-10-26，14/14 通过；F1 新增的 `spsc_queue`、`latest_value` 于 2026-10-29 用同一编译器直接编译运行通过）。
 
 ## 测试清单
 
@@ -53,6 +53,7 @@ CI 的 `host-tests` 作业（`.github/workflows/ci.yml`）在 GitHub Actions 的
 | `bringup` | `unit/bringup/bringup_test.cpp` | `app_bringup` + `platform_mock`（Heartbeat 单发布者与序号；Monitor 的收到、丢失、延迟超限、延迟跨回绕；`topics::ALL`） |
 | `bringup_imu` | `unit/bringup/imu_check_test.cpp` | `app_bringup` + `platform_mock`（ImuCheck：中断里发布 `bringup.imu_event`、驱动初始化、样本换算与 VQF、限频发布、加热、延迟超限） |
 | `bringup_io` | `unit/bringup/io_checks_test.cpp` | `app_bringup` + `platform_mock`（CanCheck 只收、SbusCheck 跨段拼帧与失控保护、UsbReport 状态行与回显、Indicator 两声与灯的状态、TextLine 定点格式化） |
+| `bringup_dm` | `unit/bringup/dm_check_test.cpp` | `app_bringup` + `platform_mock`（达妙电机检查，Decision-20261102-02：整个流程、跳过转动、没有电机、核对不符、使能失败；模拟电机含通讯超时与按指令的转速） |
 
 并发测试（`spsc_queue`、`latest_value`、`hal_os_mock`、`signal`、`topic`）可以加 `-fsanitize=thread` 在本地用 ThreadSanitizer 运行，CI 不跑。GCC 12 起会对 `LatestValue` 里的 `atomic_thread_fence` 报 `-Wtsan`，与 `-Werror` 一起用时加 `-Wno-tsan`。`spsc_queue`、`latest_value` 的回绕部分分别要读写 2^32 个字节、写 2^31 次，用 ThreadSanitizer 跑时先把轮数改小。ThreadSanitizer 程序启动即报 "unexpected memory mapping" 时（WSL 与 Ubuntu 24.04 都遇到过），用 `setarch $(uname -m) -R ./test_xxx` 运行。
 

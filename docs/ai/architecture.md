@@ -291,7 +291,7 @@ void boot_run(void);        // 默认任务：留给 assembly 的周期工作（
   - 定义任务表；
   - 实现启动入口。
 - **能力裁剪**：profile 不链接某个能力，它就不进镜像。不用 `#if`。
-- **框架验证**用 `bringup_dm_mc02` profile：不含 RM 能力，链接 `app_bringup`（心跳与监视；IMU、CAN、SBUS、USB、指示的外设检查），只演示并检查框架（plan.md F2–F4，Decision-20261031-12、Decision-20261101-03）。`profile.cmake` 的 `CAPABILITIES` 决定组合根链接哪些 `app_<能力>`。
+- **框架验证**用 `bringup_dm_mc02` profile：不含 RM 能力，链接 `app_bringup`（心跳与监视；IMU、CAN、SBUS、USB、指示的外设检查，CAN1 上的达妙电机检查，Decision-20261102-02），只演示并检查框架（plan.md F2–F4，Decision-20261031-12、Decision-20261101-03）。`profile.cmake` 的 `CAPABILITIES` 决定组合根链接哪些 `app_<能力>`。
 
 ### 3.7 板级 `platform/<厂商>/<board>/`
 

@@ -31,7 +31,7 @@ foray_mcu/
 ├── app/                      产品（include 根：#include "topics/bringup.hpp"）；固件与宿主构建都加入
 │   ├── CMakeLists.txt        产品的全部 target：app_topics、app_bringup、app_common（只在固件构建中）
 │   ├── topics/               topic 清单：bringup.hpp（heartbeat、imu_event、imu、sbus）、all.hpp（topics::ALL）；约定见 README.md
-│   ├── bringup/              框架验证用的能力：Heartbeat、Monitor（F2）；ImuCheck、CanCheck、SbusCheck、UsbReport、Indicator（外设检查，Decision-20261101-03）
+│   ├── bringup/              框架验证用的能力：Heartbeat、Monitor（F2）；ImuCheck、CanCheck、SbusCheck、UsbReport、Indicator（外设检查，Decision-20261101-03）；PowerOutputs（Decision-20261101-06）；DmCheck（CAN1 上的达妙电机，Decision-20261102-02）
 │   └── common/               task_runner.hpp：任务运行器（F2）
 ├── config/
 │   ├── CMakeLists.txt        profile_<名称>、assembly_<名称>：组合根 assembly/<profile>.cpp，链接 CAPABILITIES
