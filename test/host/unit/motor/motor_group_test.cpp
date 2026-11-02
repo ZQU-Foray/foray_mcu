@@ -55,7 +55,10 @@ int main()
     const auto sent = mock::can::sent_count(CHASSIS_BUS);
     conflict.process();
     assert(mock::can::sent_count(CHASSIS_BUS) == sent);
-    assert(!conflict.set_torque(0, 0.1F));
+    assert(!conflict.set_torque(0, 0.1F) && !conflict.enable());
+
+    assert(!chassis.set_torque(0, 0.18F)); // 没有 enable() 不出力（Decision-20261102-01）
+    assert(chassis.enable() && other.enable() && gimbal.enable());
 
     assert(chassis.set_torque(0, 0.18F));
     assert(other.set_torque(0, 0.3F));
@@ -92,4 +95,8 @@ int main()
     assert(last_sent(CHASSIS_BUS).data == (std::array<std::uint8_t, 8>{}));
     other.process(); // clearing one group does not affect another
     assert(last_sent(OTHER_BUS).data[0] == 0xFC && last_sent(OTHER_BUS).data[1] == 0xCD);
+    other.disable(); // 失能一组也不影响别的组
+    assert(!other.set_torque(0, 0.3F) && chassis.set_torque(0, 0.18F));
+    other.process();
+    assert(last_sent(OTHER_BUS).data == (std::array<std::uint8_t, 8>{}));
 }

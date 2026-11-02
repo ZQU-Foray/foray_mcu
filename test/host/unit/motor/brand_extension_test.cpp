@@ -17,6 +17,8 @@ unsigned g_inits{0};
 unsigned g_processes{0};
 unsigned g_clears{0};
 unsigned g_writes{0};
+unsigned g_enables{0};
+unsigned g_disables{0};
 std::array<float, 2> g_last_commands{};
 bool g_init_result{true};
 
@@ -40,6 +42,15 @@ class FictionalAdapter final
     void process() noexcept
     {
         ++g_processes;
+    }
+    [[nodiscard]] bool enable() noexcept
+    {
+        ++g_enables;
+        return true;
+    }
+    void disable() noexcept
+    {
+        ++g_disables;
     }
     [[nodiscard]] bool read_state(std::size_t id, device::MotorState &state) const noexcept
     {
@@ -117,8 +128,9 @@ int main()
     assert(owner.init() && owner.init());
     assert(g_inits == 3U);
 
-    // 控制契约直通适配器：暂存、发送节拍、清零。
+    // 控制契约直通适配器：使能、暂存、发送节拍、清零、失能。
     assert(fiction.init());
+    assert(fiction.enable() && g_enables == 1U);
     assert(fiction.set_torque(0U, 0.5F) && fiction.set_torque(1U, -0.25F));
     assert(g_last_commands[0] == 0.5F && g_last_commands[1] == -0.25F);
     fiction.process();
@@ -128,5 +140,7 @@ int main()
     assert(!fiction.read_state(2U, state)); // 越界编号
     fiction.clear_commands();
     assert(g_clears == 1U && g_last_commands == (std::array<float, 2>{}));
+    fiction.disable();
+    assert(g_disables == 1U);
     return 0;
 }

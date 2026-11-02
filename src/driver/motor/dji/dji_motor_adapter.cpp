@@ -64,6 +64,22 @@ void DjiMotorAdapter::process() noexcept
     }
 }
 
+bool DjiMotorAdapter::enable() noexcept
+{
+    if (!ready_)
+    {
+        return false;
+    }
+    output_enabled_ = true;
+    return true;
+}
+
+void DjiMotorAdapter::disable() noexcept
+{
+    output_enabled_ = false;
+    bus_.clear_all_commands();
+}
+
 bool DjiMotorAdapter::read_state(std::size_t id, MotorState &state) const noexcept
 {
     state = {};
@@ -83,12 +99,13 @@ bool DjiMotorAdapter::read_state(std::size_t id, MotorState &state) const noexce
     state.feedback_valid = snapshot.ever_received;
     state.online = snapshot.online;
     state.last_update_us = snapshot.last_update_us;
+    state.enabled = output_enabled_;
     return true;
 }
 
 bool DjiMotorAdapter::set_torque(std::size_t id, float value) noexcept
 {
-    if (!ready_ || id >= config_.count)
+    if (!ready_ || !output_enabled_ || id >= config_.count)
     {
         return false;
     }

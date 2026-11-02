@@ -15,7 +15,7 @@ namespace device
  *        与控制器不含任何品牌依赖。
  * @note 特化契约（无虚函数、无运行时型号分派）：
  *       - using Adapter：适配器类型，可由 Config 直接构造，并提供
- *         Init/Process/read_state/set_torque/clear_commands/maximum_torque_newton_meter 操作契约；
+ *         init/process/enable/disable/read_state/set_torque/clear_commands/maximum_torque_newton_meter 操作契约；
  *       - static constexpr MAXIMUM_MOTORS：该型号允许的最大电机数量；
  *       - template <N> make_config(bus, connections)：把品牌默认参数
  *         （电调档案、型号原生减速比等）装配为 Adapter::Config。
@@ -29,6 +29,8 @@ struct MotorAdapterFor;
  *       读写由同一个任务调用。每组独占一条 CAN 总线的接收：适配器在 Init 里用
  *       hal::Can::claim_receiver() 占住总线，同一总线上的第二个电机组（含同型号）
  *       Init 失败。输出为型号原生输出轴单位；外接传动不包含在型号档案内。
+ * @note 出力要先 enable()（Decision-20261102-01）：init() 之后、disable() 之后都不出力，
+ *       set_torque() 返回 false。达妙电机在 init() 之后还要回读核对，核对完成前 enable() 返回 false。
  */
 template <MotorModel Model, std::size_t N>
 class MotorGroup final
@@ -61,12 +63,23 @@ class MotorGroup final
     {
         adapter_.process();
     }
+    // 全组请求出力。任何一台还不能使能（未初始化、达妙还在核对或核对不符）就一台都不使能，返回 false。
+    // 已经在出力的电机不受影响。电机出故障后撤销请求，要再调用一次才会重试（达妙会先清除错误）。
+    [[nodiscard]] bool enable() noexcept
+    {
+        return adapter_.enable();
+    }
+    // 全组撤销出力请求并清零暂存指令；达妙电机随即失能，DJI 电调改发全零保活帧。
+    void disable() noexcept
+    {
+        adapter_.disable();
+    }
     // 编号从零开始；失败清空状态，无反馈返回有效读取但 feedback_valid=false。
     [[nodiscard]] bool read_state(std::size_t id, MotorState &state) const noexcept
     {
         return adapter_.read_state(id, state);
     }
-    // 原生输出轴 N·m；非有限输入清零有效槽位并返回 false。
+    // 原生输出轴 N·m；没有请求出力时返回 false；非有限输入清零有效槽位并返回 false。
     [[nodiscard]] bool set_torque(std::size_t id, float value) noexcept
     {
         return adapter_.set_torque(id, value);
@@ -76,7 +89,7 @@ class MotorGroup final
     {
         return adapter_.maximum_torque_newton_meter();
     }
-    // 只清暂存指令；不代表硬件失能，不停止保活。
+    // 只清暂存指令；不撤销出力请求，不停止保活。
     void clear_commands() noexcept
     {
         adapter_.clear_commands();

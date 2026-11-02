@@ -46,6 +46,13 @@ host_test(angle_wrap
 host_test(motor_group
     SOURCES unit/motor/motor_group_test.cpp
     LINK driver_motor_dji platform_mock)
+# 达妙电机：启动回读核对、使能、反馈与故障，电机由测试按说明书的帧格式扮演（Decision-20261102-01）。
+host_test(dm_motor
+    SOURCES unit/motor/dm_motor_test.cpp
+    LINK driver_motor_dm platform_mock)
+host_test(dm_adapter
+    SOURCES unit/motor/dm_motor_adapter_test.cpp
+    LINK driver_motor_dm platform_mock)
 host_test(brand_extension
     SOURCES unit/motor/brand_extension_test.cpp
     LINK driver_motor)
@@ -145,8 +152,8 @@ foreach(source IN LISTS MOTOR_BOUNDARY_FILES)
         message(FATAL_ERROR "边界检查清单中的文件不存在：${source}")
     endif()
     file(READ "${source}" body)
-    # 类名与（P2 改名后的）文件名都要拦：DjiEsc、DjiMotorAdapter、dji_esc.hpp、dji_motor.hpp 等。
-    if(body MATCHES "DjiEsc|DjiMotorAdapter|DjiMotorBackend|dji_esc|dji_motor\\.(hpp|cpp)|dji_motor_adapter")
+    # 类名与（P2 改名后的）文件名都要拦：DjiEsc、DjiMotorAdapter、dji_esc.hpp、dji_motor.hpp、达妙的 DmEsc、DmMotor 等。
+    if(body MATCHES "DjiEsc|DjiMotorAdapter|DjiMotorBackend|dji_esc|dji_motor\\.(hpp|cpp)|dji_motor_adapter|DmEsc|DmMotor|dm_esc|dm_motor")
         message(FATAL_ERROR "具体电机实现泄漏到 ${source}")
     endif()
 endforeach()
@@ -169,6 +176,7 @@ function(check_motor_code result should_compile code)
 endfunction()
 
 set(DJI_MAPPING_INCLUDE "#include <driver/motor/dji/dji_motor_model_map.hpp>")
+set(DM_MAPPING_INCLUDE "#include <driver/motor/dm/dm_motor_model_map.hpp>")
 set(MOTOR_GROUP_INCLUDE "#include <driver/motor/motor_group.hpp>")
 
 # 对照：头文件本身可编译，保证下面"应被拒绝"的检查不是因为无关错误而失败。
@@ -189,6 +197,16 @@ check_motor_group(MOTOR_ZERO_COMPILES FALSE device::MotorModel::M2006 0)
 check_motor_group(MOTOR_NINE_COMPILES FALSE device::MotorModel::M2006 9)
 check_motor_group(GIMBAL_GROUP_VALID TRUE device::MotorModel::GM6020_CURRENT 4)
 check_motor_group(GIMBAL_EIGHT_COMPILES FALSE device::MotorModel::GM6020_CURRENT 8)
+# 达妙：一条总线最多 4 台；只包含 DJI 映射时达妙型号无特化。
+function(check_dm_group result should_compile count)
+    check_motor_code(${result} ${should_compile}
+        "${DM_MAPPING_INCLUDE}\n${MOTOR_GROUP_INCLUDE}
+static_assert(sizeof(device::MotorGroup<device::MotorModel::DM_J4310, ${count}>) > 0);
+int main() {}")
+endfunction()
+check_dm_group(DM_GROUP_VALID TRUE 4)
+check_dm_group(DM_FIVE_COMPILES FALSE 5)
+check_motor_group(DM_WITHOUT_MAPPING_COMPILES FALSE device::MotorModel::DM_J4310 1)
 # 未映射型号：即使已包含 DJI 映射，255 仍无特化，必须在编译期拒绝。
 check_motor_group(UNKNOWN_MODEL_COMPILES FALSE "static_cast<device::MotorModel>(255)" 1)
 # 未包含任何品牌映射时，合法型号同样无法实例化（映射是唯一入口）。

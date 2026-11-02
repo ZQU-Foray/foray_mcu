@@ -57,6 +57,10 @@ int main()
     adapter.process();
     assert(mock::can::sent_count(0U) == 1 && last_sent().identifier == 0x200);
     assert(last_sent().data == (std::array<std::uint8_t, 8>{}));
+    // 没有 enable()：不暂存指令，照样发全零保活帧（Decision-20261102-01）
+    assert(!adapter.set_torque(0, 0.18F) && !state.enabled);
+    assert(adapter.enable());
+    assert(adapter.read_state(0, state) && state.enabled && !state.fault);
     // Logical 0 -> device 2, negative direction; output-shaft Kt is not geared twice.
     assert(adapter.set_torque(0, 0.18F));
     assert(adapter.set_torque(1, 0.36F));
@@ -108,11 +112,19 @@ int main()
     assert(mock::can::sent_count(0U) == tx_before);
     adapter.process();
     assert(last_sent().data == (std::array<std::uint8_t, 8>{}));
+    // disable()：清零指令、拒绝新指令，保活帧继续；再 enable() 恢复
+    assert(adapter.set_torque(1, 0.36F));
+    adapter.disable();
+    assert(!adapter.set_torque(1, 0.36F));
+    adapter.process();
+    assert(last_sent().data == (std::array<std::uint8_t, 8>{}));
+    assert(adapter.read_state(0, state) && !state.enabled);
+    assert(adapter.enable() && adapter.set_torque(1, 0.36F));
     const auto rejects = [](const Adapter::Config &bad)
     {
         Adapter invalid{bad};
         const std::size_t count = total_sent();
-        assert(!invalid.init());
+        assert(!invalid.init() && !invalid.enable());
         invalid.process();
         assert(total_sent() == count); // 被拒绝的适配器在任何总线上都不发送
     };

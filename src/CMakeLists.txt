@@ -168,6 +168,15 @@ framework_library(driver_motor_dji
     driver/motor/dji/dji_motor_model_map.hpp)
 target_link_libraries(driver_motor_dji PUBLIC driver_motor driver_protocol_dji hal)
 
+# 达妙电机：驱动（启动回读核对、使能）、适配器与型号映射（Decision-20261102-01）。
+framework_library(driver_motor_dm
+    driver/motor/dm/dm_motor.cpp
+    driver/motor/dm/dm_motor.hpp
+    driver/motor/dm/dm_motor_adapter.cpp
+    driver/motor/dm/dm_motor_adapter.hpp
+    driver/motor/dm/dm_motor_model_map.hpp)
+target_link_libraries(driver_motor_dm PUBLIC driver_motor driver_protocol_dm hal)
+
 framework_library(driver_bmi088
     driver/bmi088/bmi088.cpp
     driver/bmi088/bmi088.hpp

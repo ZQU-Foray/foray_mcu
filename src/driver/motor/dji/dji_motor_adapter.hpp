@@ -8,6 +8,8 @@ namespace device
 {
 
 // 一个适配器独占一条 CAN 总线的接收（DjiMotor::init() 用 claim_receiver() 占住）；全部接口在同一个任务里调用。
+// DJI 电调没有使能命令：enable() 之前与 disable() 之后 set_torque() 返回 false，
+// 仍按周期发全零控制帧（C610/C620 要收到控制帧才回反馈，Decision-20261102-01）。
 class DjiMotorAdapter final
 {
   public:
@@ -34,6 +36,10 @@ class DjiMotorAdapter final
         return config_.count;
     }
     void process() noexcept;
+    /** 请求出力；未初始化时返回 false。 */
+    [[nodiscard]] bool enable() noexcept;
+    /** 撤销出力请求并清零全部指令。 */
+    void disable() noexcept;
     [[nodiscard]] bool read_state(std::size_t id, MotorState &state) const noexcept;
     [[nodiscard]] bool set_torque(std::size_t id, float value) noexcept;
     void clear_commands() noexcept;
@@ -58,6 +64,7 @@ class DjiMotorAdapter final
     Config config_;
     DjiMotor bus_;
     bool ready_{false};
+    bool output_enabled_{false};
 };
 
 } // namespace device
