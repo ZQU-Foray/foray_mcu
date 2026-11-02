@@ -51,6 +51,9 @@ DM_STAGES = [
     "恢复",
     "再使能",
     "失能",
+    "基准：使能",
+    "基准",
+    "基准：失能",
     "结束",
     "失败",
 ]
@@ -525,6 +528,7 @@ def judge_dm(dm, delta, per_second) -> list[tuple[bool, str]]:
             ),
         )
     )
+    checks.append(judge_dm_benchmark(dm))
     queued = per_second("dm.tx_queued")
     checks.append(
         (
@@ -540,6 +544,27 @@ def judge_dm(dm, delta, per_second) -> list[tuple[bool, str]]:
         )
     )
     return checks
+
+
+def judge_dm_benchmark(dm) -> tuple[bool, str]:
+    """1 kHz 控制环基准（Decision-20261102-03 的 M0、M7）：只报告测得的值，跑完且没有丢周期就算通过。"""
+    if dm["dm.bench_duration_us"] == 0:
+        return True, "1 kHz 控制环基准：参数里关掉了"
+    expected = dm["dm.bench_duration_us"] // 1000
+    cycles = dm["dm.bench_cycles"]
+    samples = max(dm["dm.bench_latency_samples"], 1)
+    finished = dm["dm.stage"] == DM_STAGES.index("结束")
+    return (
+        finished and cycles >= expected * 0.99 and dm["dm.bench_late_cycles"] == 0,
+        (
+            f"1 kHz 控制环基准：{cycles} 轮（应约 {expected}），"
+            f"单轮耗时平均 {dm['dm.bench_exec_sum_us'] / max(cycles, 1):.1f} µs、最长 {dm['dm.bench_exec_max_us']} µs；"
+            f"周期抖动最大 {dm['dm.bench_jitter_max_us']} µs，超过 1.1 ms 的 {dm['dm.bench_late_cycles']} 轮；"
+            f"反馈接收 → 指令进发送队列 平均 {dm['dm.bench_latency_sum_us'] / samples:.0f} µs、"
+            f"最长 {dm['dm.bench_latency_max_us']} µs；用到的反馈最旧 {dm['dm.bench_feedback_age_max_us']} µs；"
+            f"位置保持误差最大 {dm['dm.bench_hold_error_max_rad']:.4f} rad"
+        ),
+    )
 
 
 if __name__ == "__main__":

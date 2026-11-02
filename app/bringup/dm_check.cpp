@@ -13,8 +13,15 @@ using Dm = protocol::DmEsc;
 using Motor = device::DmMotor;
 
 constexpr std::size_t MOTOR{0U};
-constexpr float MINIMUM_SPIN_VELOCITY{0.05F}; // rad/s：转动时最大速度至少这么大才算动了
-constexpr float MINIMUM_SPIN_TRAVEL{0.02F};   // rad：转动时位置至少前进这么多
+constexpr float MINIMUM_SPIN_VELOCITY{0.05F};     // rad/s：转动时最大速度至少这么大才算动了
+constexpr float MINIMUM_SPIN_TRAVEL{0.02F};       // rad：转动时位置至少前进这么多
+constexpr hal::os::Microseconds PERIOD_US{1000U}; // 基准按 1 kHz 计抖动
+constexpr hal::os::Microseconds LATE_PERIOD_US{1100U};
+
+hal::os::Microseconds distance(hal::os::Microseconds a, hal::os::Microseconds b)
+{
+    return a > b ? a - b : b - a;
+}
 
 } // namespace
 
@@ -24,6 +31,7 @@ bool DmCheck::init(const Config &config) noexcept
     report_ = Report{};
     report_.spin_command_newton_meter = config.parameters.spin_torque_newton_meter;
     report_.spin_damping = config.parameters.damping;
+    report_.bench_duration_us = config.parameters.benchmark ? config.parameters.benchmark_us : 0U;
     started_ = false;
     return config.motor != nullptr && config.motor->init();
 }
@@ -46,6 +54,8 @@ void DmCheck::step(hal::os::Microseconds now) noexcept
     {
         config_.motor->process();
     }
+    processed_us_ = hal::os::now_us();
+    bench_measured_ = false;
     Motor::Snapshot snapshot{};
     if (!config_.motor->get_snapshot(MOTOR, snapshot))
     {
@@ -53,6 +63,38 @@ void DmCheck::step(hal::os::Microseconds now) noexcept
     }
     record(snapshot);
     advance(snapshot, now);
+    if (bench_measured_)
+    {
+        // 单轮耗时：本轮开始 → 驱动收发、算 PD、指令暂存完
+        const hal::os::Microseconds exec = hal::os::now_us() - now;
+        report_.bench_exec_max_us = exec > report_.bench_exec_max_us ? exec : report_.bench_exec_max_us;
+        report_.bench_exec_sum_us += exec;
+    }
+}
+
+void DmCheck::measure(const device::DmMotor::Snapshot &snapshot,
+                      hal::os::Microseconds now,
+                      hal::os::Microseconds processed_us) noexcept
+{
+    if (bench_previous_)
+    {
+        const hal::os::Microseconds jitter = distance(now - bench_previous_start_us_, PERIOD_US);
+        report_.bench_jitter_max_us = jitter > report_.bench_jitter_max_us ? jitter : report_.bench_jitter_max_us;
+        report_.bench_late_cycles += now - bench_previous_start_us_ > LATE_PERIOD_US ? 1U : 0U;
+        // 现在的驱动：上一轮暂存的指令在本轮 process() 里发出。延迟 = 本轮发完 − 上一轮所用反馈的接收时刻
+        const hal::os::Microseconds latency = processed_us - bench_previous_feedback_us_;
+        report_.bench_latency_max_us = latency > report_.bench_latency_max_us ? latency : report_.bench_latency_max_us;
+        report_.bench_latency_sum_us += latency;
+        ++report_.bench_latency_samples;
+    }
+    const hal::os::Microseconds age = processed_us - snapshot.last_update_us;
+    report_.bench_feedback_age_max_us =
+        age > report_.bench_feedback_age_max_us ? age : report_.bench_feedback_age_max_us;
+    bench_previous_ = true;
+    bench_previous_start_us_ = now;
+    bench_previous_feedback_us_ = snapshot.last_update_us;
+    bench_measured_ = true;
+    ++report_.bench_cycles;
 }
 
 void DmCheck::advance(const device::DmMotor::Snapshot &snapshot, hal::os::Microseconds now) noexcept
@@ -209,6 +251,70 @@ void DmCheck::advance(const device::DmMotor::Snapshot &snapshot, hal::os::Micros
         if (!snapshot.output_requested && snapshot.state == Dm::State::DISABLED)
         {
             report_.passed = true;
+            if (!parameters.benchmark)
+            {
+                enter(Stage::DONE, now);
+            }
+            else if (!motor.enable(MOTOR))
+            {
+                fail();
+            }
+            else
+            {
+                enter(Stage::BENCH_ENABLE, now);
+            }
+        }
+        else if (in_stage >= parameters.enable_timeout_us)
+        {
+            fail();
+        }
+        break;
+
+    case Stage::BENCH_ENABLE:
+        if (snapshot.output_active)
+        {
+            bench_target_rad_ = snapshot.position_rad;
+            bench_previous_ = false;
+            enter(Stage::BENCH, now);
+        }
+        else if (snapshot.enable_failed || !snapshot.output_requested || in_stage >= parameters.enable_timeout_us)
+        {
+            fail();
+        }
+        break;
+
+    case Stage::BENCH:
+        if (!snapshot.output_active)
+        {
+            fail();
+            break;
+        }
+        measure(snapshot, now, processed_us_);
+        {
+            const float error = bench_target_rad_ - snapshot.position_rad;
+            const float magnitude = std::fabs(error);
+            report_.bench_hold_error_max_rad =
+                magnitude > report_.bench_hold_error_max_rad ? magnitude : report_.bench_hold_error_max_rad;
+            float torque =
+                parameters.hold_stiffness * error - parameters.hold_damping * snapshot.velocity_rad_per_second;
+            const float limit = parameters.hold_torque_limit_newton_meter;
+            torque = torque > limit ? limit : (torque < -limit ? -limit : torque);
+            if (!motor.set_torque(MOTOR, torque))
+            {
+                fail();
+                break;
+            }
+        }
+        if (in_stage >= parameters.benchmark_us)
+        {
+            (void)motor.disable(MOTOR);
+            enter(Stage::BENCH_DISABLE, now);
+        }
+        break;
+
+    case Stage::BENCH_DISABLE:
+        if (!snapshot.output_requested && snapshot.state == Dm::State::DISABLED)
+        {
             enter(Stage::DONE, now);
         }
         else if (in_stage >= parameters.enable_timeout_us)

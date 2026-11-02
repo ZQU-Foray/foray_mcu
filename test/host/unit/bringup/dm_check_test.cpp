@@ -35,6 +35,11 @@ constexpr DmCheck::Parameters PARAMETERS{
     500000U,
     300000U,
     3000000U,
+    true,
+    10000000U,
+    2.0F,
+    0.05F,
+    0.5F,
 };
 
 void reset()
@@ -106,6 +111,15 @@ void test_full_sequence()
            report.torque_max_newton_meter == 10.0F);
     assert(report.tx_queued > 0U && report.tx_rejected == 0U && report.unknown_frames == 0U);
     assert(report.request_timeouts == 0U && report.enable_failures == 0U);
+    // 1 kHz 基准（M0）：10 s 约 10000 轮；模拟时间在一轮里不走，单轮耗时与抖动为 0。
+    // 现在的驱动先暂存、下一轮才发：反馈在上一轮应答时到，这一轮取用，指令下一轮发出，延迟 2 ms
+    assert(report.bench_duration_us == 10000000U);
+    assert(report.bench_cycles >= 9990U && report.bench_cycles <= 10001U);
+    assert(report.bench_latency_samples == report.bench_cycles - 1U && report.bench_latency_max_us == 2000U);
+    assert(report.bench_latency_sum_us == 2000U * report.bench_latency_samples);
+    assert(report.bench_feedback_age_max_us == 1000U && report.bench_jitter_max_us == 0U);
+    assert(report.bench_late_cycles == 0U && report.bench_exec_max_us == 0U);
+    assert(report.bench_hold_error_max_rad == 0.0F); // 模拟电机在力矩模式下不动
     assert(motor.state == Dm::State::DISABLED);
     const std::uint32_t feedback = report.feedback_count;
     for (std::size_t round = 0U; round < 10U; ++round)
@@ -128,12 +142,14 @@ void test_without_spin()
     DmMotor driver{motor_config()};
     DmCheck::Parameters parameters = PARAMETERS;
     parameters.spin = false;
+    parameters.benchmark = false;
     DmCheck check;
     assert(check.init(DmCheck::Config{&driver, parameters}));
     run(check, bench);
     const DmCheck::Report &report = check.report();
     assert(report.passed && !report.motion_ok && report.spin_max_velocity_rad_per_second == 0.0F);
-    assert(near(report.position_rad, 0.0F, 0.001F)); // 一直没转
+    assert(near(report.position_rad, 0.0F, 0.001F));                     // 一直没转
+    assert(report.bench_cycles == 0U && report.bench_duration_us == 0U); // 关掉基准：失能后直接结束
 }
 
 void test_no_motor()

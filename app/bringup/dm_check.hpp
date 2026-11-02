@@ -15,7 +15,8 @@ namespace bringup
  *
  * 阶段：核对 → 失能保活 → 使能 → 零力矩 → 转动（小力矩加阻尼）→ 刹车 → 通讯超时（暂停调用 process()）
  * → 恢复（电机按写进去的超时报"通讯丢失"；驱动按帧的接收时刻判出离线、撤销出力并重新核对）→ 再使能（先清错）→ 失能 → 结束。
- * 结束或失败后一直发失能保活。
+ * 之后是 1 kHz 控制环基准（benchmark，Decision-20261102-03 的 M0）：使能后用 PD 保持位置，记录单轮耗时、周期抖动、
+ * 从收到反馈到下发指令的延迟，再失能。结束或失败后一直发失能保活。
  * 每轮 step() 先调驱动的 process()（通讯超时一步除外），再按阶段推进；step() 约 1 ms 一次。
  *
  * @note 会让电机转一小段：稳态转速不超过力矩 / Kd，电机要能自由转动。总线上没有这台电机时停在核对阶段，
@@ -36,8 +37,11 @@ class DmCheck final
         RECOVER = 7U,
         REENABLE = 8U,
         DISABLE = 9U,
-        DONE = 10U,
-        FAILED = 11U
+        BENCH_ENABLE = 10U,
+        BENCH = 11U,
+        BENCH_DISABLE = 12U,
+        DONE = 13U,
+        FAILED = 14U
     };
 
     /** 来自 profile 的参数（params.hpp）。 */
@@ -55,6 +59,12 @@ class DmCheck final
         hal::os::Microseconds brake_us;
         hal::os::Microseconds silence_us; // 暂停调用 process() 的时长，要长于写进电机的通讯超时
         hal::os::Microseconds recover_timeout_us;
+        // 基准：PD 保持起点位置
+        bool benchmark;                       // false：失能后直接结束
+        hal::os::Microseconds benchmark_us;   // 基准时长
+        float hold_stiffness;                 // Kp，N·m/rad
+        float hold_damping;                   // Kd，N·m·s/rad
+        float hold_torque_limit_newton_meter; // 力矩限幅
     };
 
     /** 组合根注入：驱动对象（构造时已接好总线与接线）与参数。 */
@@ -84,6 +94,18 @@ class DmCheck final
         float spin_command_newton_meter;         // 转动指令的力矩（参数，供探测脚本对照）
         float spin_damping;                      // 转动指令的 Kd（参数）
         float brake_end_velocity_rad_per_second;
+        // 1 kHz 控制环基准（每轮：t0 = 本轮开始，驱动收发，算 PD，暂存指令）
+        hal::os::Microseconds bench_duration_us; // 基准时长（参数，供探测脚本对照轮数）
+        std::uint32_t bench_cycles;
+        hal::os::Microseconds bench_exec_max_us; // 单轮耗时：t0 → 指令暂存完
+        std::uint32_t bench_exec_sum_us;
+        hal::os::Microseconds bench_jitter_max_us;  // 相邻两轮开始的间隔与 1 ms 之差的绝对值
+        std::uint32_t bench_late_cycles;            // 间隔超过 1.1 ms 的轮数
+        hal::os::Microseconds bench_latency_max_us; // 反馈的接收时刻 → 用它算出的指令放进发送队列
+        std::uint32_t bench_latency_sum_us;
+        std::uint32_t bench_latency_samples;
+        hal::os::Microseconds bench_feedback_age_max_us; // 计算时用的反馈已经多旧
+        float bench_hold_error_max_rad;
         // 驱动的当前状态
         device::DmMotor::Phase phase;
         std::uint8_t state; // 最后一帧反馈的状态码
@@ -137,6 +159,16 @@ class DmCheck final
     hal::os::Microseconds stage_start_us_{0U};
     float stage_start_position_rad_{0.0F};
     std::uint32_t stage_start_feedback_count_{0U};
+    // 基准
+    void measure(const device::DmMotor::Snapshot &snapshot,
+                 hal::os::Microseconds now,
+                 hal::os::Microseconds processed_us) noexcept;
+    hal::os::Microseconds processed_us_{0U}; // 本轮驱动收发完的时刻（指令放进发送队列）
+    bool bench_previous_{false};             // 上一轮是否算过指令
+    bool bench_measured_{false};             // 本轮是否计入基准
+    hal::os::Microseconds bench_previous_start_us_{0U};
+    hal::os::Microseconds bench_previous_feedback_us_{0U}; // 上一轮算指令时用的反馈的接收时刻
+    float bench_target_rad_{0.0F};
 };
 
 } // namespace bringup
