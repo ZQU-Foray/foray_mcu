@@ -117,6 +117,13 @@ void test_gating_and_timeout()
     mock::set_now_us(14000U);
     assert(joint.set_torque(2.0F) && near(JointLink::command(joint, 14000U).torque_newton_meter, 2.0F));
 
+    // 指令在这一轮开始之后才下（时间戳晚于驱动发送时用的 now）：按新指令发，不算超时（2026-11-02 上板发现）
+    mock::set_now_us(20500U);
+    assert(joint.set_torque(3.0F));
+    assert(near(JointLink::command(joint, 20000U).torque_newton_meter, 3.0F) && joint.command_timeout_count() == 1U);
+    mock::set_now_us(14000U);
+    assert(joint.set_torque(2.0F));
+
     // 非有限值：清掉指令
     assert(!joint.set_torque(std::numeric_limits<float>::quiet_NaN()));
     assert(JointLink::command(joint, 14000U).torque_newton_meter == 0.0F && JointLink::enable_requested(joint));

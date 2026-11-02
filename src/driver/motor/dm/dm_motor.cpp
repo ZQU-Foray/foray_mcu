@@ -48,6 +48,15 @@ std::uint32_t timeout_ticks(const DmMotor::Profile &profile)
     return profile.communication_timeout_us / DmMotor::TIMEOUT_TICK_US;
 }
 
+/**
+ * 从 stamp 起是否已过 duration。stamp 可能比 now 晚一点：帧在这一轮开始之后才收到，或指令在这一轮开始之后才下，
+ * 无符号相减会回绕成很大的数、误判为超时，所以用有符号差，这时按"刚刚"算（2026-11-02 上板发现）。
+ */
+bool expired(hal::os::Microseconds stamp, hal::os::Microseconds duration, hal::os::Microseconds now)
+{
+    return static_cast<std::int32_t>(now - stamp) >= static_cast<std::int32_t>(duration);
+}
+
 bool model_valid(const DmMotor::Profile &profile)
 {
     return Dm::is_valid(profile.limits) && std::isfinite(profile.peak_torque_newton_meter) &&
@@ -215,8 +224,8 @@ bool DmMotor::get_snapshot(std::size_t index, Snapshot &snapshot) const noexcept
     result.output_requested = slot.output_requested;
     result.output_active = slot.output_active;
     result.enable_failed = slot.enable_failed;
-    result.online = ready_ && slot.phase == Phase::READY &&
-                    !hal::os::has_elapsed(slot.last_update_us, LINK_TIMEOUT_US, hal::os::now_us());
+    result.online =
+        ready_ && slot.phase == Phase::READY && !expired(slot.last_update_us, LINK_TIMEOUT_US, hal::os::now_us());
     result.has_feedback = slot.has_feedback;
     result.last_update_us = slot.last_update_us;
     result.feedback_count = slot.feedback_count;
@@ -534,7 +543,7 @@ void DmMotor::service_output(std::size_t index, hal::os::Microseconds now) noexc
     Slot &slot = slots_[index];
     const Motor &motor = config_.motors[index];
     Joint &joint = *motor.joint;
-    if (hal::os::has_elapsed(slot.last_update_us, LINK_TIMEOUT_US, now))
+    if (expired(slot.last_update_us, LINK_TIMEOUT_US, now))
     {
         abandon_output(index);
         restart_verification(index);
@@ -611,7 +620,7 @@ void DmMotor::publish_status(std::size_t index, hal::os::Microseconds now) noexc
     Joint &joint = *config_.motors[index].joint;
     const bool ready = slot.phase == Phase::READY;
     JointLink::set_available(joint, ready);
-    const bool online = ready && !hal::os::has_elapsed(slot.last_update_us, LINK_TIMEOUT_US, now);
+    const bool online = ready && !expired(slot.last_update_us, LINK_TIMEOUT_US, now);
     const bool fault = slot.phase == Phase::MISMATCH || slot.enable_failed || is_fault(slot.state);
     JointLink::set_status(joint, online, slot.output_active, fault, static_cast<std::uint8_t>(slot.state));
 }

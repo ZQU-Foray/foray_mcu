@@ -13,6 +13,15 @@ bool finite(float value)
     return std::isfinite(value);
 }
 
+/**
+ * 从 stamp 起是否已过 duration。stamp 可能比 now 晚一点：帧在这一轮开始之后才收到，或指令在这一轮开始之后才下，
+ * 无符号相减会回绕成很大的数、误判为超时，所以用有符号差，这时按"刚刚"算（2026-11-02 上板发现）。
+ */
+bool expired(hal::os::Microseconds stamp, hal::os::Microseconds duration, hal::os::Microseconds now)
+{
+    return static_cast<std::int32_t>(now - stamp) >= static_cast<std::int32_t>(duration);
+}
+
 } // namespace
 
 bool Joint::enable() noexcept
@@ -157,7 +166,7 @@ JointCommand JointLink::command(Joint &joint, hal::os::Microseconds now) noexcep
     {
         return JointCommand{};
     }
-    if (hal::os::has_elapsed(joint.command_stamp_us_, joint.mechanics_.command_timeout_us, now))
+    if (expired(joint.command_stamp_us_, joint.mechanics_.command_timeout_us, now))
     {
         if (!joint.timed_out_)
         {

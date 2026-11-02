@@ -485,6 +485,44 @@ void test_command_timeout()
     assert(joint.command_timeout_count() == 1U && rig.snapshot().output_active);
 }
 
+void test_stamps_after_round_start()
+{
+    // 上板时一轮开始（now）之后，帧才收到、指令才下，时间戳都比 now 晚一点（2026-11-02 上板发现）：
+    // 不能被当成离线，也不能被当成指令超时
+    reset();
+    FakeMotor motor{BUS, 1U, 0x11U};
+    DmMotor::Config config = one_motor();
+    config.motors[0].mechanics = JointMechanics{}; // 默认 3 ms 指令超时
+    Rig rig{config};
+    rig.bench.add(motor);
+    Joint &joint = rig.joints[0];
+    assert(rig.start());
+    verify(rig);
+    enable_and_confirm(rig);
+    for (std::size_t round = 0U; round < 5U; ++round)
+    {
+        const hal::os::Microseconds now = hal::os::now_us(); // 这一轮开始
+        mock::advance_us(50U);                               // 之后才取帧
+        rig.bus.receive();
+        mock::advance_us(20U); // 再之后才算出指令
+        assert(joint.set_torque(2.5F));
+        rig.bus.transmit(now);
+        rig.bench.respond();
+        mock::advance_us(930U);
+    }
+    const DmMotor::Snapshot snapshot = rig.snapshot();
+    assert(snapshot.phase == Phase::READY && snapshot.output_active && snapshot.online);
+    assert(only_sent(rig.bench).data[6] == 0x09U && joint.command_timeout_count() == 0U); // 2.5 N·m 发出去了
+
+    // 帧在这一轮开始之后才收到：不判离线
+    const hal::os::Microseconds now = hal::os::now_us();
+    mock::advance_us(100U);
+    motor.send_feedback();
+    rig.bus.receive();
+    rig.bus.transmit(now);
+    assert(rig.snapshot().phase == Phase::READY && rig.snapshot().online && joint.state().online);
+}
+
 void test_enable_confirm_guard()
 {
     reset();
@@ -716,6 +754,7 @@ int main()
     test_config_validation();
     test_enable_flow();
     test_command_timeout();
+    test_stamps_after_round_start();
     test_enable_confirm_guard();
     test_enable_failure();
     test_fault_and_reset_while_enabled();
