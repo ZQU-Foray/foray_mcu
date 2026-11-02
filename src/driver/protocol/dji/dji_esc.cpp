@@ -56,14 +56,7 @@ bool DjiEsc::encode(CommandKind kind,
         }
     }
 
-    ControlFrame encoded_frame{};
-    encoded_frame.identifier = identifier;
-    for (std::size_t index = 0U; index < DEVICES_PER_FRAME; ++index)
-    {
-        write_big_endian16(&encoded_frame.data[index * 2U], control_counts[index]);
-    }
-
-    frame = encoded_frame;
+    frame = encode_frame(identifier, control_counts);
     ++statistics_.encoded_control_frame_count;
     return true;
 }
@@ -88,12 +81,8 @@ DjiEsc::DecodeResult DjiEsc::decode_feedback(std::uint32_t identifier,
     }
 
     Feedback decoded{};
+    (void)decode_feedback_data(data_length, data, decoded); // 长度已在上面检查
     decoded.device_id = static_cast<std::uint8_t>(identifier - dialect_.feedback_identifier_base);
-    decoded.rotor_angle_raw = read_big_endian16(&data[0]);
-    decoded.rotor_speed_raw = static_cast<std::int16_t>(read_big_endian16(&data[2]));
-    decoded.torque_current_raw = static_cast<std::int16_t>(read_big_endian16(&data[4]));
-    decoded.motor_temperature_celsius = data[6];
-
     feedback = decoded;
     ++statistics_.accepted_frame_count;
     return DecodeResult::ACCEPTED;
@@ -117,6 +106,33 @@ std::int16_t DjiEsc::saturate(std::int32_t control_counts, CommandKind kind) con
         return static_cast<std::int16_t>(-full_scale);
     }
     return static_cast<std::int16_t>(control_counts);
+}
+
+bool DjiEsc::decode_feedback_data(std::uint8_t data_length, const std::uint8_t *data, Feedback &feedback) noexcept
+{
+    if (data == nullptr || data_length != static_cast<std::uint8_t>(FRAME_DATA_LENGTH))
+    {
+        return false;
+    }
+    Feedback decoded{};
+    decoded.rotor_angle_raw = read_big_endian16(&data[0]);
+    decoded.rotor_speed_raw = static_cast<std::int16_t>(read_big_endian16(&data[2]));
+    decoded.torque_current_raw = static_cast<std::int16_t>(read_big_endian16(&data[4]));
+    decoded.motor_temperature_celsius = data[6];
+    feedback = decoded;
+    return true;
+}
+
+DjiEsc::ControlFrame DjiEsc::encode_frame(std::uint32_t identifier,
+                                          const std::array<std::int16_t, DEVICES_PER_FRAME> &control_counts) noexcept
+{
+    ControlFrame frame{};
+    frame.identifier = identifier;
+    for (std::size_t index = 0U; index < DEVICES_PER_FRAME; ++index)
+    {
+        write_big_endian16(&frame.data[index * 2U], control_counts[index]);
+    }
+    return frame;
 }
 
 } // namespace protocol

@@ -1,5 +1,8 @@
-// 多圈累计：相邻两帧机械角差按不超过半圈解释（DjiMotor::receive_frames）。
+// 多圈累计：相邻两帧转子角差按不超过半圈解释（DjiMotor::accept_feedback，Decision-20261102-03 后经 CanBus 收帧）。
+#include "driver/can_bus/can_bus.hpp"
+#include "driver/motor/dji/dji_models.hpp"
 #include "driver/motor/dji/dji_motor.hpp"
+#include "driver/motor/joint.hpp"
 #include "mock_hal.hpp"
 #include "mock_os.hpp"
 
@@ -8,23 +11,32 @@
 #include <cstdint>
 #include <initializer_list>
 
+namespace
+{
+
 void check(std::initializer_list<std::uint16_t> angles, std::int32_t expected)
 {
-    mock::can::reset(); // 每个会话重新占用总线 0 的接收
-    device::DjiMotor bus{hal::Can{0U}, device::DjiMotor::Profile::c610()};
-    assert(bus.init());
-    assert(bus.enable_motor(1));
+    mock::can::reset(); // 每次重新占用总线 0 的接收
+    device::CanBus bus{hal::Can{0U}};
+    device::Joint joint;
+    device::DjiMotor::Config config{};
+    config.count = 1U;
+    config.motors[0] = device::DjiMotor::Motor{&joint, device::dji::M2006, 1U, device::JointMechanics{}};
+    device::DjiMotor motor{bus, config};
+    assert(bus.init() && motor.init());
     for (const auto angle : angles)
     {
         const std::array<std::uint8_t, 8> data{
             static_cast<std::uint8_t>(angle >> 8), static_cast<std::uint8_t>(angle), 0, 0, 0, 0, 0, 0};
         assert(mock::can::inject(0U, 0x201, data));
-        bus.process();
+        bus.receive();
     }
     device::DjiMotor::Snapshot state{};
-    assert(bus.get_snapshot(1, state));
+    assert(motor.get_snapshot(0U, state));
     assert(state.total_angle_counts == expected);
 }
+
+} // namespace
 
 int main()
 {
@@ -40,4 +52,5 @@ int main()
     check({4096, 0}, -4096);
     check({0, 4095}, 4095);
     check({0, 4097}, -4095);
+    return 0;
 }

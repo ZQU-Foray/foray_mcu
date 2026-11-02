@@ -37,14 +37,8 @@ host_test(dm_protocol
 host_test(dji_motor
     SOURCES unit/motor/dji_motor_test.cpp
     LINK driver_motor_dji platform_mock)
-host_test(dji_adapter
-    SOURCES unit/motor/dji_motor_adapter_test.cpp
-    LINK driver_motor_dji platform_mock)
 host_test(angle_wrap
     SOURCES unit/motor/angle_wrap_test.cpp
-    LINK driver_motor_dji platform_mock)
-host_test(motor_group
-    SOURCES unit/motor/motor_group_test.cpp
     LINK driver_motor_dji platform_mock)
 # 达妙电机：启动回读核对、使能、反馈与故障，经 CanBus 收帧、经关节控制；电机由测试按说明书的帧格式扮演
 # （Decision-20261102-01、-03）。
@@ -185,29 +179,12 @@ function(check_motor_code result should_compile code)
     endif()
 endfunction()
 
-set(DJI_MAPPING_INCLUDE "#include <driver/motor/dji/dji_motor_model_map.hpp>")
 set(MOTOR_GROUP_INCLUDE "#include <driver/motor/motor_group.hpp>")
 
 # 对照：头文件本身可编译，保证下面"应被拒绝"的检查不是因为无关错误而失败。
-check_motor_code(MOTOR_GROUP_HEADERS_COMPILE TRUE
-    "${DJI_MAPPING_INCLUDE}\n${MOTOR_GROUP_INCLUDE}\nint main() {}")
+# 电机组（MotorGroup）已没有品牌适配器（DJI、达妙都改为 CanBus + 关节，Decision-20261102-03），M6 连同这些检查一起删除。
 check_motor_code(MOTOR_GROUP_HEADER_ALONE_COMPILES TRUE
     "${MOTOR_GROUP_INCLUDE}\nint main() {}")
-
-function(check_motor_group result should_compile model count)
-    check_motor_code(${result} ${should_compile}
-        "${DJI_MAPPING_INCLUDE}\n${MOTOR_GROUP_INCLUDE}
-static_assert(sizeof(device::MotorGroup<${model}, ${count}>) > 0);
-int main() {}")
-endfunction()
-# 每个被拒绝的型号都配一个能编译的对照，保证"被拒绝"来自数量检查，而不是型号名写错。
-check_motor_group(MOTOR_GROUP_VALID TRUE device::MotorModel::M2006 4)
-check_motor_group(MOTOR_ZERO_COMPILES FALSE device::MotorModel::M2006 0)
-check_motor_group(MOTOR_NINE_COMPILES FALSE device::MotorModel::M2006 9)
-check_motor_group(GIMBAL_GROUP_VALID TRUE device::MotorModel::GM6020_CURRENT 4)
-check_motor_group(GIMBAL_EIGHT_COMPILES FALSE device::MotorModel::GM6020_CURRENT 8)
-# 未映射型号：即使已包含 DJI 映射，255 仍无特化，必须在编译期拒绝。
-check_motor_group(UNKNOWN_MODEL_COMPILES FALSE "static_cast<device::MotorModel>(255)" 1)
 # 未包含任何品牌映射时，合法型号同样无法实例化（映射是唯一入口）。
 check_motor_code(MAPPING_REQUIRED_COMPILES FALSE
     "${MOTOR_GROUP_INCLUDE}

@@ -167,14 +167,12 @@ framework_library(driver_motor
     driver/motor/motor_group.hpp)
 target_link_libraries(driver_motor PUBLIC hal hal_os)
 
-# DJI 电机：驱动、适配器与型号映射（型号固有参数属驱动层，Q11、例外 X-05）。
+# DJI 电机：驱动登记到 CanBus、经关节 Joint 控制，可混接 C610/C620/GM6020（Decision-20261102-03）；型号常量（型号固有参数属驱动层，Q11、例外 X-05）。
 framework_library(driver_motor_dji
+    driver/motor/dji/dji_models.hpp
     driver/motor/dji/dji_motor.cpp
-    driver/motor/dji/dji_motor.hpp
-    driver/motor/dji/dji_motor_adapter.cpp
-    driver/motor/dji/dji_motor_adapter.hpp
-    driver/motor/dji/dji_motor_model_map.hpp)
-target_link_libraries(driver_motor_dji PUBLIC driver_motor driver_protocol_dji hal)
+    driver/motor/dji/dji_motor.hpp)
+target_link_libraries(driver_motor_dji PUBLIC driver_can_bus driver_motor driver_protocol_dji hal)
 
 # 达妙电机：驱动（启动回读核对、使能，Decision-20261102-01）登记到 CanBus、经关节 Joint 控制，型号常量（Decision-20261102-03）。
 framework_library(driver_motor_dm

@@ -144,6 +144,18 @@ class DjiEsc final
                               ControlFrame &frame) noexcept;
 
     /**
+     * @brief 只解字节布局：8 字节反馈的转子角度、转速、转矩电流、温度（device_id 不填）。
+     *        帧 ID 与设备的对应由调用方按方言算好（同一总线混接产品线时，Decision-20261102-03）。
+     * @return data 为空或长度不是 8 时返回 false，feedback 不变。
+     */
+    [[nodiscard]] static bool
+    decode_feedback_data(std::uint8_t data_length, const std::uint8_t *data, Feedback &feedback) noexcept;
+
+    /** @brief 只编字节布局：控制帧 ID 与四个大端 int16，不检查方言与满量程（调用方先饱和）。 */
+    [[nodiscard]] static ControlFrame
+    encode_frame(std::uint32_t identifier, const std::array<std::int16_t, DEVICES_PER_FRAME> &control_counts) noexcept;
+
+    /**
    * @brief 解析一条反馈帧，仅返回 Accepted 时写入 feedback。
    * @param identifier 收到的帧标识符。
    * @param extended_identifier 为 true 表示扩展帧，家族反馈帧均为标准帧。
