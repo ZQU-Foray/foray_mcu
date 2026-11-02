@@ -41,9 +41,15 @@ MotorModel 是任务允许知道的装配选择；品牌映射头（如 dji/DjiM
 这些值沿用工程已有档案和约定。GM6020 必须实际配置为电流模式，软件选型不会更改
 电调固件或工作模式。未支持型号和数量越界在编译期拒绝；非法编号或方向在 Init 拒绝。
 
+达妙 `DM_J4310`（`dm/dm_motor_model_map.hpp`，2026-11-02，Decision-20261102-01）：MIT 模式只给力矩（Kp = Kd = 0），
+输出轴即电机输出轴（减速箱在电机内），最大力矩取峰值扭矩与 TMAX 的较小者（10 N·m），一条总线最多 4 台。
+`MotorConnection` 的 `device_id` 是 ESC_ID（1–15），`master_id` 是 MST_ID（推荐 ESC_ID + 0x10）。`init()` 之后驱动先逐台回读核对
+（控制模式 MIT、量程 12.5 rad / 30 rad/s / 10 N·m），并把通讯超时 50 ms 写进电机 RAM；核对通过前 `enable()` 返回 false，
+核对不符的电机 `fault` 为 true、不能使能。电机里的设置要用达妙调试助手改，软件选型不会改电机。
+
 - 更换已有型号：修改任务顶部的品牌映射包含与 MotorModel，检查设备 ID 与接线。
-- 新增品牌：在品牌目录提供兼容适配器（Config 构造 + Init/Process/ReadState/
-  SetTorque/ClearCommands 契约 + MaximumMotors）和一个 MotorAdapterFor 特化
+- 新增品牌：在品牌目录提供兼容适配器（Config 构造 + Init/Process/Enable/Disable/
+  ReadState/SetTorque/ClearCommands 契约 + MaximumMotors）和一个 MotorAdapterFor 特化
   映射头；任务包含该映射头即可使用，电机组与控制器零改动
   （见 Tests/Motor/BrandExtensionTest.cpp 的最小示例）。
 - 控制参数：修改同一任务内 ControllerConfig()，参数为输出轴量纲；型号不会自动
@@ -69,11 +75,13 @@ MotorModel 是任务允许知道的装配选择；品牌映射头（如 dji/DjiM
 | 入口          | 行为                                                                       |
 | ------------- | -------------------------------------------------------------------------- |
 | Init          | 调度前调用；成功后幂等，失败可重试；校验通道、映射、方向、减速比与力矩能力 |
+| Enable        | 全组请求出力；任何一台不能使能（未初始化、达妙还在核对或核对不符）就一台都不使能并返回 false；电机故障后要再调用才重试 |
+| Disable       | 全组撤销出力请求并清零指令；达妙随即失能，DJI 改发全零保活帧                |
 | Count         | 编译期常量，返回模板指定数量                                               |
 | Process       | 接收、老化、聚合发送、发布快照；不等待 I/O，处理时间随待收帧数变化         |
-| ReadState     | 逻辑编号从 0 开始；失败清空状态，无反馈时读取成功但有效性与在线均为 false  |
-| SetTorque     | 暂存输出轴 N·m；越界编号失败，非有限输入将有效槽位置零并返回 false         |
-| ClearCommands | 清零暂存命令，下一次 Process 发出；不停止保活，不代表硬件失能或制动        |
+| ReadState     | 逻辑编号从 0 开始；失败清空状态，无反馈时读取成功但有效性与在线均为 false；`enabled` 表示正在出力，`fault` 表示核对不符、电机报故障或使能失败 |
+| SetTorque     | 暂存输出轴 N·m；没有 Enable 时返回 false；越界编号失败，非有限输入将有效槽位置零并返回 false |
+| ClearCommands | 清零暂存命令，下一次 Process 发出；不撤销出力请求，不停止保活，不代表硬件失能或制动 |
 
 初始化后，Process、读状态及写命令归同一底盘任务所有。外部任务继续使用
 ChassisTask 的目标／模式设定入口；此重构未改变原有跨任务发布机制。
