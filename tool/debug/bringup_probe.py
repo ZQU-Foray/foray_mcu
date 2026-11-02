@@ -494,7 +494,8 @@ def judge_dm(dm, delta, per_second) -> list[tuple[bool, str]]:
                 f"达妙电机转动：最大速度 {dm['dm.spin_max_velocity_rad_per_second']:.2f} rad/s，"
                 f"2 s 转过 {dm['dm.spin_position_delta_rad']:.2f} rad，"
                 f"结束时力矩反馈 {dm['dm.spin_torque_feedback_newton_meter']:.2f} N·m"
-                f"（指令 0.3 N·m、Kd 0.3，不计摩擦时稳态 1 rad/s）；"
+                f"（指令 {dm['dm.spin_command_newton_meter']:g} N·m、Kd {dm['dm.spin_damping']:g}，"
+                f"不计摩擦时稳态 {dm['dm.spin_command_newton_meter'] / dm['dm.spin_damping']:g} rad/s）；"
                 f"刹车后 {dm['dm.brake_end_velocity_rad_per_second']:.2f} rad/s；"
                 f"零力矩时位置漂移 {dm['dm.zero_torque_drift_rad']:.3f} rad"
             ),

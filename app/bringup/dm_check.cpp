@@ -22,6 +22,8 @@ bool DmCheck::init(const Config &config) noexcept
 {
     config_ = config;
     report_ = Report{};
+    report_.spin_command_newton_meter = config.parameters.spin_torque_newton_meter;
+    report_.spin_damping = config.parameters.damping;
     started_ = false;
     return config.motor != nullptr && config.motor->init();
 }

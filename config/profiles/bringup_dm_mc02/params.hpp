@@ -40,14 +40,16 @@ inline constexpr bringup::UsbReport::Parameters USB_REPORT{100000U};
 inline constexpr bringup::Indicator::Parameters INDICATOR{200000U, 32U, true};
 
 // 达妙电机检查（Decision-20261102-02）：CAN1 上 ESC_ID 1、MST_ID 0x11 的 DM-J4310，上电后跑一遍。
-// 转动：力矩 0.3 N·m、Kd 0.3，稳态不超过 1 rad/s，2 s 最多 2 rad；电机里的通讯超时是 50 ms，停发 300 ms。
+// 转动：力矩 1.0 N·m、Kd 1.0，稳态不超过 1 rad/s，2 s 最多 2 rad。2026-11-02 上板用 0.3 N·m 时，
+// 减速箱的静摩擦（约 0.1–0.3 N·m）让电机时转时不转，所以加大力矩，同时按比例加大 Kd，限速不变。
+// 电机里的通讯超时是 50 ms，停发 300 ms。
 // 时限：核对 5 s（电机上电自检约 1 s）；失能保活 0.5 s；使能 0.2 s；零力矩 1 s；转动 2 s；刹车 0.5 s；恢复 3 s。
 // 装到整车上之前把 spin 改为 false，或者去掉这个检查
 inline constexpr bringup::DmCheck::Parameters DM_CHECK{
     {1U, 0x11U},
     true,
-    0.3F,
-    0.3F,
+    1.0F,
+    1.0F,
     5000000U,
     500000U,
     200000U,

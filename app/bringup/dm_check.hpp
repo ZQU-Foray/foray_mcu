@@ -81,6 +81,8 @@ class DmCheck final
         float spin_max_velocity_rad_per_second;
         float spin_position_delta_rad;
         float spin_torque_feedback_newton_meter; // 转动结束时反馈的力矩
+        float spin_command_newton_meter;         // 转动指令的力矩（参数，供探测脚本对照）
+        float spin_damping;                      // 转动指令的 Kd（参数）
         float brake_end_velocity_rad_per_second;
         // 驱动的当前状态
         device::DmMotor::Phase phase;

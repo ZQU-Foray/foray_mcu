@@ -25,8 +25,8 @@ constexpr std::uint8_t BUS{0U};
 constexpr DmCheck::Parameters PARAMETERS{
     {1U, 0x11U},
     true,
-    0.3F,
-    0.3F,
+    1.0F,
+    1.0F,
     5000000U,
     500000U,
     200000U,
@@ -88,11 +88,12 @@ void test_full_sequence()
     assert(report.verified_after_us < 20000U);
     assert(report.enable_latency_us > 0U && report.enable_latency_us <= 5000U);
     assert(report.zero_torque_drift_rad < 0.001F);
-    // 稳态转速 = 0.3 / 0.3 = 1 rad/s，2 s 约转 2 rad
+    // 稳态转速 = 1.0 / 1.0 = 1 rad/s，2 s 约转 2 rad
     assert(report.motion_ok &&
            near(report.spin_max_velocity_rad_per_second, 1.0F, 0.05F)); // Kd、力矩、速度都按 12 位量化
     assert(near(report.spin_position_delta_rad, 2.0F, 0.05F));
-    assert(near(report.spin_torque_feedback_newton_meter, 0.3F, 0.01F));
+    assert(near(report.spin_torque_feedback_newton_meter, 1.0F, 0.01F));
+    assert(report.spin_command_newton_meter == 1.0F && report.spin_damping == 1.0F);
     assert(near(report.brake_end_velocity_rad_per_second, 0.0F, 0.05F));
     // 通讯超时：电机按写进去的 50 ms 自己失能并报"通讯丢失"，驱动撤销出力；电机没复位，不必重新核对；
     // 再使能时先清错
