@@ -1,126 +1,97 @@
-> **迁移说明（P2，2026-10-26）**：本文原为迁移源的 `Libraries/Device/motor/README.md`，正文保留迁移前的文件名（如 `MotorGroup.hpp` 现为 `motor_group.hpp`，`Application/Task/1_chassis` 现为 `app/tasks`、`app/chassis`），逐文件对照见 [P2 移动表](../../../docs/ai/decisions/2026-10-26-P2-机械搬迁/移动表.tsv)，正文在 P3b 统一更新。文中提到的 `Tests/` 已恢复到 `test/host/`。
+# 电机：关节、CanBus 与品牌驱动
 
-# 任务内选型的电机组
+2026-11-02 起的结构（Decision-20261102-03，方案见 [docs/ai/decisions/2026-11-02-电机架构方案](../../../docs/ai/decisions/2026-11-02-电机架构方案/README.md)）。
+原来的电机组 `MotorGroup<型号, N>` 已删除。
 
-每个任务在自己的 cpp 内持有 MotorGroup<MotorModel, N>，不再需要
-Application/Configuration 或全局静态 Motor 绑定。底盘的型号、通道、设备编号、
-方向和 PID 参数均位于 Application/Task/1_chassis/ChassisTask.cpp。
+```text
+能力（云台、底盘、发射……）       只读写关节 Joint：SI 单位，不知道品牌
+        ↕ 同一个任务里直接读写
+品牌驱动 DjiMotor、DmMotor        每条总线上每个品牌一个：状态机、换算、发送节拍
+        ↕ 用协议层编解码（protocol::DjiEsc、DmEsc）
+CanBus（src/driver/can_bus）      每条总线一个：唯一的接收方，按帧 ID 分给登记的驱动
+        ↕
+hal::Can
+```
 
-    using ChassisMotors = device::MotorGroup<device::MotorModel::M2006, 4>;
-    ChassisMotors motors{board::CAN_1,   // 组合根注入 hal::Can 句柄（Decision-20261101-01）
-                         {{{1U, 1}, {2U, 1}, {3U, 1}, {4U, 1}}}};
+## 文件
 
-后续代码统一使用 motors.Init / Process / ReadState / SetTorque / ClearCommands，
-控制器继续只接收 MotorState 并输出原生输出轴力矩，不包含型号分支。
+| 文件 | 内容 |
+|---|---|
+| `joint.hpp` | `Joint`（能力用）、`JointState`、`JointCommand`、`JointMechanics`、`JointLink`（只给品牌驱动用）、`enable_all()` |
+| `dji/dji_motor.hpp` | `DjiMotor`：一条总线上的 C610、C620、GM6020（电流模式），可以混接 |
+| `dji/dji_models.hpp` | 型号常量 `device::dji::M2006`、`M3508`、`GM6020_CURRENT` |
+| `dm/dm_motor.hpp` | `DmMotor`：一条总线上的达妙电机（MIT），启动回读核对 |
+| `dm/dm_models.hpp` | 型号常量 `device::dm::DM_J4310` |
 
-## 文件组织
+## 关节
 
-通用代码只保留两个头文件：
+- **单位**：rad、rad/s、N·m。
+- **机构**：`JointMechanics` 写方向、外接传动比、零点、指令超时（默认 3 ms），与型号无关，由 profile 给。
+  - 关节位置 q = 方向 × (电机位置 − 零点) / 传动比；
+  - 关节力矩 = 方向 × 电机力矩 × 传动比。
+- **出力**：
+  - 先 `enable()`，没有请求出力时 `set_torque()` 返回 false；
+  - 电机故障、离线、使能失败时驱动撤销请求，能力要再 `enable()`；
+  - 安全门 `actuator::SafetyGate` 用 `set_inhibited()` 统一禁止；
+  - `enable_all()`：一组关节要么都使能、要么一个都不使能。
+- **指令**：`set_torque()` 全部型号都支持；`set_impedance()`（电机内阻抗，τ = Kp(p* − p) + Kd(v* − v) + τff）只有达妙支持，用 `supports()` 查。
+  指令超过 `command_timeout_us` 没刷新，驱动按 0 力矩发。
+- **位置**：`state().position_absolute` 为真（达妙、GM6020）时上电即绝对位置，否则（M3508、M2006）从第一帧反馈起算。
 
-- Motor.hpp：MotorState、MotorModel、MotorConnection，控制器只包含此文件。
-- MotorGroup.hpp：任务使用的编译期电机组接口。
+## 两个品牌的差别
 
-电机组直接持有编译期选定的品牌适配器：MotorGroup.hpp 只声明型号→适配器的
-映射定制点（MotorAdapterFor），不含任何品牌依赖。DJI 型号映射位于
-dji/DjiMotorModelMap.hpp（档案与原生减速比等品牌默认参数在此装配），任务通过
-包含该映射头完成品牌选择；品牌专属内容全部在品牌目录，不保留后端转发层、
-Interface/Detail 目录或旧路径转发头。
+| | DJI（`DjiMotor`） | 达妙（`DmMotor`） |
+|---|---|---|
+| 一条总线最多 | 8 台（C610/C620 1–8 号、GM6020 1–7 号，可混接） | 4 台（ESC_ID 1–15，MST_ID 可以共用） |
+| 使能 | 电调没有使能命令，`enable()` 之后即出力 | 先回读核对（模式、量程、写通讯超时），通过后清错 → 使能 → 按反馈确认 |
+| 指令 | 力矩（换成电流） | 力矩，或阻抗（MIT） |
+| 反馈 | 电调固定 1 kHz 自发 | 一问一答：每发一帧回一帧 |
+| 故障信息 | 没有 | 状态码（`fault_code`），故障时撤销出力 |
+| 每秒帧数（负载检查） | 每台 1000 + 每个控制帧 × 控制频率 | 每台 2 × 控制频率 |
 
-## 型号与自动适配
+## 装配
 
-MotorModel 是任务允许知道的装配选择；品牌映射头（如 dji/DjiMotorModelMap.hpp）
-在编译期把型号特化为适配器类型与默认参数，MotorGroup 直接持有适配器实例，
-无虚函数、函数指针派发或运行时型号 switch。
+一条总线上的同一品牌电机放进同一个驱动（DJI 的控制帧一帧带四台，两个实例会互相覆盖，第二个实例登记时被拒绝），
+关节可以分给不同的能力。
 
-| 型号          | 适配器          | 自动减速比 | 档案输出轴 Kt（N·m/A） | 最大数量 |
-| ------------- | --------------- | ---------: | ---------------------: | -------: |
-| M2006         | C610            |         36 |                   0.18 |        8 |
-| M3508         | C620            |       19.2 |                    0.3 |        8 |
-| GM6020Current | GM6020 电流模式 |          1 |                  0.741 |        7 |
+```cpp
+// 组合根（示意）：CAN1 一台 DM-J4310，CAN2 四台 M3508 加一台 M2006
+device::CanBus g_can_1{board::CAN_1};
+device::Joint g_yaw;
+constexpr device::DmMotor::Config yaw_config()
+{
+    device::DmMotor::Config config{};
+    config.count = 1U;
+    config.motors[0] = {&g_yaw, device::dm::DM_J4310, params::YAW.esc_id, params::YAW.master_id, params::YAW.mechanics};
+    return config;
+}
+device::DmMotor g_can_1_dm{g_can_1, yaw_config()};
+static_assert(device::can_load_percent(device::DmMotor::frames_per_second(1U, 1000U)) <= 80U, "CAN1 超载");
 
-这些值沿用工程已有档案和约定。GM6020 必须实际配置为电流模式，软件选型不会更改
-电调固件或工作模式。未支持型号和数量越界在编译期拒绝；非法编号或方向在 Init 拒绝。
+// 任务表：收 → 控制 → 发，在同一个任务里
+void gimbal_receive(hal::os::Microseconds) { g_can_1.receive(); }
+void gimbal_transmit(hal::os::Microseconds now) { g_can_1.transmit(now); }
+// {"gimbal", 1024U, 27U, common::on_topic(topics::imu::attitude, 2U), {gimbal_receive, gimbal_step, gimbal_transmit}}
 
-达妙 `DM_J4310`（`dm/dm_motor_model_map.hpp`，2026-11-02，Decision-20261102-01）：MIT 模式只给力矩（Kp = Kd = 0），
-输出轴即电机输出轴（减速箱在电机内），最大力矩取峰值扭矩与 TMAX 的较小者（10 N·m），一条总线最多 4 台。
-`MotorConnection` 的 `device_id` 是 ESC_ID（1–15），`master_id` 是 MST_ID（推荐 ESC_ID + 0x10）。`init()` 之后驱动先逐台回读核对
-（控制模式 MIT、量程 12.5 rad / 30 rad/s / 10 N·m），并把通讯超时 50 ms 写进电机 RAM；核对通过前 `enable()` 返回 false，
-核对不符的电机 `fault` 为 true、不能使能。电机里的设置要用达妙调试助手改，软件选型不会改电机。
+// boot_init()：g_can_1.init() && g_can_1_dm.init() && …
+```
 
-- 更换已有型号：修改任务顶部的品牌映射包含与 MotorModel，检查设备 ID 与接线。
-- 新增品牌：在品牌目录提供兼容适配器（Config 构造 + Init/Process/Enable/Disable/
-  ReadState/SetTorque/ClearCommands 契约 + MaximumMotors）和一个 MotorAdapterFor 特化
-  映射头；任务包含该映射头即可使用，电机组与控制器零改动
-  （见 Tests/Motor/BrandExtensionTest.cpp 的最小示例）。
-- 控制参数：修改同一任务内 ControllerConfig()，参数为输出轴量纲；型号不会自动
-  推导负载、PID 增益、业务限幅或安全策略。该只读函数也供测试验证实际任务参数。
-- 新增品牌：增加通用型号及对应后端特化，保持电机组操作契约；业务循环和控制器不变。
-- 接口输出以型号原生输出轴为准。外接传动、安装零位等不由型号推断，需要另行适配。
+规则：
+- **一条总线只归一个任务**（D3）。总线的收、发与用这些关节的控制计算在同一个任务里，关节不做跨任务同步。
+- 要给别的任务看的状态，由持有关节的能力发布成 topic。
 
-## 实例与总线所有权
+## 加型号、加品牌
 
-不同任务可在不同 CAN 总线创建不同型号的电机组，各组拥有独立状态和命令槽位。
-一组独占一条总线的接收。所有组须在调度器启动前 Init；DJI 适配器在 Init 里用
-`hal::Can::claim_receiver()` 占住总线，同一总线被第二个电机组占用时返回 false，
-包括同型号情况，避免抢走反馈或重复发送共享控制帧（2026-11-01 起，原先的全局占用表
-随 hal 契约 v1 删除，Decision-20261101-01）。
-
-成功 Init 的对象须保持至固件结束，建议如底盘一样定义在任务 cpp 的匿名命名空间。
-禁止复制或移动；首版不提供运行期释放通道或热插拔对象。未成功初始化不占通道。
-不能同时绕过电机组直接在同一 CAN 上创建原始驱动消费者。多任务共享 CAN 仍需
-单独的接收分发与发送聚合服务，本版不提供该能力。
-
-## 契约
-
-| 入口          | 行为                                                                       |
-| ------------- | -------------------------------------------------------------------------- |
-| Init          | 调度前调用；成功后幂等，失败可重试；校验通道、映射、方向、减速比与力矩能力 |
-| Enable        | 全组请求出力；任何一台不能使能（未初始化、达妙还在核对或核对不符）就一台都不使能并返回 false；电机故障后要再调用才重试 |
-| Disable       | 全组撤销出力请求并清零指令；达妙随即失能，DJI 改发全零保活帧                |
-| Count         | 编译期常量，返回模板指定数量                                               |
-| Process       | 接收、老化、聚合发送、发布快照；不等待 I/O，处理时间随待收帧数变化         |
-| ReadState     | 逻辑编号从 0 开始；失败清空状态，无反馈时读取成功但有效性与在线均为 false；`enabled` 表示正在出力，`fault` 表示核对不符、电机报故障或使能失败 |
-| SetTorque     | 暂存输出轴 N·m；没有 Enable 时返回 false；越界编号失败，非有限输入将有效槽位置零并返回 false |
-| ClearCommands | 清零暂存命令，下一次 Process 发出；不撤销出力请求，不停止保活，不代表硬件失能或制动 |
-
-初始化后，Process、读状态及写命令归同一底盘任务所有。外部任务继续使用
-ChassisTask 的目标／模式设定入口；此重构未改变原有跨任务发布机制。
-
-状态角度为首次反馈以来的输出轴累计 deg，转速为输出轴 rpm。方向配置同时作用于
-角度、速度、力矩。lastUpdateTick 是 platform::Time 的原始 Tick，只有收到过反馈
-后才有效，按无符号时间差和平台频率换算；控制器不使用此字段。
-feedbackValid 表示曾收到有效反馈，online 表示未超过现有 50ms 老化阈值；离线时
-可保留最后数值，但不能用作在线闭环输入。
-
-DjiMotor::Profile 的 Kt 已是输出轴 N·m/A；适配器仅改变力矩方向，不重复乘减速比。
-通用型号列表不提供电压模式；底层适配器仍会在初始化时拒绝电压档案。控制器遇到离线、无效反馈、非法数值或 PID
-计算失败会输出零并复位对应 PID；任务遇到命令写入失败清零整组并复位控制器目标。
-
-## 控制参数迁移
-
-当前配置由原转子 rpm→安培控制等效换算而来：速度环增益乘 36×0.18，输出与积分
-上限乘 0.18；角度环增益和转速上限除以 36。得到速度 Kp=0.1296、Ki=0.648、
-输出上限 0.54 N·m、积分上限 0.27 N·m，角度 Kp=4/36，转速上限 500 rpm。
-力矩直通仍单独限制在 ±1 N·m。新型号需要重新确定其动力学参数与增益，不能照搬。
-
-继续执行“发送已有命令→读取状态→闭环→暂存新命令”，不改变约 1ms 调度和一步
-发送延迟。四台在役设备仍合成一帧 0x200；设置命令不触发单独发送。
-
-## 角度边界
-
-相邻编码器差值按 8192 计数一圈归一化：大于 4096 减 8192，小于 -4096 加 8192。
-恰好半圈保留差值符号，但方向不可判定；准确累计仍要求相邻反馈机械角差小于半圈。
-断线期间圈数不推断。原驱动的 int32 累计范围和 float 长时间位置精度限制仍保留，
-本次未加入重新标零或绝对位置恢复功能。
+- **加型号**：在品牌目录的 `*_models.hpp` 里加一条 `constexpr` 常量（DJI：电调档案、原生减速比、位置是否绝对；达妙：量程、峰值扭矩、通讯超时）。
+- **加品牌**：写一个驱动：
+  1. 构造时接收 `CanBus&`；
+  2. `init()` 里用 `CanBus::attach()` 登记要收的帧 ID 与收帧、每周期两个回调，再用 `JointLink::bind()` 接上关节；
+  3. 收到反馈时用 `JointLink::publish()`、`set_status()` 写状态；
+  4. 每周期用 `JointLink::command()` 取指令、编码、发送。
+  能力与组合根的写法不变。
 
 ## 验证
 
-在 WSL 项目根目录执行：
-
-    cmake -S Tests/Motor -B /tmp/controller-motor-tests -G Ninja -DCMAKE_BUILD_TYPE=Debug
-    cmake --build /tmp/controller-motor-tests -j 4
-    ctest --test-dir /tmp/controller-motor-tests --output-on-failure
-
-独立入口启用断言与严格告警，配置阶段检查业务／公共接口不存在 DJI 依赖。
-替换构建目录并设置 Release 可验证优化构建。实际结果和资源比较见
-[验证记录](../../../test/host/unit/motor/VALIDATION.md)。
+- 宿主测试：`joint`、`can_bus`、`dji_motor`、`angle_wrap`、`dm_motor`、`bringup_dm`、`safety_gate`（`test/host/README.md`）。
+- 上板：达妙电机（[2026-11-02 验证记录](../../../docs/ai/decisions/2026-11-02-达妙电机驱动上板验证/README.md)）、
+  1 kHz 控制环基准（[重构前后对照](../../../docs/ai/decisions/2026-11-02-电机控制环基准/README.md)）。DJI 的新驱动还没有上板。

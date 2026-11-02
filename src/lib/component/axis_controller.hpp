@@ -71,9 +71,9 @@ enum class FailurePolicy : std::uint8_t
 
 /**
  * @brief 单轴量测输入。
- * @note 刻意不直接使用 device::MotorState：本组件位于 Libraries/Algorithm，若依赖
- *       Libraries/Device 会形成算法层→设备层的斜向依赖，也会让宿主机测试必须带上
- *       设备头。应用层做一次 4 个字段的拷贝即可。
+ * @note 刻意不直接使用 device::JointState：本组件位于 src/lib，若依赖 src/driver
+ *       会形成算法层→驱动层的斜向依赖，也会让宿主机测试必须带上驱动头。
+ *       应用层做一次 4 个字段的拷贝即可。
  */
 struct AxisMeasurement final
 {
@@ -100,7 +100,8 @@ struct AxisMeasurement final
  *   即内环目标上限，不给两处独立设定的机会。
  * @note 两级限幅都必须不超过执行器实际能力，否则控制器以为能给出的力矩是假的
  *       （GM6020 电流档满量程 3 A × 0.741 N·m/A = 2.223 N·m）。该能力校验由应用层
- *       用 `MotorGroup::maximum_torque_newton_meter()` 完成，本组件不依赖设备层。
+ *       用关节的 `Joint::maximum_torque_newton_meter()` 完成，本组件不依赖设备层。
+ * @note 本组件的角度、转速用 deg、rpm；关节用 SI（Decision-20261102-03 D5），阶段 A 用到时改为 SI 或在边界换算。
  *
  * 失败与降级：未就绪 / 未使能 / 步长非法 / 反馈无效 / 离线 / 量测非有限 / 目标非有限
  * 时该轴输出 0 并复位该轴 PID（不保留会导致重放旧输出的积分），状态见 get_axis_status。

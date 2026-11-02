@@ -20,7 +20,7 @@ Windows 上用 MSYS2 UCRT64 的 gcc/g++：在 `CMakeUserPresets.json`（不入�
 
 CI 的 `host-tests` 作业（`.github/workflows/ci.yml`）在 GitHub Actions 的 Ubuntu 上运行同样的三条命令，并检查宿主构建的依赖图。
 
-已验证环境：Ubuntu 24.04 + g++ 13.3.0 + CMake 3.28.3（2026-11-02，32/32 通过）；WSL Ubuntu 22.04 + g++ 11.4.0 + CMake 3.31.6（2026-10-29，17/17 通过）；Windows + MSYS2 UCRT64 g++ 16.2.0 + CMake 4.4.4（2026-10-26，14/14 通过；F1 新增的 `spsc_queue`、`latest_value` 于 2026-10-29 用同一编译器直接编译运行通过）。
+已验证环境：Ubuntu 24.04 + g++ 13.3.0 + CMake 3.28.3（2026-11-02，31/31 通过）；WSL Ubuntu 22.04 + g++ 11.4.0 + CMake 3.31.6（2026-10-29，17/17 通过）；Windows + MSYS2 UCRT64 g++ 16.2.0 + CMake 4.4.4（2026-10-26，14/14 通过；F1 新增的 `spsc_queue`、`latest_value` 于 2026-10-29 用同一编译器直接编译运行通过）。
 
 ## 测试清单
 
@@ -28,15 +28,13 @@ CI 的 `host-tests` 作业（`.github/workflows/ci.yml`）在 GitHub Actions 的
 
 | ctest 名称 | 测试源码 | 被测 target 或源码 |
 |---|---|---|
-| `dji_protocol` | `unit/protocol/dji_esc_test.cpp` | `driver_protocol_dji` |
+| `dji_protocol` | `unit/protocol/dji_esc_test.cpp` | `driver_protocol_dji`（含只管字节布局的 `decode_feedback_data()`、`encode_frame()`，Decision-20261102-03） |
 | `dm_protocol` | `unit/protocol/dm_esc_test.cpp` | `driver_protocol_dm`（达妙协议：四种模式的控制帧与帧 ID、系统命令、寄存器读写与存储、应答与反馈的解码；样例按说明书手算，寄存器应答取自 DM-J4310 实测帧） |
-| `dji_motor` | `unit/motor/dji_motor_test.cpp` | `driver_motor_dji`（含协议）+ `platform_mock`（保活、反馈解析、多圈、指令换算、每条总线一个接收方、总线统计） |
-| `dji_adapter` | `unit/motor/dji_motor_adapter_test.cpp` | `driver_motor_dji` + `platform_mock`（`enable()` 之前不接受力矩、照样发保活帧，Decision-20261102-01） |
-| `angle_wrap` | `unit/motor/angle_wrap_test.cpp` | `driver_motor_dji` + `platform_mock` |
-| `motor_group` | `unit/motor/motor_group_test.cpp` | `driver_motor_dji` + `platform_mock`（总线占用由 `claim_receiver()` 检查） |
-| `brand_extension` | `unit/motor/brand_extension_test.cpp` | `driver_motor`（只用 `motor_group.hpp`，非 DJI 最小适配器） |
-| `dm_motor` | `unit/motor/dm_motor_test.cpp` | `driver_motor_dm` + `platform_mock`（达妙驱动：启动核对的帧顺序、重发、各项不符、配置检查、清错与使能确认、使能失败、运行中故障与复位、离线、多圈位置、共用 MST_ID）。电机由 `unit/motor/dm_fake_motor.hpp` 按说明书的帧格式扮演 |
-| `dm_adapter` | `unit/motor/dm_motor_adapter_test.cpp` | `driver_motor_dm` + `platform_mock`（`MotorGroup<DM_J4310, 2>`：方向、角度与转速换算、全组使能、故障映射、总线占用） |
+| `dji_motor` | `unit/motor/dji_motor_test.cpp` | `driver_motor_dji` + `platform_mock`（经 CanBus 收帧、经关节控制，Decision-20261102-03：保活、反馈换算、多圈、力矩换算与饱和、第二组、反向机构、C610/C620/GM6020 混接、绝对位置、离线、ID 冲突、同一总线两个实例被拒、负载计算） |
+| `angle_wrap` | `unit/motor/angle_wrap_test.cpp` | `driver_motor_dji` + `platform_mock`（转子多圈累计按不超过半圈解释） |
+| `can_bus` | `unit/can_bus/can_bus_test.cpp` | `driver_can_bus` + `platform_mock`（按帧 ID 分发、区间重叠、兜底、没人认领、每周期回调顺序、总线占用、负载估算） |
+| `joint` | `unit/motor/joint_test.cpp` | `driver_motor` + `platform_mock`（关节：绑定检查、机构换算、出力门控、指令超时、时间戳晚于 now、安全门禁止、全组使能，Decision-20261102-03） |
+| `dm_motor` | `unit/motor/dm_motor_test.cpp` | `driver_motor_dm` + `platform_mock`（经 CanBus 收帧、经关节控制：启动核对的帧顺序、重发、各项不符、配置检查、清错与使能确认、指令超时、时间戳晚于本轮 now、使能失败、运行中故障与复位、离线、多圈位置与机构换算、阻抗的位置回绕、共用 MST_ID、同一 CanBus 上两组）。电机由 `unit/motor/dm_fake_motor.hpp` 按说明书的帧格式扮演 |
 | `bmi088_acquisition` | `unit/imu_acquisition/bmi088_acquisition_test.cpp` | `driver_bmi088` + `platform_mock`（SPI 应答函数扮演 BMI088：初始化、进行中的数据就绪、共享 SPI、合并、有界队列、提前完成、时基回绕、DMA 错误） |
 | `hal_gpio_pwm`、`hal_can`、`hal_spi`、`hal_uart`、`hal_usb_cdc` | `unit/hal/*_test.cpp` | `platform_mock`：hal 契约 v1 在替身上的语义（参数检查、结果优先级、通知时机、能力分级、Uart 与 UsbCdc 同形）。替身是驱动测试的依据 |
 | `buzzer` | `unit/buzzer/buzzer_test.cpp` | `driver_buzzer` + `platform_mock` |
@@ -54,13 +52,13 @@ CI 的 `host-tests` 作业（`.github/workflows/ci.yml`）在 GitHub Actions 的
 | `bringup_imu` | `unit/bringup/imu_check_test.cpp` | `app_bringup` + `platform_mock`（ImuCheck：中断里发布 `bringup.imu_event`、驱动初始化、样本换算与 VQF、限频发布、加热、延迟超限） |
 | `bringup_io` | `unit/bringup/io_checks_test.cpp` | `app_bringup` + `platform_mock`（CanCheck 只收、SbusCheck 跨段拼帧与失控保护、UsbReport 状态行与回显、Indicator 两声与灯的状态、TextLine 定点格式化） |
 | `bringup_dm` | `unit/bringup/dm_check_test.cpp` | `app_bringup` + `platform_mock`（达妙电机检查，Decision-20261102-02：整个流程、跳过转动、没有电机、核对不符、使能失败；模拟电机含通讯超时与按指令的转速） |
+| `safety_gate` | `unit/actuator/safety_gate_test.cpp` | `app_actuator` + `platform_mock`（安全门：上电锁住、确认后放开、急停锁住、解除后要再确认、发布者超时锁住，Decision-20261102-03） |
 
 并发测试（`spsc_queue`、`latest_value`、`hal_os_mock`、`signal`、`topic`）可以加 `-fsanitize=thread` 在本地用 ThreadSanitizer 运行，CI 不跑。GCC 12 起会对 `LatestValue` 里的 `atomic_thread_fence` 报 `-Wtsan`，与 `-Werror` 一起用时加 `-Wno-tsan`。`spsc_queue`、`latest_value` 的回绕部分分别要读写 2^32 个字节、写 2^31 次，用 ThreadSanitizer 跑时先把轮数改小。ThreadSanitizer 程序启动即报 "unexpected memory mapping" 时（WSL 与 Ubuntu 24.04 都遇到过），用 `setarch $(uname -m) -R ./test_xxx` 运行。
 
 配置阶段另有两类断言，失败会直接中止配置：
 
-- **边界检查**：通用电机头（`motor.hpp`、`motor_group.hpp`）不得引用具体电机协议、适配器或驱动（底盘的文件随旧 app 归档，阶段 A 重建底盘时加回）。
-- **编译期检查**：合法电机组能编译；数量为 0、超过型号能力、未映射型号、未包含品牌映射这几种情况都必须被拒绝。对照检查（头文件本身可编译、每个被拒绝的型号在合法数量下能编译）保证"被拒绝"不是无关错误（如型号名写错）造成的。
+- **边界检查**：通用电机头（`joint.hpp`）不得引用具体电机协议或驱动：能力只用关节（Decision-20261102-03）。
 - **topic 的消息约束**：正好 `MAX_MESSAGE_SIZE` 字节的消息能编译（对照）；大 1 字节的、不可平凡拷贝的都必须被拒绝。
 
 ## 目录

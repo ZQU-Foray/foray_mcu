@@ -1642,6 +1642,7 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 
 - **Date**：2026-11-02
 - **Status**：Accepted（负责人 2026-11-02："你开始写驱动吧"；做法按 Decision-20261101-01 的授权由 AI 决定）
+- **2026-11-02 补记**：第 8、9 点（电机组契约 `MotorGroup` 的使能 / 失能、DJI 适配器）已被 Decision-20261102-03 取代：电机组与两个适配器在电机架构 M6 删除，能力改用关节 `device::Joint`，"要先 `enable()` 才出力"的约定由 `Joint` 继承。第 1–7 点仍有效（达妙驱动改为登记到 `CanBus`，状态机不变）
 - **Source**：plan.md F3"达妙电机"的驱动一项；协议层 `protocol::DmEsc`（`f3/dm-protocol`）；寄存器回读排查（`docs/ai/decisions/2026-11-01-达妙电机寄存器回读/README.md`）；《DM-J4310-2EC V1.2 减速电机使用说明书》V1.4
 
 **Context**：
@@ -1791,6 +1792,11 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 **实施时的两处调整**（不改变结论）：
 1. 步骤 M1（`hal::Can::Frame` 加接收时刻）提前到 M0（性能基线）之前。基线要测"收到反馈 → 下发指令"的延迟，需要接收时刻才准；加时间戳本身不改变要对比的结构。
 2. 型号目录不集中成一个文件：每个品牌的型号写在该品牌目录里（如 `device::dji::M3508`、`device::dm::DM_J4310`）。通用代码因此不必知道有哪些品牌，原来的边界检查继续有效。
+3. 一条总线上的 DJI 电机只能放在一个 `DjiMotor` 里（M4 发现）：控制帧一帧带四台，两个实例各发一份同 ID 的帧会互相覆盖。`DjiMotor` 因此把用到的控制帧 ID 也登记到 `CanBus`，第二个实例登记时被拒绝；总线上收到这些 ID 的帧计入 `foreign_control_frame_count`（别的主机也在发）。
+4. 帧的接收时刻可能晚于本轮开始时取的 `now`（M3 上板发现）：关节指令超时与达妙离线判定原来用无符号差，回绕成很大的值，指令一直算超时、电机只收到 0 力矩。改为有符号差（`2ec417b`），宿主测试补了回归。
+5. 安全门 `actuator::SafetyGate` 上电即锁定，收到"不急停"且 `arm_sequence` 与锁定时不同才放行；bringup 固件没有接安全门（bringup 的达妙检查自己管使能），阶段 A 的产品 profile 再接。
+
+**实施进度**：M0–M6 完成（分支 `f3/can-rx-timestamp` → `f3/motor-benchmark` → `f3/can-bus-joint` → `f3/dm-joint` → `f3/stamp-order-fix` → `f3/dji-joint` → `f3/actuator-safety` → `f3/motor-cleanup`），M7 基准复测见[基准记录](docs/ai/decisions/2026-11-02-电机控制环基准/README.md)。DJI 的新驱动只有宿主测试，上板要等 CAN2 接上 GM6020。
 
 **Alternatives**：见方案第 5 节各项的其他选项。
 

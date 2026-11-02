@@ -45,9 +45,6 @@ host_test(angle_wrap
 host_test(dm_motor
     SOURCES unit/motor/dm_motor_test.cpp
     LINK driver_motor_dm platform_mock)
-host_test(brand_extension
-    SOURCES unit/motor/brand_extension_test.cpp
-    LINK driver_motor)
 # 关节与 CAN 总线分发（Decision-20261102-03）
 host_test(joint
     SOURCES unit/motor/joint_test.cpp
@@ -147,33 +144,31 @@ host_test(bringup_dm
     SOURCES unit/bringup/dm_check_test.cpp
     LINK app_bringup platform_mock)
 
-# ---- 架构断言：通用电机头不得引用具体电机协议、适配器或驱动 ----
-# 通用头允许声明通用型号、电机组与品牌映射包含（装配选择）。清单显式列出，
+# ---- 架构断言：通用电机头不得引用具体电机协议或驱动 ----
+# 能力只用关节 Joint（Decision-20261102-03），所以 joint.hpp 不能知道品牌。清单显式列出，
 # 任一文件缺失即报错，提醒搬迁时同步更新；文件改动后会自动重新配置。
-# 旧 app 的底盘控制器与任务随旧 app 归档（Decision-20261031-13），阶段 A 重建底盘能力时把它的文件加回来。
+# 阶段 A 重建底盘、云台等能力时，把只用关节的能力头也加进来。
 set(MOTOR_BOUNDARY_FILES
-    "${PROJECT_SOURCE_DIR}/src/driver/motor/joint.hpp"
-    "${PROJECT_SOURCE_DIR}/src/driver/motor/motor.hpp"
-    "${PROJECT_SOURCE_DIR}/src/driver/motor/motor_group.hpp")
+    "${PROJECT_SOURCE_DIR}/src/driver/motor/joint.hpp")
 foreach(source IN LISTS MOTOR_BOUNDARY_FILES)
     if(NOT EXISTS "${source}")
         message(FATAL_ERROR "边界检查清单中的文件不存在：${source}")
     endif()
     file(READ "${source}" body)
-    # 类名与（P2 改名后的）文件名都要拦：DjiEsc、DjiMotorAdapter、dji_esc.hpp、dji_motor.hpp、达妙的 DmEsc、DmMotor 等。
+    # 类名与文件名都要拦：DjiEsc、DjiMotor、dji_esc.hpp、dji_motor.hpp、达妙的 DmEsc、DmMotor 等。
     if(body MATCHES "DjiEsc|DjiMotorAdapter|DjiMotorBackend|dji_esc|dji_motor\\.(hpp|cpp)|dji_motor_adapter|DmEsc|DmMotor|dm_esc|dm_motor")
         message(FATAL_ERROR "具体电机实现泄漏到 ${source}")
     endif()
 endforeach()
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${MOTOR_BOUNDARY_FILES})
 
-# ---- 编译期断言：电机数量与型号在编译期校验 ----
+# ---- 编译期断言 ----
 # 预期编译失败是验收内容，不是工程错误。每次配置都重新检查，不沿用缓存结果。
 include(CheckCXXSourceCompiles)
 set(CMAKE_REQUIRED_INCLUDES "${PROJECT_SOURCE_DIR}/src")
 
-# check_motor_code(<结果变量> <应能编译：TRUE|FALSE> <源码>)
-function(check_motor_code result should_compile code)
+# check_compiles(<结果变量> <应能编译：TRUE|FALSE> <源码>)
+function(check_compiles result should_compile code)
     unset(${result} CACHE)
     check_cxx_source_compiles("${code}" ${result})
     if(should_compile AND NOT ${result})
@@ -183,23 +178,11 @@ function(check_motor_code result should_compile code)
     endif()
 endfunction()
 
-set(MOTOR_GROUP_INCLUDE "#include <driver/motor/motor_group.hpp>")
-
-# 对照：头文件本身可编译，保证下面"应被拒绝"的检查不是因为无关错误而失败。
-# 电机组（MotorGroup）已没有品牌适配器（DJI、达妙都改为 CanBus + 关节，Decision-20261102-03），M6 连同这些检查一起删除。
-check_motor_code(MOTOR_GROUP_HEADER_ALONE_COMPILES TRUE
-    "${MOTOR_GROUP_INCLUDE}\nint main() {}")
-# 未包含任何品牌映射时，合法型号同样无法实例化（映射是唯一入口）。
-check_motor_code(MAPPING_REQUIRED_COMPILES FALSE
-    "${MOTOR_GROUP_INCLUDE}
-static_assert(sizeof(device::MotorGroup<device::MotorModel::M2006, 4>) > 0);
-int main() {}")
-
 # ---- 编译期断言：topic 的消息约束（规则 17、Decision-20261031-05） ----
 # 消息必须可平凡拷贝，且不超过 MAX_MESSAGE_SIZE 字节；对照检查保证"被拒绝"来自这两条约束。
 set(TOPIC_INCLUDE "#include <middleware/topic/topic.hpp>\n#include <array>\n#include <cstdint>")
 function(check_topic_message result should_compile message_type)
-    check_motor_code(${result} ${should_compile}
+    check_compiles(${result} ${should_compile}
         "${TOPIC_INCLUDE}
 ${message_type}
 topic::Topic<Message> g_topic{\"check\"};

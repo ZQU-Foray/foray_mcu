@@ -1,6 +1,6 @@
 # 架构判据与依赖规则（foray_mcu）
 
-> **状态**：v2.11（2026-11-01）。v2.0 见 Decision-20261027-01；v2.1 随 F1 第 1 步更新 utils、middleware、lib 的归类：math 进 utils，fsm 进 middleware（Decision-20261027-02）；v2.2 随 F1 第 2 步加入 utils 的并发原语 `concurrency`（Decision-20261029-01），§3.4 补充 seqlock 的读写竞态（Decision-20261029-02，待定）；v2.3 随 F1 第 3 步定稿 §3.2 的 OS 契约：1 µs 时基、`Signal` 的语义、临界区只屏蔽框架中断（Decision-20261031-01～03）；v2.4 随 F1 第 4 步定稿 §3.4 的 topic：发布时用临界区包住写入（Decision-20261029-02），接口、等待槽与清单约定（Decision-20261031-05）；v2.5 随 F1 的 CI 加入框架独立构建与 Cortex-M0+ 原子检查，规则 13、17 的文本扫描生效，新增例外 X-17（Decision-20261031-06）；v2.6 随 F2 第 1 步把固件的符号对照换成段大小报告，规则 16 的 HAL 回调符号检查生效（Decision-20261031-08）；v2.7 随 F2 第 4 步换上启动入口 `boot_*` 与 `hal::init()`，规则 7 的 include 检查生效，`boot` 在依赖图里单独成层，X-09 关闭（Decision-20261031-11）；v2.8 随 F2 第 4 步定下 §3.5 的任务运行器写法，加入第一个 topic 与 bringup 能力，`topics` 在依赖图里单独成层（Decision-20261031-12）；v2.9 随 F2 第 4 步归档旧能力代码（tag `archive/pre-rebuild`），X-04、X-10 关闭，规则 10、18 生效，`app/` 加入宿主构建（Decision-20261031-13）；v2.10 随 F2 第 5 步与 F3 定稿 §3.1 的 hal 契约 v1（句柄类）、`board.hpp`、C++ port 与 mock，删除 `hal/detail` 与 PortKit，X-07、X-08、X-14、X-17 关闭，规则 1（`board.hpp`）、4、14、16（C 链接位置）的检查生效；§3.5 加入 topic 触发的超时与能力 `Config` 的两部分（Decision-20261101-01～03）；v2.11 板级目录改为"厂商 / 板"两级：`platform/st/dm_mc02`（Decision-20261101-04）。v2 按负责人的骨架重写：迁移方式从"改造迁移源"改为"按新骨架重建，迁移源只作参考与零件来源"。v1.0–v1.4（P0–P2.5）见 git 历史与 decision.md。
+> **状态**：v2.12（2026-11-02）。v2.0 见 Decision-20261027-01；v2.1 随 F1 第 1 步更新 utils、middleware、lib 的归类：math 进 utils，fsm 进 middleware（Decision-20261027-02）；v2.2 随 F1 第 2 步加入 utils 的并发原语 `concurrency`（Decision-20261029-01），§3.4 补充 seqlock 的读写竞态（Decision-20261029-02，待定）；v2.3 随 F1 第 3 步定稿 §3.2 的 OS 契约：1 µs 时基、`Signal` 的语义、临界区只屏蔽框架中断（Decision-20261031-01～03）；v2.4 随 F1 第 4 步定稿 §3.4 的 topic：发布时用临界区包住写入（Decision-20261029-02），接口、等待槽与清单约定（Decision-20261031-05）；v2.5 随 F1 的 CI 加入框架独立构建与 Cortex-M0+ 原子检查，规则 13、17 的文本扫描生效，新增例外 X-17（Decision-20261031-06）；v2.6 随 F2 第 1 步把固件的符号对照换成段大小报告，规则 16 的 HAL 回调符号检查生效（Decision-20261031-08）；v2.7 随 F2 第 4 步换上启动入口 `boot_*` 与 `hal::init()`，规则 7 的 include 检查生效，`boot` 在依赖图里单独成层，X-09 关闭（Decision-20261031-11）；v2.8 随 F2 第 4 步定下 §3.5 的任务运行器写法，加入第一个 topic 与 bringup 能力，`topics` 在依赖图里单独成层（Decision-20261031-12）；v2.9 随 F2 第 4 步归档旧能力代码（tag `archive/pre-rebuild`），X-04、X-10 关闭，规则 10、18 生效，`app/` 加入宿主构建（Decision-20261031-13）；v2.10 随 F2 第 5 步与 F3 定稿 §3.1 的 hal 契约 v1（句柄类）、`board.hpp`、C++ port 与 mock，删除 `hal/detail` 与 PortKit，X-07、X-08、X-14、X-17 关闭，规则 1（`board.hpp`）、4、14、16（C 链接位置）的检查生效；§3.5 加入 topic 触发的超时与能力 `Config` 的两部分（Decision-20261101-01～03）；v2.11 板级目录改为"厂商 / 板"两级：`platform/st/dm_mc02`（Decision-20261101-04）。v2.12 电机改为关节 `Joint` + 每条总线的 `CanBus` + 品牌驱动，型号做成数据，§3.8；`hal::Can::Frame` 带接收时刻；新增能力目录 `app/actuator`（Decision-20261102-03、-04）。v2 按负责人的骨架重写：迁移方式从"改造迁移源"改为"按新骨架重建，迁移源只作参考与零件来源"。v1.0–v1.4（P0–P2.5）见 git 历史与 decision.md。
 > **权威来源**：[decision.md](../../decision.md) 中的 Accepted 条目，v2 起以 Decision-20261027-01 为准。[评审报告 v1.0](reviews/2026-10-25-foray_mcu-架构评审报告.md) 是历史记录，与本文件冲突的部分以本文件为准。
 > **修改流程**：新增或修改规则、例外、白名单，先在 decision.md 登记，再改本文件和对应的 CI 检查（§10）。
 
@@ -50,7 +50,7 @@ foray_mcu/
 │   │   ├── topic/            topic 机制：最新值、单发布者、可在中断里发布、可阻塞等待
 │   │   └── fsm/              通用状态机
 │   ├── lib/                  领域算法：control（pid、slope、heater_control）、estimate、filter、kinematics、component
-│   ├── driver/               设备驱动与设备协议：bmi088、motor（dji、dm）、buzzer、ws2812、protocol/{dji,dm,sbus}
+│   ├── driver/               设备驱动与设备协议：can_bus（CAN 总线分发）、motor（joint；dji、dm）、bmi088、buzzer、ws2812、protocol/{dji,dm,sbus}
 │   └── third_party/          vendor 进来的外部生成头（foray_interfaces 的 lower_link.hpp）
 ├── platform/                 厂商 / 板两级
 │   ├── st/                   厂商：ST
@@ -62,6 +62,7 @@ foray_mcu/
 ├── app/                      产品：RM 能力
 │   ├── topics/               本产品全部 topic 的清单（消息类型 + topic 实例），集中一处
 │   ├── common/               任务运行器（FreeRTOS 原生 API）
+│   ├── actuator/             安全门：按 safety.stop 集中禁止关节出力（§3.8）
 │   └── <capability>/         imu、chassis、gimbal、remote、launch、link……（框架验收后重建）
 ├── config/
 │   ├── profiles/<兵种>_<板>/   profile.cmake（选板、选能力）+ params.hpp（constexpr 参数）
@@ -303,6 +304,22 @@ void boot_run(void);        // 默认任务：留给 assembly 的周期工作（
 - 同一厂商的板之间要共用代码时，再决定放在 `platform/<厂商>/` 下的哪里（先登记）。
 - `platform/mock` 实现 hal 与 hal/os，只供宿主测试。它是测试替身，不构成 `src` 对 `platform` 的依赖。测试控制接口在 `mock_hal.hpp`（`mock::can::inject`、`mock::spi::set_responder`、`mock::gpio::trigger_interrupt` 等）：按编号注入输入、检查输出；SPI 由测试登记设备应答函数，异步事务由测试决定何时完成。
 
+### 3.8 电机：关节、CanBus 与品牌驱动（Decision-20261102-03）
+
+- **能力只用关节** `device::Joint`（`src/driver/motor/joint.hpp`）：状态与指令都用 SI 单位，方向、外接传动、零点、指令超时在 `JointMechanics` 里。能力不知道品牌与型号。
+- **每条 CAN 总线一个 `device::CanBus`**（`src/driver/can_bus`）：这条总线唯一的接收方，按帧 ID 把帧分给登记的驱动；登记时检查 ID 区间重叠。它不只服务电机，别的 CAN 设备也登记在这里。hal 契约不变（D9）。
+- **品牌驱动**（`DjiMotor`、`DmMotor`）：一条总线上的同一品牌电机放进同一个驱动，登记到 `CanBus`，经 `JointLink` 写关节状态、取关节指令。
+  - DJI 可以混接 C610、C620、GM6020（电流模式），初始化时查反馈 ID 与控制帧格的冲突；
+  - 达妙启动时回读核对，通过后才能使能。
+- **型号是数据**：每个品牌目录里的 `*_models.hpp`（`device::dji::M3508`、`device::dm::DM_J4310`），没有通用的型号枚举。
+- **线程**：一条总线只归一个任务（D3）。总线的收（`CanBus::receive()`）、能力的控制计算、总线的发（`CanBus::transmit(now)`）在同一个任务里按 step 顺序执行，关节不做跨任务同步，控制环里不经 topic。
+- **负载**：组合根用 `static_assert(can_load_percent(<驱动>::frames_per_second(…)) <= 80U)` 检查每条总线。
+- **安全**：
+  - `app/actuator` 的 `SafetyGate` 订阅 `safety.stop`：急停、或发布者超时时禁止它管的关节（`Joint::set_inhibited()`），要操作者重新确认才放开（D7）；
+  - 关节的指令超时由驱动执行，超时按 0 力矩发。
+- **时间戳**：帧带接收时刻（`hal::Can::Frame::received_us`，Decision-20261102-04）。与本轮的 now 比较时用有符号差：时间戳可能比 now 晚一点。
+- **性能**：1 kHz 控制环的上板对照见 `docs/ai/decisions/2026-11-02-电机控制环基准/README.md`。
+
 ## 4. target 依赖图
 
 箭头指向被依赖方。
@@ -406,7 +423,7 @@ EXECUTABLE  firmware_<profile>
 | X-01 | **UsbCdc 边界**：USB 生成代码（`usb_device.c`、`usbd_cdc_if.c`）直接调用 port 的 C 接口 `UsbCdcPort_*`（`port/usb_cdc.cpp` 以 `extern "C"` 实现），`UsbCdc.h` 被生成代码按名字 include | 7、16 | 重建链路能力时按 Q8 改为回调注册 |
 | X-02 | **生成区链接接缝**：`-Wl,--wrap=HAL_PCD_EP_Transmit` | 16 | 随 X-01 删除 |
 | X-03 | **链接脚本 overlay**：自定义段用第二个 `-T` 追加，不改生成的 `.ld` | 生成区 | 第一个自定义段出现时落地 |
-| X-05 | **DJI 型号映射**：`dji_motor_model_map.hpp`（型号 → 电调档案、原生减速比）是品牌默认值，留在驱动层 | §2.3 | 长期 |
+| X-05 | **电机型号常量**：`dji/dji_models.hpp`（电调档案、原生减速比）、`dm/dm_models.hpp`（量程、峰值扭矩、通讯超时）是型号固有参数，留在驱动层；选型与机构参数在 profile（Decision-20261102-03） | §2.3 | 长期 |
 | X-06 | **`-Wdouble-promotion` 豁免**：`src/lib/estimate/vqf.cpp`（按文件关掉，有意用 double）；"目标没有双精度 FPU 就报错"的检查推迟到阶段 B（Decision-20261101-02） | 14 | 长期；F407 等 M4F 板链接姿态解算时由板级 CMake 声明 FPU 能力、组合根检查 |
 | X-16 | **RTOS 头的可见范围**：`os_freertos_<board>` 只能整目录暴露 CubeMX 的 `Core/Inc` | 10 | 长期（CubeMX 生成布局决定） |
 

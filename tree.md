@@ -27,10 +27,11 @@ foray_mcu/
 │   ├── utils/                math、crc（F1 第 1 步由 lib 移入）、concurrency（spsc_queue、latest_value，F1 第 2 步）
 │   ├── middleware/           fsm（F1 第 1 步由 lib 移入）、topic（topic.hpp，F1 第 4 步）
 │   ├── lib/                  control（pid、slope、heater_control）、estimate、filter、kinematics、component（目录名即命名空间名）
-│   └── driver/               bmi088、buzzer、motor（含 dji/、dm/）、ws2812、protocol/{dji,dm,sbus}（构造时接收 hal 句柄，F2 第 5 步）
+│   └── driver/               can_bus（CAN 总线分发）、motor（joint.hpp 关节；dji/、dm/ 品牌驱动与型号常量，Decision-20261102-03）、bmi088、buzzer、ws2812、protocol/{dji,dm,sbus}（构造时接收 hal 句柄，F2 第 5 步）
 ├── app/                      产品（include 根：#include "topics/bringup.hpp"）；固件与宿主构建都加入
-│   ├── CMakeLists.txt        产品的全部 target：app_topics、app_bringup、app_common（只在固件构建中）
-│   ├── topics/               topic 清单：bringup.hpp（heartbeat、imu_event、imu、sbus）、all.hpp（topics::ALL）；约定见 README.md
+│   ├── CMakeLists.txt        产品的全部 target：app_topics、app_actuator、app_bringup、app_common（只在固件构建中）
+│   ├── topics/               topic 清单：bringup.hpp（heartbeat、imu_event、imu、sbus）、safety.hpp（stop）、all.hpp（topics::ALL）；约定见 README.md
+│   ├── actuator/             安全门 SafetyGate：按 safety.stop 集中禁止关节出力（Decision-20261102-03）
 │   ├── bringup/              框架验证用的能力：Heartbeat、Monitor（F2）；ImuCheck、CanCheck、SbusCheck、UsbReport、Indicator（外设检查，Decision-20261101-03）；PowerOutputs（Decision-20261101-06）；DmCheck（CAN1 上的达妙电机，Decision-20261102-02）
 │   └── common/               task_runner.hpp：任务运行器（F2）
 ├── config/
@@ -98,7 +99,7 @@ foray_mcu/
 │   │   ├── topic/                topic 机制：最新值、单发布者、中断发布、阻塞等待
 │   │   └── fsm/                  通用状态机
 │   ├── lib/                      领域算法：control（pid、slope、heater_control）、estimate、filter、kinematics、component
-│   ├── driver/                   设备驱动与设备协议：bmi088、motor/{dji,dm}、buzzer、ws2812、protocol/{dji,dm,sbus}（F3 适配 hal v1）
+│   ├── driver/                   设备驱动与设备协议：can_bus、motor（joint；dji、dm）、bmi088、buzzer、ws2812、protocol/{dji,dm,sbus}（F3 适配 hal v1）
 │   └── third_party/              vendor 生成头：foray_interfaces/generated/lower_link.hpp + 版本/sha256（阶段 A）
 ├── platform/                     厂商 / 板两级
 │   ├── st/                       厂商：ST
