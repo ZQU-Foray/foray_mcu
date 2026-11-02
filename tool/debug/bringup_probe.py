@@ -28,7 +28,7 @@ ITEMS = [
     ("runner", ANON.format("g_runner") + ".status_._M_elems[]"),
     ("monitor", ANON.format("g_monitor") + ".report_"),
     ("imu", ANON.format("g_imu_check") + ".report_"),
-    ("can_1", ANON.format("g_can_1") + ".report_"),
+    ("dm", ANON.format("g_dm_check") + ".report_"),
     ("can_2", ANON.format("g_can_2") + ".report_"),
     ("can_3", ANON.format("g_can_3") + ".report_"),
     ("sbus", ANON.format("g_sbus") + ".report_"),
@@ -38,7 +38,23 @@ ITEMS = [
     ("topic.imu", "'topics::bringup::imu'.publish_count_"),
     ("topic.sbus", "'topics::bringup::sbus'.publish_count_"),
 ]
-TASKS = ["imu", "monitor", "heartbeat", "io"]  # 与组合根的任务表同序
+TASKS = ["imu", "monitor", "heartbeat", "io", "dm"]  # 与组合根的任务表同序
+# bringup::DmCheck::Stage 的取值顺序
+DM_STAGES = [
+    "核对",
+    "失能保活",
+    "使能",
+    "零力矩",
+    "转动",
+    "刹车",
+    "通讯超时",
+    "恢复",
+    "再使能",
+    "失能",
+    "结束",
+    "失败",
+]
+DM_COMMUNICATION_LOST = 0xD
 TIM2_CNT = 0x40000024
 DWT_PCSR = 0xE000101C
 PC_SAMPLES = 16
@@ -405,7 +421,8 @@ def judge(decoded, pcs, handlers) -> list[tuple[bool, str]]:
     for task_index, task in enumerate(TASKS):
         free = second[f"runner[{task_index}].stack_free_words"]
         checks.append((free > 32, f"{task} 任务剩余栈 {free} 字"))
-    for bus in ("can_1", "can_2", "can_3"):
+    checks.extend(judge_dm(second, delta, per_second))
+    for bus in ("can_2", "can_3"):
         checks.append(
             (
                 bool(second[f"{bus}.bus_ready"]),
@@ -447,6 +464,78 @@ def judge(decoded, pcs, handlers) -> list[tuple[bool, str]]:
         (
             not bad and pcs,
             f"PC 采样 {len(pcs)} 次都不在 Error_Handler / HardFault_Handler",
+        )
+    )
+    return checks
+
+
+def judge_dm(dm, delta, per_second) -> list[tuple[bool, str]]:
+    """达妙电机检查（Decision-20261102-02）：上电后只跑一遍，读的是结果与各阶段测得的值。"""
+
+    def stage(value: int) -> str:
+        return DM_STAGES[value] if 0 <= value < len(DM_STAGES) else str(value)
+
+    where = stage(dm["dm.stage"])
+    if dm["dm.stage"] == DM_STAGES.index("失败"):
+        where += f"（失败在{stage(dm['dm.failed_stage'])}）"
+    checks = [
+        (
+            bool(dm["dm.passed"]),
+            (
+                f"达妙电机检查：{'通过' if dm['dm.passed'] else '未通过，停在' + where}；"
+                f"核对用时 {dm['dm.verified_after_us'] / 1000:.0f} ms，"
+                f"使能确认 {dm['dm.enable_latency_us'] / 1000:.1f} ms，"
+                f"清错后再使能 {dm['dm.reenable_latency_us'] / 1000:.1f} ms"
+            ),
+        ),
+        (
+            bool(dm["dm.motion_ok"]),
+            (
+                f"达妙电机转动：最大速度 {dm['dm.spin_max_velocity_rad_per_second']:.2f} rad/s，"
+                f"2 s 转过 {dm['dm.spin_position_delta_rad']:.2f} rad，"
+                f"结束时力矩反馈 {dm['dm.spin_torque_feedback_newton_meter']:.2f} N·m"
+                f"（指令 0.3 N·m、Kd 0.3，不计摩擦时稳态 1 rad/s）；"
+                f"刹车后 {dm['dm.brake_end_velocity_rad_per_second']:.2f} rad/s；"
+                f"零力矩时位置漂移 {dm['dm.zero_torque_drift_rad']:.3f} rad"
+            ),
+        ),
+        (
+            dm["dm.silence_fault_state"] == DM_COMMUNICATION_LOST,
+            (
+                f"通讯超时保护：停发 300 ms 后电机报状态 0x{dm['dm.silence_fault_state']:X}"
+                f"（应为 0xD 通讯丢失），驱动撤销出力用时 {dm['dm.recover_after_us'] / 1000:.0f} ms；"
+                f"重新核对{'了（电机复位过）' if dm['dm.reverified'] else '：没有（电机没复位，不需要）'}"
+            ),
+        ),
+    ]
+    feedback = per_second("dm.feedback_count")
+    checks.append(
+        (
+            dm["dm.phase"] == 2
+            and bool(dm["dm.online"])
+            and dm["dm.state"] == 0
+            and 900 <= feedback <= 1100,
+            (
+                f"达妙电机失能保活：每秒反馈 {feedback:.0f} 帧（应约 1000），驱动阶段 {dm['dm.phase']}（2 = READY），"
+                f"状态 0x{dm['dm.state']:X}；读到的设置：模式 {dm['dm.control_mode']}，"
+                f"量程 {dm['dm.position_max_rad']:g} / {dm['dm.velocity_max_rad_per_second']:g} / "
+                f"{dm['dm.torque_max_newton_meter']:g}，超时 {dm['dm.timeout_ticks']} 个计数；"
+                f"MOS {dm['dm.mos_temperature_celsius']} ℃、线圈 {dm['dm.rotor_temperature_celsius']} ℃"
+            ),
+        )
+    )
+    queued = per_second("dm.tx_queued")
+    checks.append(
+        (
+            900 <= queued <= 1100
+            and delta("dm.tx_rejected") == 0
+            and delta("dm.bus_off") == 0,
+            (
+                f"CAN1 发送：每秒放进发送队列 {queued:.0f} 帧（应约 1000），本次间隔内未放进 {delta('dm.tx_rejected')} 帧；"
+                f"累计未放进 {dm['dm.tx_rejected']}（电机上电前没有节点应答，队列会满）、Bus-Off {dm['dm.bus_off']}、"
+                f"重复应答 {dm['dm.stale_replies']}、请求超时 {dm['dm.request_timeouts']}、"
+                f"不认识的帧 {dm['dm.unknown_frames']}"
+            ),
         )
     )
     return checks

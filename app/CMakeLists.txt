@@ -24,10 +24,12 @@ target_link_libraries(app_topics INTERFACE middleware_topic hal_os)
 
 # app_bringup：框架验证用的能力（心跳与监视），不含 RM 业务，零 RTOS（Decision-20261031-12）。
 # 外设检查（Decision-20261101-03）：IMU（BMI088 + 中断里发布 + VQF + 加热）、CAN（只收）、SBUS、USB 报告、指示；
-# 上电打开板上电源输出（Decision-20261101-06）。
+# 上电打开板上电源输出（Decision-20261101-06）；达妙电机检查（Decision-20261102-02）。
 app_library(app_bringup
     bringup/can_check.cpp
     bringup/can_check.hpp
+    bringup/dm_check.cpp
+    bringup/dm_check.hpp
     bringup/heartbeat.cpp
     bringup/heartbeat.hpp
     bringup/imu_check.cpp
@@ -51,6 +53,7 @@ target_link_libraries(app_bringup PUBLIC
     hal_os
     driver_bmi088
     driver_buzzer
+    driver_motor_dm
     driver_ws2812
     driver_protocol_sbus
     lib_estimate

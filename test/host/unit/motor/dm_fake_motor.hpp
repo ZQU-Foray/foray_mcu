@@ -5,8 +5,11 @@
 // - 寄存器读写（0x7FF，D0–D1 = ESC_ID）：应答发到 MST_ID；写入只改"RAM"（成员变量）。
 // - 控制帧（帧 ID 低 8 位 = ESC_ID，高 3 位忽略）：系统命令改状态，MIT 帧记下指令；每帧都回一帧反馈。
 // - 使能只在没有故障时生效；故障要"清除错误"才回到失能。
+// - update()：使能时超过 TIMEOUT × 50 µs 没收到控制帧，自己失能并报"通讯丢失"（TIMEOUT 为 0 时不保护）。
+// - simulate_motion：按 MIT 指令的力矩与 Kd 取稳态转速（力矩 / Kd，不计惯量与摩擦），位置按收到 MIT 帧的间隔积分。
 #include "driver/protocol/dm/dm_esc.hpp"
 #include "hal/can.hpp"
+#include "hal/os/clock.hpp"
 #include "mock_hal.hpp"
 #include "mock_os.hpp"
 
@@ -90,6 +93,7 @@ class FakeMotor final
     std::uint16_t torque{2047U};
     std::uint8_t mos_temperature{30U};
     std::uint8_t rotor_temperature{35U};
+    bool simulate_motion{false}; // true：position、velocity、torque 由 MIT 指令算出
 
     // 收到的东西，给测试检查
     std::uint32_t frames_received{0U};
@@ -97,6 +101,16 @@ class FakeMotor final
     Dm::SystemCommand last_system_command{Dm::SystemCommand::DISABLE};
     bool has_mit{false};
     hal::Can::Frame last_mit{};
+
+    /** 时间推进：检查通讯超时（Bench::respond() 每轮先调用）。 */
+    void update(hal::os::Microseconds now)
+    {
+        const hal::os::Microseconds timeout_us = timeout * 50U;
+        if (powered && state == Dm::State::ENABLED && timeout != 0U && now - last_control_us_ >= timeout_us)
+        {
+            state = Dm::State::COMMUNICATION_LOST;
+        }
+    }
 
     /** 处理一帧主机发出的帧；不是发给自己的返回 false。 */
     bool handle(const hal::Can::Frame &frame)
@@ -114,6 +128,7 @@ class FakeMotor final
             return false;
         }
         ++frames_received;
+        last_control_us_ = hal::os::now_us();
         handle_control(frame);
         send_feedback();
         return true;
@@ -223,11 +238,37 @@ class FakeMotor final
         }
         has_mit = true;
         last_mit = frame;
+        if (simulate_motion)
+        {
+            move(frame);
+        }
+    }
+
+    void move(const hal::Can::Frame &frame)
+    {
+        const hal::os::Microseconds now = hal::os::now_us();
+        const float dt = moved_ ? hal::os::to_seconds(now - last_mit_us_) : 0.0F;
+        moved_ = true;
+        last_mit_us_ = now;
+        const auto kd_raw = static_cast<std::uint16_t>((frame.data[5] << 4U) | (frame.data[6] >> 4U));
+        const auto torque_raw = static_cast<std::uint16_t>(((frame.data[6] & 0x0FU) << 8U) | frame.data[7]);
+        const float kd = Dm::from_unsigned(kd_raw, 0.0F, Dm::MIT_KD_MAX, 12U);
+        const float command = Dm::from_unsigned(torque_raw, -torque_max, torque_max, 12U);
+        const float speed = state == Dm::State::ENABLED && kd > 0.01F ? command / kd : 0.0F;
+        const float applied = state == Dm::State::ENABLED ? command : 0.0F;
+        position_rad_ += speed * dt;
+        position = Dm::to_unsigned(position_rad_, -position_max, position_max, 16U);
+        velocity = Dm::to_unsigned(speed, -velocity_max, velocity_max, 12U);
+        torque = Dm::to_unsigned(applied, -torque_max, torque_max, 12U);
     }
 
     std::uint8_t bus_;
     std::uint16_t esc_id_;
     std::uint16_t master_id_;
+    hal::os::Microseconds last_control_us_{0U};
+    hal::os::Microseconds last_mit_us_{0U};
+    bool moved_{false};
+    float position_rad_{0.0F};
 };
 
 /** 一条总线上的模拟电机：取出本轮发送记录，交给每台电机应答。 */
@@ -248,6 +289,10 @@ class Bench final
     void respond()
     {
         sent_count_ = 0U;
+        for (std::size_t index = 0U; index < count_; ++index)
+        {
+            motors_[index]->update(hal::os::now_us());
+        }
         hal::Can::Frame frame{};
         while (mock::can::pop_sent(bus_, frame))
         {

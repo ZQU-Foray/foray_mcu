@@ -139,6 +139,10 @@ host_test(bringup_imu
 host_test(bringup_io
     SOURCES unit/bringup/io_checks_test.cpp
     LINK app_bringup platform_mock)
+# 达妙电机检查（Decision-20261102-02）：电机由 unit/motor/dm_fake_motor.hpp 扮演
+host_test(bringup_dm
+    SOURCES unit/bringup/dm_check_test.cpp
+    LINK app_bringup platform_mock)
 
 # ---- 架构断言：通用电机头不得引用具体电机协议、适配器或驱动 ----
 # 通用头允许声明通用型号、电机组与品牌映射包含（装配选择）。清单显式列出，

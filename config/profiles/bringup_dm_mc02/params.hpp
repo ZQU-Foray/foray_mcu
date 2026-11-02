@@ -3,6 +3,7 @@
 
 // bringup_dm_mc02 的参数（只含数据，规则 4）。
 
+#include "bringup/dm_check.hpp"
 #include "bringup/imu_check.hpp"
 #include "bringup/indicator.hpp"
 #include "bringup/monitor.hpp"
@@ -37,6 +38,25 @@ inline constexpr bringup::UsbReport::Parameters USB_REPORT{100000U};
 
 // 指示：200 ms 没有新数据算停；灯亮度 32/255；上电响两声
 inline constexpr bringup::Indicator::Parameters INDICATOR{200000U, 32U, true};
+
+// 达妙电机检查（Decision-20261102-02）：CAN1 上 ESC_ID 1、MST_ID 0x11 的 DM-J4310，上电后跑一遍。
+// 转动：力矩 0.3 N·m、Kd 0.3，稳态不超过 1 rad/s，2 s 最多 2 rad；电机里的通讯超时是 50 ms，停发 300 ms。
+// 时限：核对 5 s（电机上电自检约 1 s）；失能保活 0.5 s；使能 0.2 s；零力矩 1 s；转动 2 s；刹车 0.5 s；恢复 3 s。
+// 装到整车上之前把 spin 改为 false，或者去掉这个检查
+inline constexpr bringup::DmCheck::Parameters DM_CHECK{
+    {1U, 0x11U},
+    true,
+    0.3F,
+    0.3F,
+    5000000U,
+    500000U,
+    200000U,
+    1000000U,
+    2000000U,
+    500000U,
+    300000U,
+    3000000U,
+};
 
 } // namespace params
 
