@@ -26,6 +26,10 @@ using Phase = DmMotor::Phase;
 constexpr std::uint8_t BUS{0U};
 constexpr std::size_t VERIFY_ROUNDS{7U}; // 读模式、失能、三个量程、写超时，第 7 轮收到回显
 
+// 构造函数是 constexpr：作全局对象时常量初始化，不依赖全局构造顺序
+constexpr DmMotor CONSTANT_MOTOR{DmMotor::Config{hal::Can{BUS}, DmMotor::Profile::j4310(), {{{1U, 0x11U}}}, 1U}};
+static_assert(CONSTANT_MOTOR.count() == 1U);
+
 void reset()
 {
     mock::reset();

@@ -131,7 +131,11 @@ class DmMotor final
         std::uint32_t bus_off_count{0U};
     };
 
-    explicit DmMotor(const Config &config) noexcept;
+    /** @brief 只保存配置，不碰硬件；constexpr，全局对象常量初始化。 */
+    constexpr explicit DmMotor(const Config &config) noexcept
+        : config_{config}, timeout_ticks_{config.profile.communication_timeout_us / TIMEOUT_TICK_US}
+    {
+    }
 
     /**
      * @brief 检查配置、占住总线的接收，全部电机从头开始核对。调度器启动前调用。
@@ -143,7 +147,7 @@ class DmMotor final
     /** @brief 周期服务：排空接收队列，推进核对、使能与指令发送，读取总线统计。 */
     void process() noexcept;
 
-    [[nodiscard]] std::size_t count() const noexcept
+    [[nodiscard]] constexpr std::size_t count() const noexcept
     {
         return config_.count;
     }

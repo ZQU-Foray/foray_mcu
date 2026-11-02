@@ -46,11 +46,6 @@ bool finite(const Dm::MitCommand &command)
 
 } // namespace
 
-DmMotor::DmMotor(const Config &config) noexcept
-    : config_{config}, timeout_ticks_{config.profile.communication_timeout_us / TIMEOUT_TICK_US}
-{
-}
-
 bool DmMotor::init() noexcept
 {
     ready_ = false;
