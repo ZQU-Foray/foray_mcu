@@ -547,7 +547,8 @@ def judge_dm(dm, delta, per_second) -> list[tuple[bool, str]]:
 
 
 def judge_dm_benchmark(dm) -> tuple[bool, str]:
-    """1 kHz 控制环基准（Decision-20261102-03 的 M0、M7）：只报告测得的值，跑完且没有丢周期就算通过。"""
+    """1 kHz 控制环基准（Decision-20261102-03 的 M0、M7）：跑满轮数、dm 任务没有错过周期就算通过。
+    抖动与延迟只报告：抖动主要来自更高优先级的任务，Debug 构建下尤其明显（2026-11-02 实测）。"""
     if dm["dm.bench_duration_us"] == 0:
         return True, "1 kHz 控制环基准：参数里关掉了"
     expected = dm["dm.bench_duration_us"] // 1000
@@ -555,7 +556,9 @@ def judge_dm_benchmark(dm) -> tuple[bool, str]:
     samples = max(dm["dm.bench_latency_samples"], 1)
     finished = dm["dm.stage"] == DM_STAGES.index("结束")
     return (
-        finished and cycles >= expected * 0.99 and dm["dm.bench_late_cycles"] == 0,
+        finished
+        and cycles >= expected * 0.99
+        and dm[f"runner[{TASKS.index('dm')}].overrun_count"] == 0,
         (
             f"1 kHz 控制环基准：{cycles} 轮（应约 {expected}），"
             f"单轮耗时平均 {dm['dm.bench_exec_sum_us'] / max(cycles, 1):.1f} µs、最长 {dm['dm.bench_exec_max_us']} µs；"
