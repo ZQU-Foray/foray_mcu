@@ -1,9 +1,11 @@
 // hal::UsbCdc 在 DM-MC02 上的实现（Decision-20261101-01），由迁移期的 usb_cdc.c 改写，收发逻辑不变。
 // USB OTG HS 用内部 DMA：发送数据先拷进 .usb_dma_buffer（AXI SRAM，不在 D-cache 里会出问题的 DTCM）。
-// 生成区接缝（例外 X-01、X-02）：
-//   - usb_device.c、usbd_cdc_if.c 的 USER CODE 区调用 UsbCdc.h 里的 UsbCdcPort_*，这里以 extern "C" 实现；
+// 与生成区的两处衔接：
+//   - usb_device.c、usbd_cdc_if.c 的 USER CODE 区调用 UsbCdc.h 里的 UsbCdcPort_*，这里以 extern "C" 实现
+//     （生成桩归本板的 USB CDC 实现，Q8 方案①，Decision-20261103-04）；
 //   - 链接选项 --wrap=HAL_PCD_EP_Transmit 把端点发送转到 __wrap_HAL_PCD_EP_Transmit：
-//     数据不在 DMA 可达的内存或没有 4 字节对齐时，先拷进每个端点的弹跳缓冲区。
+//     数据不在 DMA 可达的内存或没有 4 字节对齐时，先拷进每个端点的弹跳缓冲区（例外 X-02：控制端点会从
+//     DTCM 里的 USB 设备句柄发数据）。
 #include "hal/usb_cdc.hpp"
 
 #include "UsbCdc.h"
@@ -99,7 +101,7 @@ bool connected() noexcept
 
 } // namespace
 
-// ---- 生成区接缝（例外 X-01、X-02）----
+// 生成区衔接：UsbCdcPort_*（Q8 方案①）与 --wrap（例外 X-02）
 
 extern "C" HAL_StatusTypeDef __wrap_HAL_PCD_EP_Transmit( // NOLINT(readability-identifier-naming)：--wrap 约定的名字
     PCD_HandleTypeDef *hpcd,
@@ -227,7 +229,7 @@ extern "C" void UsbCdcPort_HandleTransmitComplete(void)
     g_state.write_notification.fire();
 }
 
-// ---- 契约 ----
+// 契约
 
 namespace hal
 {

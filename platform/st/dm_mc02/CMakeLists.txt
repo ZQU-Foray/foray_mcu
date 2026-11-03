@@ -122,7 +122,7 @@ target_compile_definitions(mx_generated_${BOARD_ID}
     PRIVATE ARM_MATH_CM7)
 target_include_directories(mx_generated_${BOARD_ID}
     PUBLIC ${cubemx_include_dirs}
-    # 生成区接缝（例外 X-01）：USB_DEVICE 调用 port 私有的 UsbCdcPort_*（UsbCdc.h），
+    # USB 生成桩（Q8 方案①，Decision-20261103-04）：USB_DEVICE 调用 port 私有的 UsbCdcPort_*（UsbCdc.h），
     # 这个头被生成代码按名字 include，所以保持原文件名。
     PRIVATE "${port_dir}")
 target_link_libraries(mx_generated_${BOARD_ID}
@@ -171,7 +171,7 @@ target_include_directories(os_freertos_${BOARD_ID} INTERFACE
 
 # ---- port：hal 与 hal/os 契约 v1 的 C++ 实现（Decision-20261031-10、Decision-20261101-01）----
 # 每个外设一个 .cpp，覆盖 HAL 弱符号的回调写在对应的 .cpp 里（规则 16）；port.hpp、os/os.hpp 是 port 私有的头。
-# UsbCdc.h 是 USB 生成代码调用的 C 接口（例外 X-01），被生成代码按名字 include，保持原文件名。
+# UsbCdc.h 是 USB 生成桩调用的 C 接口（Q8 方案①），被生成代码按名字 include，保持原文件名。
 add_library(port_${BOARD_ID} OBJECT
     port/can.cpp
     port/gpio.cpp
@@ -193,7 +193,8 @@ link_object_library(port_${BOARD_ID}
     mx_generated_${BOARD_ID}
     rtos_${BOARD_ID}
     usb_${BOARD_ID})
-# 生成区链接接缝（例外 X-02）：USB 发送经 port 包装，P4 改为回调注册后删除。
+# USB 发送的链接接缝（例外 X-02）：OTG HS 的 DMA 访问不到 DTCM，发送经 port 包装，按需拷进弹跳缓冲区。
+# USB 设备句柄等也放进 DMA 可达内存（随 X-03）后再删除（Decision-20261103-04）。
 target_link_options(port_${BOARD_ID} INTERFACE "-Wl,--wrap=HAL_PCD_EP_Transmit")
 
 # ---- board：板级内容——board.hpp（物理资源句柄、外设个数与能力常量，Decision-20261101-01）与链接脚本

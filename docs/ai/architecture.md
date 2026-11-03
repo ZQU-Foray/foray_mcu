@@ -1,6 +1,6 @@
 # 架构判据与依赖规则（foray_mcu）
 
-> **状态**：v2.13（2026-11-03）。v2.0 见 Decision-20261027-01；v2.1 随 F1 第 1 步更新 utils、middleware、lib 的归类：math 进 utils，fsm 进 middleware（Decision-20261027-02）；v2.2 随 F1 第 2 步加入 utils 的并发原语 `concurrency`（Decision-20261029-01），§3.4 补充 seqlock 的读写竞态（Decision-20261029-02，待定）；v2.3 随 F1 第 3 步定稿 §3.2 的 OS 契约：1 µs 时基、`Signal` 的语义、临界区只屏蔽框架中断（Decision-20261031-01～03）；v2.4 随 F1 第 4 步定稿 §3.4 的 topic：发布时用临界区包住写入（Decision-20261029-02），接口、等待槽与清单约定（Decision-20261031-05）；v2.5 随 F1 的 CI 加入框架独立构建与 Cortex-M0+ 原子检查，规则 13、17 的文本扫描生效，新增例外 X-17（Decision-20261031-06）；v2.6 随 F2 第 1 步把固件的符号对照换成段大小报告，规则 16 的 HAL 回调符号检查生效（Decision-20261031-08）；v2.7 随 F2 第 4 步换上启动入口 `boot_*` 与 `hal::init()`，规则 7 的 include 检查生效，`boot` 在依赖图里单独成层，X-09 关闭（Decision-20261031-11）；v2.8 随 F2 第 4 步定下 §3.5 的任务运行器写法，加入第一个 topic 与 bringup 能力，`topics` 在依赖图里单独成层（Decision-20261031-12）；v2.9 随 F2 第 4 步归档旧能力代码（tag `archive/pre-rebuild`），X-04、X-10 关闭，规则 10、18 生效，`app/` 加入宿主构建（Decision-20261031-13）；v2.10 随 F2 第 5 步与 F3 定稿 §3.1 的 hal 契约 v1（句柄类）、`board.hpp`、C++ port 与 mock，删除 `hal/detail` 与 PortKit，X-07、X-08、X-14、X-17 关闭，规则 1（`board.hpp`）、4、14、16（C 链接位置）的检查生效；§3.5 加入 topic 触发的超时与能力 `Config` 的两部分（Decision-20261101-01～03）；v2.11 板级目录改为"厂商 / 板"两级：`platform/st/dm_mc02`（Decision-20261101-04）。v2.12 电机改为关节 `Joint` + 每条总线的 `CanBus` + 品牌驱动，型号做成数据，§3.8；`hal::Can::Frame` 带接收时刻；新增能力目录 `app/actuator`（Decision-20261102-03、-04）。v2.13 上位机链路用 RoboLink v0.2：编解码在 `src/middleware/robolink` 一处手写、用独立生成的标准帧核对，规则 11 改写并生效；链路能力目录 `app/pc_link`（Decision-20261103-01）。v2 按负责人的骨架重写：迁移方式从"改造迁移源"改为"按新骨架重建，迁移源只作参考与零件来源"。v1.0–v1.4（P0–P2.5）见 git 历史与 decision.md。
+> **状态**：v2.14（2026-11-03）。v2.0 见 Decision-20261027-01；v2.1 随 F1 第 1 步更新 utils、middleware、lib 的归类：math 进 utils，fsm 进 middleware（Decision-20261027-02）；v2.2 随 F1 第 2 步加入 utils 的并发原语 `concurrency`（Decision-20261029-01），§3.4 补充 seqlock 的读写竞态（Decision-20261029-02，待定）；v2.3 随 F1 第 3 步定稿 §3.2 的 OS 契约：1 µs 时基、`Signal` 的语义、临界区只屏蔽框架中断（Decision-20261031-01～03）；v2.4 随 F1 第 4 步定稿 §3.4 的 topic：发布时用临界区包住写入（Decision-20261029-02），接口、等待槽与清单约定（Decision-20261031-05）；v2.5 随 F1 的 CI 加入框架独立构建与 Cortex-M0+ 原子检查，规则 13、17 的文本扫描生效，新增例外 X-17（Decision-20261031-06）；v2.6 随 F2 第 1 步把固件的符号对照换成段大小报告，规则 16 的 HAL 回调符号检查生效（Decision-20261031-08）；v2.7 随 F2 第 4 步换上启动入口 `boot_*` 与 `hal::init()`，规则 7 的 include 检查生效，`boot` 在依赖图里单独成层，X-09 关闭（Decision-20261031-11）；v2.8 随 F2 第 4 步定下 §3.5 的任务运行器写法，加入第一个 topic 与 bringup 能力，`topics` 在依赖图里单独成层（Decision-20261031-12）；v2.9 随 F2 第 4 步归档旧能力代码（tag `archive/pre-rebuild`），X-04、X-10 关闭，规则 10、18 生效，`app/` 加入宿主构建（Decision-20261031-13）；v2.10 随 F2 第 5 步与 F3 定稿 §3.1 的 hal 契约 v1（句柄类）、`board.hpp`、C++ port 与 mock，删除 `hal/detail` 与 PortKit，X-07、X-08、X-14、X-17 关闭，规则 1（`board.hpp`）、4、14、16（C 链接位置）的检查生效；§3.5 加入 topic 触发的超时与能力 `Config` 的两部分（Decision-20261101-01～03）；v2.11 板级目录改为"厂商 / 板"两级：`platform/st/dm_mc02`（Decision-20261101-04）。v2.12 电机改为关节 `Joint` + 每条总线的 `CanBus` + 品牌驱动，型号做成数据，§3.8；`hal::Can::Frame` 带接收时刻；新增能力目录 `app/actuator`（Decision-20261102-03、-04）。v2.13 上位机链路用 RoboLink v0.2：编解码在 `src/middleware/robolink` 一处手写、用独立生成的标准帧核对，规则 11 改写并生效；链路能力目录 `app/pc_link`（Decision-20261103-01）。v2.14 USB 生成桩调用 port 的 C 接口按 Q8 方案①归入板级实现，X-01 关闭；X-02（`--wrap`）改为长期例外（Decision-20261103-04）。v2 按负责人的骨架重写：迁移方式从"改造迁移源"改为"按新骨架重建，迁移源只作参考与零件来源"。v1.0–v1.4（P0–P2.5）见 git 历史与 decision.md。
 > **权威来源**：[decision.md](../../decision.md) 中的 Accepted 条目，v2 起以 Decision-20261027-01 为准。[评审报告 v1.0](reviews/2026-10-25-foray_mcu-架构评审报告.md) 是历史记录，与本文件冲突的部分以本文件为准。
 > **修改流程**：新增或修改规则、例外、白名单，先在 decision.md 登记，再改本文件和对应的 CI 检查（§10）。
 
@@ -164,7 +164,7 @@ foray_mcu/
 - **类型**：只用 `enum class`、POD 结构与句柄，收在类里（`hal::Can::Frame`），枚举只定义一份；不出现厂商或 RTOS 类型。时间参数用 `hal::os::Microseconds`。
 - **回调**：`hal::Callback`（`void (*)(void *context) noexcept`，`src/hal/callback.hpp`），在框架中断里执行，只做取数据、发布 topic、`Signal::notify()`。
 - **文档**：每个成员函数注明在任务还是中断里调用、是否阻塞。
-- **初始化**：`hal::init()` 由 port 实现，组合根在 `boot_init()` 里调用；生成区不直接调用 port（USB 的 X-01 例外）。
+- **初始化**：`hal::init()` 由 port 实现，组合根在 `boot_init()` 里调用；生成区不直接调用 port，只有 USB 生成桩例外（Q8 方案①，§6）。
 
 ### 3.2 OS 契约 `src/hal/os`
 
@@ -383,7 +383,7 @@ EXECUTABLE  firmware_<profile>
 | 4 | `config/profiles` 只含数据：`params.hpp` 只能 include 能力的配置类型头与标准库头 | 文本扫描（include 只能指向 `app/` 下能力目录的头与标准库头） | 已执行（F2，Decision-20261101-03） |
 | 5 | 只有最终固件可以链接 `assembly_*` | 依赖图 | 已执行 |
 | 6 | 测试不得链接 port、board、生成区、assembly | 依赖图 | 已执行 |
-| 7 | 生成区只在 USER CODE 区调用 `boot_*`（及 X-01 的 USB 接口）；不得 include `app`、`config` 的头 | 文本扫描（include 只能指向生成区自己的头、厂商 HAL 头、`boot/boot.h` 与 X-01 的 `UsbCdc.h`）；USER CODE 的改动行登记在 decision.md | 已执行（F2 第 4 步，Decision-20261031-11） |
+| 7 | 生成区只在 USER CODE 区调用 `boot_*`（及 USB 生成桩调用的板级接口 `UsbCdcPort_*`，Q8 方案①）；不得 include `app`、`config` 的头 | 文本扫描（include 只能指向生成区自己的头、厂商 HAL 头、`boot/boot.h` 与本板 port 的 `UsbCdc.h`）；USER CODE 的改动行登记在 decision.md | 已执行（F2 第 4 步，Decision-20261031-11） |
 | 8 | 禁止 `file(GLOB)` 收集源码；禁止全局 `include_directories()`；每个 target 显式声明 PRIVATE/PUBLIC/INTERFACE | 文本扫描 | 已执行 |
 | 9 | `app/`、`src/` 中不用 `#if` 做裁剪（头文件保护与 `__cplusplus` 除外） | 文本扫描 | 已执行（X-14 在 F2 第 5 步关闭，没有放行） |
 | 10 | RTOS 头只对 `app/common` 与 `config/assembly` 可见，用 FreeRTOS 原生 API；能力与 `src` 零 RTOS，只经 `hal/os` | 依赖图（能力不得依赖 `app_common`）+ 文本扫描（`src/`、`app/` 只有 `app/common` 可以 include RTOS 头） | 已执行（F2 第 4 步，Decision-20261031-13） |
@@ -417,7 +417,8 @@ EXECUTABLE  firmware_<profile>
 
 ## 6. 生成区与 vendor 治理
 
-- `platform/<厂商>/<board>/cubemx/` 只放生成物。手写内容只允许出现在 USER CODE 区，且只能是对 `boot_*` 的调用（以及 X-01 的 USB 接口调用）。这些行登记在 decision.md，由 CI 文本扫描检查。
+- `platform/<厂商>/<board>/cubemx/` 只放生成物。手写内容只允许出现在 USER CODE 区，且只能是对 `boot_*` 的调用，以及 USB 生成桩对本板 port 的 `UsbCdcPort_*` 的调用。
+- **USB 生成桩归板级实现**（Q8 方案①，Decision-20261103-04）：`usb_device.c`、`usbd_cdc_if.c` 是本板 USB CDC 的一部分，USER CODE 区调用 port 私有的 `UsbCdcPort_*`（`port/UsbCdc.h`，C 接口，`port/usb_cdc.cpp` 实现）；能力只经 `hal::UsbCdc` 契约收发。CDC 类的回调表必须在 `USBD_Start` 之前登记，生成代码里总要有一处调用进 port，所以这不是待删的过渡接缝。这些行登记在 decision.md，由 CI 文本扫描检查。
 - 生成区的其他变更只能通过重新生成，并先在 decision.md 登记。
 - 再生成可复现：CI 用 sha256 清单校验；有装 CubeMX 的 runner 时再加 regenerate-diff。
 - 板级 CMake 的再生成防护保留：USB OTG HS 内部 DMA 必须开启；USB port 必须含 PA11/PA12 复用配置。
@@ -427,12 +428,11 @@ EXECUTABLE  firmware_<profile>
 
 ## 7. 例外登记
 
-本表是全部生效中例外的唯一清单。新增例外先在 decision.md 登记；到期项完成后标为已关闭。已关闭的 X-04、X-10（F2 第 4 步，Decision-20261031-13）、X-09（Decision-20261031-11）、X-07、X-08、X-14（F2 第 5 步，Decision-20261101-01）、X-17（F3，Decision-20261101-02）、X-11、X-12、X-13、X-15 见 decision.md。
+本表是全部生效中例外的唯一清单。新增例外先在 decision.md 登记；到期项完成后标为已关闭。已关闭的 X-01（按 Q8 方案①归入板级实现，Decision-20261103-04）、X-04、X-10（F2 第 4 步，Decision-20261031-13）、X-09（Decision-20261031-11）、X-07、X-08、X-14（F2 第 5 步，Decision-20261101-01）、X-17（F3，Decision-20261101-02）、X-11、X-12、X-13、X-15 见 decision.md。
 
 | 编号 | 例外 | 涉及规则 | 处置与到期 |
 |---|---|---|---|
-| X-01 | **UsbCdc 边界**：USB 生成代码（`usb_device.c`、`usbd_cdc_if.c`）直接调用 port 的 C 接口 `UsbCdcPort_*`（`port/usb_cdc.cpp` 以 `extern "C"` 实现），`UsbCdc.h` 被生成代码按名字 include | 7、16 | 重建链路能力时按 Q8 改为回调注册 |
-| X-02 | **生成区链接接缝**：`-Wl,--wrap=HAL_PCD_EP_Transmit` | 16 | 随 X-01 删除 |
+| X-02 | **USB 发送的链接接缝**：`-Wl,--wrap=HAL_PCD_EP_Transmit`。OTG HS 内部 DMA 访问不到 DTCM，也要求 4 字节对齐；CDC 收发缓冲区与 USB 栈静态内存已在 `.usb_dma_buffer`（AXI SRAM），但控制端点会从 USB 设备句柄（`hUsbDeviceHS`，在 DTCM）发数据，所以发送前按需拷进弹跳缓冲区 | 16 | 长期；USB 设备句柄等也放进 DMA 可达内存（随 X-03 的链接脚本 overlay）、确认所有发送都 4 字节对齐后删除（Decision-20261103-04） |
 | X-03 | **链接脚本 overlay**：自定义段用第二个 `-T` 追加，不改生成的 `.ld` | 生成区 | 第一个自定义段出现时落地 |
 | X-05 | **电机型号常量**：`dji/dji_models.hpp`（电调档案、原生减速比）、`dm/dm_models.hpp`（量程、峰值扭矩、通讯超时）是型号固有参数，留在驱动层；选型与机构参数在 profile（Decision-20261102-03） | §2.3 | 长期 |
 | X-06 | **`-Wdouble-promotion` 豁免**：`src/lib/estimate/vqf.cpp`（按文件关掉，有意用 double）；"目标没有双精度 FPU 就报错"的检查推迟到阶段 B（Decision-20261101-02） | 14 | 长期；F407 等 M4F 板链接姿态解算时由板级 CMake 声明 FPU 能力、组合根检查 |
@@ -491,7 +491,7 @@ EXECUTABLE  firmware_<profile>
 | 头文件保护宏 | 路径大写，单下划线分隔 | `HAL_OS_CLOCK_HPP` |
 | 本项目自有的 C 链接函数 | 模块前缀 + snake_case | `boot_init` |
 
-不改名的：HAL 回调与中断入口（`HAL_*Callback`、`*_IRQHandler`）、CubeMX 生成代码、USB 生成区接缝的 C 接口（`UsbCdcPort_*`，X-01），由 `.clang-tidy` 的 `FunctionIgnoredRegexp` 排除；链接器约定的名字（`__wrap_HAL_PCD_EP_Transmit`、`__usb_dma_buffer_start__`）与生成区的全局变量（`hUsbDeviceHS`）在声明处用 `// NOLINT(readability-identifier-naming)` 注明原因。
+不改名的：HAL 回调与中断入口（`HAL_*Callback`、`*_IRQHandler`）、CubeMX 生成代码、USB 生成桩调用的板级 C 接口（`UsbCdcPort_*`，Q8 方案①），由 `.clang-tidy` 的 `FunctionIgnoredRegexp` 排除；链接器约定的名字（`__wrap_HAL_PCD_EP_Transmit`、`__usb_dma_buffer_start__`）与生成区的全局变量（`hUsbDeviceHS`）在声明处用 `// NOLINT(readability-identifier-naming)` 注明原因。
 
 标识符里的数字（`.clang-tidy` 查不出，评审把关，Decision-20261026-05）："数值+单位"和序号单独成段（`ACCEL_ODR_100_HZ`、`CHANNEL_1`）；名字里固有的数字不拆（`BMI088`、`GM6020_CURRENT`、`crc8`）。
 
@@ -502,7 +502,7 @@ EXECUTABLE  firmware_<profile>
 | 1 | 生成区调用的启动入口 `boot_*` | `main.c`、`freertos.c` 是 C 文件 | `src/boot/boot.h` 用 `extern "C"` 声明，实现在 `config/assembly` 的 C++ 里 |
 | 2 | 覆盖 HAL 弱符号的回调 `HAL_*Callback` | HAL 按 C 符号名调用 | 写在 port 的 `.cpp` 里，并 include 对应 HAL 头，让定义继承 C 链接；否则回调被 C++ 改名，HAL 弱实现照旧生效，编译链接都不报错 |
 | 3 | 中断入口 `*_IRQHandler` | 向量表按 C 符号名引用 | 保持在生成区的 C 文件里 |
-| 4 | USB 生成代码调用的 `UsbCdcPort_*`；`--wrap` 的 `__wrap_HAL_PCD_EP_Transmit` | 例外 X-01、X-02 | 在 `port/usb_cdc.cpp` 以 `extern "C"` 实现（声明在 `UsbCdc.h`），Q8 落地后删除 |
+| 4 | USB 生成桩调用的 `UsbCdcPort_*`；`--wrap` 的 `__wrap_HAL_PCD_EP_Transmit` | 生成桩是 C 文件（Q8 方案①）；`--wrap` 是例外 X-02 | 在 `port/usb_cdc.cpp` 以 `extern "C"` 实现（声明在 `UsbCdc.h`） |
 
 ### 9.4 格式（组织规则，由根目录 `.clang-format` 执行）
 

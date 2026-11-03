@@ -11,7 +11,7 @@
 ## 1. 语言与格式
 
 - 注释、文档、提交信息一律使用 **简体中文**；文件编码 **UTF-8（无 BOM）**。
-- 主语言 **C++17**（`-fno-rtti -fno-exceptions -fno-threadsafe-statics`，无堆分配，热路径不用虚函数）。C 只用于外部强制的接缝：CubeMX 生成区调用的启动入口 `boot_*`（`extern "C"` 声明，实现写在 C++ 里）、覆盖 HAL 弱符号的回调、生成区里的中断入口，以及例外 X-01、X-02 的 USB 接口（架构 v2 §9.3；`extern "C"` 的位置由 `arch_check.py scan` 检查）。覆盖 HAL 回调的 `.cpp` 必须 include 对应 HAL 头，否则回调会被 C++ 改名而静默失效（评审报告 §5.11）。
+- 主语言 **C++17**（`-fno-rtti -fno-exceptions -fno-threadsafe-statics`，无堆分配，热路径不用虚函数）。C 只用于外部强制的接缝：CubeMX 生成区调用的启动入口 `boot_*`（`extern "C"` 声明，实现写在 C++ 里）、覆盖 HAL 弱符号的回调、生成区里的中断入口，以及 USB 生成桩调用的板级接口 `UsbCdcPort_*` 与例外 X-02 的 `--wrap`（架构 v2 §9.3；`extern "C"` 的位置由 `arch_check.py scan` 检查）。覆盖 HAL 回调的 `.cpp` 必须 include 对应 HAL 头，否则回调会被 C++ 改名而静默失效（评审报告 §5.11）。
 - 命名按 ROS 2 C++ 风格，格式按组织规则（4 空格、LF、UTF-8、文件末尾换行），分别由根目录 `.clang-tidy` 与 `.clang-format` 执行；clang-format/clang-tidy 统一用 18（评审报告 §5.12、Decision-20261025-04）。格式化与改名必须单独提交，并登记到 `.git-blame-ignore-revs`。
 - `.clang-tidy` 查不出的命名约定（Decision-20261026-05）：标识符里"数值+单位"和序号单独成段（`ACCEL_ODR_100_HZ`、`POWER_24V_0`、`CHANNEL_1`），名字里固有的数字不拆（型号 `BMI088`、`GM6020_CURRENT`，术语 `crc8`，标号 `WHEEL_M1`）。C ABI 的"模块_函数"、`os*`、`HAL_*` 回调不按 C++ 规则改名。
 - 不提交编译产物（`build/`、`*.elf`、`*.hex`、`*.bin`、`*.map`）、IDE 配置、临时文件与日志。

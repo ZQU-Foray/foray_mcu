@@ -129,7 +129,7 @@ ALLOWED = {
     # port 用本板的 board.hpp 核对外设表（Decision-20261101-01）
     "port": {"vendor", "contract", "utils", "board"},
     "board": {"contract"},
-    # 生成区只调 boot_*（USER CODE 区）；X-01 的 USB 接缝见 TRANSITIONAL_TARGETS
+    # 生成区只调 boot_*（USER CODE 区）；USB 生成桩（Q8 方案①）见 TRANSITIONAL_TARGETS
     "vendor": {"boot"},
     "mock": {"contract", "utils"},
     "test": FRAMEWORK | {"mock", "app", "app_common"},
@@ -141,7 +141,7 @@ ALLOWED = {
 # 现在没有：lib_estimate → driver_bmi088 在 F3 消除（Decision-20261101-02）。
 TRANSITIONAL_EDGES: dict[tuple[str, str], str] = {}
 # 迁移期放行的层间依赖：起点层 → (终点层集合, 依据)。现在没有：USB 生成代码经 UsbCdc.h 调用 port 的
-# C 接口（X-01）只是 include 路径，不是依赖图上的边；hal/detail 已删除（X-07，Decision-20261101-01）。
+# C 接口（USB 生成桩，Q8 方案①）只是 include 路径，不是依赖图上的边；hal/detail 已删除（X-07，Decision-20261101-01）。
 TRANSITIONAL_TARGETS: dict[str, tuple[set[str], str]] = {}
 
 REQUIRED = {
@@ -395,7 +395,7 @@ TOPIC_QUOTED_INCLUDES = re.compile(
 STANDARD_HEADER = re.compile(r"[a-z_]+")
 # 规则 4：profile 的 params.hpp 只含数据，只能 include 能力的头（app/ 下除 topics、common 外的一级目录）与标准库头
 PARAMS_CAPABILITY_INCLUDE = re.compile(r"(\w+)/[\w/]+\.hpp")
-# 规则 16：C 链接只允许 §9.3 的几处（启动入口、USB 生成区接缝 X-01/X-02）；HAL 回调靠 include HAL 头得到
+# 规则 16：C 链接只允许 §9.3 的几处（启动入口、USB 生成桩的 UsbCdcPort_* 与例外 X-02 的 --wrap）；HAL 回调靠 include HAL 头得到
 # C 链接，中断入口在生成区，都不写 extern "C"（Decision-20261101-01）
 EXTERN_C = re.compile(r'\bextern\s+"C"')
 EXTERN_C_ALLOWED = re.compile(
@@ -415,7 +415,7 @@ BOARD_HEADER_ALLOWED = re.compile(r"config/assembly/|platform/\w+/\w+/(?:port|bo
 # 规则 7：生成区的 #include "…" 只能指向生成区自己的头，或下面这些（Decision-20261031-11）
 GENERATED_EXTERNAL_INCLUDES = {
     "boot/boot.h": "启动入口（规则 7）",
-    "UsbCdc.h": "X-01：USB 生成代码调用 port 的 UsbCdcPort_*",
+    "UsbCdc.h": "USB 生成桩调用 port 的 UsbCdcPort_*（Q8 方案①，Decision-20261103-04）",
 }
 # 厂商 HAL 的头：stm32h7xx_hal_conf.h 按模块开关列出全部 HAL 头，没启用的模块不在仓库里
 VENDOR_HEADER = re.compile(r"stm32\w*\.h")

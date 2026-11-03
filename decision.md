@@ -1962,6 +1962,32 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 
 ---
 
+## Decision-20261103-04（USB 生成桩按 Q8 方案①归入板级实现，X-01 关闭；X-02 改为长期例外，Accepted）
+
+- **Date**：2026-11-03
+- **Status**：Accepted（AI 按负责人授权决定；负责人同意按"链路能力之后清理 X-01"的顺序推进）
+- **Source**：例外 X-01 的到期条件"重建链路能力时按 Q8 改为回调注册"；评审报告 Q8（默认采纳"方案①先落地，方案②作为 P4 目标"）
+
+**Context**：
+- 现状已是 Q8 方案①：
+  - USB 生成代码（`usb_device.c`、`usbd_cdc_if.c`）的 USER CODE 区调用 port 私有的 C 接口 `UsbCdcPort_*`（`port/UsbCdc.h`）；
+  - 能力层只经 `hal::UsbCdc` 契约收发（`app/pc_link`、`bringup::UsbReport`）。
+- 方案②"用 HAL 回调注册替代 `--wrap`"核对后不成立：
+  - `--wrap=HAL_PCD_EP_Transmit`（X-02）解决的是 OTG HS 内部 DMA 访问不到 DTCM、要求 4 字节对齐，与回调无关；
+  - CDC 收发缓冲区与 USB 栈静态内存已在 `.usb_dma_buffer`（AXI SRAM），但控制端点会从 USB 设备句柄 `hUsbDeviceHS`（DTCM）发数据；
+  - CDC 类的回调表必须在 `USBD_Start` 之前登记，生成代码里总要有一处调用进 port。
+
+**Decision**：
+1. 按 Q8 方案①定稿：USB 生成桩是本板 USB CDC 实现的一部分，USER CODE 区调用 `UsbCdcPort_*` 写进规则 7、§6 与 §9.3，不再作为例外；X-01 关闭。
+2. X-02（`--wrap`）改为长期例外。到期条件：USB 设备句柄等也放进 DMA 可达内存（随 X-03 的链接脚本 overlay），并确认所有发送都 4 字节对齐后删除。
+3. 只改文档与注释（architecture v2.14、AGENTS、tree、port 与 CMake 的注释、`arch_check.py` 的说明文字），检查逻辑不变；bringup 与 link 的 Debug/Release 固件改前改后逐字节相同。
+
+**偏离原计划**：plan 与 X-01 原写"按 Q8 改为回调注册"，本决策改为接受方案①为最终形态。原因见 Context。
+
+**回滚**：revert 本决策的提交，X-01 回到例外表。
+
+---
+
 ## 待登记
 
 - 分支保护的具体设置（组织规范 §6.1、§10，负责人在 GitHub 上操作后补记）。
