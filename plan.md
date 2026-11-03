@@ -157,6 +157,7 @@
 - [x] 第 3 步 IMU 能力（`a/imu-capability`）：`app/imu`（由 bringup 的 `ImuCheck` 改写），云台坐标系、上电零偏标定 `estimate::GyroBiasCalibration`（由归档的旧实现改写，时间改 µs、累加改 float）与 SETTLING/READY/DEGRADED、yaw 归零，`imu.event`、`imu.attitude`；宿主测试 `gyro_bias_calibration`、`imu_ready`/`imu_degraded`/`imu_reject`，故意改坏 14 处都被抓到
 - [x] 第 4 步 链路能力（`a/pc-link`）：`app/pc_link`，USB 收发、`imu.attitude` → GIMBAL_ATTITUDE（无效时清零）、控制快照发布到 `pc_link.control`；宿主测试 `pc_link`，故意改坏 8 处都被抓到
 - [x] 第 5 步 固件与上板（`a/link-profile`）：profile `link_dm_mc02`、组合根、PC 端探测脚本 `link_probe.py` 与 `pc_board_check.cpp`，CI 加构建 link 固件。2026-11-03 上板：姿态限频改按采样时刻（860 → 998 Hz，`fa3e0d3`）；冷启动 42 s 进入 READY；PC 端联调：握手 1 ms，60 s 无 CRC/帧头/槽位错误、帧序号连续，姿态 996 Hz、停留中位 52 µs，状态 200 Hz，控制快照序号回报正确，拔线重连通过；视觉组的 `RoboLinkHostLink` 直接连板子 20 s 不断链。见[对账记录](docs/ai/decisions/2026-11-03-RoboLink-对账/README.md) §5。发现 L6 加热控制器热启动会卡在 48 ℃，另行修复
+- [ ] 已知问题：L6 加热控制器热启动卡在目标下方（2026-11-03 上板发现，待负责人定修法）。控制器把上电后第一次读数当环境温度，热着复位时估高，维持功率偏小；恒温阶段低于目标 2 ℃ 立即重新预热并清积分，到不了目标。仿真复现：热复位 47.5 ℃（环境 42 ℃）、45 ℃（36 ℃）卡在 47–48 ℃，恒温中复位 50 ℃（40 ℃）停在 49.4–49.5 ℃；"无 24 V 起、60 s 来电"（环境 42 ℃）正常。试过的修法：观测器修正环境温度（热复位好了，但断电恢复冲到 52–76 ℃，否决）；低于 2 ℃ 持续 2 s 才重新预热（47.5 ℃ 场景 45 s 稳定，另两个仍差 0.5 ℃）；再加恒温时把积分转成环境修正（50 ℃ 场景过冲 1.1–1.4 ℃、45 ℃ 场景振荡，还要整定）。绕过：SWD 把加热目标改 20 ℃，降到约 40 ℃ 再复位
 - topic 清单改为从描述文件生成（框架验证好用后）
 - 安全硬路径：失联降级与开火硬上限（独立于上位机）
 
