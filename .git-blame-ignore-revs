@@ -30,3 +30,6 @@ e98b581b6478f38c27b0df46aac47fcbd5ec479a
 
 # CubeMX 生成物改为 Linux 上的行尾与路径分隔符（style: 1fe46b2，Decision-20261031-04，内容不变）
 1fe46b2a938e8b3e319e7a0c167b9d4c81ce2524
+
+# 头文件注释删掉决策号（style: f71cdb0，Decision-20261103-06，只改注释，固件逐字节相同）
+f71cdb0eaee4bfd7bfb58bc23dd80dbe34216895
