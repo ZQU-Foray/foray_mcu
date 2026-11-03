@@ -19,13 +19,16 @@ namespace control
  * 所以预热按模型预测提前收功率。
  *
  * 过程：
- *   1. 第一个读数到来时认为加热器之前关着、各处温度相同（x1 = x2 = Ta = 读数）。
+ *   1. 第一个读数到来时认为加热器之前关着、各处温度相同（x1 = x2 = Ta = 读数）。板子热着时复位，这样会把环境温度
+ *      估高；之后两处修正它（Decision-20261103-02）：读数比"加热器一直关着"的预测还低时按差值下调；恒温时积分
+ *      长期偏大时慢慢转进环境估计。
  *   2. 探测级：用预热功率加热，每个周期预测"之后保持在本级目标所需功率时传感器的最高温度"，到本级目标就收功率，
  *      最后一个周期按插值只补到恰好。本级目标只走剩余温差的一部分（probe_fraction），加热器比模型强时也不越过目标。
  *   3. 收功率后等几次读数更新，温度停在平台上；实际温升 / 预测温升就是加热器强度的修正系数（供电电压、个体差异）。
  *   4. 逼近级：用修正后的模型瞄准目标下方 approach_margin_c。
  *   5. 恒温：维持功率（模型前馈）+ 比例（模型估计的传感器温度）+ 积分（读数）。
- *   读数低于目标 rewarm_below_c 以上（如加热电源断开又恢复）时按当前读数重新预热。
+ *   读数低于目标 rewarm_now_below_c 以上（如加热电源断开又恢复）时按当前读数重新预热；低于 rewarm_below_c 以上时
+ *   要持续 rewarm_delay_s 且读数不升才重新预热。
  *
  * 只做计算，不碰硬件：输入目标、读数、读数距今的时间与周期，输出占空比。
  */
@@ -65,8 +68,12 @@ class HeaterControl final
         float integral_limit_permille{30.0F};     // 积分限幅
         float observer_zone_gain{0.2F};           // 读数误差修正被加热区估计的比例
         float observer_sensor_gain{0.8F};         // 读数误差修正传感器估计的比例
-        float rewarm_below_c{2.0F};               // 恒温时读数低于目标这么多就重新预热
-        float horizon_s{15.0F};                   // 预测峰值的最长时间
+        float rewarm_below_c{2.0F}; // 恒温时读数低于目标这么多（持续 rewarm_delay_s、读数不升）就重新预热
+        float rewarm_now_below_c{4.0F}; // 低于目标这么多立即重新预热
+        float rewarm_delay_s{2.0F};     // 见 rewarm_below_c
+        float horizon_s{15.0F};         // 预测峰值的最长时间
+        float ambient_margin_c{0.25F}; // 读数比"加热器一直关着"的预测低这么多以上，才下调环境温度估计
+        float integral_offload_time_s{10.0F}; // 恒温积分转成环境修正的时间常数
     };
 
     struct Config
@@ -117,6 +124,11 @@ class HeaterControl final
     [[nodiscard]] float sensor_estimate_c() const noexcept
     {
         return sensor_c_;
+    }
+    /** 环境温度估计（第一次读数起步，之后按 Decision-20261103-02 修正）。 */
+    [[nodiscard]] float ambient_estimate_c() const noexcept
+    {
+        return ambient_c_;
     }
     [[nodiscard]] float integral_permille() const noexcept
     {
@@ -174,6 +186,10 @@ class HeaterControl final
 
     // 恒温
     float integral_{0.0F};
+    float below_s_{0.0F};       // 恒温时低于 rewarm_below_c 已持续多久（读数在升时重新计）
+    float below_start_c_{0.0F}; // 开始计时时的读数
+    float unheated_zone_c_{0.0F}; // "加热器一直关着"的模型：从上次读数更新（或预热开始）的读数出发
+    float unheated_sensor_c_{0.0F};
     float output_{0.0F};
 };
 

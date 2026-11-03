@@ -1,7 +1,8 @@
 // control::HeaterControl（Decision-20261101-05）：接 DM-MC02 实测辨识的热模型仿真。
 // 被控对象：占空比 → 被加热区（τ1，增益 K）→ 传感器（τ2）；寄存器每 1.28 s 采样一次、截断到 0.125 ℃；
 // 驱动每 40 ms 读一次，每 128 ms 调一次控制器，输出四舍五入到 1‰（与 device::Bmi088Heater 相同）。
-// 验证：标称、加热器强度 ±25%（供电电压）、冷启动时板子自身升温、加热电源断开又恢复，以及参数校验。
+// 验证：标称、加热器强度 ±25%（供电电压）、冷启动时板子自身升温、加热电源断开又恢复，以及参数校验；
+// 热启动（板子热着时复位、没 24 V 上电之后来电，Decision-20261103-02）与一组宽松的扫描：都要稳到目标，不卡住、不大幅过冲。
 #include "lib/control/heater_control.hpp"
 
 #include <cassert>
@@ -223,5 +224,105 @@ int main()
     print("断电 60 s 后恢复", outage_result);
     assert(outage_result.peak_after_restore_c <= TARGET + 0.5F);
     check_settled(outage_result, 0.5F, 170.0F);
+
+    // 热启动（2026-11-03 上板发现，Decision-20261103-02）：控制器把第一次读数当环境温度，板子热着时复位就估高了。
+    // 原来会卡在目标下方（上板 48 ℃）
+    struct WarmStart
+    {
+        const char *name;
+        float start_c;
+        float ambient_c;
+        float power_on_s; // 加热电源接通的时刻（0：一直有电）
+    };
+    for (const WarmStart &warm_start : {WarmStart{"热复位 47.5 ℃（环境 42 ℃）", 47.5F, 42.0F, 0.0F},
+                                        WarmStart{"恒温中复位 50 ℃（环境 40 ℃）", 50.0F, 40.0F, 0.0F},
+                                        WarmStart{"热复位 45 ℃（环境 36 ℃）", 45.0F, 36.0F, 0.0F},
+                                        WarmStart{"无 24 V 起 43.5 ℃，60 s 来电", 43.5F, 42.0F, 60.0F}})
+    {
+        Scenario scenario{};
+        scenario.start_c = warm_start.start_c;
+        scenario.ambient_start_c = warm_start.ambient_c;
+        scenario.ambient_end_c = warm_start.ambient_c;
+        if (warm_start.power_on_s > 0.0F)
+        {
+            scenario.power_off_from_s = 0.0F;
+            scenario.power_off_to_s = warm_start.power_on_s;
+        }
+        scenario.duration_s = 240.0F;
+        const Result result = run(scenario);
+        print(warm_start.name, result);
+        check_settled(result, 0.5F, 180.0F);
+    }
+
+    // 宽松扫描：热复位、恒温中断电、没 24 V 上电之后来电 × 加热器强度 ±25% × 两种传感器相位。
+    // 只要求行为不异常：最后稳在目标 ±0.25 ℃，过冲不超过 2.5 ℃（个别组合会冲到 1–2 ℃，见 Decision-20261103-02）
+    int scenarios = 0;
+    float worst_peak = 0.0F;
+    for (const float phase : {0.05F, 0.85F})
+    {
+        for (const float strength : {0.75F, 1.0F, 1.25F})
+        {
+            auto expect_normal = [&](const Scenario &scenario)
+            {
+                const Result result = run(scenario);
+                ++scenarios;
+                worst_peak = std::fmax(worst_peak, std::fmax(result.peak_c, result.peak_after_restore_c));
+                if (!(result.tail_min_c >= TARGET - 0.25F && result.tail_max_c <= TARGET + 0.25F) ||
+                    result.peak_after_restore_c > TARGET + 2.5F ||
+                    (scenario.start_c <= TARGET && result.peak_c > TARGET + 2.5F))
+                {
+                    print("异常", result);
+                    std::printf("  起 %.1f 环境 %.1f 强度 %.2f 断电 %.0f–%.0f s\n",
+                                static_cast<double>(scenario.start_c),
+                                static_cast<double>(scenario.ambient_start_c),
+                                static_cast<double>(strength),
+                                static_cast<double>(scenario.power_off_from_s),
+                                static_cast<double>(scenario.power_off_to_s));
+                    assert(false);
+                }
+            };
+            for (const float start : {42.0F, 45.0F, 47.5F, 50.0F, 51.0F})
+            {
+                for (const float ambient : {30.0F, 36.0F, 40.0F})
+                {
+                    Scenario scenario{};
+                    scenario.gain_scale = strength;
+                    scenario.register_phase_s = phase;
+                    scenario.start_c = start;
+                    scenario.ambient_start_c = ambient;
+                    scenario.ambient_end_c = ambient;
+                    scenario.duration_s = 300.0F;
+                    expect_normal(scenario);
+                }
+            }
+            for (const float length : {3.0F, 30.0F, 120.0F})
+            {
+                Scenario scenario{};
+                scenario.gain_scale = strength;
+                scenario.register_phase_s = phase;
+                scenario.power_off_from_s = 60.0F;
+                scenario.power_off_to_s = 60.0F + length;
+                scenario.duration_s = 360.0F;
+                expect_normal(scenario);
+            }
+            for (const float ambient : {36.0F, 42.0F})
+            {
+                for (const float on : {20.0F, 120.0F})
+                {
+                    Scenario scenario{};
+                    scenario.gain_scale = strength;
+                    scenario.register_phase_s = phase;
+                    scenario.start_c = ambient + 1.5F;
+                    scenario.ambient_start_c = ambient;
+                    scenario.ambient_end_c = ambient;
+                    scenario.power_off_from_s = 0.0F;
+                    scenario.power_off_to_s = on;
+                    scenario.duration_s = on + 240.0F;
+                    expect_normal(scenario);
+                }
+            }
+        }
+    }
+    std::printf("宽松扫描 %d 个场景都稳到目标，最高读数 %.3f ℃\n", scenarios, static_cast<double>(worst_peak));
     return 0;
 }

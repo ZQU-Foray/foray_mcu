@@ -13,6 +13,7 @@ constexpr float MIN_GAIN_SCALE{0.4F};
 constexpr float MAX_GAIN_SCALE{2.5F};
 constexpr float MIN_GAIN_CORRECTION{0.5F}; // 一次平台校正最多改到原来的 0.5–2 倍；更小视为加热器没电
 constexpr float MAX_GAIN_CORRECTION{2.0F};
+constexpr float OFFLOAD_INTEGRAL_FRACTION{0.5F}; // 积分超过限幅的这个比例才转成环境修正
 
 constexpr float clamp(float value, float low, float high)
 {
@@ -31,17 +32,20 @@ bool HeaterControl::init(const Config &config) noexcept
     const Model &model = config.model;
     const Sensor &sensor = config.sensor;
     const Tuning &tuning = config.tuning;
-    initialized_ = positive(model.gain_c_per_permille) && positive(model.zone_time_constant_s) &&
-                   positive(model.sensor_time_constant_s) && positive(sensor.period_s) &&
-                   positive(sensor.resolution_c) && std::isfinite(sensor.read_lag_s) && sensor.read_lag_s >= 0.0F &&
-                   positive(tuning.boost_permille) && tuning.boost_permille <= MAX_DUTY_PERMILLE &&
-                   positive(tuning.hold_max_permille) && tuning.hold_max_permille <= tuning.boost_permille &&
-                   tuning.probe_fraction > 0.0F && tuning.probe_fraction < 1.0F && tuning.approach_margin_c >= 0.0F &&
-                   positive(tuning.stage_gap_min_c) && tuning.probe_settle_updates > 0U &&
-                   tuning.approach_settle_updates > 0U && tuning.max_stages > 0U && tuning.kp_permille_per_c >= 0.0F &&
-                   tuning.ki_permille_per_c_s >= 0.0F && tuning.integral_limit_permille >= 0.0F &&
-                   tuning.observer_zone_gain >= 0.0F && tuning.observer_sensor_gain >= 0.0F &&
-                   tuning.observer_sensor_gain <= 1.0F && positive(tuning.rewarm_below_c) && positive(tuning.horizon_s);
+    initialized_ =
+        positive(model.gain_c_per_permille) && positive(model.zone_time_constant_s) &&
+        positive(model.sensor_time_constant_s) && positive(sensor.period_s) && positive(sensor.resolution_c) &&
+        std::isfinite(sensor.read_lag_s) && sensor.read_lag_s >= 0.0F && positive(tuning.boost_permille) &&
+        tuning.boost_permille <= MAX_DUTY_PERMILLE && positive(tuning.hold_max_permille) &&
+        tuning.hold_max_permille <= tuning.boost_permille && tuning.probe_fraction > 0.0F &&
+        tuning.probe_fraction < 1.0F && tuning.approach_margin_c >= 0.0F && positive(tuning.stage_gap_min_c) &&
+        tuning.probe_settle_updates > 0U && tuning.approach_settle_updates > 0U && tuning.max_stages > 0U &&
+        tuning.kp_permille_per_c >= 0.0F && tuning.ki_permille_per_c_s >= 0.0F &&
+        tuning.integral_limit_permille >= 0.0F && tuning.observer_zone_gain >= 0.0F &&
+        tuning.observer_sensor_gain >= 0.0F && tuning.observer_sensor_gain <= 1.0F && positive(tuning.rewarm_below_c) &&
+        positive(tuning.horizon_s) && positive(tuning.ambient_margin_c) && positive(tuning.integral_offload_time_s) &&
+        std::isfinite(tuning.rewarm_delay_s) && tuning.rewarm_delay_s >= 0.0F &&
+        std::isfinite(tuning.rewarm_now_below_c) && tuning.rewarm_now_below_c >= tuning.rewarm_below_c;
     config_ = config;
     reset();
     return initialized_;
@@ -53,6 +57,7 @@ void HeaterControl::reset() noexcept
     gain_scale_ = 1.0F;
     integral_ = 0.0F;
     output_ = 0.0F;
+    below_s_ = 0.0F;
     stage_pending_ = false;
     has_anchor_ = false;
     stages_ = 0U;
@@ -99,10 +104,27 @@ float HeaterControl::update(float target_c, float reading_c, float reading_age_s
         }
     }
 
-    // 恒温时温度掉得太多（如加热电源断开又恢复）：按当前读数重新预热，积分不在没电时累积
-    if (phase_ == Phase::REGULATE && target_c - measured > tuning.rewarm_below_c)
+    // 恒温时温度掉得太多（如加热电源断开又恢复）：按当前读数重新预热，积分不在没电时累积。
+    // 低于目标 rewarm_now_below_c 以上立即重新预热；只低 rewarm_below_c 到 rewarm_now_below_c 时，要持续
+    // rewarm_delay_s 且读数没有上升才重新预热：环境温度估高时恒温刚开始会差 2 ℃ 左右，有电的话比例项会把温度
+    // 拉上来，立即重新预热会清掉积分、一直到不了目标（Decision-20261103-02）
+    const float gap = target_c - measured;
+    if (phase_ == Phase::REGULATE && gap > tuning.rewarm_below_c)
     {
-        start(measured);
+        if (below_s_ == 0.0F || measured > below_start_c_ + sensor.resolution_c * 0.5F)
+        {
+            below_s_ = 0.0F; // 刚低于门限，或读数在升：重新计时
+            below_start_c_ = measured;
+        }
+        below_s_ += dt_s;
+        if (gap > tuning.rewarm_now_below_c || below_s_ >= tuning.rewarm_delay_s)
+        {
+            start(measured);
+        }
+    }
+    else
+    {
+        below_s_ = 0.0F;
     }
     if (stage_pending_)
     {
@@ -149,6 +171,15 @@ float HeaterControl::update(float target_c, float reading_c, float reading_age_s
         integral_ = clamp(integral_ + tuning.ki_permille_per_c_s * (target_c - measured) * dt_s,
                           -tuning.integral_limit_permille,
                           tuning.integral_limit_permille);
+        if (std::fabs(gap) < tuning.rewarm_below_c &&
+            std::fabs(integral_) > OFFLOAD_INTEGRAL_FRACTION * tuning.integral_limit_permille)
+        {
+            // 积分长期偏大说明维持功率前馈不对（多半是环境温度估错了）：慢慢转成对环境估计的修正，
+            // 前馈与模型预测随之变对，比例项也不再和积分对着干（Decision-20261103-02）
+            const float moved = integral_ * dt_s / tuning.integral_offload_time_s;
+            integral_ -= moved;
+            ambient_c_ -= config_.model.gain_c_per_permille * gain_scale_ * moved;
+        }
         duty = hold_duty(target_c) + tuning.kp_permille_per_c * (target_c - sensor_c_) + integral_;
         duty = clamp(duty, 0.0F, tuning.hold_max_permille);
         break;
@@ -166,6 +197,9 @@ void HeaterControl::start(float measured_c) noexcept
 {
     zone_c_ = measured_c;
     sensor_c_ = measured_c;
+    unheated_zone_c_ = measured_c;
+    unheated_sensor_c_ = measured_c;
+    below_s_ = 0.0F;
     history_count_ = 0U;
     push_history(0.0F);
     stages_ = 0U;
@@ -250,6 +284,8 @@ void HeaterControl::advance(float duty_permille, float dt_s) noexcept
     const float gain = model.gain_c_per_permille * gain_scale_;
     zone_c_ += (gain * duty_permille + ambient_c_ - zone_c_) / model.zone_time_constant_s * dt_s;
     sensor_c_ += (zone_c_ - sensor_c_) / model.sensor_time_constant_s * dt_s;
+    unheated_zone_c_ += (ambient_c_ - unheated_zone_c_) / model.zone_time_constant_s * dt_s;
+    unheated_sensor_c_ += (unheated_zone_c_ - unheated_sensor_c_) / model.sensor_time_constant_s * dt_s;
 }
 
 void HeaterControl::push_history(float dt_s) noexcept
@@ -294,6 +330,17 @@ void HeaterControl::correct(float measured_c, float age_s) noexcept
     const float error = measured_c - sensor_at_age(age_s);
     zone_c_ += config_.tuning.observer_zone_gain * error;
     sensor_c_ += config_.tuning.observer_sensor_gain * error;
+
+    // 读数比"加热器一直关着"的预测还低：就算加热器没电也降不到这么低，只能是环境温度估高了（如板子热着时复位）。
+    // 按差值下调环境估计，再把这个模型拉回读数，下次只比较一个更新周期内的下降。读数落在"有电"与"没电"之间时
+    // 分不清是不是断电，不动环境估计（Decision-20261103-02）
+    const float excess = unheated_sensor_c_ - measured_c - config_.tuning.ambient_margin_c;
+    if (excess > 0.0F)
+    {
+        ambient_c_ -= excess;
+    }
+    unheated_zone_c_ = measured_c;
+    unheated_sensor_c_ = measured_c;
 }
 
 } // namespace control

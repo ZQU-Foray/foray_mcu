@@ -39,7 +39,7 @@ CI 的 `host-tests` 作业（`.github/workflows/ci.yml`）在 GitHub Actions 的
 | `hal_gpio_pwm`、`hal_can`、`hal_spi`、`hal_uart`、`hal_usb_cdc` | `unit/hal/*_test.cpp` | `platform_mock`：hal 契约 v1 在替身上的语义（参数检查、结果优先级、通知时机、能力分级、Uart 与 UsbCdc 同形）。替身是驱动测试的依据 |
 | `buzzer` | `unit/buzzer/buzzer_test.cpp` | `driver_buzzer` + `platform_mock` |
 | `ws2812` | `unit/ws2812/ws2812_test.cpp` | `driver_ws2812` + `platform_mock`（波形编码、亮度、出错重发、不支持异步时的阻塞回退） |
-| `heater_control` | `unit/control/heater_control_test.cpp` | `lib_control`（加热恒温控制接 DM-MC02 热模型仿真：加热器强度 ±25%、起点 25/37 ℃、4 种传感器相位下不过冲 0.25 ℃ 以上、16 s 内稳定；断电恢复；参数校验，Decision-20261101-05） |
+| `heater_control` | `unit/control/heater_control_test.cpp` | `lib_control`（加热恒温控制接 DM-MC02 热模型仿真：加热器强度 ±25%、起点 25/37 ℃、4 种传感器相位下不过冲 0.25 ℃ 以上、16 s 内稳定；断电恢复；参数校验，Decision-20261101-05。热启动：热着复位、没 24 V 上电后来电不卡在目标下方；132 个场景的宽松扫描都稳到目标、过冲 ≤ 2.5 ℃，Decision-20261103-02） |
 | `gyro_bias_calibration` | `unit/estimate/gyro_bias_calibration_test.cpp` | `lib_estimate`（上电零偏标定，Decision-20261103-01：温度门控与稳定门控、静止窗口的结果、被碰、缓慢转动、加速度模长、超时预算跨窗口累计、温度出带暂停预算、时间戳回绕、终态、参数检查） |
 | `imu_ready` / `imu_degraded` / `imu_reject` | `unit/imu/imu_test.cpp` | `app_imu` + `platform_mock`（IMU 能力，BMI088 由 SPI 替身扮演、中断按 2 kHz 触发；每个 topic 只能有一个发布者，按参数分进程：静止时 SETTLING → READY，零偏交给 VQF、角速度扣零偏、yaw 归零后不漂、转动时 yaw 增量；一直晃时超时进入 DEGRADED，安装方向换轴；参数检查） |
 | `pc_link` | `unit/pc_link/pc_link_test.cpp` | `app_pc_link` + `platform_mock`（上位机链路能力，USB 替身扮演主机：未打开串口不发、握手应答、完整状态、imu.attitude → GIMBAL_ATTITUDE、无效姿态清零、USB 忙时按最新值重组、控制快照发布到 pc_link.control、last_rx_control_seq、判活超时停发、重新握手不声明姿态、关串口） |
