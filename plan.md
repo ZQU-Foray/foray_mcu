@@ -150,7 +150,7 @@
 
 #### 上位机链路 RoboLink v0.2（负责人 2026-11-02 提出、2026-11-03 指示开始，Decision-20261103-01）
 
-> 目标：把 IMU 解算的姿态经 RoboLink 发给上位机，辅助视觉做手眼标定；控制快照第一版只记账、不执行。本地分支接在 `f3/motor-cleanup` 之后：`a/robolink-wire` → `a/robolink-session` → `a/imu-capability` → `a/pc-link` → `a/link-profile`。
+> 目标：把 IMU 解算的姿态经 RoboLink 发给上位机，辅助视觉做手眼标定；控制快照第一版只记账、不执行。本地分支接在 `f3/motor-cleanup` 之后：`a/robolink-wire` → `a/robolink-session` → `a/imu-capability` → `a/pc-link` → `a/link-profile` → `a/heater-warm-start`（加热热启动修正、HELLO 版本说明、`foray_interfaces` 改动备好）→ `a/usb-seam`（X-01 关闭）。
 
 - [x] 第 1 步 编解码（`a/robolink-wire`）：规则 11 改写；标准帧生成器 `tool/robolink/make_golden.py`（37 个向量）与 PC 端对账工具；`middleware_robolink` 的帧层、槽位层与 8 条消息；宿主测试 `robolink_wire`、`robolink_messages`；与 PC 端 `foray_platform` 对账一致，差异 1 处（PC 端不接受 §7.1 的末尾追加字段），见[对账记录](docs/ai/decisions/2026-11-03-RoboLink-对账/README.md)
 - [x] 第 2 步 连接会话（`a/robolink-session`）：`robolink::Session` 的握手、判活、序号、发送调度、计数；宿主测试 `robolink_session` 扮演 PC，故意改坏 13 处都被抓到；与 PC 端链路状态机在伪终端上联调通过（握手 2 ms，1 kHz 姿态与控制快照，两个方向的卡死与恢复），见[对账记录](docs/ai/decisions/2026-11-03-RoboLink-对账/README.md) §4
