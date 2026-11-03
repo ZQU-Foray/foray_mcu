@@ -13,6 +13,8 @@
     link_probe.py                                  # 自动找板子的串口，跑 10 s
     link_probe.py --duration 60 --control          # 跑 60 s，同时按 1 kHz 发控制快照
     link_probe.py --port /dev/ttyACM0 --reconnect  # 指定串口，最后测一次重连
+    link_probe.py --follow                         # 实时打印 yaw/pitch/roll，Ctrl-C 停止
+    link_probe.py --follow --interval 0.2          # 实时打印，每 0.2 s 一行
 没有 pyserial 也能用（termios）。串口没有读写权限时，先让负责人加 udev 规则（见对账记录）。
 """
 
@@ -155,9 +157,12 @@ def euler_zyx(q: tuple[float, float, float, float]) -> tuple[float, float, float
 
 
 class Probe:
-    def __init__(self, path: str, send_control: bool) -> None:
+    def __init__(
+        self, path: str, send_control: bool, follow_interval: float | None = None
+    ) -> None:
         self.path = path
         self.control_enabled = send_control
+        self.follow_interval = follow_interval
         self.fd = open_port(path)
         self.parser = Parser()
         self.stats = Stats()
@@ -173,6 +178,7 @@ class Probe:
         self.last_mcu_seq: int | None = None
         self.last_sample_time: int | None = None
         self.last_imu_state: int | None = None
+        self.last_attitude_received_s: float | None = None
 
     def now(self) -> float:
         return time.monotonic() - self.t0
@@ -283,9 +289,8 @@ class Probe:
                 gyro = values[5:8]
                 imu_state, flags = values[8], values[9]
                 valid = bool(flags & 0x01)
-                stats.sample_age_us.append(
-                    ((stamp - sample_time + 2**31) % 2**32) - 2**31
-                )
+                sample_age = ((stamp - sample_time + 2**31) % 2**32) - 2**31
+                stats.sample_age_us.append(sample_age)
                 if self.last_sample_time is not None:
                     stats.sample_interval_us.append(
                         (sample_time - self.last_sample_time) % 2**32
@@ -308,6 +313,7 @@ class Probe:
                     stats.quaternion_norm_error = max(
                         stats.quaternion_norm_error, abs(norm - 1.0)
                     )
+                self.last_attitude_received_s = received_s
                 stats.last_attitude = {
                     "sample_time_us": sample_time,
                     "quaternion_wxyz": [round(c, 5) for c in quaternion],
@@ -319,12 +325,13 @@ class Probe:
                     "valid": valid,
                 }
 
-    def run(self, duration: float) -> None:
+    def run(self, duration: float | None) -> None:
         last_hello = -1.0
         last_keepalive = 0.0
         next_control = 0.0
-        end = self.now() + duration
-        while self.now() < end:
+        next_follow = 0.0
+        end = None if duration is None else self.now() + duration
+        while end is None or self.now() < end:
             now = self.now()
             if not self.ready and now - last_hello >= 0.2:
                 self.send_hello()
@@ -345,6 +352,31 @@ class Probe:
                 received = self.now()
                 for frame in self.parser.feed(data, self.stats):
                     self.handle(frame, received)
+            if self.follow_interval is not None:
+                current = self.now()
+                if current >= next_follow:
+                    self.print_follow(current)
+                    next_follow = current + self.follow_interval
+
+    def print_follow(self, now: float) -> None:
+        """实时打印一行：状态、yaw/pitch/roll（度）与这份姿态收到的时间。"""
+        if not self.ready:
+            print(f"[{now:7.2f} s] 等待握手（HELLO → HELLO_ACK）…", flush=True)
+            return
+        attitude = self.stats.last_attitude
+        if not attitude:
+            print(f"[{now:7.2f} s] 已握手，等待姿态…", flush=True)
+            return
+        yaw, pitch, roll = attitude["euler_zyx_deg"]
+        valid = "有效" if attitude["valid"] else "无效"
+        received_s = self.last_attitude_received_s or 0.0
+        age_ms = (now - received_s) * 1000.0
+        print(
+            f"[{now:7.2f} s] {attitude['imu_state']:>8} {valid}  "
+            f"yaw {yaw:8.2f}°  pitch {pitch:7.2f}°  roll {roll:7.2f}°  "
+            f"收 {age_ms:4.0f} ms 前",
+            flush=True,
+        )
 
     def reconnect(self) -> float | None:
         os.close(self.fd)
@@ -379,6 +411,17 @@ def main() -> int:
     parser.add_argument(
         "--reconnect", action="store_true", help="最后关串口 1 s 再打开，量重新握手"
     )
+    parser.add_argument(
+        "--follow",
+        action="store_true",
+        help="实时打印姿态的 yaw/pitch/roll，直到 Ctrl-C（忽略 --duration）",
+    )
+    parser.add_argument(
+        "--interval",
+        type=float,
+        default=0.5,
+        help="--follow 时每隔多少秒打印一行（默认 0.5）",
+    )
     args = parser.parse_args()
 
     path = args.port
@@ -390,6 +433,22 @@ def main() -> int:
             )
             return 2
         path = candidates[0]
+    if args.follow:
+        if args.interval <= 0:
+            print("--interval 必须大于 0")
+            return 2
+        if args.reconnect:
+            print("--follow 与 --reconnect 不能同时用")
+            return 2
+        probe = Probe(path, args.control, args.interval)
+        print(f"串口 {path}，实时打印姿态（Ctrl-C 停止；每 {args.interval:g} s 一行）")
+        try:
+            probe.run(None)
+        except KeyboardInterrupt:
+            print("\n已停止")
+        finally:
+            os.close(probe.fd)
+        return 0
     probe = Probe(path, args.control)
     probe.run(args.duration)
     s = probe.stats
