@@ -40,7 +40,12 @@ class Imu final
         hal::os::Microseconds publish_period_us; // imu.attitude 的发布间隔（按陀螺采样时刻，允许提前 1/4）
         float heater_target_celsius;             // 加热目标，也是零偏标定的温度门控目标
         estimate::GyroBiasCalibration::Config calibration; // target_celsius 由 heater_target_celsius 覆盖
-        float calibrated_bias_uncertainty_rad_per_sec;     // 标定结果交给 VQF 时的不确定度
+        // > 0：把标定不确定度写进 VQF 零偏协方差；0：保留 VQF 现有协方差（旧 AttitudeEstimator 的行为）
+        float calibrated_bias_uncertainty_rad_per_sec;
+        // VQF 静止零偏更新（2026-11-03 本板实测）：静止三轴偏差 norm RMS 6.2 °/s、最大 19.3 °/s；
+        // 默认 2 °/s 会让 rest 永不触发。0.35 rad/s = 20.1 °/s 覆盖实测最大值。
+        float rest_threshold_gyr_rad_per_sec{0.35F};
+        float bias_clip_rad_per_sec{0.05F};
     };
 
     /** 组合根注入的依赖与参数。 */
@@ -67,6 +72,9 @@ class Imu final
         hal::os::Microseconds calibration_sampling_us; // 累计处于采样状态的时间
         math::Vector3 calibrated_bias_rad_per_sec;     // 标定结果（DEGRADED 时为 0）
         math::Vector3 bias_rad_per_sec;   // VQF 当前的零偏估计（发布的角速度扣的就是它）
+        bool rest_detected;               // VQF 当前是否判为静止（静止零偏更新是否在跑）
+        float rest_gyro_ratio;            // 陀螺侧偏离 / 阈值，1.0 为边界
+        float rest_accel_ratio;           // 加计侧偏离 / 阈值，1.0 为边界
         float yaw_zero_rad;               // 进入 READY/DEGRADED 时扣掉的 yaw
         hal::os::Microseconds settled_us; // 进入 READY/DEGRADED 的时刻（0：还在 SETTLING）
         bool sensor_ready;                // BMI088 两个传感器都已配置好
@@ -91,7 +99,7 @@ class Imu final
 
     void handle_sample(const device::Bmi088SampleRecord &record, bool gyroscope) noexcept;
     void settle(topics::imu::State state, hal::os::Microseconds now) noexcept;
-    [[nodiscard]] topics::imu::Attitude make_attitude() const noexcept;
+    [[nodiscard]] topics::imu::Attitude make_attitude(const estimate::Vqf::State &estimate) const noexcept;
 
     Config config_{nullptr, nullptr, hal::Gpio{0U}, hal::Gpio{0U}, Parameters{}};
     topic::Publisher<topics::imu::Event> event_publisher_{};

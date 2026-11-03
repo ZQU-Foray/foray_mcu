@@ -17,14 +17,19 @@ inline constexpr device::Bmi088Heater::Config HEATER{control::HeaterControl::Mod
 // - 安装方向：板载 BMI088 的坐标系即云台系（x 沿枪管 / 相机光轴向前、y 向左、z 向上），负责人 2026-11-03 确认；
 //   以后装法不同时改这里（estimate::AxisMapping：云台系每个轴取传感器的哪个轴、什么符号）；
 // - 零偏标定：恒温稳定 20 s、静止窗口 5 s、累计 20 s 没有合格窗口就放弃（旧板实测参数）；
-//   标定结果交给 VQF 时的不确定度 0.001 rad/s（约 0.06 °/s）。
+// - 标定结果交给 VQF 时**不重置协方差**（0）：保留 VQF 的静止零偏更新，让它继续跟踪残余/温度漂移；
+// - VQF 静止门限按 2026-11-03 本板实测：60 s 静止三轴偏差 norm RMS 6.2 °/s、最大 19.3 °/s。
+//   默认 2 °/s 时有 95.4% 的样本超门限，rest 永不触发；0.35 rad/s（20.1 °/s）覆盖实测最大值，
+//   bias_clip 0.05 rad/s（2.9 °/s）大于本板各轴零偏。
 inline constexpr imu::Imu::Parameters IMU{
     device::Bmi088::Config{device::Bmi088Gyro::Bandwidth::ODR_2000_HZ_532_HZ},
     estimate::IDENTITY_AXIS_MAPPING,
     1000U,
     50.0F,
     estimate::GyroBiasCalibration::Config{},
-    0.001F,
+    0.0F,
+    0.35F,
+    0.05F,
 };
 
 // 上位机链路（RoboLink v0.2）：固件版本 0.1.0；心跳 20 ms、状态 200 Hz、诊断尾部 1 s、判活 500 ms、

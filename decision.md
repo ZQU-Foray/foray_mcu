@@ -1962,6 +1962,50 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 
 ---
 
+## Decision-20261103-03（yaw 漂移：恢复 VQF 板级静止零偏参数，按本板实测填 0.35 rad/s，Accepted）
+
+- **Date**：2026-11-03
+- **Status**：Accepted（负责人要求"实测板上数据然后把正确的参数填进去"；参数按本板静态数据选取）
+- **Source**：2026-11-03 排查 yaw 漂移；1.28 s 温度寄存器已按官方 datasheet 核实，不是本条的主因；当前 `app/imu` 由 `ImuCheck` 改写，漏掉了旧 `AttitudeEstimator` 的 VQF 板级调参
+
+**Context**：
+
+- 旧 `AttitudeEstimator`（`archive/pre-rebuild:app/imu/attitude_estimator.cpp`）给 VQF 设了 `rest_threshold_gyr_rad_per_sec = 0.35F`（20 °/s）、`bias_clip_rad_per_sec = 0.05F`，并在标定完成后调用 `set_bias_estimate(bias)`，不重置协方差；注释写明"532 Hz 带宽下本板静止三轴瞬时偏离高于上游 2 °/s 默认门槛"。
+- 当前 `Imu::init` 用 `Vqf::Config{}` 默认（rest 门限 2 °/s、bias clip 2 °/s），标定时传 `0.001 rad/s` 重置协方差。本板 60 s 静止实测（1 kHz 链路数据，一阶低通 τ=0.5 s 近似 VQF 静止低通）：三轴偏差 norm RMS **6.18 °/s**、p99 **12.44 °/s**、最大 **19.34 °/s**；2 °/s 门限有 **95.4%** 样本超限，0.35 rad/s（20.1 °/s）在 59748 个样本中 0 个超限。
+- 主机仿真（把实测陀螺样本喂 VQF）：默认门限下 `rest_detected` 0/29874；0.35 rad/s 下 95.0% 样本为静止，陀螺侧偏差比 0.418。说明默认参数下静止零偏更新从未执行，标定零偏被冻结；当前 READY 后 60 s yaw 漂 0.34–0.53 °/min（旧固件 <1 °/5 min）。
+- 单独的 `ZeroRateBiasObserver` 在 `a2cfd16` 中只被编译、没有被调用；旧固件的零速零偏更新实际来自 VQF 内部的 `rest_bias_est`，不是那个类。
+
+**Decision**：
+
+1. `imu::Imu::Parameters` 增加 `rest_threshold_gyr_rad_per_sec{0.35F}`、`bias_clip_rad_per_sec{0.05F}`；`Imu::init` 把它们写进 `Vqf::Config`。`link_dm_mc02` 的 profile 显式填 0.35 / 0.05，注释记录实测依据。
+2. `calibrated_bias_uncertainty_rad_per_sec` 改为：**> 0 才重置 VQF 协方差；0 表示保留协方差**（旧 `AttitudeEstimator` 的行为）。profile 填 0；测试里的 0.001 仍走旧路径。
+3. `Imu::Report` 填上 `bias_rad_per_sec`、`rest_detected`、`rest_gyro_ratio`、`rest_accel_ratio`（原来 `bias_rad_per_sec` 只声明、从未赋值），供 SWD 判断静止更新是否真的在跑。
+4. 宿主测试全绿（39/39）；`link_dm_mc02` Release 构建通过。上板 5 min 静止复测通过（2026-11-03，`2026-11-03_yaw_vqf_fix`）。
+
+**Result（上板，2026-11-03）**：
+
+- 烧录前用 SWD 把加热目标改成 20 ℃，从 51.1 ℃ 降到 40.5 ℃ 再烧，避免 L6 热启动问题；新固件 57 s 内进入 READY。
+- `link_probe.py --duration 300`：READY 后 300 s 的 yaw 变化 **-0.05°（-0.010 °/min）**，pitch/roll 0.065/0.035°；姿态 995.9 Hz，CRC/帧头/槽位/帧序号错误全 0。
+- SWD 读 `g_imu.report_`：`rest_detected = 1`，`rest_gyro_ratio = 0.37`、`rest_accel_ratio = 0.14`，`bias = (-0.00031, -0.00865, 0.00164) rad/s`（y/z 与旧板实测相符）。
+- 对照修复前默认 2 °/s：宿主仿真 `rest_detected` 0/29874，60 s 静止偏差 95.4% 超门限；本板 READY 后 60 s 漂 0.34–0.53 °/min。
+
+**Reason**：
+
+- 1.28 s 温度更新是物理限制，但温度稳定后它只造成慢漂；旧固件在同样传感器、同样 50 ℃ 下能做到 <1 °/5 min，差异在零偏是否持续更新。
+- 本板静止噪声远高于上游默认 2 °/s；门限设 2 °/s 等于把 rest 更新永久关掉。0.35 rad/s 由实测最大值 19.34 °/s 加约 0.7 °/s 余量得到，与旧生产代码一致。
+- 不重置协方差让 VQF 在标定后仍能跟踪残余和温度引起的零偏变化；0.001 rad/s 的协方差会把更新压得很弱。
+
+**Alternatives / Rejected**：
+
+- 保持默认 2 °/s：实测 95.4% 样本超限，rest 永不触发。否决。
+- 0.30 rad/s（17.2 °/s）：59748 个样本中仍有 10 个超限，余量不足；0.35 与旧生产值一致。否决。
+- 直接把 rest 门限抬得很高（如 1 rad/s）：会把真实慢速 yaw 误判为静止，风险更大。否决。
+- 立刻接入 `ZeroRateBiasObserver`（严格 z 均值门 0.004 rad/s）：长期更稳，但旧固件未使用，先按旧参数恢复并实测；如果慢速 yaw 场景需要，再单独做。
+
+**回滚**：revert 本决策的提交，`Imu::Parameters` 回到默认 VQF；`report_` 新增字段可保留。
+
+---
+
 ## Decision-20261103-04（USB 生成桩按 Q8 方案①归入板级实现，X-01 关闭；X-02 改为长期例外，Accepted）
 
 - **Date**：2026-11-03

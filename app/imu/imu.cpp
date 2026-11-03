@@ -40,7 +40,10 @@ bool Imu::init(const Config &config) noexcept
 
     const float gyro_rate_hz =
         static_cast<float>(device::Bmi088Gyro::output_rate_hz(config.parameters.driver.gyro_bandwidth));
-    if (!vqf_.init(estimate::Vqf::Config{}, 1.0F / gyro_rate_hz, 1.0F / ACCEL_OUTPUT_RATE_HZ))
+    estimate::Vqf::Config vqf_config{};
+    vqf_config.rest_threshold_gyr_rad_per_sec = config.parameters.rest_threshold_gyr_rad_per_sec;
+    vqf_config.bias_clip_rad_per_sec = config.parameters.bias_clip_rad_per_sec;
+    if (!vqf_.init(vqf_config, 1.0F / gyro_rate_hz, 1.0F / ACCEL_OUTPUT_RATE_HZ))
     {
         return false;
     }
@@ -106,8 +109,17 @@ void Imu::step(hal::os::Microseconds now) noexcept
     {
         if (calibration.state == estimate::GyroBiasCalibration::State::COMPLETED)
         {
-            vqf_.set_bias_estimate(calibration.bias_rad_per_sec,
-                                   config_.parameters.calibrated_bias_uncertainty_rad_per_sec);
+            // 旧 AttitudeEstimator 只写零偏、保留 VQF 协方差，让静止零偏更新继续跟踪；
+            // 传正的不确定度会重置协方差，实测会让静止更新变得很弱。
+            if (config_.parameters.calibrated_bias_uncertainty_rad_per_sec > 0.0F)
+            {
+                vqf_.set_bias_estimate(calibration.bias_rad_per_sec,
+                                       config_.parameters.calibrated_bias_uncertainty_rad_per_sec);
+            }
+            else
+            {
+                vqf_.set_bias_estimate(calibration.bias_rad_per_sec);
+            }
             report_.calibrated_bias_rad_per_sec = calibration.bias_rad_per_sec;
             settle(topics::imu::State::READY, now);
         }
@@ -123,7 +135,13 @@ void Imu::step(hal::os::Microseconds now) noexcept
     if (has_new_gyro_ &&
         (!has_published_ || hal::os::elapsed_us(last_publish_us_, latest_gyro_us_) >= period - period / 4U))
     {
-        attitude_publisher_.publish(make_attitude());
+        const estimate::Vqf::State estimate = vqf_.get_state();
+        const estimate::Vqf::RestObservables rest = vqf_.get_rest_observables();
+        report_.bias_rad_per_sec = estimate.gyro_bias_rad_per_sec;
+        report_.rest_detected = estimate.rest_detected;
+        report_.rest_gyro_ratio = rest.gyroscope_deviation_ratio;
+        report_.rest_accel_ratio = rest.accelerometer_deviation_ratio;
+        attitude_publisher_.publish(make_attitude(estimate));
         has_new_gyro_ = false;
         last_publish_us_ = latest_gyro_us_;
         has_published_ = true;
@@ -172,9 +190,8 @@ void Imu::settle(topics::imu::State state, hal::os::Microseconds now) noexcept
     report_.state = state;
 }
 
-topics::imu::Attitude Imu::make_attitude() const noexcept
+topics::imu::Attitude Imu::make_attitude(const estimate::Vqf::State &estimate) const noexcept
 {
-    const estimate::Vqf::State estimate = vqf_.get_state();
     math::Quaternion attitude = math::multiply(yaw_zero_, estimate.quaternion);
     const bool normalized = math::normalize(attitude);
     const math::Vector3 &bias = estimate.gyro_bias_rad_per_sec;
