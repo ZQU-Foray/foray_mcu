@@ -4,6 +4,7 @@
 #include "middleware/topic/topic.hpp"
 #include "topics/bringup.hpp"
 #include "topics/imu.hpp"
+#include "topics/pc_link.hpp"
 #include "topics/safety.hpp"
 
 #include <array>
@@ -13,7 +14,7 @@
 namespace topics
 {
 
-inline constexpr std::array<const topic::TopicBase *, 7> ALL{
+inline constexpr std::array<const topic::TopicBase *, 8> ALL{
     &bringup::heartbeat,
     &bringup::imu_event,
     &bringup::imu,
@@ -21,6 +22,7 @@ inline constexpr std::array<const topic::TopicBase *, 7> ALL{
     &safety::stop,
     &imu::event,
     &imu::attitude,
+    &pc_link::control,
 };
 
 } // namespace topics

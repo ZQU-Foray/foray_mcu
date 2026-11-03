@@ -114,6 +114,10 @@ host_test(imu NO_TEST
 foreach(scenario ready degraded reject)
     add_test(NAME imu_${scenario} COMMAND test_imu ${scenario})
 endforeach()
+# 上位机链路能力（Decision-20261103-01）：USB 替身扮演主机。
+host_test(pc_link
+    SOURCES unit/pc_link/pc_link_test.cpp
+    LINK app_pc_link platform_mock)
 host_test(axis_mapping
     SOURCES unit/estimate/axis_mapping_test.cpp
     LINK lib_estimate)

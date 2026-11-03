@@ -20,6 +20,7 @@ add_library(app_topics INTERFACE
     topics/all.hpp
     topics/bringup.hpp
     topics/imu.hpp
+    topics/pc_link.hpp
     topics/safety.hpp)
 target_include_directories(app_topics INTERFACE "${PROJECT_SOURCE_DIR}/app")
 target_link_libraries(app_topics INTERFACE middleware_topic hal_os)
@@ -43,6 +44,18 @@ target_link_libraries(app_imu PUBLIC
     driver_bmi088
     lib_estimate
     utils_math)
+
+# app_pc_link：上位机链路 RoboLink v0.2 经 USB 虚拟串口（Decision-20261103-01）：imu.attitude → GIMBAL_ATTITUDE，
+# 收到的控制快照发布到 pc_link.control（第一版只记账）。不叫 link：与 POSIX 的 link() 重名。
+app_library(app_pc_link
+    pc_link/pc_link.cpp
+    pc_link/pc_link.hpp)
+target_link_libraries(app_pc_link PUBLIC
+    app_topics
+    middleware_topic
+    middleware_robolink
+    hal
+    hal_os)
 
 # app_bringup：框架验证用的能力（心跳与监视），不含 RM 业务，零 RTOS（Decision-20261031-12）。
 # 外设检查（Decision-20261101-03）：IMU（BMI088 + 中断里发布 + VQF + 加热）、CAN（只收）、SBUS、USB 报告、指示；

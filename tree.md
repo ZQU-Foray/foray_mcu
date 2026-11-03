@@ -29,8 +29,10 @@ foray_mcu/
 │   ├── lib/                  control（pid、slope、heater_control）、estimate、filter、kinematics、component（目录名即命名空间名）
 │   └── driver/               can_bus（CAN 总线分发）、motor（joint.hpp 关节；dji/、dm/ 品牌驱动与型号常量，Decision-20261102-03）、bmi088、buzzer、ws2812、protocol/{dji,dm,sbus}（构造时接收 hal 句柄，F2 第 5 步）
 ├── app/                      产品（include 根：#include "topics/bringup.hpp"）；固件与宿主构建都加入
-│   ├── CMakeLists.txt        产品的全部 target：app_topics、app_actuator、app_bringup、app_common（只在固件构建中）
-│   ├── topics/               topic 清单：bringup.hpp（heartbeat、imu_event、imu、sbus）、safety.hpp（stop）、imu.hpp（event、attitude）、all.hpp（topics::ALL）；约定见 README.md
+│   ├── CMakeLists.txt        产品的全部 target：app_topics、app_actuator、app_imu、app_pc_link、app_bringup、app_common（只在固件构建中）
+│   ├── topics/               topic 清单：bringup.hpp（heartbeat、imu_event、imu、sbus）、safety.hpp（stop）、imu.hpp（event、attitude）、pc_link.hpp（control）、all.hpp（topics::ALL）；约定见 README.md
+│   ├── imu/                  IMU 能力 Imu：云台姿态 imu.attitude、上电零偏标定、yaw 归零（Decision-20261103-01）
+│   ├── pc_link/              上位机链路能力 PcLink：RoboLink v0.2 经 USB，姿态上传、控制快照只记账（Decision-20261103-01）
 │   ├── actuator/             安全门 SafetyGate：按 safety.stop 集中禁止关节出力（Decision-20261102-03）
 │   ├── bringup/              框架验证用的能力：Heartbeat、Monitor（F2）；ImuCheck、CanCheck、SbusCheck、UsbReport、Indicator（外设检查，Decision-20261101-03）；PowerOutputs（Decision-20261101-06）；DmCheck（CAN1 上的达妙电机，Decision-20261102-02）
 │   └── common/               task_runner.hpp：任务运行器（F2）
@@ -163,7 +165,7 @@ foray_mcu/
 | 设备驱动与协议 | `src/driver/` | ✅ 已改用 hal v1，构造时接收句柄（F2 第 5 步与 F3 合排） |
 | 板级（生成区、port、board） | `platform/<厂商>/<板>/{cubemx,port,board}` | ✅ 厂商 / 板两级（`platform/st/dm_mc02`，Decision-20261101-04）；port 全部为 C++、`board/board.hpp`（F2 第 5 步） |
 | 任务运行器 | `app/common/` | ✅ `task_runner.hpp`（F2 第 4 步，Decision-20261031-12） |
-| 能力 | `app/<capability>/` | 🚧 阶段 A 重建；旧代码已归档到 tag `archive/pre-rebuild`（F2，Decision-20261031-13）；`app/bringup` 是框架验证用的能力；`app/imu`（云台姿态、零偏标定，Decision-20261103-01） |
+| 能力 | `app/<capability>/` | 🚧 阶段 A 重建；旧代码已归档到 tag `archive/pre-rebuild`（F2，Decision-20261031-13）；`app/bringup` 是框架验证用的能力；`app/imu`（云台姿态、零偏标定）、`app/pc_link`（上位机链路）（Decision-20261103-01） |
 | profile 与组合根 | `config/profiles/<兵种>_<板>/`、`config/assembly/<profile>.cpp` | ✅ `bringup_dm_mc02`（F2，preset 默认）；兵种 profile 在阶段 A |
 | 宿主测试 | `test/host/` | ✅ 由根工程引入（27 项全绿）；外设经 `platform_mock` 的替身 |
 | 框架使用指南 | `docs/ai/guide/框架使用指南.md` | 📄 F4（2026-11-01） |
