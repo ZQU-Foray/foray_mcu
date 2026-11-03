@@ -1,6 +1,6 @@
 # 架构判据与依赖规则（foray_mcu）
 
-> **状态**：v2.12（2026-11-02）。v2.0 见 Decision-20261027-01；v2.1 随 F1 第 1 步更新 utils、middleware、lib 的归类：math 进 utils，fsm 进 middleware（Decision-20261027-02）；v2.2 随 F1 第 2 步加入 utils 的并发原语 `concurrency`（Decision-20261029-01），§3.4 补充 seqlock 的读写竞态（Decision-20261029-02，待定）；v2.3 随 F1 第 3 步定稿 §3.2 的 OS 契约：1 µs 时基、`Signal` 的语义、临界区只屏蔽框架中断（Decision-20261031-01～03）；v2.4 随 F1 第 4 步定稿 §3.4 的 topic：发布时用临界区包住写入（Decision-20261029-02），接口、等待槽与清单约定（Decision-20261031-05）；v2.5 随 F1 的 CI 加入框架独立构建与 Cortex-M0+ 原子检查，规则 13、17 的文本扫描生效，新增例外 X-17（Decision-20261031-06）；v2.6 随 F2 第 1 步把固件的符号对照换成段大小报告，规则 16 的 HAL 回调符号检查生效（Decision-20261031-08）；v2.7 随 F2 第 4 步换上启动入口 `boot_*` 与 `hal::init()`，规则 7 的 include 检查生效，`boot` 在依赖图里单独成层，X-09 关闭（Decision-20261031-11）；v2.8 随 F2 第 4 步定下 §3.5 的任务运行器写法，加入第一个 topic 与 bringup 能力，`topics` 在依赖图里单独成层（Decision-20261031-12）；v2.9 随 F2 第 4 步归档旧能力代码（tag `archive/pre-rebuild`），X-04、X-10 关闭，规则 10、18 生效，`app/` 加入宿主构建（Decision-20261031-13）；v2.10 随 F2 第 5 步与 F3 定稿 §3.1 的 hal 契约 v1（句柄类）、`board.hpp`、C++ port 与 mock，删除 `hal/detail` 与 PortKit，X-07、X-08、X-14、X-17 关闭，规则 1（`board.hpp`）、4、14、16（C 链接位置）的检查生效；§3.5 加入 topic 触发的超时与能力 `Config` 的两部分（Decision-20261101-01～03）；v2.11 板级目录改为"厂商 / 板"两级：`platform/st/dm_mc02`（Decision-20261101-04）。v2.12 电机改为关节 `Joint` + 每条总线的 `CanBus` + 品牌驱动，型号做成数据，§3.8；`hal::Can::Frame` 带接收时刻；新增能力目录 `app/actuator`（Decision-20261102-03、-04）。v2 按负责人的骨架重写：迁移方式从"改造迁移源"改为"按新骨架重建，迁移源只作参考与零件来源"。v1.0–v1.4（P0–P2.5）见 git 历史与 decision.md。
+> **状态**：v2.13（2026-11-03）。v2.0 见 Decision-20261027-01；v2.1 随 F1 第 1 步更新 utils、middleware、lib 的归类：math 进 utils，fsm 进 middleware（Decision-20261027-02）；v2.2 随 F1 第 2 步加入 utils 的并发原语 `concurrency`（Decision-20261029-01），§3.4 补充 seqlock 的读写竞态（Decision-20261029-02，待定）；v2.3 随 F1 第 3 步定稿 §3.2 的 OS 契约：1 µs 时基、`Signal` 的语义、临界区只屏蔽框架中断（Decision-20261031-01～03）；v2.4 随 F1 第 4 步定稿 §3.4 的 topic：发布时用临界区包住写入（Decision-20261029-02），接口、等待槽与清单约定（Decision-20261031-05）；v2.5 随 F1 的 CI 加入框架独立构建与 Cortex-M0+ 原子检查，规则 13、17 的文本扫描生效，新增例外 X-17（Decision-20261031-06）；v2.6 随 F2 第 1 步把固件的符号对照换成段大小报告，规则 16 的 HAL 回调符号检查生效（Decision-20261031-08）；v2.7 随 F2 第 4 步换上启动入口 `boot_*` 与 `hal::init()`，规则 7 的 include 检查生效，`boot` 在依赖图里单独成层，X-09 关闭（Decision-20261031-11）；v2.8 随 F2 第 4 步定下 §3.5 的任务运行器写法，加入第一个 topic 与 bringup 能力，`topics` 在依赖图里单独成层（Decision-20261031-12）；v2.9 随 F2 第 4 步归档旧能力代码（tag `archive/pre-rebuild`），X-04、X-10 关闭，规则 10、18 生效，`app/` 加入宿主构建（Decision-20261031-13）；v2.10 随 F2 第 5 步与 F3 定稿 §3.1 的 hal 契约 v1（句柄类）、`board.hpp`、C++ port 与 mock，删除 `hal/detail` 与 PortKit，X-07、X-08、X-14、X-17 关闭，规则 1（`board.hpp`）、4、14、16（C 链接位置）的检查生效；§3.5 加入 topic 触发的超时与能力 `Config` 的两部分（Decision-20261101-01～03）；v2.11 板级目录改为"厂商 / 板"两级：`platform/st/dm_mc02`（Decision-20261101-04）。v2.12 电机改为关节 `Joint` + 每条总线的 `CanBus` + 品牌驱动，型号做成数据，§3.8；`hal::Can::Frame` 带接收时刻；新增能力目录 `app/actuator`（Decision-20261102-03、-04）。v2.13 上位机链路用 RoboLink v0.2：编解码在 `src/middleware/robolink` 一处手写、用独立生成的标准帧核对，规则 11 改写并生效；链路能力目录 `app/pc_link`（Decision-20261103-01）。v2 按负责人的骨架重写：迁移方式从"改造迁移源"改为"按新骨架重建，迁移源只作参考与零件来源"。v1.0–v1.4（P0–P2.5）见 git 历史与 decision.md。
 > **权威来源**：[decision.md](../../decision.md) 中的 Accepted 条目，v2 起以 Decision-20261027-01 为准。[评审报告 v1.0](reviews/2026-10-25-foray_mcu-架构评审报告.md) 是历史记录，与本文件冲突的部分以本文件为准。
 > **修改流程**：新增或修改规则、例外、白名单，先在 decision.md 登记，再改本文件和对应的 CI 检查（§10）。
 
@@ -48,10 +48,11 @@ foray_mcu/
 │   ├── utils/                无领域含义的基础件：math、crc、concurrency（SPSC 队列、最新值邮箱）
 │   ├── middleware/           给能力用的运行期机制与服务：建立在契约与基础件之上
 │   │   ├── topic/            topic 机制：最新值、单发布者、可在中断里发布、可阻塞等待
+│   │   ├── robolink/         上位机链路协议 RoboLink v0.2：组帧、解析、消息编解码、连接会话
 │   │   └── fsm/              通用状态机
 │   ├── lib/                  领域算法：control（pid、slope、heater_control）、estimate、filter、kinematics、component
 │   ├── driver/               设备驱动与设备协议：can_bus（CAN 总线分发）、motor（joint；dji、dm）、bmi088、buzzer、ws2812、protocol/{dji,dm,sbus}
-│   └── third_party/          vendor 进来的外部生成头（foray_interfaces 的 lower_link.hpp）
+│   └── third_party/          vendor 进来的外部生成头（预留，现在为空）
 ├── platform/                 厂商 / 板两级
 │   ├── st/                   厂商：ST
 │   │   └── dm_mc02/          DM-MC02（STM32H723）：board.cmake + CMakeLists.txt
@@ -63,7 +64,7 @@ foray_mcu/
 │   ├── topics/               本产品全部 topic 的清单（消息类型 + topic 实例），集中一处
 │   ├── common/               任务运行器（FreeRTOS 原生 API）
 │   ├── actuator/             安全门：按 safety.stop 集中禁止关节出力（§3.8）
-│   └── <capability>/         imu、chassis、gimbal、remote、launch、link……（框架验收后重建）
+│   └── <capability>/         imu、chassis、gimbal、remote、launch、pc_link……（框架验收后重建）
 ├── config/
 │   ├── profiles/<兵种>_<板>/   profile.cmake（选板、选能力）+ params.hpp（constexpr 参数）
 │   └── assembly/             组合根：每个 profile 一个源文件
@@ -97,7 +98,7 @@ foray_mcu/
 | `hal/os/` | 临界区、单调时基、信号（§3.2） | 标准库 | 同上 |
 | `boot/` | 启动入口声明（§3.3） | 标准库 | 同上 |
 | `utils/` | 数学（向量、四元数、矩阵）、CRC、并发原语（`concurrency`：SPSC 队列、最新值邮箱 seqlock）。每个子目录一个 target `utils_<名>` | 标准库 | 其他所有层（包括迁移期的构建开关 `legacy_build_options`） |
-| `middleware/` | 给能力用的运行期机制与服务：`topic`（§3.4）、`fsm`（通用状态机）；将来按需加调试遥测、参数存储、链路传输，新增先登记 | `utils`、`hal/os`、中间件内部（无环）；传输类服务另可依赖 `hal` | `driver`、`lib`、`app`、RTOS |
+| `middleware/` | 给能力用的运行期机制与服务：`topic`（§3.4）、`fsm`（通用状态机）、`robolink`（上位机链路协议，§3.9）；将来按需加调试遥测、参数存储，新增先登记 | `utils`、`hal/os`、中间件内部（无环）；传输类服务另可依赖 `hal` | `driver`、`lib`、`app`、RTOS |
 | `lib/` | 领域算法；层内无环（`component` → `control`）；数学基础在 `utils/math` | 标准库、`utils`、`lib` 内部 | `hal`、`driver`、`middleware` |
 | `driver/` | 设备驱动与设备协议 | `hal`、`hal/os`、`lib`、`utils`、驱动内部 | `middleware`、`app`、RTOS |
 | `third_party/` | vendor 的外部生成头，固定版本 + sha256 | 标准库 | 手工修改 |
@@ -320,6 +321,16 @@ void boot_run(void);        // 默认任务：留给 assembly 的周期工作（
 - **时间戳**：帧带接收时刻（`hal::Can::Frame::received_us`，Decision-20261102-04）。与本轮的 now 比较时用有符号差：时间戳可能比 now 晚一点。
 - **性能**：1 kHz 控制环的上板对照见 `docs/ai/decisions/2026-11-02-电机控制环基准/README.md`。
 
+### 3.9 上位机链路：RoboLink（Decision-20261103-01）
+
+- **协议**：RoboLink v0.2，以 `foray_interfaces` 提交 `5973436` 的 `protocol/robolink.md` 为准。单位全 SI，时间是 MCU 的单调 µs（`hal::os::now_us()`）。
+- **`src/middleware/robolink`**（只依赖 `utils_crc`，不依赖 hal）：
+  - `wire`：帧层与槽位层。`FrameBuilder` 组帧，`FrameParser` 从字节流里定界（半帧、粘包、假同步），`check_frame()` 核对整帧；
+  - `messages`：8 条消息的载荷，按协议的"缺失/无效语义"拒收或改写；
+  - `session`：握手、判活、序号、发送调度与计数。调用方喂收到的字节、取要发的帧、告诉它发没发出去。
+- **核对**：`tool/robolink/make_golden.py` 只照协议文本生成标准帧 `test/data/robolink/golden_v0_2.txt`，宿主测试逐字节对照；`tool/robolink/pc_crosscheck.cpp` 用 PC 端的编解码核对同一批标准帧。改协议先改生成器。
+- **能力 `app/pc_link`**：用 `hal::UsbCdc` 收发，`imu.attitude` → `GIMBAL_ATTITUDE`，发布收到的控制快照 `pc_link.control`。第一版只记账，不执行控制快照。
+
 ## 4. target 依赖图
 
 箭头指向被依赖方。
@@ -376,7 +387,7 @@ EXECUTABLE  firmware_<profile>
 | 8 | 禁止 `file(GLOB)` 收集源码；禁止全局 `include_directories()`；每个 target 显式声明 PRIVATE/PUBLIC/INTERFACE | 文本扫描 | 已执行 |
 | 9 | `app/`、`src/` 中不用 `#if` 做裁剪（头文件保护与 `__cplusplus` 除外） | 文本扫描 | 已执行（X-14 在 F2 第 5 步关闭，没有放行） |
 | 10 | RTOS 头只对 `app/common` 与 `config/assembly` 可见，用 FreeRTOS 原生 API；能力与 `src` 零 RTOS，只经 `hal/os` | 依赖图（能力不得依赖 `app_common`）+ 文本扫描（`src/`、`app/` 只有 `app/common` 可以 include RTOS 头） | 已执行（F2 第 4 步，Decision-20261031-13） |
-| 11 | 上位机链路协议只用 vendor 的 `lower_link.hpp`，不手写帧与校验（`utils` 的 CRC 只给设备协议用，如裁判系统） | vendor 哈希 + 文本扫描 | 链路能力重建时 |
+| 11 | 上位机链路协议 RoboLink 的组帧、链路 CRC 与消息编解码只在 `src/middleware/robolink` 一处，由独立生成的标准帧逐字节核对；其他代码不得自己组帧（Decision-20261103-01，取代"只用 vendor 的 `lower_link.hpp`"） | 文本扫描（`utils/crc/crc32.hpp` 只能由 `src/middleware/robolink` 与测试 include）+ 宿主测试对照标准帧 | 已执行（阶段 A，2026-11-03） |
 | 12 | `app`、`src`、`platform`、`config` 的一级目录有白名单（§5.4），新增先登记 | 文本扫描 | 已执行 |
 | 13 | 不用 `std::atomic` 的读改写（`fetch_*`、`exchange`、`compare_exchange_*`）；并发只用 `utils` 原语与 topic | 文本扫描 + Cortex-M0+ 库调用检查（整个框架） | 已执行（F1；X-08、X-17 在 F2、F3 关闭，没有放行） |
 | 14 | 框架与能力开启 `-Wdouble-promotion`，豁免清单见 X-06 | 编译选项（`framework_library`、`utils_library`、`app_library`） | 已执行（F3，Decision-20261101-02） |
@@ -400,7 +411,7 @@ EXECUTABLE  firmware_<profile>
 | 目录 | 白名单 |
 |---|---|
 | `src/` | `hal`（含 `os`）、`boot`、`utils`、`middleware`、`lib`、`driver`、`third_party` |
-| `app/` | `topics`、`common`、`bringup`（框架验证，Decision-20261031-12）、`actuator`（安全门，Decision-20261102-03）、`imu`、`chassis`、`gimbal`、`remote`、`launch`、`link`（新增能力先登记） |
+| `app/` | `topics`、`common`、`bringup`（框架验证，Decision-20261031-12）、`actuator`（安全门，Decision-20261102-03）、`imu`、`chassis`、`gimbal`、`remote`、`launch`、`pc_link`（上位机链路；不叫 `link`：与 POSIX 的 `link()` 重名，Decision-20261103-01）（新增能力先登记） |
 | `platform/` | 一级：`mock` 与厂商（`st`）；二级：每个厂商下的板标识（`st/dm_mc02`；F407 C 板在阶段 B 加入）（Decision-20261101-04） |
 | `config/` | `profiles`、`assembly` |
 
@@ -411,7 +422,7 @@ EXECUTABLE  firmware_<profile>
 - 再生成可复现：CI 用 sha256 清单校验；有装 CubeMX 的 runner 时再加 regenerate-diff。
 - 板级 CMake 的再生成防护保留：USB OTG HS 内部 DMA 必须开启；USB port 必须含 PA11/PA12 复用配置。
 - 链接脚本：生成的 `.ld` 不改，自定义段放 `platform/<厂商>/<board>/board/overlay.ld`，作为第二个 `-T` 追加（Q9）。
-- vendor 生成头：`src/third_party/foray_interfaces/` 固定版本并记录 sha256，CI 校验，不手改。
+- vendor 生成头：`src/third_party/foray_interfaces/` 固定版本并记录 sha256，CI 校验，不手改（预留：RoboLink 没有生成器，见规则 11）。
 - 层级声明：`.foray-layer` 为 `layer: MCU`、`depends_on_layers: [X2]`，对 X2（`foray_interfaces`）只消费 vendor 的生成头。
 
 ## 7. 例外登记

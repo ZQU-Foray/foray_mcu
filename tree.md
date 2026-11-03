@@ -25,7 +25,7 @@ foray_mcu/
 │   ├── hal/                  硬件契约 v1（句柄类 can、gpio、pwm、spi、uart、usb_cdc，callback.hpp、init.hpp，F2 第 5 步）；os/ 为最小 OS 契约 v1（clock、critical_section、signal，F1）
 │   ├── boot/                 boot.h：生成区唯一调用的启动入口（F2）
 │   ├── utils/                math、crc（F1 第 1 步由 lib 移入）、concurrency（spsc_queue、latest_value，F1 第 2 步）
-│   ├── middleware/           fsm（F1 第 1 步由 lib 移入）、topic（topic.hpp，F1 第 4 步）
+│   ├── middleware/           fsm（F1 第 1 步由 lib 移入）、topic（topic.hpp，F1 第 4 步）、robolink（上位机链路协议，阶段 A）
 │   ├── lib/                  control（pid、slope、heater_control）、estimate、filter、kinematics、component（目录名即命名空间名）
 │   └── driver/               can_bus（CAN 总线分发）、motor（joint.hpp 关节；dji/、dm/ 品牌驱动与型号常量，Decision-20261102-03）、bmi088、buzzer、ws2812、protocol/{dji,dm,sbus}（构造时接收 hal 句柄，F2 第 5 步）
 ├── app/                      产品（include 根：#include "topics/bringup.hpp"）；固件与宿主构建都加入
@@ -95,12 +95,13 @@ foray_mcu/
 │   │   └── os/                   OS 契约：临界区、单调时基、信号（F1）
 │   ├── boot/                     启动入口 boot.h：boot_init / boot_init_rtos / boot_run（F2）
 │   ├── utils/                    无领域含义的基础件：math、crc、concurrency（spsc_queue、latest_value）
-│   ├── middleware/               给能力用的运行期机制与服务：topic（F1）、fsm；将来按需加调试遥测、参数存储、链路传输
+│   ├── middleware/               给能力用的运行期机制与服务：topic（F1）、fsm、robolink（阶段 A）；将来按需加调试遥测、参数存储
 │   │   ├── topic/                topic 机制：最新值、单发布者、中断发布、阻塞等待
+│   │   ├── robolink/             上位机链路协议 RoboLink v0.2：wire（组帧、解析）、messages（8 条消息）
 │   │   └── fsm/                  通用状态机
 │   ├── lib/                      领域算法：control（pid、slope、heater_control）、estimate、filter、kinematics、component
 │   ├── driver/                   设备驱动与设备协议：can_bus、motor（joint；dji、dm）、bmi088、buzzer、ws2812、protocol/{dji,dm,sbus}（F3 适配 hal v1）
-│   └── third_party/              vendor 生成头：foray_interfaces/generated/lower_link.hpp + 版本/sha256（阶段 A）
+│   └── third_party/              vendor 生成头（预留；RoboLink 没有生成器，Decision-20261103-01）
 ├── platform/                     厂商 / 板两级
 │   ├── st/                       厂商：ST
 │   │   ├── dm_mc02/              DM-MC02（STM32H723，F2）
@@ -167,7 +168,7 @@ foray_mcu/
 | 宿主测试 | `test/host/` | ✅ 由根工程引入（27 项全绿）；外设经 `platform_mock` 的替身 |
 | 框架使用指南 | `docs/ai/guide/框架使用指南.md` | 📄 F4（2026-11-01） |
 | 组织合规件 | `.foray-layer`、`CODEOWNERS`、`.github/workflows/ci.yml` | ✅ 已落地 |
-| 链路协议生成头 | `src/third_party/foray_interfaces/generated/lower_link.hpp` | ⏳ 阶段 A（链路能力） |
+| 链路协议 RoboLink v0.2 | `src/middleware/robolink/`、标准帧 `test/data/robolink/`、生成器与 PC 端核对 `tool/robolink/` | 🚧 阶段 A：编解码完成（Decision-20261103-01）；会话、IMU 与链路能力进行中 |
 | 架构判据 | `docs/ai/architecture.md` | 📄 v2（2026-10-27，待审阅） |
 | 架构评审 | `docs/ai/reviews/`（v1.0；旧版在 `archive/`） | 📄 历史记录，与 v2 冲突处以 v2 为准 |
 | 迁移基线证据 | `docs/ai/decisions/2026-10-25-迁移基线与对照.md`、`docs/ai/decisions/baseline-a2cfd16/`、`docs/ai/assets/controller_code-固件恢复可行性评估.md` | ✅ P0 已复核 |

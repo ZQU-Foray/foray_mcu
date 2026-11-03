@@ -9,7 +9,7 @@
 ## Decision-20260219-01（继承自 ControllerCode，Accepted）
 
 - **Date**：2026-02-19
-- **Status**：Accepted（随本仓迁移继承）
+- **Status**：Accepted（随本仓迁移继承）。第 3 点于 2026-11-03 被 Decision-20261103-01 取代：链路用 RoboLink v0.2，编解码在本仓一处手写，用独立生成的标准帧核对
 - **Source**：ControllerCode `origin/chore/align-org-structure` @ `f1f46cd` 的 `decision.md`
 
 **Context**：MCU 下位机固件此前未对齐组织仓库规范——无五件套、无 `CODEOWNERS`、无层级声明；同时上位机 ↔ 下位机链路协议已在 `foray_interfaces` 落定 v0.1（USB CDC）。
@@ -1837,6 +1837,85 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 - **只在驱动里修**：驱动拿不到帧进入队列的时刻，修不了。否决。
 
 **回滚**：revert 本决策的提交，`Frame` 回到没有时间的版本，驱动回到用取帧时刻。
+
+---
+
+## Decision-20261103-01（上位机链路：RoboLink v0.2；MCU 端手写一处编解码、用独立生成的标准帧核对，规则 11 改写；IMU 能力与链路能力，Accepted）
+
+- **Date**：2026-11-03
+- **Status**：Accepted（AI 按负责人授权决定）。负责人 2026-11-02："RoboLink v0.2 是已经协商好了的协议，如果我没记错里面的冲突点应该只有单位问题了"；2026-11-03："那继续做 robolink 的部分吧，有什么要我决定的再和我说"。F1–F4 的整体验收负责人没有单独表态，本决策只覆盖链路及它需要的 IMU 能力
+- **Source**：负责人 2026-11-02 提出先做上下位机通信，把 IMU 解算后的四元数传给上位机，辅助视觉做手眼标定
+- **对账记录**：[docs/ai/decisions/2026-11-03-RoboLink-对账/README.md](docs/ai/decisions/2026-11-03-RoboLink-对账/README.md)
+
+**Context**：
+- `foray_interfaces` 的 `dev` 分支（`5973436`）里有两份草案：
+  - `lower_link`：只定义消息内容，从 YAML 生成编解码，消息表是空的；
+  - RoboLink v0.2（`protocol/robolink.md`）：帧层、槽位层、8 条消息全部定义，单位全 SI（m/s、rad、rad/s、s）。
+- 负责人确认 RoboLink v0.2 已和算法组商定。它和 lower_link 的三处分歧（帧层归属、时间戳、消息号分段）都按 RoboLink 的写法，lower_link 不用。`robolink.md` 开头仍写"候选稿"，`foray_interfaces` 那边要补一个定稿的改动。
+- 本仓规则 11（继承自 Decision-20260219-01 第 3 点）要求只用生成的 `lower_link.hpp`、禁止手写。RoboLink 没有生成器，PC 端 `foray_platform`（`dev` @ `de496bd`）已经手写了一份编解码。按原规则 MCU 端写不了。
+- 规则 11 要防的是两端编解码漂移。PC 端的评审文档也要求电控用独立的测试向量对账，不能只拿 PC 自己的编码结果做往返测试。
+- 旧固件的 MCU 实现（`controller_code/Libraries/Protocol/robolink/`）没有随迁移源进来（丢失功能 L3），远端各分支里也没有。
+
+**Decision**：
+
+1. **协议**：上下位机链路用 RoboLink v0.2，以 `foray_interfaces` 提交 `5973436` 的 `protocol/robolink.md` 为准。
+2. **规则 11 改写**（取代 Decision-20260219-01 第 3 点）：
+   - RoboLink 的组帧、链路 CRC 与消息编解码只在 `src/middleware/robolink` 一处手写，其他代码不得自己组帧；
+   - 核对：`tool/robolink/make_golden.py` 只照协议文本，用 `zlib.crc32` 与 `struct` 生成标准帧 `test/data/robolink/golden_v0_2.txt`，宿主测试逐字节对照；`tool/robolink/pc_crosscheck.cpp` 用 PC 端的编解码核对同一批标准帧（PC 端更新后重跑）；
+   - 检查：`utils/crc/crc32.hpp`（CRC-32/ISO-HDLC）只能由 `src/middleware/robolink` 与测试 include（`arch_check.py scan`）；
+   - `src/third_party` 留着，给以后 vendor 的生成头用。
+3. **分层**：
+   - `src/middleware/robolink`（target `middleware_robolink`，只依赖 `utils_crc`）：帧层与槽位层（`wire`）、8 条消息的载荷（`messages`）、连接会话（`session`：握手、判活、序号、发送调度、计数）。只处理内存里的字节，不依赖 hal 与 hal/os，宿主测试直接驱动；
+   - 产品能力 `app/pc_link`：用 `hal::UsbCdc` 收发；把 IMU 的 topic 填进 `GIMBAL_ATTITUDE`；决定 `SYSTEM_STATUS` 的内容；发布收到的控制快照。
+   - 能力目录叫 `pc_link`，不叫白名单里的 `link`：命名空间要与目录同名，`link` 与 POSIX `unistd.h` 的 `link()` 函数重名，宿主与 ARM 工具链上同时 include 都会报错（2026-11-03 实测）。
+4. **握手**（协议 §5.1 没写哪一端先发，PC 端评审文档第 3 条列为待确认）：
+   - PC 先发 HELLO；
+   - MCU 收到 PC 的 HELLO 后，在同一帧里回 HELLO_ACK 与本端 HELLO（固件版本、能力位图）。HELLO_ACK 为 OK 时 MCU 就进入 READY，不等 PC 确认 MCU 的 HELLO（PC 端的 `RoboLinkHostLink` 不回）；
+   - 进入 READY 时帧序号与消息序号归零，随后先发一次带诊断尾部的完整 SYSTEM_STATUS，发出后进入 ACTIVE；
+   - 已在 READY 或 ACTIVE 时再收到 HELLO（PC 重启），按新连接重新握手。
+   这与 PC 端现有代码一致，要请算法组确认后写进协议。
+5. **发送调度**（MCU 每轮最多组一帧，不超过 96 B）：
+   - 握手应答 > 完整状态 > 状态（200 Hz，核心 28 B，与姿态同帧 94 B）> 姿态 > 保活帧；
+   - 诊断尾部每 1 s 附一次，这一帧放不下姿态，姿态顺延一轮；
+   - 姿态只在 PC 的 HELLO 声明了 0x30 时发，有新的 IMU 结果才发（最多 1 kHz）；
+   - 20 ms 内什么都没发时发零槽保活帧，本端 HELLO 报心跳周期 20 ms；
+   - USB 上一次发送没结束（`BUSY`）时，这一帧不算发出：握手应答下一轮重发，状态与姿态下一轮按最新值重组，记入 `tx_busy_drop`。
+6. **接收**：
+   - 每轮最多处理 8 帧（§1.4）；
+   - 方向不对的消息（PC 发来 SYSTEM_STATUS、GIMBAL_ATTITUDE）、未握手时的控制快照只计数，不回 ERROR；
+   - 槽位标志按注册表严格比对，不接受附加的 ACK_REQ（8 条消息都不带它，与 PC 端一致）。
+7. **判活**：READY、ACTIVE 时任一合法帧都算活；500 ms 收不到就回到 USB_CONNECTED，停发状态与姿态，等 PC 重新握手；USB 断开回到 DISCONNECTED。
+8. **控制快照**（第一版只记账、不执行）：
+   - 解码后发布 topic `pc_link.control`，`last_rx_control_seq` 前进；
+   - 没有能力接受它：`last_accepted_control_seq`、`last_applied_control_seq` 保持 0，`safety_state` 报 0（未收到快照），`mode` 报 IDLE，`control_source` 报 NONE，`control_msg_age_ms` 报 65535；
+   - 接受与执行（模式裁决、云台跟踪、失联降级）随云台与仲裁能力重建时再做。
+9. **IMU 能力 `app/imu`**（GIMBAL_ATTITUDE 的数据来源）：
+   - 由 bringup 的 `ImuCheck` 改写：BMI088 数据就绪中断里发布事件，任务里读样本、换到云台坐标系（安装方向在 profile），VQF 解算，加热恒温；
+   - 上电零偏标定由归档的 `GyroBiasCalibration`（tag `archive/pre-rebuild`，参数是旧板实测的）改写：恒温到位并稳定后，取 5 s 静止窗口；累计 20 s 没有合格窗口就放弃（DEGRADED）；
+   - 状态按协议：标定中 SETTLING、标定完成 READY、超时 DEGRADED；
+   - 进入 READY（或 DEGRADED）时把标定的零偏交给 VQF，并把 yaw 归零：世界系的 yaw 零点取这一刻云台的水平朝向，去掉标定期间零偏造成的漂移。云台静止时，这一朝向就是启动时的朝向，与协议一致；
+   - 发布 `imu.attitude`（云台系 → 世界系四元数、扣除零偏的角速度、采样时刻、状态）。
+   - 协议提到"复位后沿用复位前的标定，约 0.2 s 转 READY"，第一版不做：每次复位都重新标定。
+10. **固件**：新增 profile `link_dm_mc02`（链路联调：IMU、加热与链路，不接电机），bringup 不变。USB 的生成区接缝（X-01、X-02）这次不动，Q8 另做。
+
+**待负责人与算法组**（不挡开工）：
+- 握手方向（第 4 点）写进 `robolink.md`，并把它从"候选稿"改为定稿；
+- PC 端载荷长度要求正好等于协议长度，协议 §7.1 允许末尾追加字段（对账记录有这一条）；
+- 标准帧生成器与 `golden_v0_2.txt` 建议移到 `foray_interfaces`，两端测试用同一份；
+- profile 名 `link_dm_mc02` 是临时的联调配置，第一个兵种 profile 由负责人定名。
+
+**Reason**：
+- 协议已商定，PC 端已实现，等生成器会卡住手眼标定。
+- 漂移风险由两份独立实现对同一份标准帧来控制：Python 生成器只照协议文本，MCU 与 PC 的 C++ 各自对照。
+- 会话放 middleware：握手、判活、调度是协议本身的规则，与产品无关；用哪个外设、发什么内容属于产品。
+
+**Alternatives / Rejected**：
+- 等 `foray_interfaces` 给 RoboLink 写生成器：生成器连同测试至少几天，还要两个组协调，手眼标定等不起。否决（标准帧移到 `foray_interfaces` 后，以后有生成器时可以平滑换上）。
+- 照搬 PC 端的编解码：它用异常与堆（`std::vector`），MCU 不能用；也就谈不上独立对账。否决。
+- 编解码放 `src/driver/protocol/robolink`：PC 不是设备，而且会话要放在中间件（架构 §2.2 第 5 条把"链路传输"列在 middleware）。否决。
+- MCU 等 PC 回应它的 HELLO 才进 READY：现有 PC 代码不回，握手永远完不成。否决。
+
+**回滚**：revert 本决策的各分支（`a/robolink-wire` 起），规则 11 回到原文。
 
 ---
 

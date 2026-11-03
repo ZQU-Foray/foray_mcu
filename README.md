@@ -52,7 +52,7 @@ cmake --preset framework   && cmake --build --preset framework     # 框架独�
 
 | 类型 | 依赖 |
 |---|---|
-| 组织自研仓 | `foray_interfaces` —— **仅消费**生成的 `generated/lower_link.hpp`（vendor，非构建期依赖）；**禁止手写双侧编解码** |
+| 组织自研仓 | `foray_interfaces` —— 链路协议 RoboLink v0.2（`protocol/robolink.md`）；编解码在本仓 `src/middleware/robolink` 一处实现，用独立生成的标准帧核对（Decision-20261103-01） |
 | 第三方 | STM32 HAL/LL、FreeRTOS（CMSIS-RTOS2 仅迁移期使用）、ST USB Device、CMSIS（随板级 `cubemx/` 一起提交） |
 
 ## 5. 下位机安全职责（硬路径）
@@ -78,7 +78,7 @@ cmake --preset framework   && cmake --build --preset framework     # 框架独�
 上位机（算法组）
    foray_platform / foray_decision / ...
         │   USB CDC
-        │   （契约：foray_interfaces/protocol/lower_link.md）
+        │   （契约：foray_interfaces/protocol/robolink.md，RoboLink v0.2）
         ▼
 下位机（电控组）
    foray_mcu  ← 本仓
@@ -101,7 +101,7 @@ cmake --preset framework   && cmake --build --preset framework     # 框架独�
 
 ## 8. 参考
 
-- [上位机 ↔ 下位机链路协议](https://github.com/ZQU-Foray/foray_interfaces/blob/dev/protocol/lower_link.md)
+- [上位机 ↔ 下位机链路协议 RoboLink v0.2](https://github.com/ZQU-Foray/foray_interfaces/blob/dev/protocol/robolink.md)
 - [算法结构](https://github.com/ZQU-Foray/foray_docs/blob/main/algorithm_structure.md) / [仓库结构](https://github.com/ZQU-Foray/foray_docs/blob/main/repository_structure.md)
 - [组织贡献指南](https://github.com/ZQU-Foray/.github/blob/main/CONTRIBUTING.md)
 - 结构评审报告：[docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md](docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md)

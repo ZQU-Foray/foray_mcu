@@ -21,7 +21,7 @@
 
 - `platform/**/cubemx/**`、`*.ioc`、`.mxproject`、startup 文件与链接脚本属于 **CubeMX 生成区**：只能通过重新生成修改，**禁止手工编辑**；唯一的例外是 USER CODE 区里对 `boot_*` 的调用（改动行登记在 decision.md，Decision-20261027-01；现行的改动行见 Decision-20261031-11）；自定义段用 `platform/.../board/link/overlay.ld` 以第二个 `-T` 追加（Q9），不改生成 `.ld`；生成前后必须可复现（CI regenerate-diff 或生成清单校验）。
 - `legacy/` 是迁移源的原样副本：只允许按 plan.md 的阶段做机械操作（搬出、改名、格式化），**禁止在 `legacy/` 里开发新功能或修 bug**；新代码从 P1 起按目标结构编写。
-- **禁止手写链路协议编解码**：链路协议只允许使用 `foray_interfaces` 生成的 `generated/lower_link.hpp`（vendor 到 `src/third_party/`，带版本与 sha256）。
+- **链路协议只在一处编解码**：上下位机链路用 RoboLink v0.2（`foray_interfaces` 的 `protocol/robolink.md`）。组帧、链路 CRC 与消息编解码只在 `src/middleware/robolink`，由 `tool/robolink/make_golden.py` 独立生成的标准帧逐字节核对，改协议先改生成器；其他代码不得自己组帧（规则 11，Decision-20261103-01，取代"只用生成的 `lower_link.hpp`"）。
 - 禁止引入反向/跨层依赖：`app → platform 实现`、`src → platform/app/config`、任何层 → 厂商 HAL/RTOS 头。**例外**：`src/hal` 契约头本身不得出现 HAL/RTOS 类型；`platform` 实现 `src/hal` 时可以使用厂商头。硬件契约是句柄类（`hal::Can` 等，Decision-20261101-01），板级句柄在 `platform/<厂商>/<板>/board/board.hpp`（如 `platform/st/dm_mc02`，Decision-20261101-04），只有组合根与本板的 port 能 include 它；驱动在构造时接收句柄。规则以评审报告 §5 与 [docs/ai/architecture.md](docs/ai/architecture.md) 为准；后者是分层判据、16 条依赖规则与例外登记表的人读入口（v1，Decision-20261026-02）。
 - 禁止 `file(GLOB)` 收集业务源码；禁止全局 `include_directories()`；禁止把仓库根加入 include 路径。
 - CMake 文件按层组织：一层的全部 target 写在该层的一个 `CMakeLists.txt` 里（根、`src/`、`app/`、`config/`、每块板、`platform/mock`、`test/host`），不在子目录里各放一个；需要拆分时先在 [decision.md](decision.md) 登记（Decision-20261026-07）。
