@@ -139,6 +139,30 @@ void run(imu::Imu &capability, std::uint32_t duration_us, GyroZ gyro_z)
     }
 }
 
+// 同上，但中断时刻在名义时刻之后 0–50 µs 抖动，处理延迟在 10–60 µs 之间变（平均间隔仍是 500 µs）。
+// 第 k 个中断在 500k + JITTER[k]；上一轮处理完时在 500(k-1) + JITTER[k-1] + DELAY[k-1]，时间只往前走
+void run_jittered(imu::Imu &capability, std::uint32_t duration_us)
+{
+    static constexpr std::uint32_t JITTER[]{0U, 25U, 5U, 45U, 15U, 35U, 50U, 10U};
+    static constexpr std::uint32_t DELAY[]{30U, 10U, 60U, 20U, 50U, 40U, 15U, 55U};
+    std::uint32_t previous_end = 0U; // 上一轮处理完时相对名义时刻的偏移
+    for (std::uint32_t elapsed = 0U, edge = 0U; elapsed < duration_us; elapsed += 500U, ++edge)
+    {
+        const std::uint32_t jitter = JITTER[edge % 8U];
+        const std::uint32_t delay = DELAY[edge % 8U];
+        mock::advance_us(500U + jitter - previous_end);
+        assert(mock::gpio::trigger_interrupt(GYRO_PIN));
+        if (edge % 5U == 0U)
+        {
+            assert(mock::gpio::trigger_interrupt(ACCEL_PIN));
+        }
+        mock::advance_us(delay);
+        const hal::os::Microseconds before = hal::os::now_us();
+        step_and_finish_transfers(capability);
+        previous_end = jitter + delay + (hal::os::now_us() - before); // SPI 事务也花时间
+    }
+}
+
 float yaw_of(const topics::imu::Attitude &attitude)
 {
     const math::Quaternion q{
@@ -203,6 +227,12 @@ int scenario_ready()
     // 采样时刻是陀螺数据就绪中断的时刻（每轮中断后 30 µs 处理）
     assert(attitude.timestamp_us + 30U <= hal::os::now_us());
     assert(capability.report().published > 1000U);
+
+    // 发布频率：2 kHz 陀螺、1 ms 间隔，中断与处理时刻有抖动时仍是 1 kHz（2026-11-03 上板只有约 860 Hz）
+    const std::uint32_t before = capability.report().published;
+    run_jittered(capability, 1000000U);
+    const std::uint32_t published = capability.report().published - before;
+    assert(published >= 998U && published <= 1002U);
     std::puts("imu ready: 全部通过");
     return 0;
 }

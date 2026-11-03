@@ -37,7 +37,7 @@ class Imu final
     {
         device::Bmi088::Config driver;           // 陀螺输出速率与带宽
         estimate::AxisMapping mounting;          // 传感器 → 云台系（x 沿枪管向前、y 左、z 上）
-        hal::os::Microseconds publish_period_us; // imu.attitude 的最短发布间隔
+        hal::os::Microseconds publish_period_us; // imu.attitude 的发布间隔（按陀螺采样时刻，允许提前 1/4）
         float heater_target_celsius;             // 加热目标，也是零偏标定的温度门控目标
         estimate::GyroBiasCalibration::Config calibration; // target_celsius 由 heater_target_celsius 覆盖
         float calibrated_bias_uncertainty_rad_per_sec;     // 标定结果交给 VQF 时的不确定度
@@ -110,7 +110,8 @@ class Imu final
     bool has_temperature_{false};
     math::Quaternion yaw_zero_{1.0F, 0.0F, 0.0F, 0.0F}; // 世界系相对 VQF 地球系的 yaw 旋转
     bool has_new_gyro_{false};
-    hal::os::Microseconds last_publish_us_{0U};
+    hal::os::Microseconds last_publish_us_{0U}; // 上次发布的那个陀螺样本的采样时刻
+    bool has_published_{false};
     Report report_{};
 };
 

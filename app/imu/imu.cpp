@@ -64,6 +64,7 @@ bool Imu::init(const Config &config) noexcept
     yaw_zero_ = math::Quaternion{1.0F, 0.0F, 0.0F, 0.0F};
     has_temperature_ = false;
     has_new_gyro_ = false;
+    has_published_ = false;
     return true;
 }
 
@@ -116,11 +117,16 @@ void Imu::step(hal::os::Microseconds now) noexcept
         }
     }
 
-    if (has_new_gyro_ && hal::os::has_elapsed(last_publish_us_, config_.parameters.publish_period_us, now))
+    // 限频按陀螺的采样时刻、允许提前 1/4 周期：任务醒来的时刻有抖动，按 now 判"满 1 ms"会时常差一点、
+    // 多等一个样本，2 kHz 陀螺下平均只有约 860 Hz（2026-11-03 上板）。按采样时刻判正好每隔一个样本发一次
+    const hal::os::Microseconds period = config_.parameters.publish_period_us;
+    if (has_new_gyro_ &&
+        (!has_published_ || hal::os::elapsed_us(last_publish_us_, latest_gyro_us_) >= period - period / 4U))
     {
         attitude_publisher_.publish(make_attitude());
         has_new_gyro_ = false;
-        last_publish_us_ = now;
+        last_publish_us_ = latest_gyro_us_;
+        has_published_ = true;
         ++report_.published;
     }
 }
