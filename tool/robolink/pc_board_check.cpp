@@ -1,8 +1,9 @@
 // 用 PC 端 foray_platform 的链路状态机（RoboLinkHostLink + 串口类）直接连板子（Decision-20261103-01）：
 // 视觉组实际用的就是这套代码。不进本仓构建：编译命令见 tool/robolink/README.md。
 //
-// 按真实时间跑：每 1 ms 调用一次 step()，Active 后可选每 1 ms 发一份控制快照；结束时打印 PC 端看到的
-// 状态、姿态频率与最后的姿态。用法：pc_board_check <串口> [秒数] [--control]
+// 按真实时间跑：每约 1 ms 调用一次 step()，Active 后可选每轮发一份控制快照；结束时打印 PC 端看到的状态、
+// 拿到新姿态的轮数与最后的姿态。PC 端只保留最新一份姿态，一轮最多数到一份，姿态的真实频率用 link_probe.py 量。
+// 用法：pc_board_check <串口> [秒数] [--control]
 #include "foray/platform/link/robolink_host_link.hpp"
 #include "foray/platform/link/usb_cdc_port.hpp"
 
@@ -57,7 +58,8 @@ int main(int argc, char **argv)
     };
 
     std::uint64_t active_at = 0U;
-    std::uint32_t attitudes = 0U;
+    std::uint32_t attitudes = 0U;    // 拿到新姿态的轮数
+    std::uint32_t active_steps = 0U; // Active 时的轮数
     std::uint32_t controls = 0U;
     std::uint32_t disconnects = 0U;
     std::uint32_t previous_sample = 0U;
@@ -77,6 +79,7 @@ int main(int argc, char **argv)
         {
             active_at = now;
         }
+        active_steps += state == foray::platform::link::HostLinkState::Active ? 1U : 0U;
         if (send_control && state == foray::platform::link::HostLinkState::Active)
         {
             foray::platform::link::ControlSnapshot control;
@@ -93,10 +96,10 @@ int main(int argc, char **argv)
     }
 
     const double active_seconds = active_at == 0U ? 0.0 : static_cast<double>(now_ms() - active_at) / 1000.0;
-    std::printf("\nActive 后 %.1f s：PC 解出姿态 %u 份（%.0f Hz），发出控制快照 %u 份，断链 %u 次\n",
+    std::printf("\nActive 后 %.1f s：%u 轮里 %u 轮拿到新姿态，发出控制快照 %u 份，断链 %u 次\n",
                 active_seconds,
+                active_steps,
                 attitudes,
-                active_seconds > 0.0 ? attitudes / active_seconds : 0.0,
                 controls,
                 disconnects > 0U ? disconnects - 1U : 0U);
     if (const auto &status = link.latest_status())
@@ -127,7 +130,7 @@ int main(int argc, char **argv)
                     attitude->frame_timestamp_us - attitude->attitude.sample_time_us);
     }
     const bool ok = active_at != 0U && link.state() == foray::platform::link::HostLinkState::Active &&
-                    (active_seconds < 1.0 || attitudes >= 900.0 * active_seconds);
-    std::printf("%s\n", ok ? "通过：PC 端链路代码与板子握手，姿态接近 1 kHz" : "失败");
+                    disconnects <= 1U && attitudes >= active_steps / 100U * 95U;
+    std::printf("%s\n", ok ? "通过：PC 端链路代码与板子握手、不断链，几乎每轮都拿到新姿态" : "失败");
     return ok ? 0 : 1;
 }

@@ -73,6 +73,12 @@ class Stats:
     offset_us: list = field(default_factory=list)  # 本机接收时刻 − 帧头时刻（各自时钟）
     imu_transitions: list = field(default_factory=list)  # (本机时刻, 状态)
     attitude_invalid: int = 0
+    first_euler: tuple | None = (
+        None  # 第一份有效、READY 的姿态（ZYX：yaw、pitch、roll，度）
+    )
+    last_euler: tuple | None = None
+    first_euler_s: float = 0.0
+    last_euler_s: float = 0.0
     quaternion_norm_error: float = 0.0
 
 
@@ -151,7 +157,7 @@ def euler_zyx(q: tuple[float, float, float, float]) -> tuple[float, float, float
 class Probe:
     def __init__(self, path: str, send_control: bool) -> None:
         self.path = path
-        self.send_control = send_control
+        self.control_enabled = send_control
         self.fd = open_port(path)
         self.parser = Parser()
         self.stats = Stats()
@@ -191,7 +197,7 @@ class Probe:
             2,
             2,
             0x0002,
-            [0.0, 0.0, 0.0, 0.1, -0.05, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.125, -0.0625, 0.0, 0.0, 0.0, 0.0],
             0,
         )
         self.write(
@@ -293,6 +299,11 @@ class Probe:
                 if not valid:
                     stats.attitude_invalid += 1
                 else:
+                    if imu_state == 1:
+                        euler = tuple(math.degrees(a) for a in euler_zyx(quaternion))
+                        if stats.first_euler is None:
+                            stats.first_euler, stats.first_euler_s = euler, received_s
+                        stats.last_euler, stats.last_euler_s = euler, received_s
                     norm = math.sqrt(sum(c * c for c in quaternion))
                     stats.quaternion_norm_error = max(
                         stats.quaternion_norm_error, abs(norm - 1.0)
@@ -318,7 +329,7 @@ class Probe:
             if not self.ready and now - last_hello >= 0.2:
                 self.send_hello()
                 last_hello = now
-            if self.ready and self.send_control and now >= next_control:
+            if self.ready and self.control_enabled and now >= next_control:
                 self.send_control()
                 next_control = now + 0.001
                 last_keepalive = now
@@ -407,6 +418,13 @@ def main() -> int:
         print(
             f"本机接收 − 帧头时刻的最小值（时钟偏移估计）：{min(s.offset_us) / 1000:.3f} ms"
         )
+    if s.first_euler is not None and s.last_euler_s > s.first_euler_s:
+        span = s.last_euler_s - s.first_euler_s
+        drift = [last - first for first, last in zip(s.first_euler, s.last_euler)]
+        print(
+            f"READY 时 {span:.1f} s 内姿态变化（度，yaw/pitch/roll）：{[round(d, 3) for d in drift]}，"
+            f"yaw 约 {drift[0] / span * 60:.3f} °/min（板子静止时即零偏漂移）"
+        )
     print(
         f"IMU 状态变化（本机时刻 s）：{[(round(t, 2), state) for t, state in s.imu_transitions]}"
     )
@@ -450,7 +468,7 @@ def main() -> int:
         )
     if args.reconnect:
         took = probe.reconnect()
-        print(f"重连：{'—' if took is None else f'{took * 1000:.0f} ms'} 后重新握手")
+        print(f"重连：{'—' if took is None else f'{took * 1000:.1f} ms'} 后重新握手")
         checks.append(
             ("关串口再打开后 2 s 内重新握手", took is not None and took < 2.0)
         )

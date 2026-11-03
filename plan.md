@@ -1,6 +1,6 @@
 # 开发计划（foray_mcu 结构重构）
 
-> 当前状态：**P0–P2.5 已验收（2026-10-26）；2026-10-27 起按架构 v2 重建。F1 完成待验收；F2 第 1–5 步与 F3 的代码完成并已上板验证（2026-11-01），待负责人验收；F4 的示范与指南已交付**（Decision-20261027-01、Decision-20261101-01～03；里程碑合并入 `main` 暂缓）。2026-11-03 负责人指示开始阶段 A 的上位机链路（RoboLink v0.2，Decision-20261103-01），见下文"上位机链路"。
+> 当前状态：**P0–P2.5 已验收（2026-10-26）；2026-10-27 起按架构 v2 重建。F1 完成待验收；F2 第 1–5 步与 F3 的代码完成并已上板验证（2026-11-01），待负责人验收；F4 的示范与指南已交付**（Decision-20261027-01、Decision-20261101-01～03；里程碑合并入 `main` 暂缓）。2026-11-03 负责人指示开始阶段 A 的上位机链路（RoboLink v0.2，Decision-20261103-01），见下文"上位机链路"；同日负责人确认 F1、F4 验收通过。
 > 权威方案见 [docs/ai/architecture.md](docs/ai/architecture.md) v2 与 [decision.md](decision.md)；[评审报告 v1.0](docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md) 是历史记录。本文件只记录执行计划、进度与验收标准。
 > 各阶段的动作、验收与回滚以下文为准，不跨阶段混做。
 
@@ -91,7 +91,7 @@
 - [x] 第 4 步 `src/middleware/topic`（2026-10-31，Decision-20261029-02、Decision-20261031-05）：target `middleware_topic`（只有头文件）——`Topic`、`Publisher`（`claim_publisher()` 只成功一次）、`Subscriber`（`update`、`wait`、`enable_wait`、`lost_count`）、`TopicBase`（观测）；发布时用临界区包住写入（负责人选定方案 1），消息上限暂定 64 字节，每个 topic 4 个等待槽；`app/topics/README.md` 定清单约定，`app_topics` target 随第一个 topic（F2）建立
 - [x] 宿主测试：utils 与 topic 的单元测试，含多线程压力（发布线程 × 订阅线程、模拟中断读、等待超时、单发布者检查）。utils 在第 2 步、topic 在第 4 步完成（`topic`，另有消息约束的配置期检查）
 - [x] CI（2026-10-31，Decision-20261031-06）：新增作业 `framework`，在只含框架文件的副本里做框架独立构建（preset `framework`：`src` + `platform/mock`，无 RTOS 头，依赖图 `--mode framework`）；Cortex-M0+ 构建整个框架（preset `framework-m0plus`），检查不出现 `__atomic_*`、`__sync_*` 库调用（代替 `is_always_lock_free`，Decision-20261029-01），范围从 utils 与 topic 扩大到全框架，`driver_bmi088`、`driver_motor_dji`、`lib_estimate` 暂不编译（X-17，F3 解除）；`test/framework/template_check.cpp` 实例化只有头文件的模板；文本扫描加入规则 13（X-08 放行）、17
-- [ ] 验收：宿主测试全绿；框架独立构建绿；现有固件仍可构建（F1 只新增，不改旧代码的行为）
+- [x] 验收：宿主测试全绿；框架独立构建绿；现有固件仍可构建（F1 只新增，不改旧代码的行为）。负责人 2026-11-03 确认通过
 
 ### F2 契约 v1 与 DM-MC02 板级（6–10 人日）
 
@@ -141,7 +141,7 @@
 - [ ] 实机检查清单（负责人执行）：启动、任务、topic（发布次数、丢失计数、等待延迟）、各外设
 - [x] 用框架写一个最小示范：IMU 驱动 → 姿态 topic → USB 输出（2026-11-01，`bringup::ImuCheck` → `bringup.imu` → `bringup::UsbReport`，Decision-20261101-03）
 - [x] 指南：怎样新增外设接口、驱动、topic、能力、profile（2026-11-01，AI 撰写，放 [docs/ai/guide/框架使用指南.md](docs/ai/guide/框架使用指南.md)）
-- [ ] 验收：负责人确认框架"稳定好用"，再进入阶段 A
+- [x] 验收：负责人确认框架"稳定好用"，再进入阶段 A。负责人 2026-11-03："f1和f4的验收我认为已经通过"（F2、F3 的验收项没有单独表态，仍按原记录）
 
 ### A 能力重建（F4 验收后细化）
 
@@ -156,7 +156,7 @@
 - [x] 第 2 步 连接会话（`a/robolink-session`）：`robolink::Session` 的握手、判活、序号、发送调度、计数；宿主测试 `robolink_session` 扮演 PC，故意改坏 13 处都被抓到；与 PC 端链路状态机在伪终端上联调通过（握手 2 ms，1 kHz 姿态与控制快照，两个方向的卡死与恢复），见[对账记录](docs/ai/decisions/2026-11-03-RoboLink-对账/README.md) §4
 - [x] 第 3 步 IMU 能力（`a/imu-capability`）：`app/imu`（由 bringup 的 `ImuCheck` 改写），云台坐标系、上电零偏标定 `estimate::GyroBiasCalibration`（由归档的旧实现改写，时间改 µs、累加改 float）与 SETTLING/READY/DEGRADED、yaw 归零，`imu.event`、`imu.attitude`；宿主测试 `gyro_bias_calibration`、`imu_ready`/`imu_degraded`/`imu_reject`，故意改坏 14 处都被抓到
 - [x] 第 4 步 链路能力（`a/pc-link`）：`app/pc_link`，USB 收发、`imu.attitude` → GIMBAL_ATTITUDE（无效时清零）、控制快照发布到 `pc_link.control`；宿主测试 `pc_link`，故意改坏 8 处都被抓到
-- [ ] 第 5 步 固件与上板（`a/link-profile`）：profile `link_dm_mc02`、组合根、PC 端探测脚本 `link_probe.py` 与 `pc_board_check.cpp`，CI 加构建 link 固件（`b7d929e`）；2026-11-03 上板：IMU 与链路在板上运行，发现姿态只有约 860 Hz、改为按采样时刻限频后 998 Hz（`fa3e0d3`）；板子没接 24 V，加热器没电，IMU 停在 SETTLING。**待做**：负责人接 24 V、给串口加 udev 规则后，补测握手、1 kHz 姿态、控制快照、拔线重连与 PC 端真实代码连板子，见[对账记录](docs/ai/decisions/2026-11-03-RoboLink-对账/README.md) §5
+- [x] 第 5 步 固件与上板（`a/link-profile`）：profile `link_dm_mc02`、组合根、PC 端探测脚本 `link_probe.py` 与 `pc_board_check.cpp`，CI 加构建 link 固件。2026-11-03 上板：姿态限频改按采样时刻（860 → 998 Hz，`fa3e0d3`）；冷启动 42 s 进入 READY；PC 端联调：握手 1 ms，60 s 无 CRC/帧头/槽位错误、帧序号连续，姿态 996 Hz、停留中位 52 µs，状态 200 Hz，控制快照序号回报正确，拔线重连通过；视觉组的 `RoboLinkHostLink` 直接连板子 20 s 不断链。见[对账记录](docs/ai/decisions/2026-11-03-RoboLink-对账/README.md) §5。发现 L6 加热控制器热启动会卡在 48 ℃，另行修复
 - topic 清单改为从描述文件生成（框架验证好用后）
 - 安全硬路径：失联降级与开火硬上限（独立于上位机）
 
@@ -291,3 +291,4 @@ Q1–Q18 已全部确认（见评审报告 v1.0 §11.1 与 decision.md）。仍�
 | 2026-11-03 | A（链路） | 第 3 步：IMU 能力 `app/imu`（云台姿态、上电零偏标定、yaw 归零，`imu.attitude`）；零偏标定移入 `lib/estimate`；宿主测试 4 项，故意改坏 14 处都被抓到 | 第 3 步完成 |
 | 2026-11-03 | A（链路） | 第 4 步：链路能力 `app/pc_link`（RoboLink 经 USB，姿态上传，控制快照只记账发布到 `pc_link.control`）；宿主测试 `pc_link`，故意改坏 8 处都被抓到 | 第 4 步完成 |
 | 2026-11-03 | A（链路） | 第 5 步：profile `link_dm_mc02` 与组合根、PC 端探测工具、CI 构建 link 固件；上板：IMU 与链路运行，姿态限频改按采样时刻（860 → 998 Hz）；加热器没接 24 V | PC 端联调待串口权限与 24 V |
+| 2026-11-03 | A（链路） | 第 5 步上板联调：PC 端探测脚本 60 s（带 1 kHz 控制快照与拔线重连）全部通过，姿态 996 Hz；视觉组的 `RoboLinkHostLink` 直接连板子通过；冷启动 42 s 进入 READY，静止时 yaw 漂移约 0.3 °/min；负责人确认 F1、F4 验收通过 | 链路第一版完成 |

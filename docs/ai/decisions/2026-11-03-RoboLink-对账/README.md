@@ -143,7 +143,31 @@
 - 进入 READY 时扣掉的 yaw：0.0562 rad（3.2°），正是 42 s 里 z 轴零偏积分出来的漂移；
 - 协议写的冷启动约 30 s 到 READY，这里是 42 s：温度稳定门控按旧板参数取 20 s，可以按新加热器的表现缩短。
 
-**PC 端联调**：串口 `/dev/ttyACM0` 属于 `dialout` 组，本机用户没有读写权限，等负责人加 udev 规则后用 `tool/robolink/link_probe.py` 与 `pc_board_check` 补测，结果补在这里。
+**PC 端联调**（11:00–11:05，负责人加了串口的 udev 规则；IMU 已在 READY）：
+
+`tool/robolink/link_probe.py` 在 PC 上扮演上位机，组帧用 `make_golden.py` 那套只照协议写的实现。10 s 只收的一轮与 60 s 带控制快照、最后拔线重连的一轮（`probe_60s_control_reconnect.txt`）：
+
+| 项 | 10 s | 60 s（带控制快照） |
+|---|---|---|
+| 握手（HELLO → HELLO_ACK） | 0.9 ms | 1.0 ms |
+| 收到的帧 | 9968，CRC、帧头、槽位错误 0，帧序号连续 | 59811，同左 |
+| 状态 | 1991（200 Hz） | 11945（200 Hz），诊断尾部 crc_errors 0、rx_overflow 0 |
+| 姿态 | 996 Hz，无效 0 | 995.9 Hz，无效 0，四元数模长误差 ≤ 1.3e-7 |
+| 样本在 MCU 里的停留（帧头 − 采样） | 中位 42 µs，最大 92 µs | 中位 52 µs，最大 112 µs（协议要求 < 2 ms） |
+| 相邻姿态的采样间隔 | 中位 1003 µs，最大 2053 µs | 同左 |
+| 控制快照 | — | 发出 43964 份（Python 的循环约 730 Hz），MCU 回报的 last_rx_control_seq 与发出的差 2 |
+| 拔线重连 | — | 关串口 1 s 再打开，立即重新握手 |
+
+- 采样间隔最大 2 ms：每 1 s 附一次诊断尾部的那一帧放不下姿态，姿态顺延一轮，跳过一个样本，与设计一致；
+- 60 s 那轮 MCU 的 `tx_busy_drop` 是 1332（约 2%）：PC 同时以约 730 Hz 下发控制快照时，USB 上一帧偶尔 1 ms 内发不完。这些帧下一轮按最新值重组，姿态仍是 996 Hz；只收的那轮是 0；
+- 静止时 READY 下 60 s 的姿态变化：yaw -0.315°、pitch -0.011°、roll -0.028°。yaw 约 0.3 °/min 是标定后残余的零偏，手眼标定时间长时要留意。
+
+**视觉组的 PC 端代码直接连板子**（`tool/robolink/pc_board_check.cpp`，链接 `foray_platform` 的 `RoboLinkHostLink` 与串口类，`pc_board_check_20s.txt`）：
+
+- 3 ms 进入 Active，20 s 不断链；
+- 16546 轮里 16532 轮拿到新姿态（PC 端只保留最新一份，一轮最多数到一份）；
+- 每轮发一份控制快照，状态里回报的 last_rx_control_seq 与发出的差 4；
+- 姿态 imu_state READY、valid，帧头 − 采样 53 µs。
 
 ## 6. 握手的口径（协议没写死的地方）
 
