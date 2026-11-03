@@ -403,7 +403,9 @@ EXTERN_C_ALLOWED = re.compile(
 )
 # 规则 11：RoboLink 的组帧与链路 CRC 只在 src/middleware/robolink（Decision-20261103-01）。CRC-32/ISO-HDLC 是
 # 链路 CRC，其他代码 include 它就是在自己组帧；测试可以用它核对
-LINK_CRC_HEADER = re.compile(r'^\s*#\s*include\s*[<"]utils/crc/crc32\.hpp[>"]', re.MULTILINE)
+LINK_CRC_HEADER = re.compile(
+    r'^\s*#\s*include\s*[<"]utils/crc/crc32\.hpp[>"]', re.MULTILINE
+)
 LINK_CRC_ALLOWED = re.compile(r"src/middleware/robolink/|src/utils/crc/|test/")
 # 规则 1：board.hpp 只给组合根与本板的 port（Decision-20261101-01）；依赖图另外保证能力与框架看不到 board_*
 BOARD_HEADER = re.compile(
