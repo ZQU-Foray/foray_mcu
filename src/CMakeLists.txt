@@ -130,8 +130,11 @@ framework_library(lib_filter
     lib/filter/filter.hpp)
 
 # imu_body_mapping 只处理三维向量（轴映射），不再依赖 BMI088 驱动（F3，Decision-20261101-02）。
+# gyro_bias_calibration：上电静止零偏标定，由迁移源的 GyroBiasCalibration 改写（Decision-20261103-01）。
 framework_library(lib_estimate
     lib/estimate/extended_state_observer.hpp
+    lib/estimate/gyro_bias_calibration.cpp
+    lib/estimate/gyro_bias_calibration.hpp
     lib/estimate/imu_body_mapping.cpp
     lib/estimate/imu_body_mapping.hpp
     lib/estimate/kalman_filter.hpp

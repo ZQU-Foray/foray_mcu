@@ -104,6 +104,16 @@ endforeach()
 host_test(heater_control
     SOURCES unit/control/heater_control_test.cpp
     LINK lib_control)
+host_test(gyro_bias_calibration
+    SOURCES unit/estimate/gyro_bias_calibration_test.cpp
+    LINK lib_estimate)
+# IMU 能力（Decision-20261103-01）：每个 topic 只能有一个发布者，场景按参数分进程运行。
+host_test(imu NO_TEST
+    SOURCES unit/imu/imu_test.cpp
+    LINK app_imu platform_mock)
+foreach(scenario ready degraded reject)
+    add_test(NAME imu_${scenario} COMMAND test_imu ${scenario})
+endforeach()
 host_test(axis_mapping
     SOURCES unit/estimate/axis_mapping_test.cpp
     LINK lib_estimate)

@@ -19,6 +19,7 @@ endfunction()
 add_library(app_topics INTERFACE
     topics/all.hpp
     topics/bringup.hpp
+    topics/imu.hpp
     topics/safety.hpp)
 target_include_directories(app_topics INTERFACE "${PROJECT_SOURCE_DIR}/app")
 target_link_libraries(app_topics INTERFACE middleware_topic hal_os)
@@ -28,6 +29,20 @@ app_library(app_actuator
     actuator/safety_gate.cpp
     actuator/safety_gate.hpp)
 target_link_libraries(app_actuator PUBLIC app_topics middleware_topic driver_motor hal_os)
+
+# app_imu：板载 BMI088 → 云台姿态 imu.attitude；上电零偏标定（SETTLING/READY/DEGRADED）与 yaw 归零
+# （Decision-20261103-01 第 9 点）。由 bringup::ImuCheck 改写。
+app_library(app_imu
+    imu/imu.cpp
+    imu/imu.hpp)
+target_link_libraries(app_imu PUBLIC
+    app_topics
+    middleware_topic
+    hal
+    hal_os
+    driver_bmi088
+    lib_estimate
+    utils_math)
 
 # app_bringup：框架验证用的能力（心跳与监视），不含 RM 业务，零 RTOS（Decision-20261031-12）。
 # 外设检查（Decision-20261101-03）：IMU（BMI088 + 中断里发布 + VQF + 加热）、CAN（只收）、SBUS、USB 报告、指示；

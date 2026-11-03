@@ -51,9 +51,11 @@ int main()
     assert(monitor.report().last_latency_us == 0x20U);
 
     // 清单列出全部 topic
-    assert(topics::ALL.size() == 5U);
+    assert(topics::ALL.size() == 7U);
     assert(topics::ALL[0] == &topics::bringup::heartbeat);
     assert(topics::ALL[4] == &topics::safety::stop); // 安全门订阅的急停（Decision-20261102-03）
+    assert(topics::ALL[5] == &topics::imu::event &&
+           topics::ALL[6] == &topics::imu::attitude); // IMU 能力（Decision-20261103-01）
     assert(topics::bringup::heartbeat.publish_count() == 4U);
     return 0;
 }

@@ -2,7 +2,7 @@
 
 本产品的全部 topic 都定义在这里（规则 17）。能力之间只经 topic 通信，共享的头文件只有这里的。机制见 `src/middleware/topic/topic.hpp` 与[架构 v2 §3.4](../../docs/ai/architecture.md)，设计记录见 [decision.md](../../decision.md) Decision-20261031-05。
 
-现有的 topic（`bringup.hpp`，框架验证用）：`bringup.heartbeat`（F2，Decision-20261031-12）；`bringup.imu_event`（在中断里发布）、`bringup.imu`、`bringup.sbus`（Decision-20261101-03）；`safety.stop`（`safety.hpp`，急停与重新确认，安全门订阅；发布者是阶段 A 的遥控、裁判系统能力，Decision-20261102-03）。能力的 topic 在阶段 A 重建能力时加入。
+现有的 topic（`bringup.hpp`，框架验证用）：`bringup.heartbeat`（F2，Decision-20261031-12）；`bringup.imu_event`（在中断里发布）、`bringup.imu`、`bringup.sbus`（Decision-20261101-03）；`safety.stop`（`safety.hpp`，急停与重新确认，安全门订阅；发布者是阶段 A 的遥控、裁判系统能力，Decision-20261102-03）。阶段 A：`imu.event`（在中断里发布）、`imu.attitude`（云台姿态、零偏标定状态，`imu.hpp`，Decision-20261103-01）。能力的 topic 在阶段 A 重建能力时加入。
 
 ## 约定
 

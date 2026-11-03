@@ -40,6 +40,8 @@ CI 的 `host-tests` 作业（`.github/workflows/ci.yml`）在 GitHub Actions 的
 | `buzzer` | `unit/buzzer/buzzer_test.cpp` | `driver_buzzer` + `platform_mock` |
 | `ws2812` | `unit/ws2812/ws2812_test.cpp` | `driver_ws2812` + `platform_mock`（波形编码、亮度、出错重发、不支持异步时的阻塞回退） |
 | `heater_control` | `unit/control/heater_control_test.cpp` | `lib_control`（加热恒温控制接 DM-MC02 热模型仿真：加热器强度 ±25%、起点 25/37 ℃、4 种传感器相位下不过冲 0.25 ℃ 以上、16 s 内稳定；断电恢复；参数校验，Decision-20261101-05） |
+| `gyro_bias_calibration` | `unit/estimate/gyro_bias_calibration_test.cpp` | `lib_estimate`（上电零偏标定，Decision-20261103-01：温度门控与稳定门控、静止窗口的结果、被碰、缓慢转动、加速度模长、超时预算跨窗口累计、温度出带暂停预算、时间戳回绕、终态、参数检查） |
+| `imu_ready` / `imu_degraded` / `imu_reject` | `unit/imu/imu_test.cpp` | `app_imu` + `platform_mock`（IMU 能力，BMI088 由 SPI 替身扮演、中断按 2 kHz 触发；每个 topic 只能有一个发布者，按参数分进程：静止时 SETTLING → READY，零偏交给 VQF、角速度扣零偏、yaw 归零后不漂、转动时 yaw 增量；一直晃时超时进入 DEGRADED，安装方向换轴；参数检查） |
 | `axis_mapping` | `unit/estimate/axis_mapping_test.cpp` | `lib_estimate`（传感器 → 机体的轴映射） |
 | `hal_os_mock` | `unit/hal_os/mock_os_test.cpp` | `platform_mock`（hal_os 的宿主替身：时基由测试控制、换算辅助跨回绕、临界区嵌套与两线程互斥） |
 | `signal` | `unit/hal_os/signal_test.cpp` | `platform_mock`（`Signal`：通知不丢、多次合并、超时按测试推进的时间且跨回绕、跨线程唤醒、一个线程先后等多个、多个线程轮流等、先检查后等待的写法在 20 万次通知下不丢唤醒） |
@@ -69,7 +71,7 @@ CI 的 `host-tests` 作业（`.github/workflows/ci.yml`）在 GitHub Actions 的
 ```text
 test/host/
 ├── CMakeLists.txt
-└── unit/{protocol,motor,imu_acquisition,hal,hal_os,crc,concurrency,topic,robolink,estimate,buzzer,ws2812,bringup}/ 单元测试
+└── unit/{protocol,motor,imu_acquisition,hal,hal_os,crc,concurrency,topic,robolink,estimate,imu,buzzer,ws2812,bringup}/ 单元测试
 ```
 
 ## 来源与适配记录

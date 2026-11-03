@@ -154,7 +154,7 @@
 
 - [x] 第 1 步 编解码（`a/robolink-wire`）：规则 11 改写；标准帧生成器 `tool/robolink/make_golden.py`（37 个向量）与 PC 端对账工具；`middleware_robolink` 的帧层、槽位层与 8 条消息；宿主测试 `robolink_wire`、`robolink_messages`；与 PC 端 `foray_platform` 对账一致，差异 1 处（PC 端不接受 §7.1 的末尾追加字段），见[对账记录](docs/ai/decisions/2026-11-03-RoboLink-对账/README.md)
 - [x] 第 2 步 连接会话（`a/robolink-session`）：`robolink::Session` 的握手、判活、序号、发送调度、计数；宿主测试 `robolink_session` 扮演 PC，故意改坏 13 处都被抓到；与 PC 端链路状态机在伪终端上联调通过（握手 2 ms，1 kHz 姿态与控制快照，两个方向的卡死与恢复），见[对账记录](docs/ai/decisions/2026-11-03-RoboLink-对账/README.md) §4
-- [ ] 第 3 步 IMU 能力（`a/imu-capability`）：`app/imu`，云台坐标系、上电零偏标定与 SETTLING/READY/DEGRADED、yaw 归零，`imu.attitude`
+- [x] 第 3 步 IMU 能力（`a/imu-capability`）：`app/imu`（由 bringup 的 `ImuCheck` 改写），云台坐标系、上电零偏标定 `estimate::GyroBiasCalibration`（由归档的旧实现改写，时间改 µs、累加改 float）与 SETTLING/READY/DEGRADED、yaw 归零，`imu.event`、`imu.attitude`；宿主测试 `gyro_bias_calibration`、`imu_ready`/`imu_degraded`/`imu_reject`，故意改坏 14 处都被抓到
 - [ ] 第 4 步 链路能力（`a/pc-link`）：`app/pc_link`，USB 收发、`imu.attitude` → GIMBAL_ATTITUDE、`pc_link.control`
 - [ ] 第 5 步 固件与上板（`a/link-profile`）：profile `link_dm_mc02`、组合根、PC 端联调脚本；上板验证握手、1 kHz 姿态、拔线重连
 - topic 清单改为从描述文件生成（框架验证好用后）
@@ -288,3 +288,4 @@ Q1–Q18 已全部确认（见评审报告 v1.0 §11.1 与 decision.md）。仍�
 | 2026-11-01 | F3（L6） | BMI088 加热改为模型预测（Decision-20261101-05）：实测旧 PI 冲到 56.9 ℃、28 s 才稳；由实测数据辨识两级一阶滞后热模型（0.967 ℃/‰、15.5 s、0.95 s），`control::HeaterControl` 两级预热 + 平台校正加热器强度 + 前馈 PI 恒温；仿真在加热器强度 ±25% 下整定，宿主测试 28/28；上板 +0.125 ℃、15.3 s 进入 ±0.25 ℃、校准条件 35.4 s；断电不误修正、来电不过冲（[记录](docs/ai/decisions/2026-11-01-L6-加热提速上板验证/README.md)） | 完成，待负责人验收 |
 | 2026-11-03 | A（链路） | 上位机链路用 RoboLink v0.2，规则 11 改写为"编解码只在 `src/middleware/robolink` 一处、用独立生成的标准帧核对"（Decision-20261103-01）。第 1 步：`middleware_robolink` 的帧层、槽位层与消息；标准帧 37 个，MCU 端宿主测试逐字节通过，故意改坏 12 处都被抓到；PC 端 `foray_platform` 对账一致，差异 1 处 | 第 1 步完成 |
 | 2026-11-03 | A（链路） | 第 2 步：`robolink::Session`（握手、判活、序号、发送调度、计数）；宿主测试 `robolink_session`，故意改坏 13 处都被抓到；与 PC 端 `RoboLinkHostLink` 在伪终端上联调通过 | 第 2 步完成 |
+| 2026-11-03 | A（链路） | 第 3 步：IMU 能力 `app/imu`（云台姿态、上电零偏标定、yaw 归零，`imu.attitude`）；零偏标定移入 `lib/estimate`；宿主测试 4 项，故意改坏 14 处都被抓到 | 第 3 步完成 |
