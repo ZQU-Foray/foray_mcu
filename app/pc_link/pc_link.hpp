@@ -14,7 +14,7 @@ namespace pc_link
 {
 
 /**
- * @brief 上位机链路能力（Decision-20261103-01 第 3、8 点）：RoboLink v0.2 经 USB 虚拟串口。
+ * @brief 上位机链路能力：RoboLink v0.2 经 USB 虚拟串口。
  *
  * 每轮 step()：
  *   1. 传输层连没连上，把 USB 收到的字节交给会话（robolink::Session），处理握手、控制快照与判活；

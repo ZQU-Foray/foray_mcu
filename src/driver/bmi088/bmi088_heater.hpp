@@ -12,7 +12,7 @@ namespace device
 {
 
 /**
- * @brief BMI088 恒温：用温度样本驱动板载加热 PWM（Decision-20261101-05）。
+ * @brief BMI088 恒温：用温度样本驱动板载加热 PWM。
  * @note 控制算法在 control::HeaterControl：按板子的热模型预测预热、提前收功率，再恒温；本类负责读数、
  *       时间、PWM 与安全保护。温度无效、过温或样本超时时输出立即归零。
  * @note 加热 PWM 的句柄与本板的热模型由组合根在构造时注入（如 board::PWM_IMU_HEATER、params::HEATER）。

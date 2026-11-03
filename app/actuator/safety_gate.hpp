@@ -13,7 +13,7 @@ namespace actuator
 {
 
 /**
- * @brief 安全门（Decision-20261102-03 D7）：按 safety.stop 集中决定一组关节能不能出力，能力不必各写一遍。
+ * @brief 安全门：按 safety.stop 集中决定一组关节能不能出力，能力不必各写一遍。
  *
  * - 上电时锁住：关节被禁止（Joint::set_inhibited(true)），能力 enable() 都失败；
  * - 锁住后，只有 safety.stop 不是急停、且 arm_sequence 比锁住时变了（操作者确认过）才放开；

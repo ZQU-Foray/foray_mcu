@@ -7,7 +7,7 @@
 #include <array>
 #include <cstdint>
 
-// bringup 能力发布的 topic（Decision-20261031-12、Decision-20261101-03）：框架验证用，不含 RM 业务。
+// bringup 能力发布的 topic：框架验证用，不含 RM 业务。
 
 namespace topics::bringup
 {

@@ -5,7 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 
-// RoboLink v0.2 的帧层与槽位层（foray_interfaces protocol/robolink.md §1–§3，Decision-20261103-01）。
+// RoboLink v0.2 的帧层与槽位层（foray_interfaces protocol/robolink.md §1–§3）。
 // 本仓唯一组 RoboLink 帧、算链路 CRC 的地方（规则 11）。字节布局由独立生成的标准帧
 // test/data/robolink/golden_v0_2.txt 逐字节核对（tool/robolink/make_golden.py）。
 // 只处理内存里的字节：不碰外设、不分配内存、不阻塞，任务与宿主测试里都能用；对象不是线程安全的，一个对象只归一个任务。

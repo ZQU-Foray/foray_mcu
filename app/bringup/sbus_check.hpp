@@ -13,7 +13,7 @@ namespace bringup
 {
 
 /**
- * @brief SBUS 检查（Decision-20261101-03）：从 UART 读字节流、解析 SBUS 帧，发布 bringup.sbus，
+ * @brief SBUS 检查：从 UART 读字节流、解析 SBUS 帧，发布 bringup.sbus，
  *        验证 hal::Uart 的接收路径与 SBUS 协议解析。
  */
 class SbusCheck final

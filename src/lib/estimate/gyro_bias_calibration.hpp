@@ -9,7 +9,7 @@ namespace estimate
 {
 
 /**
- * @brief 上电静止零偏标定：恒温到位并稳定后，用一段静止窗口估计三轴陀螺零偏（Decision-20261103-01 第 9 点）。
+ * @brief 上电静止零偏标定：恒温到位并稳定后，用一段静止窗口估计三轴陀螺零偏。
  *
  * 由迁移源的 application::GyroBiasCalibration（tag archive/pre-rebuild，app/imu）改写：时间改为 µs 时间戳，
  * 累加改为 float（规则 14：没有双精度 FPU 的板也要能跑；1 万个样本的舍入误差约 4e-8 rad/s，远小于

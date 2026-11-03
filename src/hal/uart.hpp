@@ -6,7 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 
-// 硬件契约：UART 字节流（Decision-20261101-01）。句柄由各板的 board.hpp 给出，实现由 port 提供，
+// 硬件契约：UART 字节流。句柄由各板的 board.hpp 给出，实现由 port 提供，
 // 宿主测试由 platform/mock 提供。
 
 namespace hal

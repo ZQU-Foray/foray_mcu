@@ -18,7 +18,7 @@ namespace imu
 {
 
 /**
- * @brief IMU 能力（Decision-20261103-01 第 9 点）：板载 BMI088 → 云台姿态 topic imu.attitude。
+ * @brief IMU 能力：板载 BMI088 → 云台姿态 topic imu.attitude。
  *
  * - 中断（框架中断）：两个数据就绪中断与 SPI 事务完成中断各自更新累计次数与时刻，发布 imu.event；
  * - 任务（按 imu.event 触发，带约 1 ms 的超时让驱动初始化按时间推进）：

@@ -16,7 +16,7 @@ namespace bringup
 {
 
 /**
- * @brief IMU 检查（Decision-20261101-03）：板载 BMI088 → 姿态，验证中断里发布 topic、SPI 异步、GPIO 外部中断、
+ * @brief IMU 检查：板载 BMI088 → 姿态，验证中断里发布 topic、SPI 异步、GPIO 外部中断、
  *        PWM（加热），也是阶段 A 的 IMU 能力的最小示范。
  *
  * - 中断（框架中断）：两个数据就绪中断与 SPI 事务完成中断各自更新累计次数与时刻，发布 bringup.imu_event；

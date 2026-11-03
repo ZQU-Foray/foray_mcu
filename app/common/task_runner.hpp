@@ -13,13 +13,13 @@
 #include <cstddef>
 #include <cstdint>
 
-// 任务运行器（架构 v2 §3.5，Decision-20261031-12）：按组合根的任务表创建 FreeRTOS 任务，用原生 API。
+// 任务运行器（架构 v2 §3.5）：按组合根的任务表创建 FreeRTOS 任务，用原生 API。
 //
 // - 每个任务按顺序调用一组 step，step 是 void (*)(hal::os::Microseconds now)；同一轮的各 step 拿到同一个 now。
 //   组合根用普通函数或不捕获的 lambda 调能力对象：void monitor_step(hal::os::Microseconds now) { g_monitor.step(now); }
 // - 触发方式：every_ms(周期) 按 RTOS 节拍周期运行；on_topic(topic) 在 topic 每次发布后运行一轮
 //   （多次发布可能合并成一轮，step 用 update() 读最新值）；on_topic(topic, 超时) 另外在超过这么久没有发布时
-//   也运行一轮（例如驱动的初始化要按时间推进，Decision-20261101-03）。
+//   也运行一轮（例如驱动的初始化要按时间推进）。
 // - 栈、任务控制块与等待用的 Signal 都是本对象的成员（xTaskCreateStatic），不用堆。
 // - 任务表作模板实参：common::TaskRunner<TASKS> g_runner; 任务数、栈总字数与任务表的检查都在编译期完成。
 // - 三个入口对应启动入口：init() 在 boot_init()，start() 在 boot_init_rtos()，sample_stack_health() 在 boot_run()。
@@ -100,7 +100,7 @@ struct TaskStatus
     std::atomic<std::uint32_t> stack_free_words{0U};   // 最近一次采样的剩余栈（字），0 表示还没采样
 };
 
-// ---- 任务表的编译期检查（Decision-20261031-12）：写错的任务表编译不过，不留到上电才发现 ----
+// ---- 任务表的编译期检查：写错的任务表编译不过，不留到上电才发现 ----
 
 template <std::size_t TaskCount>
 [[nodiscard]] constexpr bool all_have_steps(const std::array<TaskSpec, TaskCount> &tasks) noexcept

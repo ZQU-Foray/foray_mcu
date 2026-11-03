@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 
-// RoboLink v0.2 的消息载荷（foray_interfaces protocol/robolink.md §4，Decision-20261103-01）。
+// RoboLink v0.2 的消息载荷（foray_interfaces protocol/robolink.md §4）。
 // 字段名与协议表相同；单位全 SI（m/s、rad、rad/s），时间是 MCU 的单调 µs。
 // 编码：按协议的偏移逐字节写小端，保留字段写 0。
 // 解码：载荷不得短于协议长度（更长的是末尾追加的新字段，忽略）；按协议"缺失/无效语义"列拒收或改写：

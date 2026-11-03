@@ -6,7 +6,7 @@
 
 #include <cstdint>
 
-// 安全相关的 topic（Decision-20261102-03 D7）。发布者是负责安全的能力（遥控、裁判系统，阶段 A 重建）；
+// 安全相关的 topic。发布者是负责安全的能力（遥控、裁判系统，阶段 A 重建）；
 // 安全门 actuator::SafetyGate 订阅。
 
 namespace topics::safety

@@ -11,7 +11,7 @@ namespace bringup
 {
 
 /**
- * @brief 心跳：每轮发布一次 bringup.heartbeat（序号 + 本轮时刻），验证周期任务与 topic 发布（Decision-20261031-12）。
+ * @brief 心跳：每轮发布一次 bringup.heartbeat（序号 + 本轮时刻），验证周期任务与 topic 发布。
  * @note 能力零 RTOS：由组合根放进周期任务，或在宿主测试里直接调用 step()。
  */
 class Heartbeat final

@@ -15,7 +15,7 @@ namespace device
 {
 
 /**
- * @brief 一条 CAN 总线上的达妙一体化电机（MIT 模式，Decision-20261102-01、-03）：最多 4 台，可以是不同型号。
+ * @brief 一条 CAN 总线上的达妙一体化电机（MIT 模式）：最多 4 台，可以是不同型号。
  *        登记到这条总线的 CanBus 上收帧；能力经关节 Joint 使能、下指令、读状态。编解码全部委托 protocol::DmEsc。
  *
  * 每台电机的阶段：
@@ -35,10 +35,10 @@ namespace device
  * 一帧属于哪台电机：帧 ID 等于它的 MST_ID，且寄存器应答的 D0–D1 等于 ESC_ID，或反馈 D0 的低 4 位等于 ESC_ID。
  * 所以几台电机共用 MST_ID 也能分开（推荐仍按 ESC_ID + 0x10 设置）。
  *
- * @note 在拥有这条总线的任务里使用（Decision-20261102-03 D3）：CanBus::receive() 把帧交给本驱动，
+ * @note 在拥有这条总线的任务里使用：CanBus::receive() 把帧交给本驱动，
  *       CanBus::transmit(now) 调用本驱动推进核对、使能与发送，约 1 ms 一次。READY 时每台电机每周期发一帧、收一帧，
  *       1 Mbps、1 kHz 时每台约占 27% 总线负载（frames_per_second()）。
- * @note 收到帧的时刻用 hal::Can::Frame::received_us（Decision-20261102-04）。
+ * @note 收到帧的时刻用 hal::Can::Frame::received_us。
  * @note 位置：输出轴有绝对编码器，上电时在 [−π, π] 内；在 ±PMAX 处回绕，驱动按 65536 个计数累计多圈，前提是相邻两帧之间
  *       转过不到 PMAX。电机掉电重启后从 [−π, π] 重新开始，累计值可能差 2π 的整数倍。阻抗模式的位置给定按电机当前所在的
  *       那一圈换算回电机的量程，超出 ±PMAX 时被钳位。
@@ -51,7 +51,7 @@ class DmMotor final
     static constexpr std::uint16_t MAXIMUM_MASTER_ID{0x7FEU};          // 0x7FF 是寄存器请求的帧 ID
     static constexpr hal::os::Microseconds REQUEST_TIMEOUT_US{20000U}; // 核对时一步没有应答就重发
     static constexpr hal::os::Microseconds ENABLE_TIMEOUT_US{50000U};  // 使能后这么久没确认就放弃
-    // 清除错误后这段时间内收到的反馈不算确认：排除清错之前发出的帧的应答（按接收时刻计，Decision-20261102-04）
+    // 清除错误后这段时间内收到的反馈不算确认：排除清错之前发出的帧的应答（按接收时刻计）
     static constexpr hal::os::Microseconds ENABLE_CONFIRM_GUARD_US{1000U};
     static constexpr hal::os::Microseconds LINK_TIMEOUT_US{50000U}; // READY 时这么久没有反馈即离线
     static constexpr hal::os::Microseconds TIMEOUT_TICK_US{50U};    // 通讯超时寄存器（0x09）的计数周期

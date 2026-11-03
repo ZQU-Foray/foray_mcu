@@ -13,7 +13,7 @@ namespace bringup
 {
 
 /**
- * @brief USB 报告（Decision-20261101-03）：在 USB 虚拟串口上回显收到的字节，并按周期输出一行状态
+ * @brief USB 报告：在 USB 虚拟串口上回显收到的字节，并按周期输出一行状态
  *        （心跳、IMU 读数与姿态、SBUS），验证 hal::UsbCdc 的收发；也是 F4 示范"IMU → 姿态 topic → USB"的输出端。
  *
  * 状态行格式（ASCII，\r\n 结尾）：

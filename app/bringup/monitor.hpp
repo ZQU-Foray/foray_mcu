@@ -11,8 +11,7 @@ namespace bringup
 {
 
 /**
- * @brief 心跳监视：读 bringup.heartbeat，统计收到、丢失、乱序与延迟，验证 topic 的订阅与按 topic 触发的任务
- *        （Decision-20261031-12）。
+ * @brief 心跳监视：读 bringup.heartbeat，统计收到、丢失、乱序与延迟，验证 topic 的订阅与按 topic 触发的任务。
  * @note 能力零 RTOS：由组合根放进按 bringup.heartbeat 触发的任务，或在宿主测试里直接调用 step()。
  */
 class Monitor final

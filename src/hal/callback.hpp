@@ -1,7 +1,7 @@
 #ifndef HAL_CALLBACK_HPP
 #define HAL_CALLBACK_HPP
 
-// 硬件契约：中断回调（Decision-20261101-01）。
+// 硬件契约：中断回调。
 
 namespace hal
 {

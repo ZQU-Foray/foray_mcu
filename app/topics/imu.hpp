@@ -7,7 +7,7 @@
 #include <array>
 #include <cstdint>
 
-// IMU 能力 imu::Imu 发布的 topic（Decision-20261103-01 第 9 点）。
+// IMU 能力 imu::Imu 发布的 topic。
 
 namespace topics::imu
 {

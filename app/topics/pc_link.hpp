@@ -6,7 +6,7 @@
 
 #include <cstdint>
 
-// 上位机链路能力 pc_link::PcLink 发布的 topic（Decision-20261103-01 第 8 点）。
+// 上位机链路能力 pc_link::PcLink 发布的 topic。
 
 namespace topics::pc_link
 {

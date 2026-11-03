@@ -9,10 +9,10 @@
 namespace params
 {
 
-// BMI088 加热：DM-MC02 的热模型（Decision-20261101-05，与 bringup 相同）。加热要接 24 V（XT30）
+// BMI088 加热：DM-MC02 的热模型（与 bringup 相同）。加热要接 24 V（XT30）
 inline constexpr device::Bmi088Heater::Config HEATER{control::HeaterControl::Model{0.967F, 15.5F, 0.95F}};
 
-// IMU（Decision-20261103-01 第 9 点）：
+// IMU：
 // - 陀螺 2000 Hz / 532 Hz；imu.attitude 最多 1 kHz；加热到 50 ℃，零偏标定在 50 ℃ 上做；
 // - 安装方向：板载 BMI088 的坐标系即云台系（x 沿枪管 / 相机光轴向前、y 向左、z 向上），负责人 2026-11-03 确认；
 //   以后装法不同时改这里（estimate::AxisMapping：云台系每个轴取传感器的哪个轴、什么符号）；

@@ -12,14 +12,14 @@
 #include <cstdint>
 #include <type_traits>
 
-// topic：一种数据的发布/订阅通道（架构 v2 §3.4，Decision-20261031-05）。
+// topic：一种数据的发布/订阅通道（架构 v2 §3.4）。
 //
 // - 最新值语义：发布覆盖旧值，订阅者读最新一份；不排队，丢了几次可以观测。
 // - 每个 topic 只有一个发布者：claim_publisher() 每个 topic 只能成功一次，在初始化阶段调用。
 // - 发布在任务与框架中断里都能做；update() 在任务与框架中断里都能用；wait() 只在任务里用。
 // - 只用 utils 与 hal/os，裸机与宿主测试都能用；对象可以常量初始化，作全局对象时不依赖构造顺序。
 //
-// 读写竞态（Decision-20261029-02 方案 1）：发布时用 hal::os::CriticalSection 包住写入。
+// 读写竞态：发布时用 hal::os::CriticalSection 包住写入。
 // 写入期间任何读者都打断不了写者，所以读者不会在写入中途无限重试：高优先级任务读低优先级任务
 // 发布的 topic、框架中断读任务发布的 topic 都安全。代价是每次发布关一次框架中断，时长约等于一次消息拷贝，
 // 所以消息大小有上限 MAX_MESSAGE_SIZE。框架线以上的中断不得发布，也不得读 topic（与 hal/os 的规则一致）。
@@ -29,7 +29,7 @@ namespace topic
 
 /**
  * 消息大小上限（字节）：发布时在临界区内拷贝消息，上限限制了关中断的时长。
- * 暂定值，F2 在板上实测临界区时长后再定（Decision-20261029-02）。
+ * 暂定值，F2 在板上实测临界区时长后再定。
  */
 inline constexpr std::size_t MAX_MESSAGE_SIZE{64U};
 
@@ -72,7 +72,7 @@ class TopicBase
     }
 
     /**
-     * @brief 占一个等待槽：此后每次发布都会叫醒 signal（Decision-20261031-12）。
+     * @brief 占一个等待槽：此后每次发布都会叫醒 signal。
      * @return false：槽已满（WAIT_SLOTS 个）。同一个 signal 重复登记只占一个槽；槽只增不减。
      * @note 订阅者经 Subscriber::enable_wait() 登记；任务运行器按 topic 触发任务时直接登记自己的 Signal。
      *       初始化阶段调用；任务与框架中断里都能调用，不阻塞。

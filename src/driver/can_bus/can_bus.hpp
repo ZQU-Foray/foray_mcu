@@ -12,7 +12,7 @@ namespace device
 {
 
 /**
- * @brief 一条 CAN 总线上的帧分发（Decision-20261102-03 D9）：这条总线唯一的接收方，把收到的帧按帧 ID 分给登记的驱动。
+ * @brief 一条 CAN 总线上的帧分发：这条总线唯一的接收方，把收到的帧按帧 ID 分给登记的驱动。
  *        同一条总线上因此可以挂几个驱动（DJI 电机、达妙电机、超级电容……），互不知道对方。
  *
  * - 驱动在初始化阶段用 attach() 登记：一个 Client（上下文 + 收帧回调 + 每周期回调）与它要收的帧 ID 区间；
@@ -120,7 +120,7 @@ class CanBus final
 
 /**
  * @brief 每秒 frames_per_second 帧 8 字节标准帧占这条总线的百分比（向上取整）。
- *        每帧按位填充最坏情况 135 位计（含帧间隔）。组合根用它做编译期负载检查（Decision-20261102-03）。
+ *        每帧按位填充最坏情况 135 位计（含帧间隔）。组合根用它做编译期负载检查。
  */
 [[nodiscard]] constexpr std::uint32_t can_load_percent(std::uint32_t frames_per_second,
                                                        std::uint32_t bit_rate = 1000000U) noexcept

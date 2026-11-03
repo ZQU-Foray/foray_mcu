@@ -10,7 +10,7 @@
 
 #include <cstdint>
 
-// DM-MC02（STM32H723）的物理资源：hal 契约的句柄、各类外设的个数与能力常量（Decision-20261101-01）。
+// DM-MC02（STM32H723）的物理资源：hal 契约的句柄、各类外设的个数与能力常量。
 // 只给组合根（config/assembly）与本板的 port 用：驱动与能力只认 Config 里传进来的句柄，不知道这些名字（规则 1）。
 // 句柄的编号是 port 里外设表的下标，port 用 static_assert 核对表长与这里的个数。
 

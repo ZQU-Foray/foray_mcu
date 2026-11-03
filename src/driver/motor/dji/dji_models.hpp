@@ -3,7 +3,7 @@
 
 #include "driver/motor/dji/dji_motor.hpp"
 
-// 大疆型号（Decision-20261102-03：型号做成数据，按品牌分文件）。减速比是转子到电机输出轴的原生减速箱，
+// 大疆型号（型号做成数据，按品牌分文件）。减速比是转子到电机输出轴的原生减速箱，
 // 外接传动写在关节的 JointMechanics 里。GM6020 必须在电调里设成电流模式，软件选型不会改电调。
 
 namespace device::dji

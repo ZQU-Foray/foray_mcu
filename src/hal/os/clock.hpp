@@ -3,7 +3,7 @@
 
 #include <cstdint>
 
-// 最小 OS 契约：单调时基（Decision-20261031-01）。
+// 最小 OS 契约：单调时基。
 // 单位固定为 1 µs，各平台一致，换算都是编译期常量。
 // 实现：固件由 platform 的 port 提供（F2），宿主测试由 platform/mock 提供。
 

@@ -8,7 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 
-// 硬件契约：Classic CAN 总线（Decision-20261101-01）。句柄由各板的 board.hpp 给出，实现由 port 提供，
+// 硬件契约：Classic CAN 总线。句柄由各板的 board.hpp 给出，实现由 port 提供，
 // 宿主测试由 platform/mock 提供。
 
 namespace hal
@@ -21,7 +21,7 @@ namespace hal
  * - 接收：port 在中断里把收到的帧放进软件接收队列，接收方用 receive() 取。软件队列只有一个消费者，
  *   所以每条总线只有一个接收方，它在初始化阶段用 claim_receiver() 占住总线；
  * - port 接收全部标准帧与扩展帧（不做硬件过滤），远程帧与 CAN FD 帧丢弃并计入 rx_dropped_count；
- * - 收到的帧带接收时刻 received_us：port 在中断里把帧放进软件队列时写入（Decision-20261102-04）；
+ * - 收到的帧带接收时刻 received_us：port 在中断里把帧放进软件队列时写入；
  * - 进入 Bus-Off 后 port 自动发起恢复（按 ISO 11898 等待 128 × 11 个隐性位后重新加入总线），每次计入 bus_off_count。
  *
  * 全部函数都是必选能力。句柄只含一个编号，可以拷贝，按值存进驱动的配置。

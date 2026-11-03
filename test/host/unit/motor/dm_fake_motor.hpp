@@ -324,7 +324,7 @@ class Bench final
     std::size_t sent_count_{0U};
 };
 
-/** 一条总线的一轮：CanBus 收帧分给驱动，再让驱动推进与发送（Decision-20261102-03）。 */
+/** 一条总线的一轮：CanBus 收帧分给驱动，再让驱动推进与发送。 */
 struct BusLoop final
 {
     device::CanBus &bus;

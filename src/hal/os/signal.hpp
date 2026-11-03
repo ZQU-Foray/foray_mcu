@@ -3,7 +3,7 @@
 
 #include "hal/os/clock.hpp"
 
-// 最小 OS 契约：二值信号（Decision-20261031-02）。
+// 最小 OS 契约：二值信号。
 // 一个任务在 wait() 上睡眠，别的任务或中断用 notify() 叫醒它。
 // topic 的阻塞等待、按 topic 触发的任务、驱动等 DMA 完成都用它。
 // 实现：RTOS 板用任务通知，裸机板用标志位加 WFI（F2 起）；宿主测试由 platform/mock 提供。

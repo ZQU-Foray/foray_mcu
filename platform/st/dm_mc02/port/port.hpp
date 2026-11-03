@@ -4,7 +4,7 @@
 #include "hal/callback.hpp"
 #include "hal/os/critical_section.hpp"
 
-// DM-MC02 port 私有的内容（Decision-20261101-01）：各外设的初始化与中断通知。只给 port 自己的 .cpp 用。
+// DM-MC02 port 私有的内容：各外设的初始化与中断通知。只给 port 自己的 .cpp 用。
 
 namespace port
 {

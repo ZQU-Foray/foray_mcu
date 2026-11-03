@@ -15,7 +15,7 @@ namespace device
 {
 
 /**
- * @brief 一条 CAN 总线上的大疆电调电机（C610、C620、GM6020 电流模式可以混接，Decision-20261102-03 D6）：最多 8 台。
+ * @brief 一条 CAN 总线上的大疆电调电机（C610、C620、GM6020 电流模式可以混接）：最多 8 台。
  *        登记到这条总线的 CanBus 上收反馈；能力经关节 Joint 使能、给力矩、读状态。编解码委托 protocol::DjiEsc。
  *
  * - 控制帧：每个控制帧 ID 带四台电机的电流（大端 int16）。init() 按每台电机的方言算出它在哪一帧的哪一格；
@@ -32,7 +32,7 @@ namespace device
  *   的帧（别的主机也在发），计入 foreign_control_frame_count。
  *
  * @note 在拥有这条总线的任务里使用（D3）：CanBus::receive() 把反馈交给本驱动，CanBus::transmit(now) 调用本驱动发控制帧。
- * @note 收到帧的时刻用 hal::Can::Frame::received_us（Decision-20261102-04）；LINK_TIMEOUT_US 没有反馈即离线。
+ * @note 收到帧的时刻用 hal::Can::Frame::received_us；LINK_TIMEOUT_US 没有反馈即离线。
  */
 class DjiMotor final
 {

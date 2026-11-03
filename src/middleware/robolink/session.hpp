@@ -8,7 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 
-// RoboLink v0.2 的 MCU 端连接会话（协议 §5，Decision-20261103-01 第 4–8 点）。
+// RoboLink v0.2 的 MCU 端连接会话（协议 §5）。
 // 只处理内存里的字节与调用方给的时刻：不碰外设、不分配内存、不阻塞。一个对象只归一个任务。
 
 namespace robolink

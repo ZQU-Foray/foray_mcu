@@ -3,7 +3,7 @@
 
 #include <stdbool.h>
 
-// 启动入口（架构 v2 §3.3，Decision-20261031-11）。
+// 启动入口（架构 v2 §3.3）。
 // CubeMX 生成的 main.c、freertos.c 只在 USER CODE 区调用这三个函数；实现在组合根（config/assembly），
 // 每个 profile 一份。生成代码是 C，所以这里是 C 头，函数为 C 链接（规则 16 的 §9.3 第 1 处）。
 

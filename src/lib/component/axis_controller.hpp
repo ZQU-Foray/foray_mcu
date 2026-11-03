@@ -101,7 +101,7 @@ struct AxisMeasurement final
  * @note 两级限幅都必须不超过执行器实际能力，否则控制器以为能给出的力矩是假的
  *       （GM6020 电流档满量程 3 A × 0.741 N·m/A = 2.223 N·m）。该能力校验由应用层
  *       用关节的 `Joint::maximum_torque_newton_meter()` 完成，本组件不依赖设备层。
- * @note 本组件的角度、转速用 deg、rpm；关节用 SI（Decision-20261102-03 D5），阶段 A 用到时改为 SI 或在边界换算。
+ * @note 本组件的角度、转速用 deg、rpm；关节用 SI，阶段 A 用到时改为 SI 或在边界换算。
  *
  * 失败与降级：未就绪 / 未使能 / 步长非法 / 反馈无效 / 离线 / 量测非有限 / 目标非有限
  * 时该轴输出 0 并复位该轴 PID（不保留会导致重放旧输出的积分），状态见 get_axis_status。

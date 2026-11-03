@@ -1,7 +1,7 @@
 #ifndef HAL_INIT_HPP
 #define HAL_INIT_HPP
 
-// 硬件契约：板级初始化（架构 v2 §3.1，Decision-20261031-11）。实现由 platform 的 port 提供。
+// 硬件契约：板级初始化（架构 v2 §3.1）。实现由 platform 的 port 提供。
 
 namespace hal
 {

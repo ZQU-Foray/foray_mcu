@@ -145,7 +145,7 @@ class DjiEsc final
 
     /**
      * @brief 只解字节布局：8 字节反馈的转子角度、转速、转矩电流、温度（device_id 不填）。
-     *        帧 ID 与设备的对应由调用方按方言算好（同一总线混接产品线时，Decision-20261102-03）。
+     *        帧 ID 与设备的对应由调用方按方言算好（同一总线混接产品线时）。
      * @return data 为空或长度不是 8 时返回 false，feedback 不变。
      */
     [[nodiscard]] static bool

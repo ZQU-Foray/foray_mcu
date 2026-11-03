@@ -21,7 +21,7 @@ namespace device
  *       寄存器中的最新样本，并记录无法逐个消费的合并事件数。
  * @note 两个 SPI 设备句柄由组合根在构造时注入（如 board::SPI_IMU_ACCEL、board::SPI_IMU_GYRO）。
  *       全部 SPI 事务都是异步的：要求板支持 SPI 异步（REQUIRES_SPI_ASYNC，组合根用
- *       static_assert 对照 board::SPI_ASYNC，Decision-20261101-01）。
+ *       static_assert 对照 board::SPI_ASYNC）。
  */
 class Bmi088 final
 {

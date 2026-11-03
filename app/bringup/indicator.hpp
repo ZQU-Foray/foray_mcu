@@ -13,7 +13,7 @@ namespace bringup
 {
 
 /**
- * @brief 指示（Decision-20261101-03）：上电时蜂鸣器响两声，板载 RGB 灯按状态闪烁，验证 PWM 与 SPI 发送。
+ * @brief 指示：上电时蜂鸣器响两声，板载 RGB 灯按状态闪烁，验证 PWM 与 SPI 发送。
  *        灯：IMU 数据在更新为绿色；只有心跳为黄色；心跳也停了为红色。1 Hz 闪烁（亮 0.5 s）。
  */
 class Indicator final
