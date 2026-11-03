@@ -1,6 +1,6 @@
 # 开发计划（foray_mcu 结构重构）
 
-> 当前状态：**P0–P2.5 已验收（2026-10-26）；2026-10-27 起按架构 v2 重建。F1 完成待验收；F2 第 1–5 步与 F3 的代码完成并已上板验证（2026-11-01），待负责人验收；F4 的示范与指南已交付**（Decision-20261027-01、Decision-20261101-01～03；里程碑合并入 `main` 暂缓）。2026-11-03 负责人指示开始阶段 A 的上位机链路（RoboLink v0.2，Decision-20261103-01），见下文"上位机链路"；同日负责人确认 F1、F4 验收通过。
+> 当前状态：**P0–P2.5 已验收（2026-10-26）；2026-10-27 起按架构 v2 重建。F1 完成待验收；F2 第 1–5 步与 F3 的代码完成并已上板验证（2026-11-01），待负责人验收；F4 的示范与指南已交付**（Decision-20261027-01、Decision-20261101-01～03；里程碑合并入 `main` 暂缓）。2026-11-03 负责人指示开始阶段 A 的上位机链路（RoboLink v0.2，Decision-20261103-01），见下文"上位机链路"；同日负责人确认 F1–F4 验收通过。
 > 权威方案见 [docs/ai/architecture.md](docs/ai/architecture.md) v2 与 [decision.md](decision.md)；[评审报告 v1.0](docs/ai/reviews/2026-10-25-foray_mcu-架构评审报告.md) 是历史记录。本文件只记录执行计划、进度与验收标准。
 > 各阶段的动作、验收与回滚以下文为准，不跨阶段混做。
 
@@ -110,7 +110,7 @@
   - [x] 归档旧能力代码（2026-10-31，Decision-20261031-13）：tag `archive/pre-rebuild`（`9c11546`，可用 `-DPROFILE=baseline` 构建旧固件）；删除 `app/{imu,chassis,gimbal,remote,tasks}`、旧 TaskManager、`entry_legacy.cpp`、profile `baseline`、底盘集成测试与 `bmi088_acquisition` 中测旧 app 的两段；`app/` 加入宿主构建；X-04、X-10 关闭，X-08、X-14 缩小；规则 10、18 生效。bringup 固件归档前后 `.bin` 逐字节相同；能力重建时从 tag 取参考
 - [x] 第 5 步 外设（2026-11-01，Decision-20261101-01）：`src/hal` 契约 v1 用句柄类（`hal::Gpio`、`Pwm`、`Can`、`Spi`、`Uart`、`UsbCdc`，`hal::Callback`，时间用 µs）；`platform/dm_mc02/board/board.hpp`（句柄、外设个数、能力常量，只给组合根与 port）；port 逐个外设用 C++ 重写，PortKit 拆分（队列 → `SpscQueue`，临界区 → `hal::os::CriticalSection`，通知 → `port::Notifier`）；`platform/mock` 实现全部外设（`mock_hal.hpp`）；驱动随外设改用（buzzer、BMI088 加热 → pwm；DJI 电机 → can，X-08 关闭；BMI088、WS2812 → spi，X-14 关闭）；删除 `src/hal/detail`、`hal/time.hpp`、DWT 时基、`Init.h`（X-07 关闭）；规则 1（`board.hpp`）、16（C 链接位置）的文本扫描生效。分支 `f2/peripheral-plan` → `f2/port-cleanup`
 - [x] bringup 外设检查（2026-11-01，Decision-20261101-03）：IMU（数据就绪与 SPI 完成中断里发布 `bringup.imu_event`，按它触发的任务读样本、VQF 姿态、加热）、CAN（只收）、SBUS、USB 报告、指示；任务运行器的 `on_topic` 支持超时；规则 4 的检查生效；上板探测脚本 `tool/debug/bringup_probe.py`
-- [ ] 验收：bringup 固件在板上启动，任务按表运行，中断发布的 topic 能被阻塞等待的任务收到；宿主测试全绿（宿主 27/27 已绿；2026-11-01 按[检查清单](docs/ai/decisions/2026-11-01-F2-外设上板检查清单.md)上板验证，探测 20/20：中断里发布的 `bringup.imu_event` 叫醒 IMU 任务每秒约 6800 次，等待超时 0，最大延迟 73 µs，见[验证记录](docs/ai/decisions/2026-11-01-F2-外设上板验证/README.md)；待负责人验收）
+- [x] 验收：bringup 固件在板上启动，任务按表运行，中断发布的 topic 能被阻塞等待的任务收到；宿主测试全绿（宿主 27/27 已绿；2026-11-01 按[检查清单](docs/ai/decisions/2026-11-01-F2-外设上板检查清单.md)上板验证，探测 20/20：中断里发布的 `bringup.imu_event` 叫醒 IMU 任务每秒约 6800 次，等待超时 0，最大延迟 73 µs，见[验证记录](docs/ai/decisions/2026-11-01-F2-外设上板验证/README.md)；负责人 2026-11-03 确认通过）
 
 ### F3 驱动适配（4–7 人日）
 
@@ -134,14 +134,14 @@
   - [x] M6 删除电机组 `MotorGroup`、两个适配器与对应测试；同步框架使用指南、architecture（v2.12、§3.8、X-05）、电机 README、tree、宿主测试说明。ctest 31/31
   - [x] M7 上板基准复测（2026-11-02）：最终固件与 M3 的逐字节相同，改为 Release 交替重测（最终固件 3 轮、M0 固件 2 轮）。延迟 1753 → 753 µs，抖动不劣于 M0；单轮平均耗时稳定多 1.2 µs（11.2 → 12.4 µs，占 1 ms 的 0.12%），最长耗时不变。这一项按判据字面不算"不劣于"，交负责人判断（AI 建议接受），见[基准记录](docs/ai/decisions/2026-11-02-电机控制环基准/README.md)
 - [x] bringup 上电打开板上两路 24 V 输出（2026-11-01，Decision-20261101-06，负责人要求）：`bringup::PowerOutputs`，接电机检查时不必再经 SWD 打开
-- [ ] 验收：驱动单元测试全绿（已绿）；bringup 固件上各驱动的检查通过（2026-11-01 上板：SPI 读 BMI088、GPIO 外部中断、PWM 加热闭环、SPI 发送 WS2812、USB CDC、UART 收 SBUS（含失控保护）、CAN 接收（GM6020 反馈 1 kHz）、时基通过；见[验证记录](docs/ai/decisions/2026-11-01-F2-外设上板验证/README.md)。2026-11-02 上板：CAN 发送与达妙电机驱动通过，见[达妙验证记录](docs/ai/decisions/2026-11-02-达妙电机驱动上板验证/README.md)；待负责人验收）
+- [x] 验收：驱动单元测试全绿（已绿）；bringup 固件上各驱动的检查通过（2026-11-01 上板：SPI 读 BMI088、GPIO 外部中断、PWM 加热闭环、SPI 发送 WS2812、USB CDC、UART 收 SBUS（含失控保护）、CAN 接收（GM6020 反馈 1 kHz）、时基通过；见[验证记录](docs/ai/decisions/2026-11-01-F2-外设上板验证/README.md)。2026-11-02 上板：CAN 发送与达妙电机驱动通过，见[达妙验证记录](docs/ai/decisions/2026-11-02-达妙电机驱动上板验证/README.md)；负责人 2026-11-03 确认通过）
 
 ### F4 框架验证（2–4 人日）
 
 - [ ] 实机检查清单（负责人执行）：启动、任务、topic（发布次数、丢失计数、等待延迟）、各外设
 - [x] 用框架写一个最小示范：IMU 驱动 → 姿态 topic → USB 输出（2026-11-01，`bringup::ImuCheck` → `bringup.imu` → `bringup::UsbReport`，Decision-20261101-03）
 - [x] 指南：怎样新增外设接口、驱动、topic、能力、profile（2026-11-01，AI 撰写，放 [docs/ai/guide/框架使用指南.md](docs/ai/guide/框架使用指南.md)）
-- [x] 验收：负责人确认框架"稳定好用"，再进入阶段 A。负责人 2026-11-03："f1和f4的验收我认为已经通过"（F2、F3 的验收项没有单独表态，仍按原记录）
+- [x] 验收：负责人确认框架"稳定好用"，再进入阶段 A。负责人 2026-11-03 确认 F1–F4 验收通过
 
 ### A 能力重建（F4 验收后细化）
 

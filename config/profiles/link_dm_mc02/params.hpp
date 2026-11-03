@@ -14,8 +14,8 @@ inline constexpr device::Bmi088Heater::Config HEATER{control::HeaterControl::Mod
 
 // IMU（Decision-20261103-01 第 9 点）：
 // - 陀螺 2000 Hz / 532 Hz；imu.attitude 最多 1 kHz；加热到 50 ℃，零偏标定在 50 ℃ 上做；
-// - 安装方向：板载 BMI088 的坐标系即云台系（x 沿枪管 / 相机光轴向前、y 向左、z 向上）。板子装到相机或云台上
-//   方向不同时改这里（estimate::AxisMapping：云台系每个轴取传感器的哪个轴、什么符号）；
+// - 安装方向：板载 BMI088 的坐标系即云台系（x 沿枪管 / 相机光轴向前、y 向左、z 向上），负责人 2026-11-03 确认；
+//   以后装法不同时改这里（estimate::AxisMapping：云台系每个轴取传感器的哪个轴、什么符号）；
 // - 零偏标定：恒温稳定 20 s、静止窗口 5 s、累计 20 s 没有合格窗口就放弃（旧板实测参数）；
 //   标定结果交给 VQF 时的不确定度 0.001 rad/s（约 0.06 °/s）。
 inline constexpr imu::Imu::Parameters IMU{
