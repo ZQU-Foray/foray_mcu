@@ -132,13 +132,15 @@ jobs:
           cmake --preset arm-release
           cmake --preset host-tests
           cmake --preset framework
+          cmake --preset arm-debug -B build/arm-debug-link -DPROFILE=link_dm_mc02
 
       - name: 命名检查（全量）
         shell: bash
         run: |
           if ! python tool/ci/naming.py --check \
-               -p build/arm-debug -p build/arm-release -p build/host-tests -p build/framework; then
-            echo "::error::C++ 命名不符合 .clang-tidy。本地生成四个 preset 的编译数据库后执行 python tool/ci/naming.py --fix（clang-tidy ${CLANG_TIDY_VERSION}），模板与注释里的遗漏需手工补齐。"
+               -p build/arm-debug -p build/arm-release -p build/host-tests -p build/framework \
+               -p build/arm-debug-link; then
+            echo "::error::C++ 命名不符合 .clang-tidy。本地生成这五个编译数据库后执行 python tool/ci/naming.py --fix（clang-tidy ${CLANG_TIDY_VERSION}），模板与注释里的遗漏需手工补齐。"
             exit 1
           fi
 
@@ -279,15 +281,28 @@ jobs:
           cmake --preset arm-release
           cmake --build --preset arm-release
 
+      # 上位机链路联调的 profile（Decision-20261103-01）：preset 默认是 bringup，用 -DPROFILE 换 profile
+      - name: 构建固件（link_dm_mc02）
+        shell: bash
+        run: |
+          cmake --preset arm-debug -B build/arm-debug-link -DPROFILE=link_dm_mc02 \
+            --graphviz=build/arm-debug-link/graph/targets.dot
+          cmake --build build/arm-debug-link
+          cmake --preset arm-release -B build/arm-release-link -DPROFILE=link_dm_mc02
+          cmake --build build/arm-release-link
+
       - name: 依赖图检查（固件）
-        run: python3 tool/ci/arch_check.py graph build/arm-debug/graph/targets.dot --mode firmware
+        shell: bash
+        run: |
+          python3 tool/ci/arch_check.py graph build/arm-debug/graph/targets.dot --mode firmware
+          python3 tool/ci/arch_check.py graph build/arm-debug-link/graph/targets.dot --mode firmware
 
       - name: HAL 回调符号检查（规则 16）
         shell: bash
         run: |
           nm="$ARM_GCC_ROOT/bin/arm-none-eabi-nm"
-          for preset in arm-debug arm-release; do
-            for elf in build/$preset/firmware_*.elf; do
+          for dir in build/arm-*; do
+            for elf in "$dir"/firmware_*.elf; do
               python3 tool/ci/arch_check.py callbacks "$elf" --nm "$nm" --port platform/st/dm_mc02/port
             done
           done
@@ -296,11 +311,11 @@ jobs:
         shell: bash
         run: |
           readelf="$ARM_GCC_ROOT/bin/arm-none-eabi-readelf"
-          for preset in arm-debug arm-release; do
-            for elf in build/$preset/firmware_*.elf; do
+          for dir in build/arm-*; do
+            for elf in "$dir"/firmware_*.elf; do
               name="$(basename "$elf" .elf)"
               python3 tool/ci/symbols.py --readelf "$readelf" report \
-                --map "${elf%.elf}.map" --title "$name（$preset）" "$elf" \
+                --map "${elf%.elf}.map" --title "$name（$(basename "$dir")）" "$elf" \
                 | tee -a "$GITHUB_STEP_SUMMARY"
               sha256sum "${elf%.elf}.bin" | tee -a "$GITHUB_STEP_SUMMARY"
               echo | tee -a "$GITHUB_STEP_SUMMARY"
