@@ -33,3 +33,6 @@ e98b581b6478f38c27b0df46aac47fcbd5ec479a
 
 # 头文件注释删掉决策号（style: f71cdb0，Decision-20261103-06，只改注释，固件逐字节相同）
 f71cdb0eaee4bfd7bfb58bc23dd80dbe34216895
+
+# 代码与配置文件的注释删掉决策号（style: 4540b4b，Decision-20261103-06，只改注释，固件逐字节相同）
+4540b4bb3f66993e819299425d7974e9b0708a67
