@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""RoboLink 上板探测：在 PC 上扮演上位机，与 link_dm_mc02 固件联调（Decision-20261103-01）。
+"""RoboLink 上板探测：在 PC 上扮演上位机，与 link_dm_mc02 固件联调。
 
 - 打开板子的 USB 虚拟串口（raw 模式），按 200 ms 重发 HELLO 直到收到 HELLO_ACK；
 - 之后每 20 ms 发一个保活帧，可选按 1 kHz 发控制快照（--control）；

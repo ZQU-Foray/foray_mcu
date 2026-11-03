@@ -1,4 +1,4 @@
-// hal::Uart 契约 v1 在 platform/mock 上的语义（Decision-20261101-01）：驱动与能力的宿主测试以它为准。
+// hal::Uart 契约 v1 在 platform/mock 上的语义：驱动与能力的宿主测试以它为准。
 #include "hal/uart.hpp"
 #include "mock_hal.hpp"
 

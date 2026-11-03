@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""RoboLink v0.2 的标准帧（黄金向量）生成器（Decision-20261103-01）。
+"""RoboLink v0.2 的标准帧（黄金向量）生成器。
 
 只照 foray_interfaces 的 protocol/robolink.md（v0.2，提交 5973436）编写，不读本仓的 C++ 实现：
 CRC 用 zlib.crc32（CRC-32/ISO-HDLC），整数与浮点用 struct 的小端编码。MCU 端的宿主测试
@@ -521,7 +521,7 @@ def vectors() -> list[tuple[str, str, bytes]]:
 
 def render() -> str:
     lines = [
-        "# RoboLink v0.2 标准帧：由 tool/robolink/make_golden.py 生成，不要手改（Decision-20261103-01）。",
+        "# RoboLink v0.2 标准帧：由 tool/robolink/make_golden.py 生成，不要手改。",
         "# 来源：foray_interfaces protocol/robolink.md v0.2（提交 5973436）；CRC 为 zlib.crc32。",
         "# 每行：<名称> <期望> <十六进制字节>",
     ]

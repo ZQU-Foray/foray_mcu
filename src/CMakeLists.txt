@@ -1,6 +1,6 @@
 # 框架（评审报告 §5.9）：平台无关、可宿主编译；不得引用 app/、config/ 的路径或 target（规则 15）。
 # 固件构建与宿主构建都会加入本文件。CMake 文件按层组织：src/ 的全部 target 定义在这里，
-# 不在子目录里各放一个（Decision-20261026-07）。
+# 不在子目录里各放一个。
 # 以 src/ 为 include 根：#include "hal/can.hpp"、"driver/bmi088/bmi088.hpp"。
 
 # framework_library(<名称> <源文件与头文件>...)：框架的 STATIC 库，带严格告警与 -Wdouble-promotion
@@ -31,7 +31,7 @@ endfunction()
 
 # ==== 契约：hal、hal_os、boot ====
 
-# hal：硬件资源的 C++ 契约 v1（Decision-20261101-01）：每类外设一个句柄类（can、gpio、pwm、spi、uart、usb_cdc），
+# hal：硬件资源的 C++ 契约 v1：每类外设一个句柄类（can、gpio、pwm、spi、uart、usb_cdc），
 # 成员函数由 platform 的 port 实现、宿主测试由 platform/mock 实现；hal::init() 是自由函数。
 # 时间参数用 hal_os 的 Microseconds；中断回调统一为 hal::Callback。
 framework_interface(hal
@@ -45,7 +45,7 @@ framework_interface(hal
     hal/usb_cdc.hpp)
 target_link_libraries(hal INTERFACE hal_os)
 
-# hal_os：最小 OS 契约 v1——1 µs 单调时基、RAII 临界区、二值信号（Decision-20261031-01～03）。
+# hal_os：最小 OS 契约 v1——1 µs 单调时基、RAII 临界区、二值信号。
 # 线程、队列、事件组不进框架。实现：固件在 port（F2），宿主测试在 platform/mock。
 framework_interface(hal_os
     hal/os/clock.hpp
@@ -53,7 +53,7 @@ framework_interface(hal_os
     hal/os/signal.hpp)
 
 # boot：生成区唯一可以调用的启动入口 boot_init / boot_init_rtos / boot_run（C 头，extern "C"，
-# 架构 v2 §3.3，Decision-20261031-11）。实现在组合根，只有生成区与 assembly 依赖它。
+# 架构 v2 §3.3）。实现在组合根，只有生成区与 assembly 依赖它。
 framework_interface(boot
     boot/boot.h)
 
@@ -80,7 +80,7 @@ utils_library(utils_crc
     utils/crc/crc8.hpp)
 
 # 并发原语：单生产者单消费者队列、单写者最新值邮箱（seqlock）。只用原子读写与内存屏障，
-# 不用原子读改写（规则 13），Cortex-M0+ 也能用（Decision-20261029-01）。
+# 不用原子读改写（规则 13），Cortex-M0+ 也能用。
 framework_interface(utils_concurrency
     utils/concurrency/latest_value.hpp
     utils/concurrency/spsc_queue.hpp)
@@ -93,13 +93,13 @@ framework_library(middleware_fsm
     middleware/fsm/fsm.cpp
     middleware/fsm/fsm.hpp)
 
-# topic：最新值、单发布者、中断里可发布、阻塞等待、观测计数（架构 v2 §3.4，Decision-20261031-05）。
-# 只有头文件，只依赖 utils_concurrency 与 hal_os 契约；发布时用临界区包住写入（Decision-20261029-02）。
+# topic：最新值、单发布者、中断里可发布、阻塞等待、观测计数（架构 v2 §3.4）。
+# 只有头文件，只依赖 utils_concurrency 与 hal_os 契约；发布时用临界区包住写入。
 framework_interface(middleware_topic
     middleware/topic/topic.hpp)
 target_link_libraries(middleware_topic INTERFACE hal_os utils_concurrency)
 
-# robolink：上位机链路协议 RoboLink v0.2 的帧层、槽位层、消息编解码与 MCU 端连接会话（Decision-20261103-01）。本仓唯一组 RoboLink 帧、
+# robolink：上位机链路协议 RoboLink v0.2 的帧层、槽位层、消息编解码与 MCU 端连接会话。本仓唯一组 RoboLink 帧、
 # 算链路 CRC 的地方（规则 11），由 tool/robolink/make_golden.py 独立生成的标准帧逐字节核对。只处理内存里的字节，
 # 不依赖 hal 与 hal/os。
 framework_library(middleware_robolink
@@ -129,8 +129,8 @@ framework_library(lib_filter
     lib/filter/filter.cpp
     lib/filter/filter.hpp)
 
-# imu_body_mapping 只处理三维向量（轴映射），不再依赖 BMI088 驱动（F3，Decision-20261101-02）。
-# gyro_bias_calibration：上电静止零偏标定，由迁移源的 GyroBiasCalibration 改写（Decision-20261103-01）。
+# imu_body_mapping 只处理三维向量（轴映射），不再依赖 BMI088 驱动（F3）。
+# gyro_bias_calibration：上电静止零偏标定，由迁移源的 GyroBiasCalibration 改写。
 framework_library(lib_estimate
     lib/estimate/extended_state_observer.hpp
     lib/estimate/gyro_bias_calibration.cpp
@@ -169,26 +169,26 @@ framework_library(driver_protocol_sbus
     driver/protocol/sbus/sbus.cpp
     driver/protocol/sbus/sbus.hpp)
 
-# CAN 总线的帧分发：一条总线唯一的接收方，按帧 ID 分给登记的驱动（Decision-20261102-03 D9）。
+# CAN 总线的帧分发：一条总线唯一的接收方，按帧 ID 分给登记的驱动。
 framework_library(driver_can_bus
     driver/can_bus/can_bus.cpp
     driver/can_bus/can_bus.hpp)
 target_link_libraries(driver_can_bus PUBLIC hal hal_os)
 
-# 电机的通用接口（不含任何具体品牌）：关节 Joint（Decision-20261102-03）。品牌驱动在 dji/、dm/，型号常量随品牌。
+# 电机的通用接口（不含任何具体品牌）：关节 Joint。品牌驱动在 dji/、dm/，型号常量随品牌。
 framework_library(driver_motor
     driver/motor/joint.cpp
     driver/motor/joint.hpp)
 target_link_libraries(driver_motor PUBLIC hal hal_os)
 
-# DJI 电机：驱动登记到 CanBus、经关节 Joint 控制，可混接 C610/C620/GM6020（Decision-20261102-03）；型号常量（型号固有参数属驱动层，Q11、例外 X-05）。
+# DJI 电机：驱动登记到 CanBus、经关节 Joint 控制，可混接 C610/C620/GM6020；型号常量（型号固有参数属驱动层，Q11、例外 X-05）。
 framework_library(driver_motor_dji
     driver/motor/dji/dji_models.hpp
     driver/motor/dji/dji_motor.cpp
     driver/motor/dji/dji_motor.hpp)
 target_link_libraries(driver_motor_dji PUBLIC driver_can_bus driver_motor driver_protocol_dji hal)
 
-# 达妙电机：驱动（启动回读核对、使能，Decision-20261102-01）登记到 CanBus、经关节 Joint 控制，型号常量（Decision-20261102-03）。
+# 达妙电机：驱动（启动回读核对、使能）登记到 CanBus、经关节 Joint 控制，型号常量。
 framework_library(driver_motor_dm
     driver/motor/dm/dm_models.hpp
     driver/motor/dm/dm_motor.cpp

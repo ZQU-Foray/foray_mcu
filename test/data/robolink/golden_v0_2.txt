@@ -1,4 +1,4 @@
-# RoboLink v0.2 标准帧：由 tool/robolink/make_golden.py 生成，不要手改（Decision-20261103-01）。
+# RoboLink v0.2 标准帧：由 tool/robolink/make_golden.py 生成，不要手改。
 # 来源：foray_interfaces protocol/robolink.md v0.2（提交 5973436）；CRC 为 zlib.crc32。
 # 每行：<名称> <期望> <十六进制字节>
 keepalive ok d391020212003412efcdab890000f6bf8a24

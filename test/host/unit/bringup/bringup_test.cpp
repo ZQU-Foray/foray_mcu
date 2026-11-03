@@ -1,4 +1,4 @@
-// bringup 能力（Decision-20261031-12）：Heartbeat 发布心跳、Monitor 统计收到、丢失、乱序与延迟。
+// bringup 能力：Heartbeat 发布心跳、Monitor 统计收到、丢失、乱序与延迟。
 // 能力零 RTOS，宿主上直接调用 step()；topic 用 platform_mock 的 hal_os。
 #include "bringup/heartbeat.hpp"
 #include "bringup/monitor.hpp"
@@ -53,10 +53,9 @@ int main()
     // 清单列出全部 topic
     assert(topics::ALL.size() == 8U);
     assert(topics::ALL[0] == &topics::bringup::heartbeat);
-    assert(topics::ALL[4] == &topics::safety::stop);     // 安全门订阅的急停（Decision-20261102-03）
-    assert(topics::ALL[7] == &topics::pc_link::control); // 上位机链路（Decision-20261103-01）
-    assert(topics::ALL[5] == &topics::imu::event &&
-           topics::ALL[6] == &topics::imu::attitude); // IMU 能力（Decision-20261103-01）
+    assert(topics::ALL[4] == &topics::safety::stop);     // 安全门订阅的急停
+    assert(topics::ALL[7] == &topics::pc_link::control); // 上位机链路
+    assert(topics::ALL[5] == &topics::imu::event && topics::ALL[6] == &topics::imu::attitude); // IMU 能力
     assert(topics::bringup::heartbeat.publish_count() == 4U);
     return 0;
 }

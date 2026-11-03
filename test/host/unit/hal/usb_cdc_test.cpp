@@ -1,4 +1,4 @@
-// hal::UsbCdc 契约 v1 在 platform/mock 上的语义（Decision-20261101-01），以及与 hal::Uart 同形：
+// hal::UsbCdc 契约 v1 在 platform/mock 上的语义，以及与 hal::Uart 同形：
 // 同一个字节流模板对两者都能编译、行为一致。
 #include "hal/uart.hpp"
 #include "hal/usb_cdc.hpp"

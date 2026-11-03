@@ -1,18 +1,18 @@
 # 复制自组织 CI 模板：ZQU-Foray/.github → workflows/ci-template.yml
 #
-# 本仓的调整（见 decision.md Decision-20261026-01 及之后的 CI 相关决策）：
+# 本仓的调整（来由见 decision.md 中与 CI 有关的决策）：
 #   - lint-c 改为由 tool/ci/format.py 全量检查：范围是手写 C/C++，排除 CubeMX 生成区、
-#     厂商代码与 vendor 生成头（P0.5 一次性格式化之后，Decision-20261026-04）。
-#   - 新增 lint-naming：tool/ci/naming.py 全量检查 C++ 命名（clang-tidy，P0.5 改名之后，
-#     Decision-20261026-05）；P1 起编译数据库来自根工程的三个 preset。
+#     厂商代码与 vendor 生成头（P0.5 一次性格式化之后）。
+#   - 新增 lint-naming：tool/ci/naming.py 全量检查 C++ 命名（clang-tidy，P0.5 改名之后）；
+#     P1 起编译数据库来自根工程的三个 preset。
 #   - 新增 lint-arch：tool/ci/arch_check.py 的文本扫描（依赖规则 3、8、9、12、15，P1 起；F1 加入 13、17）。
 #   - 新增 host-tests：根工程 host-tests preset 的宿主测试（ctest）与宿主依赖图检查。
-#   - 新增 framework（F1，Decision-20261031-06）：在只含框架文件的副本里做框架独立构建（宿主）
+#   - 新增 framework（F1）：在只含框架文件的副本里做框架独立构建（宿主）
 #     并检查依赖图；为 Cortex-M0+ 构建框架，检查没有原子读改写的库调用（规则 2、13、15）。
 #   - 新增 firmware：根工程构建固件（arm-debug、arm-release），与迁移源的符号集合比较
-#     （名称、大小、类型，P1–P2.5 的判据），并检查固件依赖图（Decision-20261026-07）；
-#     P2 起迁移源构建随搬迁失效，基准改为 P1 存档的符号表，迁移源基线 SHA 校验删除（Decision-20261026-08）；
-#     F2 起固件行为开始改变，符号对照退役，改为段大小报告，并加入 HAL 回调符号检查（规则 16，Decision-20261031-08）。
+#     （名称、大小、类型，P1–P2.5 的判据），并检查固件依赖图；
+#     P2 起迁移源构建随搬迁失效，基准改为 P1 存档的符号表，迁移源基线 SHA 校验删除；
+#     F2 起固件行为开始改变，符号对照退役，改为段大小报告，并加入 HAL 回调符号检查（规则 16）。
 #   - 删除 build-ros2：本仓是 MCU 固件，不是 ROS 2 工作空间。
 #
 # 设计原则沿用模板：没有适用文件就跳过；存量不合规代码不让 CI 长期红灯，新代码不放过。
@@ -33,7 +33,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # 与 Decision-20261025-04 一致：clang-format 统一用 18。
+  # clang-format 统一用 18。
   CLANG_FORMAT_VERSION: "18.1.8"
   CLANG_TIDY_VERSION: "18.1.8"
   # 与基线复现所用工具链同版本（docs/ai/decisions/2026-10-25-迁移基线与对照.md §7）。
@@ -82,7 +82,7 @@ jobs:
         run: black --check --diff .
 
   # ---- C/C++ 格式检查（全量，本仓调整） ----
-  # 手写代码已在 P0.5 一次性格式化（Decision-20261026-04）。检查范围与排除项由
+  # 手写代码已在 P0.5 一次性格式化。检查范围与排除项由
   # tool/ci/format.py 统一定义，本地用同一个脚本检查或格式化。
   lint-c:
     runs-on: ubuntu-latest
@@ -106,7 +106,7 @@ jobs:
           fi
 
   # ---- C++ 命名检查（全量，本仓新增） ----
-  # 规则见根目录 .clang-tidy（ROS 2 命名），由 tool/ci/naming.py 执行（Decision-20261026-05）。
+  # 规则见根目录 .clang-tidy（ROS 2 命名），由 tool/ci/naming.py 执行。
   # 被 #if 关掉的代码对 clang-tidy 不可见，所以三种配置都要检查：固件 Debug（打开 IMU 诊断代码）、
   # 固件 Release（#else 分支）与宿主测试；另加框架独立构建，覆盖只在其中编译的 test/framework。
   # 只做 cmake 配置生成编译数据库，不编译。
@@ -261,7 +261,7 @@ jobs:
             --nm "$ARM_GCC_ROOT/bin/arm-none-eabi-nm"
 
   # ---- 固件构建、段大小报告与依赖图检查（本仓新增） ----
-  # P1–P2.5 用符号集合与迁移源对照；F2 起固件行为开始改变，对照退役（Decision-20261031-08），
+  # P1–P2.5 用符号集合与迁移源对照；F2 起固件行为开始改变，对照退役，
   # 改为在作业摘要里给出段大小报告（各存储区用量与各段大小，与链接器的 --print-memory-usage 一致）。
   # 纯移动、纯改名的提交仍可在本地用 tool/ci/symbols.py compare 自证符号不变。
   # 规则 16：port 定义的每个 HAL_*Callback 在固件里都是强符号，没有被 C++ 改名的回调。
@@ -281,7 +281,7 @@ jobs:
           cmake --preset arm-release
           cmake --build --preset arm-release
 
-      # 上位机链路联调的 profile（Decision-20261103-01）：preset 默认是 bringup，用 -DPROFILE 换 profile
+      # 上位机链路联调的 profile：preset 默认是 bringup，用 -DPROFILE 换 profile
       - name: 构建固件（link_dm_mc02）
         shell: bash
         run: |

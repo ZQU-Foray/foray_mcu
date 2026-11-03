@@ -1,4 +1,4 @@
-// hal::Gpio 的宿主替身（Decision-20261101-01）。
+// hal::Gpio 的宿主替身。
 #include "hal/gpio.hpp"
 #include "mock_hal.hpp"
 

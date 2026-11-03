@@ -1,4 +1,4 @@
-// hal::Spi 契约 v1 在 platform/mock 上的语义（Decision-20261101-01）：驱动的宿主测试以它为准。
+// hal::Spi 契约 v1 在 platform/mock 上的语义：驱动的宿主测试以它为准。
 #include "hal/spi.hpp"
 #include "mock_hal.hpp"
 

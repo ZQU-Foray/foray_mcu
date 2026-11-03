@@ -1,4 +1,4 @@
-// hal::UsbCdc 的宿主替身（Decision-20261101-01）。参数检查与结果优先级与 DM-MC02 的 port 一致。
+// hal::UsbCdc 的宿主替身。参数检查与结果优先级与 DM-MC02 的 port 一致。
 #include "hal/usb_cdc.hpp"
 #include "mock_hal.hpp"
 

@@ -1,4 +1,4 @@
-// device::DjiMotor（Decision-20261102-03）在 platform/mock 上：登记到 CanBus、经关节 Joint 控制。
+// device::DjiMotor 在 platform/mock 上：登记到 CanBus、经关节 Joint 控制。
 // 保活帧、反馈换算、力矩换算与饱和、混接与 ID 冲突、绝对位置、机构、离线、负载计算。
 #include "driver/can_bus/can_bus.hpp"
 #include "driver/motor/dji/dji_models.hpp"

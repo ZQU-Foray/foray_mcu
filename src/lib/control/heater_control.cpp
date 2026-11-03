@@ -107,7 +107,7 @@ float HeaterControl::update(float target_c, float reading_c, float reading_age_s
     // 恒温时温度掉得太多（如加热电源断开又恢复）：按当前读数重新预热，积分不在没电时累积。
     // 低于目标 rewarm_now_below_c 以上立即重新预热；只低 rewarm_below_c 到 rewarm_now_below_c 时，要持续
     // rewarm_delay_s 且读数没有上升才重新预热：环境温度估高时恒温刚开始会差 2 ℃ 左右，有电的话比例项会把温度
-    // 拉上来，立即重新预热会清掉积分、一直到不了目标（Decision-20261103-02）
+    // 拉上来，立即重新预热会清掉积分、一直到不了目标
     const float gap = target_c - measured;
     if (phase_ == Phase::REGULATE && gap > tuning.rewarm_below_c)
     {
@@ -175,7 +175,7 @@ float HeaterControl::update(float target_c, float reading_c, float reading_age_s
             std::fabs(integral_) > OFFLOAD_INTEGRAL_FRACTION * tuning.integral_limit_permille)
         {
             // 积分长期偏大说明维持功率前馈不对（多半是环境温度估错了）：慢慢转成对环境估计的修正，
-            // 前馈与模型预测随之变对，比例项也不再和积分对着干（Decision-20261103-02）
+            // 前馈与模型预测随之变对，比例项也不再和积分对着干
             const float moved = integral_ * dt_s / tuning.integral_offload_time_s;
             integral_ -= moved;
             ambient_c_ -= config_.model.gain_c_per_permille * gain_scale_ * moved;
@@ -333,7 +333,7 @@ void HeaterControl::correct(float measured_c, float age_s) noexcept
 
     // 读数比"加热器一直关着"的预测还低：就算加热器没电也降不到这么低，只能是环境温度估高了（如板子热着时复位）。
     // 按差值下调环境估计，再把这个模型拉回读数，下次只比较一个更新周期内的下降。读数落在"有电"与"没电"之间时
-    // 分不清是不是断电，不动环境估计（Decision-20261103-02）
+    // 分不清是不是断电，不动环境估计
     const float excess = unheated_sensor_c_ - measured_c - config_.tuning.ambient_margin_c;
     if (excess > 0.0F)
     {

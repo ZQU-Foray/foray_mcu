@@ -1,4 +1,4 @@
-// hal::os::Signal 的语义（Decision-20261031-02），用 platform_mock 的实现验证：
+// hal::os::Signal 的语义，用 platform_mock 的实现验证：
 // 通知不丢、多次合并、超时按测试推进的时间、跨线程唤醒、一个线程先后等多个 Signal、多个线程轮流等，
 // 以及"先检查条件再等待"的写法在高频通知下不丢唤醒。
 #include "hal/os/clock.hpp"

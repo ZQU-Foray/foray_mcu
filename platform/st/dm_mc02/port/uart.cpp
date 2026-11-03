@@ -1,4 +1,4 @@
-// hal::Uart 在 DM-MC02 上的实现（Decision-20261101-01），由迁移期的 uart.c 改写，收发逻辑不变。
+// hal::Uart 在 DM-MC02 上的实现，由迁移期的 uart.c 改写，收发逻辑不变。
 // 端口表的下标就是 board.hpp 里句柄的编号。接收：DMA 接收到空闲（ReceiveToIdle），每次空闲或满缓冲时
 // 把收到的字节放进软件队列（SPSC：中断写、任务读），然后重新开始接收。
 // 覆盖 HAL 弱符号 HAL_UART_TxCpltCallback、HAL_UARTEx_RxEventCallback、HAL_UART_ErrorCallback：usart.h 带进

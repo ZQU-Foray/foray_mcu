@@ -267,7 +267,7 @@ bool DmMotor::handle_frame(std::size_t index,
     Slot &slot = slots_[index];
     const Motor &motor = config_.motors[index];
 
-    // 先认寄存器应答：应答与反馈共用 MST_ID，按反馈解析会得到乱码（Decision-20261102-01 第 5 条）
+    // 先认寄存器应答：应答与反馈共用 MST_ID，按反馈解析会得到乱码
     Dm::RegisterReply reply{};
     if (Dm::decode_register_reply(frame, motor.esc_id, reply) && is_verification_register(reply.register_address))
     {

@@ -1,4 +1,4 @@
-// 用 PC 端 foray_platform 的 RoboLink 编解码核对本仓的标准帧（Decision-20261103-01）。
+// 用 PC 端 foray_platform 的 RoboLink 编解码核对本仓的标准帧。
 // 不进本仓构建：PC 端代码在另一个仓库，编译命令见 tool/robolink/README.md。
 //
 // 核对四件事：

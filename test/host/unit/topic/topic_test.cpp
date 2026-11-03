@@ -1,4 +1,4 @@
-// middleware_topic（架构 v2 §3.4，Decision-20261031-05），用 platform_mock 的 hal_os 验证：
+// middleware_topic（架构 v2 §3.4），用 platform_mock 的 hal_os 验证：
 // 常量初始化与清单写法、单发布者、update() 的新数据判断与丢失计数、观测计数、发布只进一次临界区、
 // wait() 的立即返回、跨线程唤醒、超时（跨回绕）、旧通知不提前结束等待、等待槽上限、直接登记的 Signal、
 // 一次发布叫醒全部等待者，
@@ -346,7 +346,7 @@ void wait_slots_are_limited()
     assert(!subscribers[topic::WAIT_SLOTS].enable_wait());
 }
 
-// 任务运行器的用法（Decision-20261031-12）：直接在 topic 上登记一个 Signal，发布就叫醒它；
+// 任务运行器的用法：直接在 topic 上登记一个 Signal，发布就叫醒它；
 // 与订阅者的 enable_wait() 共用 WAIT_SLOTS 个等待槽
 void signal_registered_on_topic_is_notified()
 {

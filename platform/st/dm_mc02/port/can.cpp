@@ -1,4 +1,4 @@
-// hal::Can 在 DM-MC02 上的实现（Decision-20261101-01）：FDCAN1–3 按 Classic CAN 工作，总线表的下标就是
+// hal::Can 在 DM-MC02 上的实现：FDCAN1–3 按 Classic CAN 工作，总线表的下标就是
 // board.hpp 里句柄的编号。接收：FIFO0 新消息中断把帧排进每条总线的软件队列（SPSC：中断写、接收方读）。
 // 覆盖 HAL 弱符号 HAL_FDCAN_RxFifo0Callback、HAL_FDCAN_ErrorStatusCallback：fdcan.h 带进 HAL 头，
 // 定义因此是 C 链接（规则 16）。

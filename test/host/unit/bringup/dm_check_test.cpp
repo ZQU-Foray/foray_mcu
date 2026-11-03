@@ -1,4 +1,4 @@
-// bringup::DmCheck（Decision-20261102-02）在 platform/mock 上：整个检查流程、跳过转动、没有电机、核对不符、
+// bringup::DmCheck 在 platform/mock 上：整个检查流程、跳过转动、没有电机、核对不符、
 // 使能失败。电机由 unit/motor/dm_fake_motor.hpp 扮演（含通讯超时与按指令的转速）。
 #include "bringup/dm_check.hpp"
 #include "driver/can_bus/can_bus.hpp"
@@ -123,7 +123,7 @@ void test_full_sequence()
     assert(report.tx_queued > 0U && report.tx_rejected == 0U && report.unknown_frames == 0U);
     assert(report.request_timeouts == 0U && report.enable_failures == 0U);
     // 1 kHz 基准：10 s 约 10000 轮；模拟时间在一轮里不走，单轮耗时与抖动为 0。
-    // 收 → 算 → 发在同一轮（Decision-20261102-03）：反馈在上一轮应答时到，这一轮取用并发出，延迟 1 ms
+    // 收 → 算 → 发在同一轮：反馈在上一轮应答时到，这一轮取用并发出，延迟 1 ms
     //（重构前先暂存、下一轮才发，延迟是 2 ms）
     assert(report.bench_duration_us == 10000000U);
     assert(report.bench_cycles >= 9990U && report.bench_cycles <= 10001U);

@@ -149,7 +149,7 @@ void Session::handle_slot(const Slot &slot, std::uint32_t now_us) noexcept
         }
         break;
     }
-    case MessageType::HELLO_ACK: // PC 确认本端的 HELLO：本端不等它（Decision-20261103-01 第 4 点）
+    case MessageType::HELLO_ACK: // PC 确认本端的 HELLO：本端不等它
     case MessageType::HEARTBEAT:
     case MessageType::ACK: // 本端不发 ACK_REQ，不等 ACK
         break;

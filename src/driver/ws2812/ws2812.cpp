@@ -50,7 +50,7 @@ void Ws2812::process() noexcept
     hal::Spi::Result result = spi_.start_transmit(frame_.data(), frame_.size(), nullptr, nullptr);
     if (result == hal::Spi::Result::UNSUPPORTED)
     {
-        // 板不支持 SPI 异步（可选能力，Decision-20261101-01）：退回阻塞发送
+        // 板不支持 SPI 异步（可选能力）：退回阻塞发送
         result = spi_.transmit(frame_.data(), frame_.size(), BLOCKING_TIMEOUT_US);
     }
     handle_start_result(result);

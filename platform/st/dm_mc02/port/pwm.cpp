@@ -1,4 +1,4 @@
-// hal::Pwm 在 DM-MC02 上的实现（Decision-20261101-01）。通道表的下标就是 board.hpp 里句柄的编号。
+// hal::Pwm 在 DM-MC02 上的实现。通道表的下标就是 board.hpp 里句柄的编号。
 // 两个定时器都在 APB1 上，CubeMX 把预分频配成 1 MHz 计数；init_pwm() 按实际时钟核对，不对就拒绝启动。
 #include "hal/pwm.hpp"
 

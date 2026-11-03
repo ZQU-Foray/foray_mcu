@@ -1,4 +1,4 @@
-// pc_link::PcLink（Decision-20261103-01）在 platform/mock 上：USB 替身扮演主机打开串口、发 HELLO 与控制快照，
+// pc_link::PcLink 在 platform/mock 上：USB 替身扮演主机打开串口、发 HELLO 与控制快照，
 // 测试核对 MCU 经 USB 发出的帧：握手应答、完整状态、姿态（来自 imu.attitude）、USB 忙时重组、控制快照发布到
 // pc_link.control、判活超时、断开。
 #include "middleware/robolink/messages.hpp"

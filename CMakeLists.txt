@@ -9,7 +9,7 @@
 #                                                   宿主上另加 platform/mock；不含 app/、config/、test/host 与任何板卡。
 #                                                   CI 在只含这些文件的副本里构建，证明框架不引用产品（规则 2、15）
 #
-# 迁移期的构建开关已全部删除：BMI088 的陀螺带宽改为驱动 Config 参数（例外 X-14 关闭，Decision-20261101-01）。
+# 迁移期的构建开关已全部删除：BMI088 的陀螺带宽改为驱动 Config 参数（例外 X-14 关闭）。
 cmake_minimum_required(VERSION 3.22)
 project(foray_mcu LANGUAGES C CXX)
 
@@ -28,10 +28,10 @@ include(targets)
 option(FRAMEWORK_ONLY "只构建框架（src；宿主上另加 platform/mock），不含产品、板卡与宿主测试" OFF)
 
 if(FRAMEWORK_ONLY)
-    # 框架独立构建（规则 2、15，Decision-20261031-06）。交叉编译时不选板卡：框架只依赖契约，
+    # 框架独立构建（规则 2、15）。交叉编译时不选板卡：框架只依赖契约，
     # 契约的实现在 port，这里只编译不链接。framework-m0plus 用它检查原子读改写（规则 13）。
     add_subdirectory(src)
-    # 交叉编译（Cortex-M0+）时整个框架都编译：例外 X-17 已在 F3 关闭（Decision-20261101-02）。
+    # 交叉编译（Cortex-M0+）时整个框架都编译：例外 X-17 已在 F3 关闭。
     if(NOT CMAKE_CROSSCOMPILING)
         add_subdirectory(platform/mock)
     endif()
@@ -83,7 +83,7 @@ else()
         message(FATAL_ERROR "宿主构建需要 GCC 或 Clang（当前为 ${CMAKE_CXX_COMPILER_ID}）")
     endif()
 
-    # 框架 + 平台替身 + 能力 + 宿主测试；不含 config/ 与任何板卡。能力零 RTOS，宿主测试直接链接（Decision-20261031-13）。
+    # 框架 + 平台替身 + 能力 + 宿主测试；不含 config/ 与任何板卡。能力零 RTOS，宿主测试直接链接。
     add_subdirectory(src)
     add_subdirectory(platform/mock)
     add_subdirectory(app)

@@ -79,7 +79,7 @@ bool PcLink::init(const Parameters &parameters) noexcept
         return false;
     }
     parameters_ = parameters;
-    // 第一版只记账：没有能力接受、执行控制快照（Decision-20261103-01 第 8 点）
+    // 第一版只记账：没有能力接受、执行控制快照
     session_.set_status(robolink::Session::StatusContent{});
     report_ = Report{};
     return true;

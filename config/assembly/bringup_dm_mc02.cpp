@@ -1,4 +1,4 @@
-// 组合根：bringup_dm_mc02（框架验证，Decision-20261031-12、Decision-20261101-03）。
+// 组合根：bringup_dm_mc02（框架验证）。
 // 构造驱动与能力对象、注入板级句柄与参数、定义任务表、实现启动入口 boot_*；不含行为。
 #include "board.hpp"
 #include "boot/boot.h"
@@ -38,7 +38,7 @@ device::Bmi088 g_imu{board::SPI_IMU_ACCEL, board::SPI_IMU_GYRO};
 device::Bmi088Heater g_heater{board::PWM_IMU_HEATER, params::HEATER};
 device::Buzzer g_buzzer{board::PWM_BUZZER};
 device::Ws2812 g_led{board::SPI_LED};
-// CAN1：总线分发与一台 DM-J4310（Decision-20261102-02、-03）。关节在电机输出轴上（机构 1:1）
+// CAN1：总线分发与一台 DM-J4310。关节在电机输出轴上（机构 1:1）
 device::CanBus g_can_1{board::CAN_1};
 device::Joint g_dm_joint;
 constexpr device::DmMotor::Config dm_config()
@@ -53,11 +53,11 @@ constexpr device::DmMotor::Config dm_config()
     return config;
 }
 device::DmMotor g_dm_motor{g_can_1, dm_config()};
-// 总线负载：1 kHz 下一台达妙电机每秒 2000 帧，约 27%（Decision-20261102-03 的编译期检查）
+// 总线负载：1 kHz 下一台达妙电机每秒 2000 帧，约 27%（编译期检查）
 static_assert(device::can_load_percent(device::DmMotor::frames_per_second(1U, 1000U)) <= 80U, "CAN1 在 1 kHz 下超载");
 
 // ---- 能力 ----
-// 板上两路 24 V 输出，高电平打开（Decision-20261101-06）
+// 板上两路 24 V 输出，高电平打开
 constexpr std::array POWER_24V_OUTPUTS{board::POWER_24V_0, board::POWER_24V_1};
 bringup::PowerOutputs g_power_outputs;
 bringup::Heartbeat g_heartbeat;
@@ -114,7 +114,7 @@ void indicator_step(hal::os::Microseconds now)
 }
 
 // 优先级：IMU 最高（数据就绪 2 kHz，按中断发布的 topic 触发；1 ms 超时让驱动的初始化按时间推进）；
-// 读者（monitor）高于写者（heartbeat），Decision-20261029-02 修好的情形；其余外设检查 5 ms 一轮。
+// 读者（monitor）高于写者（heartbeat），覆盖 topic 读写竞态的情形；其余外设检查 5 ms 一轮。
 // CubeMX 的默认任务是 24，只调 boot_run。达妙检查 1 ms 一轮（驱动每轮收发一次），排在最后，前四个任务的序号不变。
 constexpr std::array<common::TaskSpec, 5> TASKS{{
     {"imu", 1024U, 28U, common::on_topic(topics::bringup::imu_event, 1U), {imu_step}},

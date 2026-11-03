@@ -1,4 +1,4 @@
-// middleware_robolink 的连接会话（Decision-20261103-01 第 4–8 点）：测试扮演 PC，按协议 §5 核对
+// middleware_robolink 的连接会话：测试扮演 PC，按协议 §5 核对
 // 握手、序号归零、发送调度、帧长上限、判活、控制快照与计数。握手应答与标准帧逐字节对照。
 #include "middleware/robolink/messages.hpp"
 #include "middleware/robolink/session.hpp"

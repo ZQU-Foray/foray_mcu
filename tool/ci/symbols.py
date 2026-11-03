@@ -16,8 +16,8 @@ P1–P2.5 只搬结构、不改行为：链接顺序会变，镜像的 SHA 不�
     symbols.py report --map <MAP> [--title <标题>] <ELF>
                                               # 段大小报告（Markdown）：各存储区的用量与各段大小
 
-F2 起固件行为开始改变，CI 的 firmware 作业不再做符号对照，改为输出段大小报告
-（Decision-20261031-08）；compare 留给纯移动、纯改名的提交在本地自证。
+F2 起固件行为开始改变，CI 的 firmware 作业不再做符号对照，改为输出段大小报告；
+compare 留给纯移动、纯改名的提交在本地自证。
 
 report 的存储区取自 map 文件的 Memory Configuration。各存储区的用量与链接器的
 --print-memory-usage 一致：用到的最高地址减去起始地址。段按运行地址归入存储区，

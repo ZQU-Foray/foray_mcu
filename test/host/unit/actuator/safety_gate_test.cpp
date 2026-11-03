@@ -1,4 +1,4 @@
-// actuator::SafetyGate（Decision-20261102-03 D7）：上电锁住、确认后放开、急停与超时立即锁住、恢复要重新确认。
+// actuator::SafetyGate：上电锁住、确认后放开、急停与超时立即锁住、恢复要重新确认。
 // 关节的驱动那一侧由测试经 JointLink 扮演。
 #include "actuator/safety_gate.hpp"
 #include "driver/motor/joint.hpp"

@@ -1,4 +1,4 @@
-// bringup::ImuCheck（Decision-20261101-03）在 platform/mock 上：BMI088 由 SPI 替身的应答函数扮演，
+// bringup::ImuCheck 在 platform/mock 上：BMI088 由 SPI 替身的应答函数扮演，
 // 数据就绪中断由 GPIO 替身触发。验证：中断里发布 bringup.imu_event、驱动初始化、样本换算与 VQF、
 // bringup.imu 的发布与限频、加热器启动、延迟统计。
 #include "bringup/imu_check.hpp"

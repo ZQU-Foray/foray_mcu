@@ -1,4 +1,4 @@
-// 框架独立构建用（Decision-20261031-06）：显式实例化框架里只有头文件的模板。
+// 框架独立构建用：显式实例化框架里只有头文件的模板。
 // 这些模板没有使用方时根本不会被编译，框架独立构建也就检查不到它们。这里把每个成员函数都实例化一遍：
 //   - 宿主（framework preset）：只靠 src 与标准库能编译，带 -Wall -Wextra -Werror；
 //   - Cortex-M0+（framework-m0plus preset）：M0+ 没有 LDREX/STREX，原子读改写会编译成 __atomic_*、__sync_*

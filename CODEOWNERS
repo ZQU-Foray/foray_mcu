@@ -1,6 +1,6 @@
 # CODEOWNERS — Review 自动分派
 #
-# 本仓 owner 角色：电控（见 foray_docs/repository_structure.md §7.3、decision.md Decision-20260219-01）
+# 本仓 owner 角色：电控（见 foray_docs/repository_structure.md §7.3）
 #
 # 注意：被引用的 team 必须对本仓有 Write 权限，否则静默失效。
 #       迁移源 ControllerCode 的授权不会带到新仓，foray_mcu 需要单独给电控组授权。

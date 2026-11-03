@@ -1,4 +1,4 @@
-// device::Joint 与 JointLink（Decision-20261102-03）：机构换算、出力门控、指令超时、安全门禁止、全组使能、绑定检查。
+// device::Joint 与 JointLink：机构换算、出力门控、指令超时、安全门禁止、全组使能、绑定检查。
 // 驱动那一侧由测试直接调 JointLink 扮演。
 #include "driver/motor/joint.hpp"
 #include "mock_os.hpp"

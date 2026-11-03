@@ -1,5 +1,5 @@
-// device::DmMotor 在 platform/mock 上：启动回读核对、使能、反馈、故障与离线（Decision-20261102-01）；
-// 登记到 CanBus 收帧、经关节 Joint 控制（Decision-20261102-03）。
+// device::DmMotor 在 platform/mock 上：启动回读核对、使能、反馈、故障与离线；
+// 登记到 CanBus 收帧、经关节 Joint 控制。
 // 电机由 dm_fake_motor.hpp 按说明书的帧格式扮演；ESC_ID 1、MST_ID 0x11 与 2026-11-01 实机的设置相同。
 #include "driver/can_bus/can_bus.hpp"
 #include "driver/motor/dm/dm_models.hpp"
@@ -630,7 +630,7 @@ void test_link_timeout()
     verify(rig);
     enable_and_confirm(rig);
 
-    // 最后一帧反馈的接收时刻起算 50 ms（Decision-20261102-04）：48 轮后还在线，再两轮判出离线
+    // 最后一帧反馈的接收时刻起算 50 ms：48 轮后还在线，再两轮判出离线
     motor.powered = false;
     rig.cycle(48U);
     DmMotor::Snapshot snapshot = rig.snapshot();

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""bringup 固件的上板检查：不停核读出各能力的统计，隔 1 s 再读一次，给出增量与判定（Decision-20261101-03）。
+"""bringup 固件的上板检查：不停核读出各能力的统计，隔 1 s 再读一次，给出增量与判定。
 
 - 只读：不停核、不复位、不写目标内存（OpenOCD 连接时只写调试寄存器）。
 - 地址与结构布局由 gdb 从同一个 ELF 的调试信息离线算出（gdb 不连目标），所以 ELF 必须是板上正在跑的那一个。
@@ -473,7 +473,7 @@ def judge(decoded, pcs, handlers) -> list[tuple[bool, str]]:
 
 
 def judge_dm(dm, delta, per_second) -> list[tuple[bool, str]]:
-    """达妙电机检查（Decision-20261102-02）：上电后只跑一遍，读的是结果与各阶段测得的值。"""
+    """达妙电机检查：上电后只跑一遍，读的是结果与各阶段测得的值。"""
 
     def stage(value: int) -> str:
         return DM_STAGES[value] if 0 <= value < len(DM_STAGES) else str(value)
@@ -547,7 +547,7 @@ def judge_dm(dm, delta, per_second) -> list[tuple[bool, str]]:
 
 
 def judge_dm_benchmark(dm) -> tuple[bool, str]:
-    """1 kHz 控制环基准（Decision-20261102-03 的 M0、M7）：跑满轮数、dm 任务没有错过周期就算通过。
+    """1 kHz 控制环基准：跑满轮数、dm 任务没有错过周期就算通过。
     抖动与延迟只报告：抖动主要来自更高优先级的任务，Debug 构建下尤其明显（2026-11-02 实测）。"""
     if dm["dm.bench_duration_us"] == 0:
         return True, "1 kHz 控制环基准：参数里关掉了"

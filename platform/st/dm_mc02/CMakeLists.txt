@@ -2,7 +2,7 @@
 #   mx_generated_<板>  CubeMX 生成物（Core、USB_DEVICE、HAL 驱动、启动文件）  OBJECT
 #   rtos_<板>          FreeRTOS 与 CMSIS-RTOS2 适配                            OBJECT
 #   usb_<板>           ST USB Device 库（CDC）                                  OBJECT
-#   port_<板>          hal 与 hal/os 契约的 C++ 实现、HAL 回调、USB 生成区接缝（Decision-20261101-01）   OBJECT
+#   port_<板>          hal 与 hal/os 契约的 C++ 实现、HAL 回调、USB 生成区接缝   OBJECT
 #   board_<板>         board.hpp（句柄与能力常量）与链接脚本                       OBJECT
 #   os_freertos_<板>   RTOS 头文件，只给 app_tasks、app_common 与 assembly       INTERFACE
 #
@@ -10,7 +10,7 @@
 # 生成区（cubemx/）冻结，只能重新生成；cubemx/cmake/stm32cubemx/CMakeLists.txt 是 CubeMX 生成的，根工程不用，
 # 重新生成后可对照它更新下面的源文件清单。
 #
-# 编译选项与迁移源一致（P1 的符号对照依赖这一点，Decision-20261026-07）：
+# 编译选项与迁移源一致（P1 的符号对照依赖这一点）：
 #   - 宏：CubeMX 的宏给全部平台代码；ARM_MATH_CM7 给生成的应用代码（迁移源如此，实际未使用）；
 #   - 手写的 port 带严格告警（-Wextra -Werror），厂商与生成代码不带。
 set(cubemx_dir "${CMAKE_CURRENT_SOURCE_DIR}/cubemx")
@@ -22,7 +22,7 @@ set(cubemx_definitions
     USE_HAL_DRIVER
     STM32H723xx
     $<$<CONFIG:Debug>:DEBUG>)
-# FreeRTOS 的配置里 CubeMX 没有、又必须设置的项，以编译宏的形式统一给出（Decision-20261031-10）：
+# FreeRTOS 的配置里 CubeMX 没有、又必须设置的项，以编译宏的形式统一给出：
 #   configTASK_NOTIFICATION_ARRAY_ENTRIES=2：hal::os::Signal 用 1 号任务通知槽。FreeRTOS.h 在没有定义时取 1，
 #   FreeRTOSConfig.h（生成区）不用改。它决定任务控制块与 StaticTask_t 的大小，凡是 include FreeRTOS 头的编译单元
 #   都必须一致，所以同时放进 cubemx_definitions（生成代码、内核、USB、port）与 os_freertos 的接口。
@@ -122,11 +122,11 @@ target_compile_definitions(mx_generated_${BOARD_ID}
     PRIVATE ARM_MATH_CM7)
 target_include_directories(mx_generated_${BOARD_ID}
     PUBLIC ${cubemx_include_dirs}
-    # USB 生成桩（Q8 方案①，Decision-20261103-04）：USB_DEVICE 调用 port 私有的 UsbCdcPort_*（UsbCdc.h），
+    # USB 生成桩（Q8 方案①）：USB_DEVICE 调用 port 私有的 UsbCdcPort_*（UsbCdc.h），
     # 这个头被生成代码按名字 include，所以保持原文件名。
     PRIVATE "${port_dir}")
 target_link_libraries(mx_generated_${BOARD_ID}
-    # main.c、freertos.c 的 USER CODE 区只调 boot_*（src/boot/boot.h，Decision-20261031-11）
+    # main.c、freertos.c 的 USER CODE 区只调 boot_*（src/boot/boot.h）
     PRIVATE boot
     # 迁移源链接的库：libm 与预编译的 CMSIS-DSP（顺序与迁移源一致）。
     INTERFACE m "${cubemx_dir}/Middlewares/ST/ARM/DSP/Lib/libarm_cortexM7lfsp_math.a")
@@ -169,7 +169,7 @@ target_include_directories(os_freertos_${BOARD_ID} INTERFACE
     "${freertos_dir}/portable/GCC/ARM_CM4F"
     "${cubemx_dir}/Drivers/CMSIS/RTOS2/Include")
 
-# ---- port：hal 与 hal/os 契约 v1 的 C++ 实现（Decision-20261031-10、Decision-20261101-01）----
+# ---- port：hal 与 hal/os 契约 v1 的 C++ 实现 ----
 # 每个外设一个 .cpp，覆盖 HAL 弱符号的回调写在对应的 .cpp 里（规则 16）；port.hpp、os/os.hpp 是 port 私有的头。
 # UsbCdc.h 是 USB 生成桩调用的 C 接口（Q8 方案①），被生成代码按名字 include，保持原文件名。
 add_library(port_${BOARD_ID} OBJECT
@@ -194,10 +194,10 @@ link_object_library(port_${BOARD_ID}
     rtos_${BOARD_ID}
     usb_${BOARD_ID})
 # USB 发送的链接接缝（例外 X-02）：OTG HS 的 DMA 访问不到 DTCM，发送经 port 包装，按需拷进弹跳缓冲区。
-# USB 设备句柄等也放进 DMA 可达内存（随 X-03）后再删除（Decision-20261103-04）。
+# USB 设备句柄等也放进 DMA 可达内存（随 X-03）后再删除。
 target_link_options(port_${BOARD_ID} INTERFACE "-Wl,--wrap=HAL_PCD_EP_Transmit")
 
-# ---- board：板级内容——board.hpp（物理资源句柄、外设个数与能力常量，Decision-20261101-01）与链接脚本
+# ---- board：板级内容——board.hpp（物理资源句柄、外设个数与能力常量）与链接脚本
 #      （CubeMX 生成，冻结）；链接脚本 overlay 在第一个自定义段出现时加入（Q9） ----
 # board.hpp 只给组合根与本板的 port：include 路径只开到 board/，看不到 port/（规则 1）。
 set(linker_script "${cubemx_dir}/STM32H723xG_flash.ld")

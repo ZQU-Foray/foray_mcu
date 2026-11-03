@@ -1,4 +1,4 @@
-// device::CanBus（Decision-20261102-03 D9）在 platform/mock 上：按帧 ID 分发、区间重叠、兜底、没人认领、
+// device::CanBus 在 platform/mock 上：按帧 ID 分发、区间重叠、兜底、没人认领、
 // 每周期回调的顺序、总线占用、负载估算。
 #include "driver/can_bus/can_bus.hpp"
 #include "mock_hal.hpp"
@@ -96,7 +96,7 @@ void test_dispatch()
     inject(0x300U);
     bus.receive();
     assert(dji.frames == 2U && dji.last_identifier == 0x205U); // 包括 init() 之前排队的 0x201
-    assert(dji.last_received_us == 1234U);                     // 帧带着接收时刻（Decision-20261102-04）
+    assert(dji.last_received_us == 1234U);                     // 帧带着接收时刻
     assert(dm.frames == 2U && dm.last_identifier == 0x012U);
     assert(capacitor.frames == 1U);
     CanBus::Statistics statistics = bus.statistics();

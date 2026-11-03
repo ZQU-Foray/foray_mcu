@@ -1,4 +1,4 @@
-// 组合根：link_dm_mc02（上位机链路联调，Decision-20261103-01）。
+// 组合根：link_dm_mc02（上位机链路联调）。
 // 构造驱动与能力对象、注入板级句柄与参数、定义任务表、实现启动入口 boot_*；不含行为。
 #include "board.hpp"
 #include "boot/boot.h"

@@ -1,4 +1,4 @@
-// 用 PC 端 foray_platform 的链路状态机（RoboLinkHostLink + 串口类）直接连板子（Decision-20261103-01）：
+// 用 PC 端 foray_platform 的链路状态机（RoboLinkHostLink + 串口类）直接连板子：
 // 视觉组实际用的就是这套代码。不进本仓构建：编译命令见 tool/robolink/README.md。
 //
 // 按真实时间跑：每约 1 ms 调用一次 step()，Active 后可选每轮发一份控制快照；结束时打印 PC 端看到的状态、

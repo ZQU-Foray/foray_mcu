@@ -4,7 +4,7 @@
 文件范围由本脚本统一定义，CI 与本地共用：git 跟踪的 .c/.h/.cpp/.hpp，
 排除 CubeMX 生成区、厂商代码与 vendor 的生成头（EXCLUDE）。
 clang-format 18 的 .clang-format-ignore 不支持 **、* 也不跨目录，
-排除不了整棵目录树，因此不用它（见 decision.md Decision-20261026-04）。
+排除不了整棵目录树，因此不用它。
 
 用法：
     format.py --check                 # 全量检查，不合规时返回 1

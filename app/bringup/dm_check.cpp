@@ -49,7 +49,7 @@ void DmCheck::step(hal::os::Microseconds now) noexcept
         enter(Stage::VERIFY, now);
     }
 
-    // 收 → 算 → 发在同一轮里（Decision-20261102-03）。通讯超时一步故意两头都不做：电机收不到帧，应按写进去的超时自己失能
+    // 收 → 算 → 发在同一轮里。通讯超时一步故意两头都不做：电机收不到帧，应按写进去的超时自己失能
     const bool silent = report_.stage == Stage::SILENCE;
     if (!silent)
     {
@@ -220,7 +220,7 @@ void DmCheck::advance(const device::DmMotor::Snapshot &snapshot, hal::os::Micros
             report_.silence_fault_state = static_cast<std::uint8_t>(snapshot.state);
         }
         // 停发后：驱动按帧的接收时刻判出离线，撤销出力并重新核对，核对时读到电机报"通讯丢失"。
-        // 停发期间留在接收队列里的旧反馈不算数（Decision-20261102-04）；它也计入 feedback_count，所以要多等一帧
+        // 停发期间留在接收队列里的旧反馈不算数；它也计入 feedback_count，所以要多等一帧
         if (snapshot.phase == Motor::Phase::READY && !snapshot.output_requested && snapshot.online &&
             snapshot.feedback_count >= stage_start_feedback_count_ + 2U)
         {

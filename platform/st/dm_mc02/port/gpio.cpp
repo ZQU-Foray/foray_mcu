@@ -1,4 +1,4 @@
-// hal::Gpio 在 DM-MC02 上的实现（Decision-20261101-01）。引脚表的下标就是 board.hpp 里句柄的编号。
+// hal::Gpio 在 DM-MC02 上的实现。引脚表的下标就是 board.hpp 里句柄的编号。
 // 覆盖 HAL 弱符号 HAL_GPIO_EXTI_Callback：main.h 带进 HAL 头，定义因此是 C 链接（规则 16）。
 #include "hal/gpio.hpp"
 

@@ -1,4 +1,4 @@
-// 多圈累计：相邻两帧转子角差按不超过半圈解释（DjiMotor::accept_feedback，Decision-20261102-03 后经 CanBus 收帧）。
+// 多圈累计：相邻两帧转子角差按不超过半圈解释（DjiMotor::accept_feedback，经 CanBus 收帧）。
 #include "driver/can_bus/can_bus.hpp"
 #include "driver/motor/dji/dji_models.hpp"
 #include "driver/motor/dji/dji_motor.hpp"

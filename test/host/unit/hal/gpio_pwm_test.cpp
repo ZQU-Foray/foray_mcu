@@ -1,4 +1,4 @@
-// hal::Gpio、hal::Pwm 契约 v1 在 platform/mock 上的语义（Decision-20261101-01）。
+// hal::Gpio、hal::Pwm 契约 v1 在 platform/mock 上的语义。
 // 替身的行为就是契约写给驱动的约定：驱动的宿主测试都以它为准，所以先把它测清楚。
 #include "hal/gpio.hpp"
 #include "hal/pwm.hpp"

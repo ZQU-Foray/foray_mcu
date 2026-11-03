@@ -1,5 +1,5 @@
 # config：一台机器人的数据（profiles）与组合根（assembly）。只在固件构建中加入。
-# CMake 文件按层组织：config/ 的 target 都定义在这里（Decision-20261026-07）。
+# CMake 文件按层组织：config/ 的 target 都定义在这里。
 
 # profile_<名称>：纯数据的生成头，叶子 target，没有任何依赖（规则 4）。
 set(profile_generated_dir "${CMAKE_CURRENT_BINARY_DIR}/generated/${PROFILE_ID}")
@@ -13,7 +13,7 @@ target_include_directories(profile_${PROFILE_ID} INTERFACE
 # assembly_<profile>：组合根——构造对象、建任务表、注入参数、实现启动入口（评审报告 §5.2）。
 # 只有最终固件可以链接它（规则 5）。
 #
-# 每个 profile 一个组合根 assembly/<profile>.cpp，链接 profile.cmake 的 CAPABILITIES（Decision-20261031-12）。
+# 每个 profile 一个组合根 assembly/<profile>.cpp，链接 profile.cmake 的 CAPABILITIES。
 set(assembly assembly_${PROFILE_ID})
 
 add_library(${assembly} STATIC

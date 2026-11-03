@@ -1,4 +1,4 @@
-// middleware_robolink 的消息载荷（Decision-20261103-01）：解码独立生成的标准帧并逐字段核对，
+// middleware_robolink 的消息载荷：解码独立生成的标准帧并逐字段核对，
 // 协议规定拒收或改写的取值，编码后再解码得到原值。
 #include "middleware/robolink/messages.hpp"
 #include "middleware/robolink/wire.hpp"

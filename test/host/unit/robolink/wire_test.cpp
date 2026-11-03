@@ -1,4 +1,4 @@
-// middleware_robolink 的帧层与槽位层（Decision-20261103-01）：用独立生成的标准帧逐字节核对组帧，
+// middleware_robolink 的帧层与槽位层：用独立生成的标准帧逐字节核对组帧，
 // 逐条核对拒收原因；字节流解析的半帧、粘包、假同步、最长帧与按块喂入。
 #include "middleware/robolink/messages.hpp"
 #include "middleware/robolink/wire.hpp"

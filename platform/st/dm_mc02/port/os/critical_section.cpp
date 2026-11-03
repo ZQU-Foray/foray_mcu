@@ -1,4 +1,4 @@
-// hal::os 临界区在 DM-MC02 上的实现（Decision-20261031-03、-10）。
+// hal::os 临界区在 DM-MC02 上的实现。
 // 屏蔽框架中断：把 BASEPRI 抬到框架线（FreeRTOS 的 configMAX_SYSCALL_INTERRUPT_PRIORITY，优先级 5），
 // 优先级 0–4 的中断照常响应。等价于 FreeRTOS 的 portSET_INTERRUPT_MASK_FROM_ISR /
 // portCLEAR_INTERRUPT_MASK_FROM_ISR：保存原值、析构时写回，所以可以嵌套，任务与中断里都能用。

@@ -1,4 +1,4 @@
-// imu::Imu（Decision-20261103-01 第 9 点）在 platform/mock 上：BMI088 由 SPI 替身的应答函数扮演，
+// imu::Imu 在 platform/mock 上：BMI088 由 SPI 替身的应答函数扮演，
 // 数据就绪中断由 GPIO 替身以 2 kHz（陀螺）/ 400 Hz（加速度计）触发，温度 50 ℃。
 // 每个 topic 只能有一个发布者，场景按参数分进程运行：
 //   ready    静止：SETTLING → 零偏标定完成 → READY；发布的角速度扣掉零偏，yaw 重新归零后保持在 0 附近；

@@ -244,7 +244,7 @@ def collect(export: Path, root: Path, scope: set[str]) -> list[dict]:
         # 仓库若位于名为 src/test 等的目录下，HeaderFilterRegex 会误纳入厂商头；以范围为准。
         if location not in scope:
             continue
-        # 产品 topic 清单里的全局变量只能是 topic 实例，按清单命名、不加 g_（架构 §9.2，Decision-20261031-12）。
+        # 产品 topic 清单里的全局变量只能是 topic 实例，按清单命名、不加 g_（架构 §9.2）。
         if (
             location.startswith(TOPIC_MANIFEST)
             and match

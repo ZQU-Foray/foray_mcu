@@ -1,4 +1,4 @@
-// hal::Pwm 的宿主替身（Decision-20261101-01）。参数检查与 DM-MC02 的 port 一致，频率上限不检查。
+// hal::Pwm 的宿主替身。参数检查与 DM-MC02 的 port 一致，频率上限不检查。
 #include "hal/pwm.hpp"
 #include "mock_hal.hpp"
 

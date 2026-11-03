@@ -1,4 +1,4 @@
-// hal::Can 的宿主替身（Decision-20261101-01）。参数检查、结果优先级与 DM-MC02 的 port 一致。
+// hal::Can 的宿主替身。参数检查、结果优先级与 DM-MC02 的 port 一致。
 #include "hal/can.hpp"
 #include "hal/os/clock.hpp"
 #include "mock_hal.hpp"

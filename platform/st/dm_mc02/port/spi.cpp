@@ -1,4 +1,4 @@
-// hal::Spi 在 DM-MC02 上的实现（Decision-20261101-01），由迁移期的 spi.c 改写，DMA 与出错恢复的逻辑不变。
+// hal::Spi 在 DM-MC02 上的实现，由迁移期的 spi.c 改写，DMA 与出错恢复的逻辑不变。
 // 设备表的下标就是 board.hpp 里句柄的编号；同一条总线上的设备共用一份总线状态（busy 标志与异步事务）。
 // 覆盖 HAL 弱符号 HAL_SPI_TxCpltCallback、HAL_SPI_TxRxCpltCallback、HAL_SPI_ErrorCallback：spi.h 带进 HAL 头，
 // 定义因此是 C 链接（规则 16）。

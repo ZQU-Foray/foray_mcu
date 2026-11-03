@@ -1,5 +1,5 @@
 // BMI088 驱动的采集流程：初始化、进行中的数据就绪、共享 SPI、合并、有界队列、提前完成、时基回绕、DMA 错误。
-// 旧 app 的数据就绪邮箱（app/tasks）与诊断采集（app/imu）两段随旧 app 归档删除（Decision-20261031-13）：
+// 旧 app 的数据就绪邮箱（app/tasks）与诊断采集（app/imu）两段随旧 app 归档删除：
 // 邮箱由 utils 的 LatestValue 与 topic 取代，诊断采集随 IMU 能力在阶段 A 重建。
 #include "driver/bmi088/bmi088.hpp"
 #include <cassert>

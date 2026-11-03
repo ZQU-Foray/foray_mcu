@@ -195,7 +195,7 @@ int main()
     assert(cleared.unknown_identifier_count == 0U);
     assert(cleared.unsupported_command_count == 0U);
 
-    // 只管字节布局的静态函数：同一总线混接产品线时由驱动自己算帧 ID 与设备（Decision-20261102-03）
+    // 只管字节布局的静态函数：同一总线混接产品线时由驱动自己算帧 ID 与设备
     Codec::Feedback layout{};
     const std::array<std::uint8_t, 8> bytes{0x10U, 0x00U, 0x00U, 0x64U, 0xFFU, 0xCEU, 30U, 0U};
     assert(Codec::decode_feedback_data(8U, bytes.data(), layout));

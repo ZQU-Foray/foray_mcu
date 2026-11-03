@@ -5,7 +5,7 @@
 # 由 readability-identifier-naming 检查执行；P0.5 用 --fix 批量改名，之后在 CI 中检查。
 # 迁移源中的 C ABI（Detail/*.h、Port、PortKit 的 C 函数）在 P3a 合并进 C++ 契约时按新规则重写，P0.5 不对其改名。
 # 本文件是首版：P0.5 首次运行后按实测结果微调，改动在 decision.md 登记（见评审报告 §5.12）。
-# 执行与检查用 tool/ci/naming.py（汇总多个编译数据库的修正后统一写回），见 decision.md Decision-20261026-05。
+# 执行与检查用 tool/ci/naming.py（汇总多个编译数据库的修正后统一写回）。
 Checks: '-*,readability-identifier-naming'
 WarningsAsErrors: ''
 # 头文件过滤：路径分隔符兼容 / 与 \（Windows）。

@@ -1,4 +1,4 @@
-// bringup 的外设检查（Decision-20261101-03）在 platform/mock 上：CanCheck（只收）、SbusCheck（UART → SBUS →
+// bringup 的外设检查在 platform/mock 上：CanCheck（只收）、SbusCheck（UART → SBUS →
 // bringup.sbus）、UsbReport（回显与状态行）、Indicator（蜂鸣器与 RGB 灯）、TextLine（定点格式化）。
 #include "bringup/can_check.hpp"
 #include "bringup/indicator.hpp"
@@ -212,7 +212,7 @@ int main()
     test_usb_report(heartbeat, imu);
     test_indicator(heartbeat, imu);
 
-    // PowerOutputs：上电按参数打开（Decision-20261101-06）
+    // PowerOutputs：上电按参数打开
     {
         mock::gpio::reset();
         const std::array outputs{hal::Gpio{10U}, hal::Gpio{11U}};

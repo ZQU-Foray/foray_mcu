@@ -1,5 +1,5 @@
 // PC 端 foray_platform 的链路状态机（RoboLinkHostLink + 串口类）与 MCU 端的 robolink::Session
-// 在伪终端（pty）上联调（Decision-20261103-01）。不进本仓构建：PC 端代码在另一个仓库，编译命令见
+// 在伪终端（pty）上联调。不进本仓构建：PC 端代码在另一个仓库，编译命令见
 // tool/robolink/README.md。
 //
 // 时间按 1 ms 一步模拟（PC 用 ms，MCU 用 µs，起点不同）。场景：

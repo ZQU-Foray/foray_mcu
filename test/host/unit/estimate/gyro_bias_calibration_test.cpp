@@ -1,4 +1,4 @@
-// estimate::GyroBiasCalibration（Decision-20261103-01 第 9 点）：温度门控与稳定门控、静止窗口、
+// estimate::GyroBiasCalibration：温度门控与稳定门控、静止窗口、
 // 被碰、缓慢转动、加速度模长、超时预算跨窗口累计、温度出带暂停预算、时间戳回绕、终态不变、参数检查。
 #include "lib/estimate/gyro_bias_calibration.hpp"
 

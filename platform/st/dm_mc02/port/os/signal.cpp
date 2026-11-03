@@ -1,4 +1,4 @@
-// hal::os::Signal 在 DM-MC02（FreeRTOS）上的实现（Decision-20261031-02、-10）。
+// hal::os::Signal 在 DM-MC02（FreeRTOS）上的实现。
 //
 // - 待处理状态 pending_ 与等待者 waiter_ 存在 Signal 里，在临界区内读写；
 // - FreeRTOS 的任务通知只用来叫醒任务，用 1 号通知槽（0 号给 CMSIS-RTOS2 的线程标志与 stream buffer）；
@@ -14,7 +14,7 @@
 #include "stm32h7xx.h" // CMSIS：__get_IPSR、__get_BASEPRI
 #include "task.h"
 
-// 1 号通知槽要求每个任务至少有 2 个槽，由板级 CMake 的编译宏统一设置（CubeMX 没有这一项，Decision-20261031-10）
+// 1 号通知槽要求每个任务至少有 2 个槽，由板级 CMake 的编译宏统一设置（CubeMX 没有这一项）
 static_assert(configTASK_NOTIFICATION_ARRAY_ENTRIES >= 2, "Signal 用 1 号任务通知槽，需要至少 2 个槽");
 
 namespace
