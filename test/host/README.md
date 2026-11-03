@@ -46,6 +46,7 @@ CI 的 `host-tests` 作业（`.github/workflows/ci.yml`）在 GitHub Actions 的
 | `signal_misuse_notify_in_critical` / `signal_misuse_wait_in_critical` / `signal_misuse_two_waiters` | `unit/hal_os/signal_misuse_test.cpp` | `platform_mock` 的误用检查：每个场景都应打印原因并 `abort()`，按输出判定 |
 | `crc16` | `unit/crc/crc16_test.cpp` | `utils_crc`（CRC-16/MCRF4XX：标准校验值、与逐位实现对照、裁判系统帧尾的小端约定） |
 | `robolink_wire` | `unit/robolink/wire_test.cpp` | `middleware_robolink`（RoboLink v0.2 帧层与槽位层，Decision-20261103-01：对照 `test/data/robolink/golden_v0_2.txt` 逐字节组帧、逐条核对拒收原因；字节流解析的分块喂入、假同步、最长帧、末尾 0xD3、CRC 错整帧丢弃、缓冲区满） |
+| `robolink_session` | `unit/robolink/session_test.cpp` | `middleware_robolink`（MCU 端连接会话，测试扮演 PC：握手应答对照标准帧、忙时重发、完整状态、200 Hz 状态与姿态同帧、诊断尾部顺延姿态、保活、判活边界、重新握手序号归零、拒绝的 HELLO、控制快照、断开重连、每轮最多 8 帧、开机时长跨回绕、时刻稍早于上次发出） |
 | `robolink_messages` | `unit/robolink/messages_test.cpp` | `middleware_robolink`（8 条消息的载荷：解码标准帧逐字段核对，协议规定的拒收与改写，末尾追加字段按长度截断，编码长度） |
 | `spsc_queue` | `unit/concurrency/spsc_queue_test.cpp` | `utils_concurrency`（SPSC 队列：空与满、下标绕回、批量截断与绕回、`clear`、容量 1、计数器跨过 2^32；生产者、消费者、旁观者三线程压力；`-O2`） |
 | `latest_value` | `unit/concurrency/latest_value_test.cpp` | `utils_concurrency`（最新值邮箱：初值、覆盖、大小不是 4 的倍数、版本号按 2^31 回绕；一写三读的一致性压力；`-O2`） |

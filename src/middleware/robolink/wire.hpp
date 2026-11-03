@@ -244,7 +244,10 @@ class FrameParser final
     /** 找下一个合法帧。没有完整的合法帧时返回 false（已收到的半帧留着等后续字节）。 */
     [[nodiscard]] bool next(Frame &frame) noexcept;
 
-    /** 清空缓冲区与计数（新连接）。 */
+    /** 丢掉缓冲区里的字节，计数保留（传输层断开重连）。 */
+    void clear() noexcept;
+
+    /** 清空缓冲区与计数。 */
     void reset() noexcept;
 
     [[nodiscard]] const Statistics &statistics() const noexcept

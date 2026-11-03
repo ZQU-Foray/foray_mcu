@@ -125,7 +125,7 @@ host_test(topic
     LINK middleware_topic platform_mock Threads::Threads)
 target_compile_options(test_topic PRIVATE -O2)
 # RoboLink v0.2 编解码（Decision-20261103-01）：对照 tool/robolink/make_golden.py 独立生成的标准帧。
-foreach(name wire messages)
+foreach(name wire messages session)
     host_test(robolink_${name}
         SOURCES unit/robolink/${name}_test.cpp
         LINK middleware_robolink utils_crc)

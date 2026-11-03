@@ -341,10 +341,15 @@ bool FrameParser::next(Frame &frame) noexcept
     return false;
 }
 
-void FrameParser::reset() noexcept
+void FrameParser::clear() noexcept
 {
     length_ = 0U;
     release_ = 0U;
+}
+
+void FrameParser::reset() noexcept
+{
+    clear();
     statistics_ = Statistics{};
     last_error_ = FrameError::NONE;
 }

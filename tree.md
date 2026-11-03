@@ -97,7 +97,7 @@ foray_mcu/
 │   ├── utils/                    无领域含义的基础件：math、crc、concurrency（spsc_queue、latest_value）
 │   ├── middleware/               给能力用的运行期机制与服务：topic（F1）、fsm、robolink（阶段 A）；将来按需加调试遥测、参数存储
 │   │   ├── topic/                topic 机制：最新值、单发布者、中断发布、阻塞等待
-│   │   ├── robolink/             上位机链路协议 RoboLink v0.2：wire（组帧、解析）、messages（8 条消息）
+│   │   ├── robolink/             上位机链路协议 RoboLink v0.2：wire（组帧、解析）、messages（8 条消息）、session（连接会话）
 │   │   └── fsm/                  通用状态机
 │   ├── lib/                      领域算法：control（pid、slope、heater_control）、estimate、filter、kinematics、component
 │   ├── driver/                   设备驱动与设备协议：can_bus、motor（joint；dji、dm）、bmi088、buzzer、ws2812、protocol/{dji,dm,sbus}（F3 适配 hal v1）
