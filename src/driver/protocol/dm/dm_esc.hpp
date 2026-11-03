@@ -184,7 +184,7 @@ class DmEsc final
         std::uint32_t value{0U};           // 读写的 4 字节数据（小端）；存储没有数据
     };
 
-    // ---- 线性映射（与说明书的 float_to_uint / uint_to_float 相同；超出量程先钳位）----
+    // 线性映射（与说明书的 float_to_uint / uint_to_float 相同；超出量程先钳位）
 
     [[nodiscard]] static std::uint16_t
     to_unsigned(float value, float minimum, float maximum, std::uint8_t bits) noexcept;
@@ -197,7 +197,7 @@ class DmEsc final
     /** 控制帧（含系统命令）的帧 ID；ESC_ID 越界时返回 0。 */
     [[nodiscard]] static std::uint32_t control_identifier(std::uint16_t esc_id, ControlMode mode) noexcept;
 
-    // ---- 编码：参数无效（ESC_ID 越界、非有限值、量程无效）时返回 false，frame 不变 ----
+    // 编码：参数无效（ESC_ID 越界、非有限值、量程无效）时返回 false，frame 不变
 
     /** MIT：各量超出映射范围时钳位。 */
     [[nodiscard]] static bool
@@ -238,7 +238,7 @@ class DmEsc final
     /** 把全部参数写进电机的 flash：只在失能时生效，最长 30 ms，擦写寿命约 1 万次，不要频繁发送。 */
     [[nodiscard]] static bool encode_save_registers(std::uint16_t esc_id, Frame &frame) noexcept;
 
-    // ---- 解码 ----
+    // 解码
 
     /** 反馈帧（8 字节）。不核对帧 ID：反馈与寄存器应答可能共用 MST_ID，由调用方先排除应答。 */
     [[nodiscard]] static bool decode_feedback(const Frame &frame, FeedbackRaw &feedback) noexcept;
