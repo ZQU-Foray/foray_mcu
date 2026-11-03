@@ -9,6 +9,7 @@
 | [reviews/archive/](reviews/archive) | 评审报告 v0.1–v0.4 原文存档（仅供对照，不再维护） | 📄 已归档 |
 | [architecture.md](architecture.md) | 架构 v2：重建原则、目录与分层、关键机制（hal、hal/os、boot、topic、任务模型、profile 与组合根、板级）、18 条依赖规则、目录白名单、例外登记表的唯一人读入口 | 📄 v2.10（2026-11-01，Decision-20261027-01 起，待负责人审阅） |
 | [guide/框架使用指南.md](guide/框架使用指南.md) | 怎样新增外设接口、驱动、topic、能力、profile、板；提交前的检查；常见的坑（F4） | 📄 2026-11-01 |
+| [guide/上位机接入现状.md](guide/上位机接入现状.md) | 上位机接收 RoboLink v0.2 的最小接入说明：帧、握手、`GIMBAL_ATTITUDE`/`SYSTEM_STATUS`、当前固件实际行为与坑 | 📄 2026-11-03 |
 | [decisions/2026-11-01-F2-外设上板检查清单.md](decisions/2026-11-01-F2-外设上板检查清单.md) | hal 契约 v1 与 bringup 外设检查的上板检查清单：烧录前备份、探测脚本的判定、人工检查 | 🟡 待负责人执行 |
 | [decisions/2026-10-31-F2-启动入口上板验证/](decisions/2026-10-31-F2-启动入口上板验证/README.md)、[decisions/2026-10-31-F2-bringup上板验证/](decisions/2026-10-31-F2-bringup上板验证/README.md) | F2 第 4 步的上板验证记录 | ✅ 已验证 |
 | [decisions/2026-10-25-迁移基线与对照.md](decisions/2026-10-25-迁移基线与对照.md) | 迁移基线数据、SHA、工具链版本、对照判据、P0 复现结果与芯片 Flash 存档记录；符号表在 `decisions/baseline-a2cfd16/` | ✅ P0 已复核 |
