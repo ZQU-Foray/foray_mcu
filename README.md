@@ -2,7 +2,7 @@
 
 > **下位机（MCU）固件** · owner 角色：电控组
 > `layer: MCU` —— **不在 L1–L5 分层内**，位于 L2 下行 HAL **之下**
-> 当前状态：🟡 **P0–P2.5 已验收；2026-10-27 起按架构 v2 重建，先建框架（F1–F4），框架验收后再重建能力**（Decision-20261027-01）。2026-11-01：框架代码完成（hal 契约 v1、C++ port、驱动改用、bringup 外设检查，Decision-20261101-01～03），已上板验证（中断发布的 topic 叫醒任务、各外设检查与 CAN 接收），待负责人验收
+> 当前状态：🟡 **P0–P2.5 已验收；2026-10-27 起按架构 v2 重建，先建框架（F1–F4），框架验收后再重建能力**（Decision-20261027-01）。2026-11-01：框架代码完成（hal 契约 v1、C++ port、驱动改用、bringup 外设检查，Decision-20261101-01～03），已上板验证（中断发布的 topic 叫醒任务、各外设检查与 CAN 接收），待负责人验收。2026-11-03：按负责人指示开始阶段 A 的上位机链路：RoboLink v0.2 编解码、IMU 能力与链路能力，固件 profile `link_dm_mc02`（Decision-20261103-01）
 
 ## 1. 本仓是什么
 
@@ -45,6 +45,7 @@ cmake --preset framework   && cmake --build --preset framework     # 框架独�
 
 - 固件构建唯一的开关是 `-DPROFILE=<名称>`（preset 中为 `bringup_dm_mc02`，框架验证 × DM-MC02；a2cfd16 基线固件 `baseline` 只能从 tag `archive/pre-rebuild` 构建）；板卡由 profile 声明，工具链在 `cmake/toolchains/`。本机路径（工具链、Windows 上的宿主编译器）写在 `CMakeUserPresets.json`，不入库。
 - 兵种 profile 在阶段 A（能力重建）建立：`cmake -S . -B build/<目录> --toolchain cmake/toolchains/<工具链>.cmake -DPROFILE=<名称>`。
+- 上位机链路联调的固件（IMU 姿态经 RoboLink 发给上位机，不接电机，Decision-20261103-01）：`cmake --preset arm-release -B build/arm-release-link -DPROFILE=link_dm_mc02`，再 `cmake --build build/arm-release-link`；PC 端探测脚本 `tool/robolink/link_probe.py`，见 [tool/robolink/README.md](tool/robolink/README.md)。
 - 迁移源自带的构建已在 P2 删除。P1–P2.5 固件不改行为的证据是符号集合与 P1 存档一致；F2 起固件行为开始改变，CI 的 `firmware` 作业改为段大小报告与 HAL 回调符号检查。
 - 迁移验收用的基线对照（ControllerCode 可复现构建实测，2026-10-26 在本仓复现一致）：Debug `.bin` **238,320 B**，Release `.bin` **100,664 B**；SHA-256、工具链版本、符号表与对照判据见 [docs/ai/decisions/2026-10-25-迁移基线与对照.md](docs/ai/decisions/2026-10-25-迁移基线与对照.md)（证据来源已转存 [docs/ai/assets/controller_code-固件恢复可行性评估.md](docs/ai/assets/controller_code-固件恢复可行性评估.md)）。
 

@@ -38,8 +38,8 @@ foray_mcu/
 │   └── common/               task_runner.hpp：任务运行器（F2）
 ├── config/
 │   ├── CMakeLists.txt        profile_<名称>、assembly_<名称>：组合根 assembly/<profile>.cpp，链接 CAPABILITIES
-│   ├── assembly/             bringup_dm_mc02.cpp（任务表与 boot_*，F2）
-│   └── profiles/             bringup_dm_mc02/（profile.cmake、params.hpp，preset 默认）；profile.hpp.in 生成 profile.hpp
+│   ├── assembly/             bringup_dm_mc02.cpp（任务表与 boot_*，F2）；link_dm_mc02.cpp（上位机链路联调，Decision-20261103-01）
+│   └── profiles/             bringup_dm_mc02/（profile.cmake、params.hpp，preset 默认）；link_dm_mc02/（IMU + 链路，不接电机，-DPROFILE=link_dm_mc02）；profile.hpp.in 生成 profile.hpp
 ├── platform/                 厂商 / 板两级（Decision-20261101-04）
 │   ├── st/dm_mc02/           DM-MC02：board.cmake（板标识 dm_mc02）+ CMakeLists.txt（mx_generated、rtos、usb、port、board、os_freertos）
 │   │   ├── cubemx/           CubeMX 生成物：Core、Drivers、Middlewares、USB_DEVICE、.ioc、启动文件、链接脚本（冻结）
