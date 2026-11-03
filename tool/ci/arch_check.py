@@ -338,7 +338,7 @@ WHITELIST = {
         "chassis",
         "gimbal",
         "remote",
-        "link",
+        "pc_link",  # 上位机链路；不叫 link：与 POSIX 的 link() 重名（Decision-20261103-01）
         "launch",
     },
     "src": {
@@ -401,6 +401,10 @@ EXTERN_C = re.compile(r'\bextern\s+"C"')
 EXTERN_C_ALLOWED = re.compile(
     r"src/boot/boot\.h|platform/\w+/\w+/port/(?:UsbCdc\.h|usb_cdc\.cpp)"
 )
+# 规则 11：RoboLink 的组帧与链路 CRC 只在 src/middleware/robolink（Decision-20261103-01）。CRC-32/ISO-HDLC 是
+# 链路 CRC，其他代码 include 它就是在自己组帧；测试可以用它核对
+LINK_CRC_HEADER = re.compile(r'^\s*#\s*include\s*[<"]utils/crc/crc32\.hpp[>"]', re.MULTILINE)
+LINK_CRC_ALLOWED = re.compile(r"src/middleware/robolink/|src/utils/crc/|test/")
 # 规则 1：board.hpp 只给组合根与本板的 port（Decision-20261101-01）；依赖图另外保证能力与框架看不到 board_*
 BOARD_HEADER = re.compile(
     r'^\s*#\s*include\s*[<"](?:[\w/]*/)?board\.hpp[>"]', re.MULTILINE
@@ -517,6 +521,7 @@ def check_scan() -> list[str]:
     errors += check_board_includes()
     errors += check_c_linkage()
     errors += check_params()
+    errors += check_link_codec()
     for path in tracked("src/*", "platform/*", "cmake/*"):
         if "cubemx" in path.parts:
             continue  # 生成区由规则 7 与例外 X-09 管
@@ -530,7 +535,7 @@ def check_scan() -> list[str]:
             if match:
                 errors.append(f"规则 15：框架文件 {path} 引用了产品：{match.group(0)}")
     print(
-        "文本扫描：规则 1（board.hpp）、3、4（params.hpp 的 include）、7（include）、8、9、10、12、13、15、"
+        "文本扫描：规则 1（board.hpp）、3、4（params.hpp 的 include）、7（include）、8、9、10、11（链路 CRC）、12、13、15、"
         "16（C 链接位置）、17"
     )
     return sorted(set(errors))
@@ -627,6 +632,20 @@ def check_c_linkage() -> list[str]:
             number = code.count("\n", 0, match.start()) + 1
             errors.append(
                 f'规则 16：{name}:{number} 用了 extern "C"：C 链接只允许启动入口与 USB 生成区接缝（架构 §9.3）'
+            )
+    return errors
+
+
+def check_link_codec() -> list[str]:
+    errors = []
+    for path in handwritten_sources("src", "app", "config", "platform", "test"):
+        name = path.as_posix()
+        if LINK_CRC_ALLOWED.match(name):
+            continue
+        code = strip_comments(path, path.read_text("utf-8"))
+        if LINK_CRC_HEADER.search(code):
+            errors.append(
+                f"规则 11：{name} include 了链路 CRC（utils/crc/crc32.hpp）；RoboLink 只能经 middleware/robolink 组帧"
             )
     return errors
 

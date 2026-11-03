@@ -145,8 +145,18 @@
 
 ### A 能力重建（F4 验收后细化）
 
-- 在框架上逐个重建能力：imu、chassis、gimbal、remote、launch、link（vendor `foray_interfaces`，禁止手写链路编解码）、加热；补回丢失功能 L1–L6（[丢失功能与恢复依据](docs/ai/decisions/2026-10-26-丢失功能与恢复依据.md)）
+- 在框架上逐个重建能力：imu、chassis、gimbal、remote、launch、pc_link（RoboLink v0.2，编解码只在 `src/middleware/robolink`，Decision-20261103-01）、加热；补回丢失功能 L1–L6（[丢失功能与恢复依据](docs/ai/decisions/2026-10-26-丢失功能与恢复依据.md)）
 - 第一个兵种 profile（DM-MC02）；IMU 原始数据补录到 `test/data/imu/`，姿态解算用录制数据回归
+
+#### 上位机链路 RoboLink v0.2（负责人 2026-11-02 提出、2026-11-03 指示开始，Decision-20261103-01）
+
+> 目标：把 IMU 解算的姿态经 RoboLink 发给上位机，辅助视觉做手眼标定；控制快照第一版只记账、不执行。本地分支接在 `f3/motor-cleanup` 之后：`a/robolink-wire` → `a/robolink-session` → `a/imu-capability` → `a/pc-link` → `a/link-profile`。
+
+- [x] 第 1 步 编解码（`a/robolink-wire`）：规则 11 改写；标准帧生成器 `tool/robolink/make_golden.py`（37 个向量）与 PC 端对账工具；`middleware_robolink` 的帧层、槽位层与 8 条消息；宿主测试 `robolink_wire`、`robolink_messages`；与 PC 端 `foray_platform` 对账一致，差异 1 处（PC 端不接受 §7.1 的末尾追加字段），见[对账记录](docs/ai/decisions/2026-11-03-RoboLink-对账/README.md)
+- [ ] 第 2 步 连接会话（`a/robolink-session`）：握手、判活、序号、发送调度、计数；宿主测试扮演 PC
+- [ ] 第 3 步 IMU 能力（`a/imu-capability`）：`app/imu`，云台坐标系、上电零偏标定与 SETTLING/READY/DEGRADED、yaw 归零，`imu.attitude`
+- [ ] 第 4 步 链路能力（`a/pc-link`）：`app/pc_link`，USB 收发、`imu.attitude` → GIMBAL_ATTITUDE、`pc_link.control`
+- [ ] 第 5 步 固件与上板（`a/link-profile`）：profile `link_dm_mc02`、组合根、PC 端联调脚本；上板验证握手、1 kHz 姿态、拔线重连
 - topic 清单改为从描述文件生成（框架验证好用后）
 - 安全硬路径：失联降级与开火硬上限（独立于上位机）
 
@@ -224,7 +234,7 @@ Q1–Q18 已全部确认（见评审报告 v1.0 §11.1 与 decision.md）。仍�
 - [ ] 框架验收（F4）：负责人确认框架稳定好用
 - [ ] 至少 2 个 profile 构建成功（DM-MC02 兵种 profile + F407，阶段 A、B）；`platform/mock` 下 host 测试绿
 - [ ] 框架独立构建在 CI 绿（F1）
-- [ ] CI 架构门禁全绿：include/依赖方向、生成区、禁止 `file(GLOB)`、禁止手写协议、vendor 哈希
+- [ ] CI 架构门禁全绿：include/依赖方向、生成区、禁止 `file(GLOB)`、链路编解码只在一处（规则 11）、vendor 哈希
 - [ ] 文档与代码一致：[tree.md](tree.md)、README 的"当前状态"与实际构建状态同步
 
 ## 进度记录
@@ -276,3 +286,4 @@ Q1–Q18 已全部确认（见评审报告 v1.0 §11.1 与 decision.md）。仍�
 | 2026-11-02 | F3 | 电机架构 M0–M7（Decision-20261102-03、-04）：CAN 帧带接收时刻；1 kHz 控制环基准；`CanBus` 与关节 `Joint`；达妙、DJI 驱动改用新结构（DJI 可混接，冲突在装配时拒绝）；安全门与 `safety.stop`；删除电机组。M3 上板发现时间戳先后的 bug 并修正。M7 Release 交替重测 7 轮：反馈 → 下发延迟 1753 → 753 µs，抖动不劣于 M0，单轮平均耗时 11.2 → 12.4 µs、最长不变。ctest 31/31 | 完成；单轮平均耗时 +1.2 µs 待负责人判断 |
 | 2026-11-02 | F3 | 达妙电机驱动 `device::DmMotor` 与适配器、型号 `DM_J4310`（Decision-20261102-01）：启动回读核对后才允许使能，电机组契约加入使能 / 失能（DJI 也要使能才出力）。ctest 31/31；驱动里 11 处关键逻辑逐一改坏，测试都失败；固件、框架独立构建、M0+、依赖图、格式与命名检查通过 | 完成，已上板（见下一行） |
 | 2026-11-01 | F3（L6） | BMI088 加热改为模型预测（Decision-20261101-05）：实测旧 PI 冲到 56.9 ℃、28 s 才稳；由实测数据辨识两级一阶滞后热模型（0.967 ℃/‰、15.5 s、0.95 s），`control::HeaterControl` 两级预热 + 平台校正加热器强度 + 前馈 PI 恒温；仿真在加热器强度 ±25% 下整定，宿主测试 28/28；上板 +0.125 ℃、15.3 s 进入 ±0.25 ℃、校准条件 35.4 s；断电不误修正、来电不过冲（[记录](docs/ai/decisions/2026-11-01-L6-加热提速上板验证/README.md)） | 完成，待负责人验收 |
+| 2026-11-03 | A（链路） | 上位机链路用 RoboLink v0.2，规则 11 改写为"编解码只在 `src/middleware/robolink` 一处、用独立生成的标准帧核对"（Decision-20261103-01）。第 1 步：`middleware_robolink` 的帧层、槽位层与消息；标准帧 37 个，MCU 端宿主测试逐字节通过，故意改坏 12 处都被抓到；PC 端 `foray_platform` 对账一致，差异 1 处 | 第 1 步完成 |

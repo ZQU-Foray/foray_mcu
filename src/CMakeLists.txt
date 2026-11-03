@@ -99,6 +99,17 @@ framework_interface(middleware_topic
     middleware/topic/topic.hpp)
 target_link_libraries(middleware_topic INTERFACE hal_os utils_concurrency)
 
+# robolink：上位机链路协议 RoboLink v0.2 的帧层、槽位层与消息编解码（Decision-20261103-01）。本仓唯一组 RoboLink 帧、
+# 算链路 CRC 的地方（规则 11），由 tool/robolink/make_golden.py 独立生成的标准帧逐字节核对。只处理内存里的字节，
+# 不依赖 hal 与 hal/os。
+framework_library(middleware_robolink
+    middleware/robolink/bytes.hpp
+    middleware/robolink/messages.cpp
+    middleware/robolink/messages.hpp
+    middleware/robolink/wire.cpp
+    middleware/robolink/wire.hpp)
+target_link_libraries(middleware_robolink PRIVATE utils_crc)
+
 # ==== lib：领域算法（docs/ai/architecture.md §2.3）。只依赖标准库、utils 与 lib 内部 ====
 # 子目录名即命名空间名、即 target 名的后缀（lib/control → control:: → lib_control）。
 
