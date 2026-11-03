@@ -7,7 +7,7 @@
 |---|---|---|
 | [reviews/2026-10-25-foray_mcu-架构评审报告.md](reviews/2026-10-25-foray_mcu-架构评审报告.md) | 结构重构方案完整评审报告（**v1.0，已确认**）：现状事实、负责人确认的前提、M1–M4 必改项、目标 DAG 与依赖规则、平台可移植性约束、框架与产品边界、浮点策略、契约语言（C++）、命名与格式、P0–P5 迁移路径、Q1–Q18 与反馈表、实测记录 | 📄 历史记录（2026-10-27 起与架构 v2 冲突处以 v2 为准） |
 | [reviews/archive/](reviews/archive) | 评审报告 v0.1–v0.4 原文存档（仅供对照，不再维护） | 📄 已归档 |
-| [architecture.md](architecture.md) | 架构 v2：重建原则、目录与分层、关键机制（hal、hal/os、boot、topic、任务模型、profile 与组合根、板级）、18 条依赖规则、目录白名单、例外登记表的唯一人读入口 | 📄 v2.10（2026-11-01，Decision-20261027-01 起，待负责人审阅） |
+| [architecture.md](architecture.md) | 架构 v2：重建原则、目录与分层、关键机制（hal、hal/os、boot、topic、任务模型、profile 与组合根、板级）、18 条依赖规则、目录白名单、例外登记表的唯一人读入口 | 📄 v2.14（2026-11-03，Decision-20261027-01 起，待负责人审阅） |
 | [guide/框架使用指南.md](guide/框架使用指南.md) | 怎样新增外设接口、驱动、topic、能力、profile、板；提交前的检查；常见的坑（F4） | 📄 2026-11-01 |
 | [guide/上位机接入现状.md](guide/上位机接入现状.md) | 上位机接收 RoboLink v0.2 的最小接入说明：帧、握手、`GIMBAL_ATTITUDE`/`SYSTEM_STATUS`、当前固件实际行为与坑 | 📄 2026-11-03 |
 | [decisions/2026-11-01-F2-外设上板检查清单.md](decisions/2026-11-01-F2-外设上板检查清单.md) | hal 契约 v1 与 bringup 外设检查的上板检查清单：烧录前备份、探测脚本的判定、人工检查 | 🟡 待负责人执行 |

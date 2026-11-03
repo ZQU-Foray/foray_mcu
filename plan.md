@@ -96,7 +96,7 @@
 ### F2 契约 v1 与 DM-MC02 板级（6–10 人日）
 
 > 顺序（Decision-20261031-07）：先做与具体外设无关的第 1–4 步，每一步固件都可构建；第 5 步（外设）按外设纵向推进、与 F3 合起来排（Decision-20261101-01，负责人 2026-11-01 授权 AI 按最优方式推进）。旧 C port 定义了 HAL 回调，同一外设的新旧 port 不能并存。
-> 本地分支（一个分支对应以后的一个 PR，依次叠在前一个上）：`f1/topic` → `f1/ci` → `f2/firmware-ci`（第 1 步 CI）→ `f2/tim2-timebase`（merge 合入）→ `f2/board-dir`（第 2 步）→ `f2/hal-os-port`（第 3 步）→ `f2/boot`（第 4 步：启动入口）→ `f2/bringup`（第 4 步：任务运行器与 bringup）→ `f2/archive`（第 4 步：归档旧 app）→ `f2/peripheral-plan`（第 5 步的决策）→ `f2/gpio-pwm` → `f2/can` → `f2/spi` → `f2/uart` → `f2/usb-cdc` → `f2/port-cleanup` → `f3/estimate-decouple` → `f2/bringup-peripherals`（外设检查、上板探测脚本）→ `f2/docs-sync`（文档同步、框架使用指南）→ `f2/board-vendor-dir`（板级目录移到厂商目录下）→ `f2/onboard-peripherals`（上板验证：修正 IMU 延迟的测量与探测脚本，验证记录）→ `f3/heater-warmup`（BMI088 加热改为模型预测，Decision-20261101-05）→ `f2/onboard-can`（补记 CAN 接收的上板验证）→ `f3/dm-protocol`（达妙协议层与寄存器回读排查）→ `f2/bringup-power`（bringup 上电打开 24 V 输出）→ `f3/dm-driver`（达妙电机驱动与电机组使能）→ `f2/bringup-dm`（bringup 的达妙电机检查与上板验证）→ `f3/motor-arch-proposal`（电机架构方案）→ `f3/can-rx-timestamp`（M1：CAN 帧带接收时刻）→ `f3/motor-benchmark`（M0：1 kHz 控制环基准）→ `f3/can-bus-joint`（M2：`CanBus` 与 `Joint`）→ `f3/dm-joint`（M3：达妙驱动改用新结构）→ `f3/stamp-order-fix`（时间戳先后的修正与 M3 复测）→ `f3/dji-joint`（M4：DJI 驱动改用新结构）→ `f3/actuator-safety`（M5：安全门）→ `f3/motor-cleanup`（M6：删除电机组、文档同步；M7 基准复测）。tag `archive/pre-rebuild` 随这批分支一起推送。PR 暂不开，以后按这个顺序依次合入 `dev`。
+> 本地分支（一个分支对应以后的一个 PR，依次叠在前一个上）：`f1/topic` → `f1/ci` → `f2/firmware-ci`（第 1 步 CI）→ `f2/tim2-timebase`（merge 合入）→ `f2/board-dir`（第 2 步）→ `f2/hal-os-port`（第 3 步）→ `f2/boot`（第 4 步：启动入口）→ `f2/bringup`（第 4 步：任务运行器与 bringup）→ `f2/archive`（第 4 步：归档旧 app）→ `f2/peripheral-plan`（第 5 步的决策）→ `f2/gpio-pwm` → `f2/can` → `f2/spi` → `f2/uart` → `f2/usb-cdc` → `f2/port-cleanup` → `f3/estimate-decouple` → `f2/bringup-peripherals`（外设检查、上板探测脚本）→ `f2/docs-sync`（文档同步、框架使用指南）→ `f2/board-vendor-dir`（板级目录移到厂商目录下）→ `f2/onboard-peripherals`（上板验证：修正 IMU 延迟的测量与探测脚本，验证记录）→ `f3/heater-warmup`（BMI088 加热改为模型预测，Decision-20261101-05）→ `f2/onboard-can`（补记 CAN 接收的上板验证）→ `f3/dm-protocol`（达妙协议层与寄存器回读排查）→ `f2/bringup-power`（bringup 上电打开 24 V 输出）→ `f3/dm-driver`（达妙电机驱动与电机组使能）→ `f2/bringup-dm`（bringup 的达妙电机检查与上板验证）→ `f3/motor-arch-proposal`（电机架构方案）→ `f3/can-rx-timestamp`（M1：CAN 帧带接收时刻）→ `f3/motor-benchmark`（M0：1 kHz 控制环基准）→ `f3/can-bus-joint`（M2：`CanBus` 与 `Joint`）→ `f3/dm-joint`（M3：达妙驱动改用新结构）→ `f3/stamp-order-fix`（时间戳先后的修正与 M3 复测）→ `f3/dji-joint`（M4：DJI 驱动改用新结构）→ `f3/actuator-safety`（M5：安全门）→ `f3/motor-cleanup`（M6：删除电机组、文档同步；M7 基准复测）。2026-11-03 已按这个顺序快进合入 `dev`（提交号不变），分支已删除，整理前的分支在 `foray_mcu_archive/2026-11-03_branch_cleanup/` 的 bundle 里（Decision-20261103-05）。
 
 - [x] 第 1 步 CI（2026-10-31，Decision-20261031-08）：`firmware` 作业的符号对照退役，改为段大小报告（`symbols.py report`，写入作业摘要）；加入 HAL 回调符号检查（规则 16，`arch_check.py callbacks`）。规则 1（`board.hpp`）、4、7、10、18 的检查随对应内容出现时加入
 - [x] 第 1 步（续）合入 `f2/tim2-timebase`（2026-10-31，在分支 `f2/board-dir` 用 merge 提交合入，保留提交号）：TIM2 作 1 MHz 时基计数源，CubeMX 6.18.1（Decision-20261031-04）
@@ -150,7 +150,7 @@
 
 #### 上位机链路 RoboLink v0.2（负责人 2026-11-02 提出、2026-11-03 指示开始，Decision-20261103-01）
 
-> 目标：把 IMU 解算的姿态经 RoboLink 发给上位机，辅助视觉做手眼标定；控制快照第一版只记账、不执行。本地分支接在 `f3/motor-cleanup` 之后：`a/robolink-wire` → `a/robolink-session` → `a/imu-capability` → `a/pc-link` → `a/link-profile` → `a/heater-warm-start`（加热热启动修正、HELLO 版本说明、`foray_interfaces` 改动备好）→ `a/usb-seam`（X-01 关闭）。
+> 目标：把 IMU 解算的姿态经 RoboLink 发给上位机，辅助视觉做手眼标定；控制快照第一版只记账、不执行。本地分支接在 `f3/motor-cleanup` 之后：`a/robolink-wire` → `a/robolink-session` → `a/imu-capability` → `a/pc-link` → `a/link-profile` → `a/heater-warm-start`（加热热启动修正、HELLO 版本说明、`foray_interfaces` 改动备好）→ `a/usb-seam`（X-01 关闭，之后是 VQF 调参与仓库整理的提交）。2026-11-03 已快进合入 `dev`，分支已删除（Decision-20261103-05）。
 
 - [x] 第 1 步 编解码（`a/robolink-wire`）：规则 11 改写；标准帧生成器 `tool/robolink/make_golden.py`（37 个向量）与 PC 端对账工具；`middleware_robolink` 的帧层、槽位层与 8 条消息；宿主测试 `robolink_wire`、`robolink_messages`；与 PC 端 `foray_platform` 对账一致，差异 1 处（PC 端不接受 §7.1 的末尾追加字段），见[对账记录](docs/ai/decisions/2026-11-03-RoboLink-对账/README.md)
 - [x] 第 2 步 连接会话（`a/robolink-session`）：`robolink::Session` 的握手、判活、序号、发送调度、计数；宿主测试 `robolink_session` 扮演 PC，故意改坏 13 处都被抓到；与 PC 端链路状态机在伪终端上联调通过（握手 2 ms，1 kHz 姿态与控制快照，两个方向的卡死与恢复），见[对账记录](docs/ai/decisions/2026-11-03-RoboLink-对账/README.md) §4
@@ -161,6 +161,7 @@
 - [x] `foray_interfaces` 的改动备好（2026-11-03，Decision-20261103-01 第 12 点）：RoboLink v0.2 定稿、握手由 PC 发起、§7.1 接收方只查最小长度、标准帧生成器与 37 个标准帧入契约仓；3 个提交的补丁与 PR 说明、给 `foray_platform` 的 §7.1 问题描述在 `foray_mcu_archive/2026-11-03_foray_interfaces_pr/`，待负责人提交
 - [x] L6 加热控制器热启动卡在目标下方（2026-11-03 上板发现，Decision-20261103-02，分支 `a/heater-warm-start`）：控制器把第一次读数当环境温度，热着复位时估高，恒温时低于目标 2 ℃ 立即重新预热又清积分，到不了目标。修正：读数比"加热器一直关着"的预测还低时下调环境估计；恒温积分长期偏大时转成环境修正；低于目标 2–4 ℃ 要持续 2 s 且读数不升才重新预热。仿真 768 个场景全部收敛（原来 242 个到不了目标），原有测试照旧通过；按负责人"行为不异常就行"，宿主测试加 4 个热启动场景与 132 个场景的宽松扫描（稳到目标、过冲 ≤ 2.5 ℃），故意改坏 5 处都被抓到；上板恒温 50 ℃ 时直接复位，21 s 回到 50 ℃、IMU 进入 READY（[记录](docs/ai/decisions/2026-11-03-加热热启动上板验证/README.md)）
 - [x] yaw 漂移修正（2026-11-03，Decision-20261103-03）：恢复旧 `AttitudeEstimator` 的 VQF 板级参数（静止门限 0.35 rad/s、bias clip 0.05、标定不重置协方差），`Imu::Report` 补 bias/rest 诊断；宿主测试 39/39、link 固件构建通过；2026-11-03 上板 5 min 实测 yaw -0.05°（-0.010 °/min），rest_detected=1
+- [x] 仓库整理（2026-11-03，Decision-20261103-05，负责人要求）：工作区按类提交；本地分支链快进合入 `dev`（提交号不变）；删除 GitHub 上 49 个与本地 50 个功能分支，丢弃已存为补丁的 stash；整理前的全部引用打包存档。以后每步一个分支，验证后快进合入 `dev` 即删
 - topic 清单改为从描述文件生成（框架验证好用后）
 - 安全硬路径：失联降级与开火硬上限（独立于上位机）
 
@@ -195,7 +196,7 @@
 
 ## 当前 Agent State
 
-`EXECUTING`（P0–P2.5 已验收；F1 各项已完成，待负责人验收；F2 第 1–5 步与 F3 的代码已完成、宿主测试全绿，2026-11-01 已上板验证，待负责人验收；F4 的示范与指南已交付，待负责人实机检查与验收；PR 暂不开，提交留在本地分支；里程碑合并入 `main` 按负责人要求暂缓）。
+`EXECUTING`（P0–P2.5 已验收；F1–F4 负责人 2026-11-03 确认验收通过；阶段 A 的上位机链路第一版已上板联调通过；PR 暂不开，每步验证后快进合入 `dev`、分支即删（Decision-20261103-05）；里程碑合并入 `main` 等负责人定）。
 状态词表：`REVIEW_PENDING`（等待评审）/ `PLANNING`（方案已批准、编制细节）/ `EXECUTING`（实施中）/ `BLOCKED`（外部阻塞）/ `DONE`（阶段完成）。
 
 ## Before Snapshot
@@ -297,3 +298,5 @@ Q1–Q18 已全部确认（见评审报告 v1.0 §11.1 与 decision.md）。仍�
 | 2026-11-03 | A（链路） | 第 5 步：profile `link_dm_mc02` 与组合根、PC 端探测工具、CI 构建 link 固件；上板：IMU 与链路运行，姿态限频改按采样时刻（860 → 998 Hz）；加热器没接 24 V | PC 端联调待串口权限与 24 V |
 | 2026-11-03 | A（链路） | 第 5 步上板联调：PC 端探测脚本 60 s（带 1 kHz 控制快照与拔线重连）全部通过，姿态 996 Hz；视觉组的 `RoboLinkHostLink` 直接连板子通过；冷启动 42 s 进入 READY，静止时 yaw 漂移约 0.3 °/min；负责人确认 F1、F4 验收通过 | 链路第一版完成 |
 | 2026-11-03 | A（链路） | 加热控制器热启动修正（Decision-20261103-02）：环境温度估计的两处修正、恒温小温差时宽限重新预热；仿真 768 个场景全部收敛，原有测试照旧通过。上板：恒温 50 ℃ 时直接复位，环境估计 18 s 内从 50 ℃ 修正到 37 ℃，21 s 回到 50 ℃（最高 50.375 ℃），72 s IMU 进入 READY（[记录](docs/ai/decisions/2026-11-03-加热热启动上板验证/README.md)） | 完成 |
+| 2026-11-03 | A（链路） | yaw 漂移修正（Decision-20261103-03）：恢复 VQF 板级静止零偏参数（静止门限 0.35 rad/s），标定后不重置协方差；上板 5 min yaw -0.05° | 完成 |
+| 2026-11-03 | 整理 | 仓库整理（Decision-20261103-05）：本地分支链快进合入 `dev`（提交号不变），删除 49 个远端与 50 个本地功能分支，stash 存为补丁后丢弃，整理前的引用打包存档 | 完成 |

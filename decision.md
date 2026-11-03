@@ -2032,6 +2032,45 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 
 ---
 
+## Decision-20261103-05（仓库整理：本地分支链快进合入 dev、提交号不变，删除全部功能分支；以后每步一个分支，验证后合入即删，Accepted）
+
+- **Date**：2026-11-03
+- **Status**：Accepted（负责人 2026-11-03 要求"做其它能力之前，先整理当前的分支和提交，该删的删该保留的保留"，并保证工作区整洁；做法由 AI 按授权决定）
+- **Source**：整理前 GitHub 上有 51 个分支（`main`、`dev` 与 49 个功能分支），`dev` 停在 `91f5afb`（2026-10-31，PR #9）；本地有 52 个分支、1 个 stash，工作区有另一会话未提交的 VQF 调参（Decision-20261103-03）与负责人的改动
+
+**Context**：
+
+- 2026-10-31 起负责人让 PR 暂缓，每步一个本地分支、叠在前一个上（plan 中 F2 与链路两段的分支链），推送过的分支也留在 GitHub。这些分支实际上是一条直线：除 `p2/mechanical-move` 外，本地与远端的每个分支都是当前链尾的祖先，链尾也包含 `origin/dev`，可以直接快进。
+- `p2/mechanical-move` 独有的提交 `6f1f76d`（给 `move.py` 加可执行位）已被 `e10e226` 取代，两个 `move.py` 在 `dev` 上都是 100755。
+- `stash@{0}` 是负责人 2026-11-01 未提交的改动：12 个 hal 与 boot 头删掉注释里的决策号，另有一份旧 `dm_esc` 草稿。草稿已被 `f3/dm-driver` 的正式实现取代；删决策号是否作为注释风格，等负责人定。
+- 提交历史不能压缩：文档里引用了 48 个提交号，`.git-blame-ignore-revs` 有 32 条，tag `archive/pre-rebuild` 也指向历史提交，压缩或变基会让这些引用全部失效，而且 `dev` 已推送，改写要强推。
+
+**Decision**：
+
+1. 工作区按类分开提交：VQF 调参（`fix`）、`link_probe.py --follow`（`feat`）、上位机接入说明（`docs`）、负责人删 `dm_esc.hpp` 注释分隔线（`style`）。
+2. `dev` 快进到链尾（`origin/dev..` 共 106 个提交，加上本条的文档提交），等于按 plan 的顺序依次合入、不产生 merge 提交，提交号不变；只推送 `dev`。
+3. 删除远端除 `main`、`dev` 外的全部分支（49 个），删除本地除 `main`、`dev` 外的全部分支；`stash@{0}` 存为补丁后丢弃。tag `baseline/a2cfd16`、`archive/pre-rebuild` 保留；`main` 不动，里程碑合并等负责人定。迁移源的远端 `legacy`（`foray_mcu_controller`）不动。
+4. 整理前的全部引用（110 个，含 stash 与两个 tag）打包为 `foray_mcu_archive/2026-11-03_branch_cleanup/foray_mcu_all_refs_before_cleanup.bundle`，已用 `git bundle verify` 核对；`refs_before_cleanup.txt` 记录每个分支名与提交号；stash 的补丁与说明在同一目录。恢复某个分支：`git fetch <bundle> refs/heads/<分支名>:refs/heads/<分支名>`。
+5. 以后的分支：每步一个功能分支，从 `dev` 切出；宿主测试、构建与需要的上板验证通过后，由 Lead 快进合入 `dev` 并推送，随即删除该分支。功能分支不推送到 GitHub，也不再长期叠在一起；负责人恢复 PR 流程后，改回"PR 合到 `dev`"（AGENTS §3）。
+
+**偏离原计划**：
+
+- AGENTS §3 写的是"PR 合到 `dev`"。负责人暂缓 PR 期间由 Lead 快进合入，见第 5 点。
+- plan 写的是"以后按这个顺序依次合入 `dev`"。本条用一次快进完成，结果与逐个合入相同。
+
+**Alternatives / Rejected**：
+
+- 把历史压缩成少量提交：会让 48 处提交号引用、32 条 blame 忽略与 tag 全部失效，并且要强推 `dev`。否决。
+- 开一个 PR 合入：106 个提交无法在一个 PR 里逐个评审。GitHub 的 "Rebase and merge" 会改写提交号，"Create a merge commit" 多一个不带信息的 merge 提交。否决，直接快进。
+- 保留已合入的分支作历史：分支名与顺序已经记在 plan 的分支链和 `refs_before_cleanup.txt` 里，留在 GitHub 只会增加噪声。否决。
+
+**回滚**：
+
+- 从 bundle 恢复需要的分支后推送。
+- `dev` 要退回整理前，执行 `git push --force-with-lease=dev:<新 dev 提交号> origin 91f5afb:dev`。
+
+---
+
 ## 待登记
 
 - 分支保护的具体设置（组织规范 §6.1、§10，负责人在 GitHub 上操作后补记）。
