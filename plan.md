@@ -163,6 +163,21 @@
 - [x] yaw 漂移修正（2026-11-03，Decision-20261103-03）：恢复旧 `AttitudeEstimator` 的 VQF 板级参数（静止门限 0.35 rad/s、bias clip 0.05、标定不重置协方差），`Imu::Report` 补 bias/rest 诊断；宿主测试 39/39、link 固件构建通过；2026-11-03 上板 5 min 实测 yaw -0.05°（-0.010 °/min），rest_detected=1
 - [x] 仓库整理（2026-11-03，Decision-20261103-05，负责人要求）：工作区按类提交；本地分支链快进合入 `dev`（提交号不变）；删除 GitHub 上 49 个与本地 50 个功能分支，丢弃已存为补丁的 stash；整理前的全部引用打包存档。以后每步一个分支，验证后快进合入 `dev` 即删
 - [x] 代码注释删掉决策号（2026-11-03，Decision-20261103-06，负责人要求）：先是头文件（55 个文件 77 处），再是其余代码与配置文件（76 个），文档不动；只改注释，四个固件逐字节相同；以后代码与配置文件的注释不写决策号（AGENTS §1）
+#### 云台（两台 DM-J4310，小 yaw + pitch；Decision-20261105-01）
+
+> 目标：按 IMU 稳住指向（世界系），能跟踪上位机的目标；顺便把框架从能力、profile、组合根到调参走一遍。
+> 大 yaw 以后作为可选的第三个关节加进来；第 3 步的遥控只是 `safety.stop` 的临时来源，仲裁能力做好后改成发布 `remote.input`。
+> 每步一个分支，验证完快进合入 `dev`、分支即删（Decision-20261103-05）。
+
+- [x] 第 0 步 登记设计（`docs/gimbal-design`）：decision.md 的 Decision-20261105-01（Proposed）、plan 本节、tree 的 `app/gimbal`、`app/remote` 与 `infantry_dm_mc02`
+- [x] 第 1 步 电源输出移出 bringup（`refactor/power-outputs`）：`PowerOutputs` 移到 `app/actuator`，bringup profile 的 `CAPABILITIES` 加 `actuator`；自证纯搬迁：bringup Debug 固件的符号集合只有 `bringup::PowerOutputs::init` → `actuator::PowerOutputs::init` 一处改名、大小同为 164 B，FLASH 同为 239,384 B；宿主测试 `power_outputs` 从 io_checks 拆出
+- [x] 第 2 步 新 profile 与只读骨架（`feat/gimbal-profile`）：兵种定名步兵，`infantry_dm_mc02` profile 与组合根接两台达妙电机（ESC 1/2、MST 0x11/0x12，CAN1），`app/gimbal` 只读骨架填 `Report`（姿态、关节角、核对/在线/故障）；`config` 的 profile 增加 `DRIVERS`（组合根直接构造、能力不链接的驱动）；Debug 固件构建通过。**上板核对（两台电机的核对/方向/零点）待负责人做**
+- [x] 第 3 步 遥控最小版（`feat/remote-safety`）：`app/remote`（SBUS → `safety.stop`，每步都发布、运行档 + 帧新鲜 + 无 failsafe、`arm_sequence` 只在拨上时加 1），安全门与遥控接进 `infantry_dm_mc02` 的任务表（收 → 云台 → 安全门 → 发）；宿主测试 `remote_run`/`remote_failsafe`/`remote_timeout`/`remote_reject`。**上板核对拨杆与超时待负责人做**
+- [x] 第 4 步 单轴串级控制（`feat/gimbal-loop`）：`math::wrap_pi()`（宿主测试 `basic_math`）、`AxisLoop`（角度环 → 角速度环、`apply()` 的积分抗饱和、`compensation_newton_meter` 诊断）；宿主测试 `axis_loop` 带被控对象仿真（阶跃 0.3 rad 在 1 s 内收敛、稳态误差 < 0.005 rad；重力前馈；饱和与积分限幅；总限幅释放后无大超调；reset；非有限输入）
+- [x] 第 5 步 状态机与出力（`feat/gimbal-output`）：DISABLED / ENABLING / HOLD / TRACK、两轴同进同出（`enable_all` / `disable_all` / 任一关节掉了）、yaw 回绕、限位按底座倾斜换算、pitch 重力前馈 τg·cos(pitch)、总限幅、`Report` 的诊断；宿主测试 `gimbal_*` 9 个场景（两个真实达妙电机 + CanBus + DmMotor + 安全门，IMU 与 PC 目标由测试发布）；故意改坏 10 处都被抓到
+- [ ] 第 6 步 上板调参（`params/gimbal-tuning`）：参数、`tool/debug/gimbal_probe.py`（读模式、目标、力矩、补偿力矩、安全门、遥控、任务统计）与[调参清单](docs/ai/guide/云台上板调参清单.md)已备好，起步值写在 `params.hpp`（yaw 先不出力、pitch 角速度环 kp 0.05、总限幅 1 N·m）；**先 pitch 后 yaw、先角速度环后角度环，结果待负责人在板上做并写进 `docs/records/`**
+- [ ] 第 7 步 跟踪 PC 目标（`feat/gimbal-track-pc`，**暂缓**：等仲裁能力，云台以后订阅 `command.gimbal`）：`link_probe.py` 加目标与正弦扫描
+- [ ] 第 8 步 收尾（`docs/gimbal`）：Decision-20261105-01 改 Accepted、tree、丢失功能 L4/L1/L5、CI 加 profile、architecture
 - topic 清单改为从描述文件生成（框架验证好用后）
 - 安全硬路径：失联降级与开火硬上限（独立于上位机）
 

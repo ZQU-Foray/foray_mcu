@@ -29,17 +29,19 @@ foray_mcu/
 │   ├── lib/                  control（pid、slope、heater_control）、estimate、filter、kinematics、component（目录名即命名空间名）
 │   └── driver/               can_bus（CAN 总线分发）、motor（joint.hpp 关节；dji/、dm/ 品牌驱动与型号常量，Decision-20261102-03）、bmi088、buzzer、ws2812、protocol/{dji,dm,sbus}（构造时接收 hal 句柄，F2 第 5 步）
 ├── app/                      产品（include 根：#include "topics/bringup.hpp"）；固件与宿主构建都加入
-│   ├── CMakeLists.txt        产品的全部 target：app_topics、app_actuator、app_imu、app_pc_link、app_bringup、app_common（只在固件构建中）
+│   ├── CMakeLists.txt        产品的全部 target：app_topics、app_actuator、app_imu、app_pc_link、app_gimbal、app_remote、app_bringup、app_common（只在固件构建中）
 │   ├── topics/               topic 清单：bringup.hpp（heartbeat、imu_event、imu、sbus）、safety.hpp（stop）、imu.hpp（event、attitude）、pc_link.hpp（control）、all.hpp（topics::ALL）；约定见 README.md
 │   ├── imu/                  IMU 能力 Imu：云台姿态 imu.attitude、上电零偏标定、yaw 归零（Decision-20261103-01）
 │   ├── pc_link/              上位机链路能力 PcLink：RoboLink v0.2 经 USB，姿态上传、控制快照只记账（Decision-20261103-01）
-│   ├── actuator/             安全门 SafetyGate：按 safety.stop 集中禁止关节出力（Decision-20261102-03）
-│   ├── bringup/              框架验证用的能力：Heartbeat、Monitor（F2）；ImuCheck、CanCheck、SbusCheck、UsbReport、Indicator（外设检查，Decision-20261101-03）；PowerOutputs（Decision-20261101-06）；DmCheck（CAN1 上的达妙电机，Decision-20261102-02）
+│   ├── actuator/             安全门 SafetyGate：按 safety.stop 集中禁止关节出力（Decision-20261102-03）；PowerOutputs：板上可控 24 V 输出，从 bringup 移入（Decision-20261105-01）
+│   ├── gimbal/               云台能力 Gimbal：IMU 闭环双轴串级、力矩模式、DISABLED/ENABLING/HOLD/TRACK、安全门（Decision-20261105-01）；axis_loop.hpp 是单轴控制律
+│   ├── remote/               遥控最小版 Remote：SBUS → safety.stop（Decision-20261105-01）
+│   ├── bringup/              框架验证用的能力：Heartbeat、Monitor（F2）；ImuCheck、CanCheck、SbusCheck、UsbReport、Indicator（外设检查，Decision-20261101-03）；DmCheck（CAN1 上的达妙电机，Decision-20261102-02）
 │   └── common/               task_runner.hpp：任务运行器（F2）
 ├── config/
-│   ├── CMakeLists.txt        profile_<名称>、assembly_<名称>：组合根 assembly/<profile>.cpp，链接 CAPABILITIES
-│   ├── assembly/             bringup_dm_mc02.cpp（任务表与 boot_*，F2）；link_dm_mc02.cpp（上位机链路联调，Decision-20261103-01）
-│   └── profiles/             bringup_dm_mc02/（profile.cmake、params.hpp，preset 默认）；link_dm_mc02/（IMU + 链路，不接电机，-DPROFILE=link_dm_mc02）；profile.hpp.in 生成 profile.hpp
+│   ├── CMakeLists.txt        profile_<名称>、assembly_<名称>：组合根 assembly/<profile>.cpp，链接 CAPABILITIES 与 DRIVERS（组合根直接构造、能力不链接的驱动）
+│   ├── assembly/             bringup_dm_mc02.cpp（任务表与 boot_*，F2）；link_dm_mc02.cpp（上位机链路联调，Decision-20261103-01）；infantry_dm_mc02.cpp（步兵：云台 + 遥控 + 链路，Decision-20261105-01）
+│   └── profiles/             bringup_dm_mc02/（profile.cmake、params.hpp，preset 默认）；link_dm_mc02/（IMU + 链路，不接电机，-DPROFILE=link_dm_mc02）；infantry_dm_mc02/（步兵：云台 + 遥控 + 链路，-DPROFILE=infantry_dm_mc02）；profile.hpp.in 生成 profile.hpp
 ├── platform/                 厂商 / 板两级（Decision-20261101-04）
 │   ├── st/dm_mc02/           DM-MC02：board.cmake（板标识 dm_mc02）+ CMakeLists.txt（mx_generated、rtos、usb、port、board、os_freertos）
 │   │   ├── cubemx/           CubeMX 生成物：Core、Drivers、Middlewares、USB_DEVICE、.ioc、启动文件、链接脚本（冻结）
@@ -53,7 +55,7 @@ foray_mcu/
 ├── test/framework/           框架独立构建用：template_check.cpp 显式实例化只有头文件的模板（F1，Decision-20261031-06）
 ├── test/data/imu/            真实 IMU 数据（原固件静态陀螺采集 ×2）
 ├── test/data/heater/         加热冷启动曲线：原固件（L6 的验收下限）、2026-11-01 旧 PI 与模型预测的对照
-├── tool/debug/               SWD 只读轮询、bringup 上板探测（bringup_probe.py）、IMU 采集与加热日志解码（Python）
+├── tool/debug/               SWD 只读轮询、bringup 上板探测（bringup_probe.py）、云台调参探测（gimbal_probe.py）、IMU 采集与加热日志解码（Python）
 ├── tool/flash/openocd/       OpenOCD 配置（DM-MC02 + CMSIS-DAP）
 ├── tool/ci/                  format.py（格式）、naming.py（命名）、symbols.py（符号对照与段大小报告）、arch_check.py（依赖图、文本扫描、M0+ 原子与 HAL 回调检查）
 └── docs/
@@ -165,8 +167,8 @@ foray_mcu/
 | 设备驱动与协议 | `src/driver/` | ✅ 已改用 hal v1，构造时接收句柄（F2 第 5 步与 F3 合排） |
 | 板级（生成区、port、board） | `platform/<厂商>/<板>/{cubemx,port,board}` | ✅ 厂商 / 板两级（`platform/st/dm_mc02`，Decision-20261101-04）；port 全部为 C++、`board/board.hpp`（F2 第 5 步） |
 | 任务运行器 | `app/common/` | ✅ `task_runner.hpp`（F2 第 4 步，Decision-20261031-12） |
-| 能力 | `app/<capability>/` | 🚧 阶段 A 重建；旧代码已归档到 tag `archive/pre-rebuild`（F2，Decision-20261031-13）；`app/bringup` 是框架验证用的能力；`app/imu`（云台姿态、零偏标定）、`app/pc_link`（上位机链路）（Decision-20261103-01） |
-| profile 与组合根 | `config/profiles/<兵种>_<板>/`、`config/assembly/<profile>.cpp` | ✅ `bringup_dm_mc02`（F2，preset 默认）；兵种 profile 在阶段 A |
+| 能力 | `app/<capability>/` | 🚧 阶段 A 重建；旧代码已归档到 tag `archive/pre-rebuild`（F2，Decision-20261031-13）；`app/bringup` 是框架验证用的能力；`app/imu`（云台姿态、零偏标定）、`app/pc_link`（上位机链路）（Decision-20261103-01）；`app/gimbal`（云台）、`app/remote`（遥控最小版）（Decision-20261105-01，待上板调参） |
+| profile 与组合根 | `config/profiles/<兵种>_<板>/`、`config/assembly/<profile>.cpp` | ✅ `bringup_dm_mc02`（F2，preset 默认）、`link_dm_mc02`（链路联调）、`infantry_dm_mc02`（第一个兵种 profile：云台 + 遥控 + 链路，Decision-20261105-01） |
 | 宿主测试 | `test/host/` | ✅ 由根工程引入（27 项全绿）；外设经 `platform_mock` 的替身 |
 | 框架使用指南 | `docs/ai/guide/框架使用指南.md` | 📄 F4（2026-11-01） |
 | 组织合规件 | `.foray-layer`、`CODEOWNERS`、`.github/workflows/ci.yml` | ✅ 已落地 |

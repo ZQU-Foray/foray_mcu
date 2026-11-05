@@ -2092,6 +2092,59 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 
 ---
 
+## Decision-20261105-01（云台能力：IMU 闭环串级、力矩模式、READY 后才出力、两轴同进同出；电源输出移到 actuator；遥控最小版发布 safety.stop，Proposed）
+
+- **Date**：2026-11-05
+- **Status**：**Proposed**（设计登记；第 5 步的宿主测试与构建已通过，第 6 步上板调参后补结果、改 Accepted）
+- **Source**：负责人要求做两台 DM-J4310 的 yaw / pitch 双轴云台（按 IMU 稳住指向、跟踪上位机目标），并借机把框架从头走一遍；步骤与判据见工作笔记（`notes/`，不入库）。IMU 能力与链路见 Decision-20261103-01，安全门见 Decision-20261102-03
+- **影响范围**：新增能力 `app/gimbal`、`app/remote`，新 profile `infantry_dm_mc02` 与组合根；`PowerOutputs` 从 `app/bringup` 移到 `app/actuator`；`utils/math` 新增 `wrap_pi()`；`config/CMakeLists.txt` 的 profile 增加 `DRIVERS` 列表；阶段 A 的能力重建顺序
+
+**Context**：
+
+- 小 yaw + pitch 用 IMU 稳住指向是云台的核心，与大 yaw（只把小 yaw 拉回活动范围中间）没有强耦合。台架上就是这两台 4310，先做小 yaw + pitch；大 yaw 以后作为可选的第三个关节加进来。
+- 云台要的是**世界系**指向：底盘转、车身晃时编码器角度跟着变，只有 IMU 测到世界系姿态。所以角度环与角速度环的反馈都用 `imu.attitude`，编码器只做机械限位与诊断。达妙的阻抗模式（MIT 的 Kp、Kd）用的是电机相对底座的位置与速度，做不了稳定，只能用 `JointMode::TORQUE`，两个环在 MCU 上算。
+- 上电后约 40–70 s（加热 + 零偏标定）IMU 处于 SETTLING。这期间出力有两个问题：出力会抖，零偏标定要求静止 5 s，可能一直过不了；进入 READY 时 yaw 会重新归零跳一下，云台会追着跳变甩一下。所以等到 READY / DEGRADED 才出力。
+- 安全门（Decision-20261102-03）上电时锁住，要收到一条"不是急停、且 `arm_sequence` 变过"的 `safety.stop` 才放开；现在没有任何发布者。云台一旦请求出力，没有急停来源就等于没有安全通路。仲裁能力还没设计，按负责人"第 6 步上板出力时先让遥控临时发布"的要求，先做最小版遥控。
+- `bringup::PowerOutputs` 在 `app_bringup` 里，产品 profile 不该链接框架验证用的能力；两台 4310 接在板上可控的 24 V 输出上，上电必须打开。
+- 能力只用 `device::Joint`，看不到达妙；而达妙驱动要由组合根直接构造。`config` 原来只有 `CAPABILITIES`，组合根直接 include 品牌驱动时缺一条显式的依赖。
+
+**Decision**：
+
+1. **控制结构**：`app/gimbal` 一个能力，`init` / `step`；两个环（角度 rad → rad/s，角速度 rad/s → N·m）用一个单轴类 `AxisLoop`，yaw、pitch 各一个实例。串级是 RM 专用，放 `app/gimbal/axis_loop.{hpp,cpp}`，不预先抽象到 `src/lib`。`wrap_pi()` 没有领域含义、以后底盘也要用，放 `src/utils/math/basic_math.hpp`。
+2. **单位与坐标系**：关节、IMU、目标一律 SI；世界系 yaw 左转为正、pitch 低头为正（与 `imu.attitude`、`pc_link.control` 一致）。角速度环的反馈用欧拉角速度（pitch_rate、yaw_rate 由陀螺的 y、z 与 roll、pitch 换算），不用陀螺的 z、y 直接当欧拉角速度。
+3. **误差回绕与限位换算**：yaw 误差用 `wrap_pi()` 回绕，目标先展开到测量值附近再进 PID。机械限位是关节角，世界系目标与它差一个"底座倾斜"偏移（`world − joint`），yaw、pitch 都按这个偏移钳目标。
+4. **状态机**：DISABLED → ENABLING → HOLD ⇄ TRACK。条件是姿态有效、新鲜（超过 `attitude_timeout_us` 停）、不是 SETTLING、两个关节都 `available()` 且没有 `fault`。条件不满足立即 `disable_all()`；两个关节同进同出（`enable_all()`），进入 HOLD 时两个环清零、目标取当前姿态；出力中任一关节掉了（`enabled` 变假、`fault`、`available()` 变假）两个都撤销。ENABLING 超时回 DISABLED 并计数。PC 的 `flags` bit3（急停请求）第一版只当"目标无效"，不当急停：急停只走遥控 → `safety.stop` → 安全门。
+5. **`AxisLoop.apply(torque)`**：把本周期实际下发的力矩（总限幅之后、减去重力前馈）告诉控制器。PID 现在用来做积分抗饱和：力矩被总限幅削掉、且这一拍积分的增量与控制器输出同号时退回这一拍的积分。`Output` 只有 `torque` 是正式输出，`rate_target` 放 `Diagnostics`；与扰动有关的量叫"补偿力矩"，不叫积分项——以后换 LQR + ESO 时只换这个类。
+6. **重力前馈**：`τ = τ_g · cos(pitch)`，`τ_g` 由 `Parameters::pitch_gravity_newton_meter` 给，0 表示不补。水平静止时读 `Diagnostics::compensation_newton_meter` 的稳态值即为 τ_g。
+7. **电源输出**：`PowerOutputs` 从 `app/bringup` 移到 `app/actuator`（执行器的公共设施），命名空间 `bringup` → `actuator`；bringup profile 的 `CAPABILITIES` 改为 `bringup actuator`。纯搬迁：bringup 固件除一个符号改名外逐符号一致，段大小不变。
+8. **新 profile**：兵种定名 `infantry`，目录 `config/profiles/infantry_dm_mc02/`，组合根 `config/assembly/infantry_dm_mc02.cpp`；`link_dm_mc02` 保留为不接电机的链路联调配置。云台电机：yaw 用 CAN1 上现有的一台（ESC_ID 1、MST_ID 0x11），pitch 用新的一台（ESC_ID 2、MST_ID 0x12），机构都是输出轴直连、传动比 1。任务表：`gimbal` 按 `imu.attitude` 触发（优先级 27，2 ms 超时），step 顺序为"CAN1 收 → 云台 → 安全门 → CAN1 发"。
+9. **profile 的 `DRIVERS`**：`profile.cmake` 增加可选的 `DRIVERS`（`driver_<名称>`），`config/CMakeLists.txt` 据此链接。组合根直接构造、能力又不链接的驱动（达妙电机）由它表达；写在 `config/CMakeLists.txt` 的注释里，不新增 target 层。
+10. **遥控最小版**：`app/remote`，只做"SBUS → `safety.stop`"；摇杆控制、控制权仲裁以后单独做。每个 step 都发布一次（安全门靠超时判断发布者挂了）；"运行档 + 帧新鲜 + 没有 failsafe"三条都满足才 `stop = false`；`arm_sequence` 只在拨杆从非运行档拨到运行档时加 1（上电就在运行档不放开，这是故意的）。仲裁做好后，本条改成发布 `remote.input`、`safety.stop` 由仲裁发布，改动只在 remote 与组合根。
+11. **与以后的大 yaw、换输入相关的三处留口**：关节放进一个数组（`enable_all` / `disable_all` / "任一关节掉了"都对数组做）；"选目标"是一个函数（输出 `Setpoint{yaw, pitch, yaw_rate, pitch_rate, valid}`），以后从 `pc_link.control` 换成仲裁的 `command.gimbal` 只改它；"从姿态算 yaw、pitch 与欧拉角速度"是一个函数，车上板子若不跟 pitch 转只改它。小 yaw 按有限位处理（`limited = true`），偏移 = IMU 的 yaw − 小 yaw 关节角。
+
+**Reason**：
+
+- 反馈取 IMU 是"指向在世界系不变"的唯一办法；力矩模式把两个环留在 MCU 上，换控制律不用换电机。
+- 就绪条件把"标定期间不动"和"yaw 归零不甩"两件事一起解决；代价是上电后约 40–70 s 云台是软的，负责人接受。
+- 两轴同进同出：只有一边出力的云台会乱甩，宁可两个都撤销。
+- `apply()` 的接口现在就能用（积分抗饱和），以后 ESO 用它估扰动；名字中性、`Diagnostics` 分开，换 LQR + ESO 时不改 `AxisLoop` 以外的代码。
+- 遥控最小版是第 6 步上板出力的前提；不做就等于没有急停。
+
+**Alternatives / Rejected**：
+
+- 用达妙的阻抗模式（MIT 的 Kp、Kd）：反馈是电机相对底座的位置与速度，不是世界系，底盘一转就失稳。否决。
+- 角度环直接用陀螺的 z、y 当角速度反馈：与角度环的欧拉角不是同一种量，pitch、roll 大时对不上。否决。
+- 在 SETTLING 期间也出力：标定过不了或 yaw 归零时甩一下。否决。
+- 不做遥控、用别的东西临时发 `stop = false`：等于没有急停。否决。
+- 单开 `app/power` 放电源输出：要先改 `arch_check.py` 的白名单、登记新目录，不值得；`app/actuator` 已经是"执行器的公共设施"，安全门与动力电源都算。否决。
+- 另建库放 `AxisLoop`：只有一个产品用，按架构 §2.2 留在 `app/`。否决。
+- 保留 `bringup::PowerOutputs` 让产品 profile 链接 `app_bringup`：产品会带上框架验证的全部外设检查。否决。
+- `link_dm_mc02` 直接加电机：链路联调配置不该依赖云台与电机。否决。
+
+**回滚**：revert 本条相关提交（`PowerOutputs` 回去、删 `app/gimbal`、`app/remote` 与 `infantry_dm_mc02` profile、`profiles` 去掉 `DRIVERS`）。不涉及生成区，`.ioc` 与链接脚本不动。
+
+---
+
 ## 待登记
 
 - 分支保护的具体设置（组织规范 §6.1、§10，负责人在 GitHub 上操作后补记）。
