@@ -2145,6 +2145,49 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 
 ---
 
+## Decision-20261105-02（控制律接口与 profile 参数结构调整：参数不透明、输入打包、连续角度、reset 语义、测试拆分，Accepted）
+
+- **Date**：2026-11-05
+- **Status**：Accepted（负责人 2026-11-05 要求"以后换控制律时尽可能方便"，按附录 D 评审结论执行；本条是 Decision-20261105-01 第 5、11 条的补充，接口变更先登记再改代码）
+- **Source**：工作笔记的附录 D（`notes/`，不入库）；对本条之前已提交的 `app/gimbal` 的评审
+
+**Context**：
+
+- Decision-20261105-01 的原话是"以后换 LQR + ESO 时直接替换这个类，不并存，`AxisLoop` 以外的代码都不用改"。按现在的代码核对，这句说过头了：
+  - `Gimbal::AxisParameters` 里直接摊着 PID 的 `Gains`（kp、ki、integral_limit、output_limit），换控制律要同时改 `gimbal.hpp`、`params.hpp`、组合根与测试；
+  - `update()` 有 4 个位置参数，加输入（关节角速度、目标角加速度）就改签名，所有调用点跟着改；
+  - 传给控制律的 yaw 在 ±π 处跳 2π。PID 不受影响（误差对着展开后的目标算、不对角度做微分），但 ESO 拿角度当观测量时，会把这次跳变当成一次真实的大扰动；
+  - `reset()` 的语义没写下来：PID 清零就够，观测器要拿复位后的第一份测量做初值，否则一使能就有一下冲击；
+  - 测试写死了 `AxisLoop` 与 `Gains`，且有几个场景断言的是 PID 内部量（积分不超限、`rate_target`），换控制律时大半要重写。
+- 由此还发现两处遗漏，见 Decision-20261105-01 之后的提交；本条不改它们的行为。
+
+**Decision**：
+
+1. **控制律参数不透明**：`AxisLoop::Parameters` 是控制律自己的参数（PID 版是角度环、角速度环两组 `Gains`）；`Gimbal::AxisParameters` 改成 `{AxisLoop::Parameters controller; bool limited; float minimum_rad; float maximum_rad;}`，`Gimbal` 不看 `controller` 里面有什么。删掉 `Gimbal::LoopGains` 别名。`init()` 里由 `AxisLoop` 自己检查参数，`Gimbal` 只检查限位。
+2. **输入打包**：`update(Measurement, Reference, dt)`。`Measurement{angle, rate, joint_velocity}`（`angle` 连续、`rate` 是欧拉角速度、`joint_velocity` 取关节相对底座的速度，PID 不用），`Reference{angle, rate}`（`angle` 已展开到测量值附近，`rate` 是前馈）。以后加输入只在结构体里加字段，签名不变。
+3. **连续角度**：`Gimbal` 自己累计连续 yaw（`yaw_continuous_ += wrap_pi(yaw − yaw_previous_)`），控制律的测量、无限位时的目标展开、有限位时的底座倾斜都用它；`Report` 仍给回绕后的 `yaw_rad`，另加 `yaw_continuous_rad`。两个环每次 reset（进入 HOLD、撤销出力）时把连续 yaw 重新锚定到回绕后的值，并让 HOLD 的目标取它，圈数不会跨多次出力累积。
+4. **`reset()` 语义写进接口注释**：复位后第一次 `update()` 用当时的测量初始化内部状态（PID 清零就够，观测器拿它做初值）。
+5. **接口约定写进 `axis_loop.hpp` 的类注释**：纯计算、SI、不读时间；角度连续、目标已展开；`apply()` 在每次 `update()` 之后、`set_torque()` 之前调用一次，收到的是总限幅之后的力矩减去重力前馈；输入非有限时输出 0 且不污染内部状态；`init()` 自己检查参数。
+6. **测试拆两份**：`test/host/unit/gimbal/axis_law_scenarios.hpp` 放被控对象与控制律无关的闭环场景（写成对控制器类型通用的模板，只要求"造控制器"的函数）；`axis_loop_test.cpp` 放 PID 版的 `make_controller()`、全部通用场景与 PID 特有场景（积分限幅、`rate_target`、`Gains` 检查）。通用场景文件里不出现 `Gains`、`kp`、`integral`、`rate_target`。
+7. **不在本条做**：目标转动速度上限移到 `Gimbal`（附录 D.4.6）。它是行为变化，与操作输入/仲裁那套的"按开火吸目标"一起做，单独一个 `feat:`。
+
+**Reason**：
+
+- 换控制律时只动 `axis_loop.{hpp,cpp}`、profile 里 `controller` 的数值、控制律测试里的 `make_controller()` 与特有场景；`gimbal.{hpp,cpp}`、组合根、`gimbal_probe.py` 不用动。
+- 参数不透明是把"控制律长什么样"收进一个类里；输入打包是把"控制律需要什么"变成可扩展的数据；连续角度与 reset 语义是以后 ESO 能直接用的前提（这两条现在不做，换成观测器时会在 ±π 和一使能两处出问题，而且很难查）。
+- PID 下这些改动行为等价：`params.hpp` 的数值原样搬过去、只多套一层花括号，宿主测试全过。
+
+**Alternatives / Rejected**：
+
+- 保持 `update(angle, target, rate, feedforward, dt)` 的位置参数：加一个输入就改签名，调用点全是位置参数、看不出含义。否决。
+- 在 `Gimbal` 里判断"当前控制律是不是 PID"、按类型分支：控制律就该是可替换的，判断类型等于把控制律的知识漏到 `Gimbal`。否决。
+- 连续角度放到控制律内部算：每个控制律都要写一遍，而且 `Gimbal` 的目标限位换算也要用它（那是 `Gimbal` 的事）。否决。
+- 现在就把目标速度上限（D.4.6）搬进 `Gimbal`：没有 RATE/ABSOLUTE 目标模式，验收里"跳 0.5 rad"的场景造不出来；和按开火吸目标一起做才完整。推迟。
+
+**回滚**：revert 本条相关提交，`AxisParameters` 回到直接摊开 `Gains`、`update()` 回到位置参数、去掉连续角度与 `yaw_continuous_rad`；`params.hpp` 与测试同步回退。不涉及生成区。
+
+---
+
 ## 待登记
 
 - 分支保护的具体设置（组织规范 §6.1、§10，负责人在 GitHub 上操作后补记）。
