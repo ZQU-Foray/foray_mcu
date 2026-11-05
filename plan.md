@@ -163,6 +163,18 @@
 - [x] yaw 漂移修正（2026-11-03，Decision-20261103-03）：恢复旧 `AttitudeEstimator` 的 VQF 板级参数（静止门限 0.35 rad/s、bias clip 0.05、标定不重置协方差），`Imu::Report` 补 bias/rest 诊断；宿主测试 39/39、link 固件构建通过；2026-11-03 上板 5 min 实测 yaw -0.05°（-0.010 °/min），rest_detected=1
 - [x] 仓库整理（2026-11-03，Decision-20261103-05，负责人要求）：工作区按类提交；本地分支链快进合入 `dev`（提交号不变）；删除 GitHub 上 49 个与本地 50 个功能分支，丢弃已存为补丁的 stash；整理前的全部引用打包存档。以后每步一个分支，验证后快进合入 `dev` 即删
 - [x] 代码注释删掉决策号（2026-11-03，Decision-20261103-06，负责人要求）：先是头文件（55 个文件 77 处），再是其余代码与配置文件（76 个），文档不动；只改注释，四个固件逐字节相同；以后代码与配置文件的注释不写决策号（AGENTS §1）
+#### 输入与仲裁（遥控器为中心；Decision-20261105-03）
+
+> 目标：功能的开关由遥控器决定。第一个功能是自瞄——大范围移动靠操作手，按住开火时自瞄才接管（有接管范围），
+> 松开开火回到手动、从当前位置接着走。第一部分只用 SBUS 遥控；第二部分（图传、键鼠、裁判系统）等硬件到位再做。
+
+- [ ] 第 0 步 登记设计（`docs/input-design`）：decision.md 的 Decision-20261105-03（Proposed）、plan 本节、云台第 7 步改为指向这里
+- [ ] 第 1 步 remote 加发 `remote.input`（`feat/remote-input`）：`topics/operator_input.hpp`（统一的输入类型）、`topics/remote.hpp`、摇杆与拨杆的标定参数；`safety.stop` 先留着；宿主测试 `remote_input`；上板核对摇杆与拨杆读数
+- [ ] 第 2 步 仲裁能力（`feat/command-arbiter`）：`app/command`（绑定、功能、`safety.stop` 与 `command.gimbal`）、`topics/command.hpp`；`safety.stop` 从 remote 搬过来；组合根把 `command_step` 放进 gimbal 任务、排在云台之前；白名单加 `command`；宿主测试 `arbiter_*`；上板核对急停与放开
+- [ ] 第 3 步 云台改订 `command.gimbal`（`feat/gimbal-command`）：手动 `RATE` 与目标转动速度上限、发布 `gimbal.state`、删掉 PC 目标的判断；仲裁加自瞄接管范围；宿主测试补 RATE 与接管范围；上板核对手动瞄准与按住开火自瞄
+- [ ] 第 4 步 收尾（`docs/input`）：决策结果、architecture 白名单与安全那一条、tree、topics README、test README、丢失功能 L5
+- 第二部分（图传与键鼠、裁判系统）等硬件到位：远程输入 `referee.operator_input`、来源切换规则、`command.chassis` / `command.shooter`
+
 #### 云台（两台 DM-J4310，小 yaw + pitch；Decision-20261105-01）
 
 > 目标：按 IMU 稳住指向（世界系），能跟踪上位机的目标；顺便把框架从能力、profile、组合根到调参走一遍。
@@ -177,7 +189,7 @@
 - [x] 第 5 步 状态机与出力（`feat/gimbal-output`）：DISABLED / ENABLING / HOLD / TRACK、两轴同进同出（`enable_all` / `disable_all` / 任一关节掉了）、yaw 回绕、限位按底座倾斜换算（限位总宽不超过 2π）、pitch 重力前馈 τg·cos(pitch)、总限幅、`Report` 的诊断；宿主测试 `gimbal_*` 17 个场景（两个真实达妙电机 + CanBus + DmMotor + 安全门，IMU 与 PC 目标由测试发布）；故意改坏 17 处都被抓到。之后按上板前的复查补了三处：目标被限位钳住的轴不加角速度前馈、采样时刻晚于本轮 `now` 不算过期（新鲜度按收到时刻算）、没有新姿态的那一轮不重复积分（重发上一拍力矩）；PC 的急停请求（flags bit3）只当目标无效
 - [x] 控制律接口按评审调整（Decision-20261105-02）：`AxisLoop::Parameters`（控制律参数不透明）、`update(Measurement, Reference, dt)`、连续 yaw（`Report` 加 `yaw_continuous_rad`，复位时重新锚定；记圈数实现 `math::AngleUnwrapper`，带几十万拍与 double 真值对照的精度测试）、`reset()` 语义；测试拆成与控制器无关的 `axis_law_scenarios.hpp` 与 PID 特有的 `axis_loop_test.cpp`。PID 下行为等价、参数数值不变；通用场景不出现 `Gains`/`kp`/`integral`/`rate_target`；去掉 `apply()` 的回退、或把测量改回回绕的 yaw，通用场景与 `gimbal_yaw_cross_pi` 都会失败。**目标转动速度上限移到 `Gimbal` 不在其中**，与操作输入/仲裁那套的"按开火吸目标"一起做
 - [ ] 第 6 步 上板调参（`params/gimbal-tuning`）：参数、`tool/debug/gimbal_probe.py`（读模式、目标、力矩、补偿力矩、安全门、遥控、任务统计）与[调参清单](docs/ai/guide/云台上板调参清单.md)已备好，起步值写在 `params.hpp`（yaw 先不出力、pitch 角速度环 kp 0.05、总限幅 1 N·m）；**先 pitch 后 yaw、先角速度环后角度环，结果待负责人在板上做并写进 `docs/records/`**
-- [ ] 第 7 步 跟踪 PC 目标（`feat/gimbal-track-pc`，**暂缓**：等仲裁能力，云台以后订阅 `command.gimbal`）：`link_probe.py` 加目标与正弦扫描
+- [ ] 第 7 步 跟踪 PC 目标：由"输入与仲裁"第 3 步取代（云台改订 `command.gimbal`），`link_probe.py` 的扩展也在那里做
 - [ ] 第 8 步 收尾（`docs/gimbal`）：Decision-20261105-01 改 Accepted、tree、丢失功能 L4/L1/L5、CI 加 profile、architecture
 - topic 清单改为从描述文件生成（框架验证好用后）
 - 安全硬路径：失联降级与开火硬上限（独立于上位机）
