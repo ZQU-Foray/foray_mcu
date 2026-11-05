@@ -91,7 +91,7 @@ bool Arbiter::init(const Parameters &parameters) noexcept
     run_last_ = false;
     engaged_ = false;
     was_running_ = false;
-    resync_bindings_ = false;
+    resync_bindings_ = true; // 上电后第一条消息可能已经是"连着"：第一拍也只记状态、不翻转
     arm_sequence_ = 0U;
     binding_level_ = {};
     binding_toggle_ = {};

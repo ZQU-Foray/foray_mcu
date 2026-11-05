@@ -97,7 +97,8 @@ class Gimbal final
     struct Report
     {
         Mode mode;
-        DisableReason last_disable_reason;
+        DisableReason last_disable_reason; // 当前/最近一次判定的原因，每拍更新
+        DisableReason output_stop_reason; // 从出力状态掉出来那一刻的原因，保留到下次使能（调参时看这个）
         // 输入：核对方向与零点就看姿态与关节这两组
         topics::imu::State imu_state;
         bool attitude_valid;
@@ -178,6 +179,7 @@ class Gimbal final
     // 状态机与目标
     Mode mode_{Mode::DISABLED};
     DisableReason reason_{DisableReason::NONE};
+    DisableReason output_stop_reason_{DisableReason::NONE};
     hal::os::Microseconds enable_start_us_{0U};
     float yaw_target_rad_{0.0F};
     float pitch_target_rad_{0.0F};

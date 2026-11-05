@@ -173,6 +173,7 @@ void Gimbal::step(hal::os::Microseconds now) noexcept
         }
         mode_ = Mode::ENABLING;
         enable_start_us_ = now;
+        output_stop_reason_ = DisableReason::NONE;
     }
 
     if (mode_ == Mode::ENABLING)
@@ -385,17 +386,30 @@ Gimbal::DisableReason Gimbal::stop_reason(hal::os::Microseconds now) const noexc
         {
             return DisableReason::JOINT_UNAVAILABLE;
         }
+    }
+    // 按根因的优先级分三遍看，两台之间也一样：一台故障、另一台同时掉了，报故障
+    for (const device::Joint *joint : joints_)
+    {
         if (joint->state().fault)
         {
-            return DisableReason::JOINT_FAULT; // 根因：关节自己报了故障
+            return DisableReason::JOINT_FAULT;
         }
+    }
+    for (const device::Joint *joint : joints_)
+    {
         if (!joint->available())
         {
             return DisableReason::JOINT_UNAVAILABLE;
         }
-        if (running && !joint->state().enabled)
+    }
+    if (running)
+    {
+        for (const device::Joint *joint : joints_)
         {
-            return DisableReason::JOINT_DROPPED; // 出力中掉了：只有一边出力的云台会乱甩，两个都撤销
+            if (!joint->state().enabled)
+            {
+                return DisableReason::JOINT_DROPPED; // 出力中掉了：只有一边出力的云台会乱甩，两个都撤销
+            }
         }
     }
     return DisableReason::NONE;
@@ -512,6 +526,10 @@ void Gimbal::anchor_yaw_continuous() noexcept
 
 void Gimbal::disable(DisableReason reason) noexcept
 {
+    if (mode_ != Mode::DISABLED)
+    {
+        output_stop_reason_ = reason; // 掉出出力状态的那一刻：保留到下次使能，调参时看这个
+    }
     device::disable_all(joints_.data(), joints_.size());
     yaw_loop_.reset();
     pitch_loop_.reset();
@@ -529,6 +547,7 @@ void Gimbal::update_report(hal::os::Microseconds now) noexcept
 {
     report_.mode = mode_;
     report_.last_disable_reason = reason_;
+    report_.output_stop_reason = output_stop_reason_;
     report_.imu_state = attitude_message_.state;
     report_.attitude_valid = has_attitude_ && attitude_message_.valid;
     report_.last_attitude_us = attitude_received_us_;

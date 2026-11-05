@@ -201,7 +201,7 @@ class JointLink final
         return joint.enable_requested_ && !joint.inhibited_;
     }
 
-    /** 驱动撤销出力（故障、离线、使能失败）：清掉请求与指令，能力要再 enable()。 */
+    /** 驱动撤销出力（故障、离线、使能失败）：清掉请求与指令，同时把关节状态刷成没在出力，能力要再 enable()。 */
     static void drop_enable(Joint &joint) noexcept;
 
     /**

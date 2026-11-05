@@ -8,8 +8,10 @@
 调参时看这几行：
 - `gimbal.mode`：DISABLED / ENABLING / HOLD / TRACK（自瞄）/ MANUAL（手动）；
 - `gimbal.command`：这一轮收到的云台指令模式（0 HOLD、1 RATE、2 ABSOLUTE，超时按 HOLD）；
-- `gimbal.last_disable_reason`：最近一次回 DISABLED 的原因（0 无、1 姿态无效、2 标定中、3 姿态过期、
+- `gimbal.last_disable_reason`：每拍判定的原因（0 无、1 姿态无效、2 标定中、3 姿态过期、
   4 关节不可用、5 关节故障、6 出力中掉了、7 使能超时、8 指令被拒绝）；
+- `gimbal.output_stop_reason`：从出力状态掉出来那一刻的原因，保留到下次使能——想知道"刚才为什么掉了"
+  就看这一条（`last_disable_reason` 会被后续的条件覆盖，比如驱动重新核对后变成"关节不可用"）；
 - `gimbal.pitch_rad` / `pitch_target_rad` / `pitch_torque_newton_meter` 与
   `gimbal.pitch_diagnostics.compensation_newton_meter`（水平静止时它的稳态值就是重力前馈 τ_g）；
 - `gimbal.yaw_*` 同理；`safety.state`（0 锁住、1 放开）；`remote.running`；
@@ -85,12 +87,22 @@ def judge(decoded: list[dict[str, object]]) -> list[tuple[bool, str]]:
         if second["gimbal.last_disable_reason"] < len(REASONS)
         else second["gimbal.last_disable_reason"]
     )
+    stop_reason = (
+        REASONS[second["gimbal.output_stop_reason"]]
+        if second["gimbal.output_stop_reason"] < len(REASONS)
+        else second["gimbal.output_stop_reason"]
+    )
     safety = (
         SAFETY_STATES[second["safety.state"]]
         if second["safety.state"] < len(SAFETY_STATES)
         else second["safety.state"]
     )
-    checks.append((True, f"云台模式 {mode}，最近一次回 DISABLED 的原因：{reason}"))
+    checks.append(
+        (
+            True,
+            f"云台模式 {mode}，最近一次回 DISABLED 的原因：{reason}；掉出出力状态的原因：{stop_reason}",
+        )
+    )
     checks.append(
         (
             bool(second["safety.has_message"]),

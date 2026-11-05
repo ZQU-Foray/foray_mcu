@@ -399,6 +399,23 @@ int scenario_toggle(Publishers &publishers)
     return 0;
 }
 
+// 上电后的第一条消息就已经"连着"、而且 TOGGLE 控件正按着：第一拍也不能打开
+int scenario_toggle_initial(Publishers &publishers)
+{
+    command::Parameters toggle_parameters = parameters();
+    toggle_parameters.functions[static_cast<std::size_t>(command::Function::AUTO_AIM)][0] =
+        command::on_keys(command::Source::REMOTE, topics::KEY_R, command::Trigger::TOGGLE);
+    Rig rig{publishers, toggle_parameters};
+    assert(rig.init());
+
+    rig.step_with(true, false, false, true, 0.0F, 0.0F, topics::KEY_R); // 第一拍就按着
+    assert(!rig.arbiter.report().auto_aim);
+    rig.step_with(true);                                                // 松开
+    rig.step_with(true, false, false, true, 0.0F, 0.0F, topics::KEY_R); // 再按：这时才打开
+    assert(rig.arbiter.report().auto_aim);
+    return 0;
+}
+
 // 手动角速度超过上限时按上限走
 int scenario_manual_clamp(Publishers &publishers)
 {
@@ -461,7 +478,7 @@ int main(int argc, char **argv)
     {
         std::fprintf(stderr,
                      "用法：%s run_baseline|failsafe|input_timeout|auto_aim|no_engage|pc_invalid|manual|engage_range|"
-                     "engage_wrap|engage_jump|toggle|manual_clamp|idle|reject\n",
+                     "engage_wrap|engage_jump|toggle|toggle_initial|manual_clamp|idle|reject\n",
                      argv[0]);
         return 2;
     }
@@ -505,6 +522,10 @@ int main(int argc, char **argv)
     if (std::strcmp(scenario, "engage_jump") == 0)
     {
         return scenario_engage_jump(publishers);
+    }
+    if (std::strcmp(scenario, "toggle_initial") == 0)
+    {
+        return scenario_toggle_initial(publishers);
     }
     if (std::strcmp(scenario, "toggle") == 0)
     {

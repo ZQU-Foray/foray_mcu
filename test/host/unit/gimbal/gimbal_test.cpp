@@ -702,6 +702,38 @@ int scenario_manual_drop(Publishers &publishers)
     assert(dropped);
     assert(rig.gimbal().report().mode == gimbal::Gimbal::Mode::DISABLED);
     assert(rig.gimbal().report().last_disable_reason == gimbal::Gimbal::DisableReason::JOINT_DROPPED);
+    assert(rig.gimbal().report().output_stop_reason == gimbal::Gimbal::DisableReason::JOINT_DROPPED);
+    assert(!rig.yaw().state().enabled && !rig.pitch().state().enabled);
+
+    // "掉出来那一刻"的原因单独保留：后面几拍驱动重新核对、关节变成不可用，
+    // last_disable_reason 会换成"不可用"，但这个不换
+    for (std::size_t round = 0U; round < 5U; ++round)
+    {
+        rig.tick_alive();
+    }
+    assert(rig.gimbal().report().mode == gimbal::Gimbal::Mode::DISABLED);
+    assert(rig.gimbal().report().last_disable_reason == gimbal::Gimbal::DisableReason::JOINT_UNAVAILABLE);
+    assert(rig.gimbal().report().output_stop_reason == gimbal::Gimbal::DisableReason::JOINT_DROPPED);
+    return 0;
+}
+
+// 一台掉了、另一台同时报故障：先报故障（两台之间也按"故障优先"）
+int scenario_fault_beats_drop(Publishers &publishers)
+{
+    Rig rig{publishers.attitude, publishers.stop, publishers.command};
+    assert(rig.init());
+    assert(rig.run_until_ready());
+    rig.release_gate();
+    assert(rig.run_until_holding());
+
+    rig.yaw_motor().state = Dm::State::DISABLED;                // yaw 自己失能
+    rig.pitch_motor().state = Dm::State::COIL_OVER_TEMPERATURE; // pitch 报故障
+    for (std::size_t round = 0U; round < 5U; ++round)
+    {
+        rig.tick_alive();
+    }
+    assert(rig.gimbal().report().mode == gimbal::Gimbal::Mode::DISABLED);
+    assert(rig.gimbal().report().last_disable_reason == gimbal::Gimbal::DisableReason::JOINT_FAULT);
     assert(!rig.yaw().state().enabled && !rig.pitch().state().enabled);
     return 0;
 }
@@ -1008,7 +1040,8 @@ int main(int argc, char **argv)
         std::fprintf(stderr,
                      "用法：%s settling|locked|enable|track|estop|fault|attitude_timeout|command_timeout|pitch_limit|"
                      "yaw_limit|yaw_limit_wide|pitch_feedforward|enable_timeout|attitude_ahead|attitude_gap|"
-                     "yaw_cross_pi|manual_rate|manual_clamp|manual_drop|absolute_rate_limit|state|mode_switch|reject\n",
+                     "yaw_cross_pi|manual_rate|manual_clamp|manual_drop|fault_beats_drop|absolute_rate_limit|state|"
+                     "mode_switch|reject\n",
                      argv[0]);
         return 2;
     }
@@ -1100,6 +1133,10 @@ int main(int argc, char **argv)
     if (std::strcmp(scenario, "mode_switch") == 0)
     {
         return scenario_mode_switch(publishers);
+    }
+    if (std::strcmp(scenario, "fault_beats_drop") == 0)
+    {
+        return scenario_fault_beats_drop(publishers);
     }
     if (std::strcmp(scenario, "manual_drop") == 0)
     {
