@@ -6,7 +6,7 @@
 |---|---|
 | `make_golden.py` | 只照协议文本，用 `zlib.crc32` 与 `struct` 生成标准帧 `test/data/robolink/golden_v0_2.txt`。不读本仓的 C++ |
 | `pc_crosscheck.cpp` | 用 PC 端 `foray_platform` 的编解码核对同一批标准帧。不进本仓构建 |
-| `link_probe.py` | 上板探测：在 PC 上扮演上位机连 `link_dm_mc02` 固件，统计握手、频率、帧序号、样本停留时间、IMU 状态变化，可选 1 kHz 控制快照与拔线重连；`--follow` 实时打印姿态的 yaw/pitch/roll |
+| `link_probe.py` | 上板探测：在 PC 上扮演上位机连 `infantry_dm_mc02`（或 `link_dm_mc02`）固件，统计握手、频率、帧序号、样本停留时间、IMU 状态变化，可选 1 kHz 控制快照与拔线重连；`--follow` 实时打印姿态的 yaw/pitch/roll；控制快照里的云台目标可以给固定值（`--gimbal-yaw`、`--gimbal-pitch`）或正弦扫描（`--sweep 振幅,频率`，同时发角速度前馈） |
 | `pc_board_check.cpp` | 用 PC 端 `foray_platform` 的链路状态机直接连板子（视觉组实际用的代码）。不进本仓构建 |
 | `pc_session_check.cpp` | PC 端的链路状态机（`RoboLinkHostLink` 与串口类）和 MCU 端的 `robolink::Session` 在伪终端上联调：握手、1 kHz 姿态与控制快照、两个方向的卡死与恢复。不进本仓构建 |
 
@@ -30,6 +30,8 @@ MCU 端的宿主测试 `robolink_wire`、`robolink_messages`、`robolink_session
 ```bash
 tool/robolink/link_probe.py --duration 60 --control --reconnect   # 自动找 DM-MC02 的虚拟串口
 tool/robolink/link_probe.py --follow                              # 实时打印 yaw/pitch/roll（度），Ctrl-C 停止
+tool/robolink/link_probe.py --gimbal-yaw 0.3 --gimbal-pitch 0.1  # 发固定的云台目标（自瞄接管用）
+tool/robolink/link_probe.py --sweep 0.3,0.5                      # yaw 以 0.3 rad、0.5 Hz 正弦扫描
 ./pc_board_check /dev/serial/by-id/usb-STMicroelectronics_STM32_Virtual_ComPort_* 30 --control
 ```
 

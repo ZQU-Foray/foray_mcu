@@ -5,7 +5,9 @@
 - 之后每 20 ms 发一个保活帧，可选按 1 kHz 发控制快照（--control）；
 - 解析收到的每一帧（魔数定界、帧头、CRC、槽位），统计状态与姿态的频率、帧序号跳变、样本在 MCU 里的停留时间
   （帧头时刻 − 采样时刻）、IMU 状态的变化；
-- 可选测拔线重连（--reconnect）：关串口 1 s 再打开，量重新握手的时间。
+- 可选测拔线重连（--reconnect）：关串口 1 s 再打开，量重新握手的时间；
+- 控制快照里的云台目标可以给固定值（--gimbal-yaw、--gimbal-pitch），也可以给正弦扫描（--sweep 振幅,频率），
+  扫描时同时发对应的角速度前馈。这两个选项会自动打开 --control。
 
 组帧用 make_golden.py 里只照协议文本写的那套实现；解析也只照协议写，不用本仓的 C++。
 
@@ -15,6 +17,8 @@
     link_probe.py --port /dev/ttyACM0 --reconnect  # 指定串口，最后测一次重连
     link_probe.py --follow                         # 实时打印 yaw/pitch/roll，Ctrl-C 停止
     link_probe.py --follow --interval 0.2          # 实时打印，每 0.2 s 一行
+    link_probe.py --gimbal-yaw 0.3 --gimbal-pitch 0.1   # 发固定的云台目标（自瞄接管的测试）
+    link_probe.py --sweep 0.3,0.5                  # yaw 以 0.3 rad、0.5 Hz 正弦扫描
 没有 pyserial 也能用（termios）。串口没有读写权限时，先让负责人加 udev 规则（见对账记录）。
 """
 
@@ -158,10 +162,20 @@ def euler_zyx(q: tuple[float, float, float, float]) -> tuple[float, float, float
 
 class Probe:
     def __init__(
-        self, path: str, send_control: bool, follow_interval: float | None = None
+        self,
+        path: str,
+        send_control: bool,
+        follow_interval: float | None = None,
+        gimbal_yaw: float = 0.125,
+        gimbal_pitch: float = -0.0625,
+        sweep: tuple[float, float] | None = None,
     ) -> None:
         self.path = path
         self.control_enabled = send_control
+        self.gimbal_yaw = gimbal_yaw
+        self.gimbal_pitch = gimbal_pitch
+        self.sweep = sweep
+        self.control_start_s = self.now()
         self.follow_interval = follow_interval
         self.fd = open_port(path)
         self.parser = Parser()
@@ -197,13 +211,24 @@ class Probe:
         self.write([rl.slot(rl.HELLO, self.hello_seq, payload)])
         self.hello_sent_s = self.now()
 
+    def gimbal_setpoint(self) -> tuple[float, float, float, float]:
+        """云台目标与前馈：固定值，或者围绕 yaw 目标的正弦扫描（同时给出角速度前馈）。"""
+        if self.sweep is None:
+            return self.gimbal_yaw, self.gimbal_pitch, 0.0, 0.0
+        amplitude, frequency = self.sweep
+        phase = 2.0 * math.pi * frequency * (self.now() - self.control_start_s)
+        yaw = self.gimbal_yaw + amplitude * math.sin(phase)
+        yaw_rate = amplitude * 2.0 * math.pi * frequency * math.cos(phase)
+        return yaw, self.gimbal_pitch, yaw_rate, 0.0
+
     def send_control(self) -> None:
+        yaw, pitch, yaw_rate, pitch_rate = self.gimbal_setpoint()
         payload = rl.control(
             self.control_seq & 0xFFFFFFFF,
             2,
             2,
             0x0002,
-            [0.0, 0.0, 0.0, 0.125, -0.0625, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, yaw, pitch, yaw_rate, pitch_rate, 0.0, 0.0],
             0,
         )
         self.write(
@@ -412,6 +437,16 @@ def main() -> int:
         "--reconnect", action="store_true", help="最后关串口 1 s 再打开，量重新握手"
     )
     parser.add_argument(
+        "--gimbal-yaw", type=float, help="控制快照里的云台 yaw 目标（rad，默认 0.125）"
+    )
+    parser.add_argument(
+        "--gimbal-pitch", type=float, help="云台 pitch 目标（rad，低头为正，默认 −0.0625）"
+    )
+    parser.add_argument(
+        "--sweep",
+        help="正弦目标：振幅(rad),频率(Hz)，如 0.3,0.5；围绕 yaw 目标扫描，同时发角速度前馈",
+    )
+    parser.add_argument(
         "--follow",
         action="store_true",
         help="实时打印姿态的 yaw/pitch/roll，直到 Ctrl-C（忽略 --duration）",
@@ -423,6 +458,26 @@ def main() -> int:
         help="--follow 时每隔多少秒打印一行（默认 0.5）",
     )
     args = parser.parse_args()
+
+    sweep = None
+    if args.sweep is not None:
+        try:
+            amplitude_text, frequency_text = args.sweep.split(",")
+            sweep = (float(amplitude_text), float(frequency_text))
+        except ValueError:
+            print("--sweep 的写法是 振幅,频率，例如 0.3,0.5")
+            return 2
+        if sweep[0] < 0.0 or sweep[1] <= 0.0:
+            print("--sweep 的振幅不能为负、频率必须大于 0")
+            return 2
+    gimbal_yaw = 0.125 if args.gimbal_yaw is None else args.gimbal_yaw
+    gimbal_pitch = -0.0625 if args.gimbal_pitch is None else args.gimbal_pitch
+    send_control = (
+        args.control
+        or args.gimbal_yaw is not None
+        or args.gimbal_pitch is not None
+        or sweep is not None
+    )
 
     path = args.port
     if path is None:
@@ -440,7 +495,7 @@ def main() -> int:
         if args.reconnect:
             print("--follow 与 --reconnect 不能同时用")
             return 2
-        probe = Probe(path, args.control, args.interval)
+        probe = Probe(path, send_control, args.interval, gimbal_yaw, gimbal_pitch, sweep)
         print(f"串口 {path}，实时打印姿态（Ctrl-C 停止；每 {args.interval:g} s 一行）")
         try:
             probe.run(None)
@@ -449,7 +504,7 @@ def main() -> int:
         finally:
             os.close(probe.fd)
         return 0
-    probe = Probe(path, args.control)
+    probe = Probe(path, send_control, None, gimbal_yaw, gimbal_pitch, sweep)
     probe.run(args.duration)
     s = probe.stats
     elapsed = args.duration
