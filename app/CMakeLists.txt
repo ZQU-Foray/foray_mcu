@@ -59,6 +59,18 @@ target_link_libraries(app_pc_link PUBLIC
     hal
     hal_os)
 
+# app_remote：遥控的最小版——只把 SBUS 解析成 safety.stop（急停与人工确认），不控制云台与底盘。
+# 仲裁能力做好后改发布 remote.input，safety.stop 由仲裁发布。
+app_library(app_remote
+    remote/remote.cpp
+    remote/remote.hpp)
+target_link_libraries(app_remote PUBLIC
+    app_topics
+    middleware_topic
+    hal
+    hal_os
+    driver_protocol_sbus)
+
 # app_bringup：框架验证用的能力（心跳与监视），不含 RM 业务，零 RTOS。
 # 外设检查：IMU（BMI088 + 中断里发布 + VQF + 加热）、CAN（只收）、SBUS、USB 报告、指示；
 # 上电打开板上电源输出；达妙电机检查。
@@ -93,6 +105,21 @@ target_link_libraries(app_bringup PUBLIC
     driver_protocol_sbus
     lib_estimate
     utils_math)
+
+# app_gimbal：云台能力。按 imu.attitude 稳住指向、跟踪 PC 目标；只用关节 Joint，不认识电机品牌。
+# axis_loop 是单轴串级的控制律（纯计算），由 gimbal.cpp 使用，也单独做宿主测试。
+app_library(app_gimbal
+    gimbal/axis_loop.cpp
+    gimbal/axis_loop.hpp
+    gimbal/gimbal.cpp
+    gimbal/gimbal.hpp)
+target_link_libraries(app_gimbal PUBLIC
+    app_topics
+    middleware_topic
+    driver_motor
+    hal_os
+    utils_math
+    lib_control)
 
 if(CMAKE_CROSSCOMPILING)
     # app_common：任务运行器（task_runner.hpp，只有头文件）。头文件用到 FreeRTOS 类型，

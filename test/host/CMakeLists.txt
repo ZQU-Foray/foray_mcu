@@ -168,12 +168,37 @@ host_test(power_outputs
 host_test(bringup_dm
     SOURCES unit/bringup/dm_check_test.cpp
     LINK app_bringup platform_mock)
+# 遥控最小版：SBUS → safety.stop。topic 只能有一个发布者，场景按参数分进程运行。
+host_test(remote NO_TEST
+    SOURCES unit/remote/remote_test.cpp
+    LINK app_remote platform_mock)
+foreach(scenario run failsafe timeout reject)
+    add_test(NAME remote_${scenario} COMMAND test_remote ${scenario})
+endforeach()
+# 云台能力：两台达妙电机、CanBus、DmMotor、安全门都是真的，IMU 与 PC 目标由测试发布。
+# topic 只能有一个发布者，场景按参数分进程运行。
+host_test(gimbal NO_TEST
+    SOURCES unit/gimbal/gimbal_test.cpp
+    LINK app_gimbal app_actuator driver_motor_dm platform_mock)
+foreach(scenario settling locked enable track estop fault attitude_timeout target_expiry pitch_limit)
+    add_test(NAME gimbal_${scenario} COMMAND test_gimbal ${scenario})
+endforeach()
+# 通用数学：角度回绕
+host_test(basic_math
+    SOURCES unit/math/basic_math_test.cpp
+    LINK utils_math)
+# 云台的单轴串级：被控对象写在测试里（J·ω̇ = τ − b·ω − 摩擦 − 重力），不碰关节与 topic
+host_test(axis_loop
+    SOURCES unit/gimbal/axis_loop_test.cpp
+    LINK app_gimbal)
+
 # ---- 架构断言：通用电机头不得引用具体电机协议或驱动 ----
 # 能力只用关节 Joint，所以 joint.hpp 不能知道品牌。清单显式列出，
 # 任一文件缺失即报错，提醒搬迁时同步更新；文件改动后会自动重新配置。
 # 阶段 A 重建底盘、云台等能力时，把只用关节的能力头也加进来。
 set(MOTOR_BOUNDARY_FILES
-    "${PROJECT_SOURCE_DIR}/src/driver/motor/joint.hpp")
+    "${PROJECT_SOURCE_DIR}/src/driver/motor/joint.hpp"
+    "${PROJECT_SOURCE_DIR}/app/gimbal/gimbal.hpp")
 foreach(source IN LISTS MOTOR_BOUNDARY_FILES)
     if(NOT EXISTS "${source}")
         message(FATAL_ERROR "边界检查清单中的文件不存在：${source}")

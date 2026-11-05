@@ -59,6 +59,11 @@ CI 的 `host-tests` 作业（`.github/workflows/ci.yml`）在 GitHub Actions 的
 | `bringup_io` | `unit/bringup/io_checks_test.cpp` | `app_bringup` + `platform_mock`（CanCheck 只收、SbusCheck 跨段拼帧与失控保护、UsbReport 状态行与回显、Indicator 两声与灯的状态、TextLine 定点格式化） |
 | `bringup_dm` | `unit/bringup/dm_check_test.cpp` | `app_bringup` + `platform_mock`（达妙电机检查，Decision-20261102-02：整个流程、跳过转动、没有电机、核对不符、使能失败；模拟电机含通讯超时与按指令的转速） |
 | `safety_gate` | `unit/actuator/safety_gate_test.cpp` | `app_actuator` + `platform_mock`（安全门：上电锁住、确认后放开、急停锁住、解除后要再确认、发布者超时锁住，Decision-20261102-03） |
+| `power_outputs` | `unit/actuator/power_outputs_test.cpp` | `app_actuator` + `platform_mock`（电源输出：按参数打开、低电平打开的板、有一路不是输出引脚、空参数；从 bringup 移入 `app/actuator`，Decision-20261105-01） |
+| `basic_math` | `unit/math/basic_math_test.cpp` | `utils_math`（`wrap_pi`：±π 边界与右开区间、几圈以外的角度、整段扫描、非有限值，Decision-20261105-01） |
+| `axis_loop` | `unit/gimbal/axis_loop_test.cpp` | `app_gimbal`（单轴串级在宿主机上闭环：被控对象 J·ω̇ = τ − b·ω − 摩擦 − 重力、力矩晚一拍；符号、阶跃收敛与超调、重力积分与前馈、饱和与积分限幅、总限幅的积分抗饱和、reset、非有限输入、参数检查，Decision-20261105-01） |
+| `gimbal_settling` / `gimbal_locked` / `gimbal_enable` / `gimbal_track` / `gimbal_estop` / `gimbal_fault` / `gimbal_attitude_timeout` / `gimbal_target_expiry` / `gimbal_pitch_limit` | `unit/gimbal/gimbal_test.cpp` | `app_gimbal` + `app_actuator` + `driver_motor_dm` + `platform_mock`（云台能力：两台达妙电机、CanBus、DmMotor、安全门都是真的，IMU 与 PC 目标由测试发布；每个 topic 只能有一个发布者，按参数分进程：SETTLING 与安全门锁住时不出力、放开后两台都使能且不甩、yaw 力矩方向与回绕、急停当轮撤销、一台报故障两台都撤销、姿态超时、目标过期回 HOLD 保持、pitch 目标钳位，Decision-20261105-01） |
+| `remote_run` / `remote_failsafe` / `remote_timeout` / `remote_reject` | `unit/remote/remote_test.cpp` | `app_remote` + `platform_mock`（遥控最小版：运行档、失控保护、超时、拨回再拨上 `arm_sequence` 加 1、上电就在运行档不加、参数检查，Decision-20261105-01） |
 
 并发测试（`spsc_queue`、`latest_value`、`hal_os_mock`、`signal`、`topic`）可以加 `-fsanitize=thread` 在本地用 ThreadSanitizer 运行，CI 不跑。GCC 12 起会对 `LatestValue` 里的 `atomic_thread_fence` 报 `-Wtsan`，与 `-Werror` 一起用时加 `-Wno-tsan`。`spsc_queue`、`latest_value` 的回绕部分分别要读写 2^32 个字节、写 2^31 次，用 ThreadSanitizer 跑时先把轮数改小。ThreadSanitizer 程序启动即报 "unexpected memory mapping" 时（WSL 与 Ubuntu 24.04 都遇到过），用 `setarch $(uname -m) -R ./test_xxx` 运行。
 

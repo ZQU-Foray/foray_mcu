@@ -13,7 +13,8 @@ target_include_directories(profile_${PROFILE_ID} INTERFACE
 # assembly_<profile>：组合根——构造对象、建任务表、注入参数、实现启动入口（评审报告 §5.2）。
 # 只有最终固件可以链接它（规则 5）。
 #
-# 每个 profile 一个组合根 assembly/<profile>.cpp，链接 profile.cmake 的 CAPABILITIES。
+# 每个 profile 一个组合根 assembly/<profile>.cpp，链接 profile.cmake 的 CAPABILITIES（app_<能力>）
+# 与 DRIVERS（driver_<名称>：组合根直接构造、能力又不链接的驱动，如只认识关节的云台用的达妙驱动）。
 set(assembly assembly_${PROFILE_ID})
 
 add_library(${assembly} STATIC
@@ -28,5 +29,8 @@ target_link_libraries(${assembly} PRIVATE
     os_freertos_${BOARD_ID})
 foreach(capability IN LISTS CAPABILITIES)
     target_link_libraries(${assembly} PRIVATE app_${capability})
+endforeach()
+foreach(driver IN LISTS DRIVERS)
+    target_link_libraries(${assembly} PRIVATE driver_${driver})
 endforeach()
 link_object_library(${assembly} board_${BOARD_ID})

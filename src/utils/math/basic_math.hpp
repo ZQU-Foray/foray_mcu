@@ -91,6 +91,14 @@ Type abs(Type x)
 }
 
 /**
+ * @brief 把角度回绕到 [−π, π)。
+ * @param angle 任意角度，单位 rad。
+ * @return 回绕后的角度；恰好等于 π 时返回 −π（区间右开）；非有限值返回 0。
+ * @note 用于角度误差：目标与测量各自在 (−π, π] 时，误差要回绕，否则会绕远路转一整圈。
+ */
+[[nodiscard]] float wrap_pi(float angle) noexcept;
+
+/**
  * @brief 快速反平方根（Quake III 魔数算法）
  * @param[in] x 输入值，必须为有限正数
  * @return 1/sqrt(x) 的近似值；输入无效时返回 0
