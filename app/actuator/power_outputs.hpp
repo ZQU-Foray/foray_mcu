@@ -1,17 +1,17 @@
-#ifndef BRINGUP_POWER_OUTPUTS_HPP
-#define BRINGUP_POWER_OUTPUTS_HPP
+#ifndef ACTUATOR_POWER_OUTPUTS_HPP
+#define ACTUATOR_POWER_OUTPUTS_HPP
 
 #include "hal/gpio.hpp"
 
 #include <cstddef>
 
-namespace bringup
+namespace actuator
 {
 
 /**
  * @brief 板上可控电源输出：上电时按 profile 打开或关闭，接在这些输出上的电机随之上电。
  *        只在 init() 里写一次，没有 step()。
- * @note 达妙电机上电默认失能，大疆电调没有控制帧时不出力，bringup 只收不发：打开电源不会让电机动。
+ * @note 达妙电机上电默认失能，大疆电调没有控制帧时不出力，只收不发：打开电源不会让电机动。
  */
 class PowerOutputs final
 {
@@ -43,6 +43,6 @@ class PowerOutputs final
     bool on_{false};
 };
 
-} // namespace bringup
+} // namespace actuator
 
-#endif // BRINGUP_POWER_OUTPUTS_HPP
+#endif // ACTUATOR_POWER_OUTPUTS_HPP

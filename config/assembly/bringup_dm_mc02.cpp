@@ -1,5 +1,6 @@
 // 组合根：bringup_dm_mc02（框架验证）。
 // 构造驱动与能力对象、注入板级句柄与参数、定义任务表、实现启动入口 boot_*；不含行为。
+#include "actuator/power_outputs.hpp"
 #include "board.hpp"
 #include "boot/boot.h"
 #include "bringup/can_check.hpp"
@@ -8,7 +9,6 @@
 #include "bringup/imu_check.hpp"
 #include "bringup/indicator.hpp"
 #include "bringup/monitor.hpp"
-#include "bringup/power_outputs.hpp"
 #include "bringup/sbus_check.hpp"
 #include "bringup/usb_report.hpp"
 #include "common/task_runner.hpp"
@@ -59,7 +59,7 @@ static_assert(device::can_load_percent(device::DmMotor::frames_per_second(1U, 10
 // ---- 能力 ----
 // 板上两路 24 V 输出，高电平打开
 constexpr std::array POWER_24V_OUTPUTS{board::POWER_24V_0, board::POWER_24V_1};
-bringup::PowerOutputs g_power_outputs;
+actuator::PowerOutputs g_power_outputs;
 bringup::Heartbeat g_heartbeat;
 bringup::Monitor g_monitor;
 bringup::ImuCheck g_imu_check;
@@ -132,7 +132,7 @@ bool boot_init(void)
 {
     // 电源输出最先打开：达妙电机上电自检约 1 s
     return hal::init() &&
-           g_power_outputs.init(bringup::PowerOutputs::Config{
+           g_power_outputs.init(actuator::PowerOutputs::Config{
                POWER_24V_OUTPUTS.data(), POWER_24V_OUTPUTS.size(), hal::Gpio::Level::HIGH, params::POWER_OUTPUTS}) &&
            g_heartbeat.init() && g_monitor.init(params::MONITOR) &&
            g_imu_check.init(bringup::ImuCheck::Config{

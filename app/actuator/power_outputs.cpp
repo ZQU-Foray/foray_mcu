@@ -1,6 +1,6 @@
-#include "bringup/power_outputs.hpp"
+#include "actuator/power_outputs.hpp"
 
-namespace bringup
+namespace actuator
 {
 
 bool PowerOutputs::init(const Config &config) noexcept
@@ -21,4 +21,4 @@ bool PowerOutputs::init(const Config &config) noexcept
     return written;
 }
 
-} // namespace bringup
+} // namespace actuator

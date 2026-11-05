@@ -2,7 +2,6 @@
 // bringup.sbus）、UsbReport（回显与状态行）、Indicator（蜂鸣器与 RGB 灯）、TextLine（定点格式化）。
 #include "bringup/can_check.hpp"
 #include "bringup/indicator.hpp"
-#include "bringup/power_outputs.hpp"
 #include "bringup/sbus_check.hpp"
 #include "bringup/text_line.hpp"
 #include "bringup/usb_report.hpp"
@@ -211,30 +210,5 @@ int main()
     assert(heartbeat && imu);
     test_usb_report(heartbeat, imu);
     test_indicator(heartbeat, imu);
-
-    // PowerOutputs：上电按参数打开
-    {
-        mock::gpio::reset();
-        const std::array outputs{hal::Gpio{10U}, hal::Gpio{11U}};
-        bringup::PowerOutputs power;
-        assert(
-            power.init(bringup::PowerOutputs::Config{outputs.data(), outputs.size(), hal::Gpio::Level::HIGH, {true}}));
-        assert(power.is_on());
-        assert(mock::gpio::level(10U) == hal::Gpio::Level::HIGH && mock::gpio::level(11U) == hal::Gpio::Level::HIGH);
-        // 参数为关：写成关闭电平
-        assert(
-            power.init(bringup::PowerOutputs::Config{outputs.data(), outputs.size(), hal::Gpio::Level::HIGH, {false}}));
-        assert(!power.is_on() && mock::gpio::level(10U) == hal::Gpio::Level::LOW);
-        // 低电平打开的板
-        assert(
-            power.init(bringup::PowerOutputs::Config{outputs.data(), outputs.size(), hal::Gpio::Level::LOW, {true}}));
-        assert(mock::gpio::level(11U) == hal::Gpio::Level::LOW);
-        // 有一路不是输出引脚：返回 false，其余各路照写
-        mock::gpio::set_capabilities(10U, false, false);
-        assert(
-            !power.init(bringup::PowerOutputs::Config{outputs.data(), outputs.size(), hal::Gpio::Level::HIGH, {true}}));
-        assert(!power.is_on() && mock::gpio::level(11U) == hal::Gpio::Level::HIGH);
-        assert(!power.init(bringup::PowerOutputs::Config{nullptr, 2U, hal::Gpio::Level::HIGH, {true}}));
-    }
     return 0;
 }

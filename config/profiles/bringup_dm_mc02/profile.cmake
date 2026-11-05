@@ -7,4 +7,4 @@ set(PROFILE_ID bringup_dm_mc02)
 set(BOARD st/dm_mc02)
 
 # 链接的能力：app_<能力>。组合根是 config/assembly/bringup_dm_mc02.cpp。
-set(CAPABILITIES bringup)
+set(CAPABILITIES bringup actuator)

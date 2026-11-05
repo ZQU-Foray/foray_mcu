@@ -3,11 +3,11 @@
 
 // bringup_dm_mc02 的参数（只含数据，规则 4）。
 
+#include "actuator/power_outputs.hpp"
 #include "bringup/dm_check.hpp"
 #include "bringup/imu_check.hpp"
 #include "bringup/indicator.hpp"
 #include "bringup/monitor.hpp"
-#include "bringup/power_outputs.hpp"
 #include "bringup/usb_report.hpp"
 
 namespace params
@@ -31,7 +31,7 @@ inline constexpr bringup::ImuCheck::Parameters IMU{
 inline constexpr device::Bmi088Heater::Config HEATER{control::HeaterControl::Model{0.967F, 15.5F, 0.95F}};
 
 // 上电打开板上两路 24 V 输出：接在上面的电机（GM6020、DM-J4310）随之上电
-inline constexpr bringup::PowerOutputs::Parameters POWER_OUTPUTS{true};
+inline constexpr actuator::PowerOutputs::Parameters POWER_OUTPUTS{true};
 
 // USB 状态行 10 Hz
 inline constexpr bringup::UsbReport::Parameters USB_REPORT{100000U};

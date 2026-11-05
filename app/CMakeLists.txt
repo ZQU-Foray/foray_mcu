@@ -28,7 +28,9 @@ target_link_libraries(app_topics INTERFACE middleware_topic hal_os)
 # app_actuator：安全门，按 safety.stop 集中决定一组关节能不能出力。
 app_library(app_actuator
     actuator/safety_gate.cpp
-    actuator/safety_gate.hpp)
+    actuator/safety_gate.hpp
+    actuator/power_outputs.cpp
+    actuator/power_outputs.hpp)
 target_link_libraries(app_actuator PUBLIC app_topics middleware_topic driver_motor hal_os)
 
 # app_imu：板载 BMI088 → 云台姿态 imu.attitude；上电零偏标定（SETTLING/READY/DEGRADED）与 yaw 归零。
@@ -73,8 +75,6 @@ app_library(app_bringup
     bringup/indicator.hpp
     bringup/monitor.cpp
     bringup/monitor.hpp
-    bringup/power_outputs.cpp
-    bringup/power_outputs.hpp
     bringup/sbus_check.cpp
     bringup/sbus_check.hpp
     bringup/text_line.cpp

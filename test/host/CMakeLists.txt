@@ -160,11 +160,14 @@ host_test(bringup_io
 host_test(safety_gate
     SOURCES unit/actuator/safety_gate_test.cpp
     LINK app_actuator platform_mock)
+# 电源输出：引脚由 GPIO 替身扮演
+host_test(power_outputs
+    SOURCES unit/actuator/power_outputs_test.cpp
+    LINK app_actuator platform_mock)
 # 达妙电机检查：电机由 unit/motor/dm_fake_motor.hpp 扮演
 host_test(bringup_dm
     SOURCES unit/bringup/dm_check_test.cpp
     LINK app_bringup platform_mock)
-
 # ---- 架构断言：通用电机头不得引用具体电机协议或驱动 ----
 # 能力只用关节 Joint，所以 joint.hpp 不能知道品牌。清单显式列出，
 # 任一文件缺失即报错，提醒搬迁时同步更新；文件改动后会自动重新配置。
