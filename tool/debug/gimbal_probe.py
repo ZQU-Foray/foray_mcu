@@ -24,18 +24,18 @@
 from __future__ import annotations
 
 import argparse
-import re
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import bringup_probe as probe  # noqa: E402  （同目录的工具，复用 gdb 取地址与内存解码）
+import bringup_probe as probe  # 同目录的工具，复用 gdb 取地址与内存解码
 
 ANON = "'(anonymous namespace)::{}'"
 ITEMS = [
     ("gimbal", ANON.format("g_gimbal") + ".report_"),
+    ("command", ANON.format("g_command") + ".report_"),
     ("safety", ANON.format("g_safety_gate") + ".report_"),
     ("remote", ANON.format("g_remote") + ".report_"),
     ("dm", ANON.format("g_dm_can_1") + ".statistics_"),
@@ -59,9 +59,7 @@ REASONS = [
 SAFETY_STATES = ["锁住", "放开"]
 
 
-def decode_values(
-    regions: list, sample: dict[str, list[int]]
-) -> dict[str, object]:
+def decode_values(regions: list, sample: dict[str, list[int]]) -> dict[str, object]:
     values: dict[str, object] = {}
     for name, _, fields, size in regions:
         data = probe.region_bytes(sample, name)[:size]
@@ -77,7 +75,11 @@ def judge(decoded: list[dict[str, object]]) -> list[tuple[bool, str]]:
         return int(second[key]) - int(first[key])
 
     checks: list[tuple[bool, str]] = []
-    mode = MODES[second["gimbal.mode"]] if second["gimbal.mode"] < len(MODES) else second["gimbal.mode"]
+    mode = (
+        MODES[second["gimbal.mode"]]
+        if second["gimbal.mode"] < len(MODES)
+        else second["gimbal.mode"]
+    )
     reason = (
         REASONS[second["gimbal.last_disable_reason"]]
         if second["gimbal.last_disable_reason"] < len(REASONS)
@@ -92,15 +94,24 @@ def judge(decoded: list[dict[str, object]]) -> list[tuple[bool, str]]:
     checks.append(
         (
             bool(second["safety.has_message"]),
-            f"安全门 {safety}：收到 safety.stop {delta('safety.release_count')} 次放开，"
-            f"超时 {delta('safety.timeout_count')} 次",
+            (
+                f"安全门 {safety}：收到 safety.stop {delta('safety.release_count')} 次放开，"
+                f"超时 {delta('safety.timeout_count')} 次"
+            ),
         )
     )
     checks.append(
         (
-            bool(second["remote.fresh"]),
-            f"遥控帧新鲜：{bool(second['remote.fresh'])}，运行档：{bool(second['remote.running'])}，"
-            f"拨杆原始值 {second['remote.channel_raw']}",
+            bool(second["remote.connected"]),
+            (
+                f"遥控连着：{bool(second['remote.connected'])}；"
+                f"仲裁：连着 {bool(second['command.input_connected'])}，"
+                f"运行 {bool(second['command.run'])}，自瞄 {bool(second['command.auto_aim'])}，"
+                f"开火 {bool(second['command.fire'])}，"
+                f"PC 目标有效 {bool(second['command.pc_target_valid'])}，"
+                f"接管 {bool(second['command.engaged'])}，"
+                f"接管误差 {second['command.engage_error_rad']:.3f} rad"
+            ),
         )
     )
     runs = delta("runner[1].run_count")
@@ -120,9 +131,11 @@ def judge(decoded: list[dict[str, object]]) -> list[tuple[bool, str]]:
         (
             int(second["dm.enable_failure_count"]) == 0
             and int(second["dm.request_timeout_count"]) == 0,
-            f"达妙：使能失败 {second['dm.enable_failure_count']} 次，"
-            f"请求超时 {second['dm.request_timeout_count']} 次，"
-            f"反馈 {delta('dm.feedback_count')} 帧/次读数",
+            (
+                f"达妙：使能失败 {second['dm.enable_failure_count']} 次，"
+                f"请求超时 {second['dm.request_timeout_count']} 次，"
+                f"反馈 {delta('dm.feedback_count')} 帧/次读数"
+            ),
         )
     )
     if mode in ("HOLD", "TRACK"):
@@ -131,27 +144,34 @@ def judge(decoded: list[dict[str, object]]) -> list[tuple[bool, str]]:
             (
                 abs(float(second["gimbal.yaw_torque_newton_meter"])) <= 12.5
                 and abs(float(second["gimbal.pitch_torque_newton_meter"])) <= 12.5,
-                f"力矩：yaw {second['gimbal.yaw_torque_newton_meter']:.3f} N·m，"
-                f"pitch {second['gimbal.pitch_torque_newton_meter']:.3f} N·m（重力前馈 "
-                f"{second['gimbal.pitch_gravity_newton_meter']:.3f} N·m）",
+                (
+                    f"力矩：yaw {second['gimbal.yaw_torque_newton_meter']:.3f} N·m，"
+                    f"pitch {second['gimbal.pitch_torque_newton_meter']:.3f} N·m（重力前馈 "
+                    f"{second['gimbal.pitch_gravity_newton_meter']:.3f} N·m）"
+                ),
             )
         )
         checks.append(
             (
                 True,
-                f"pitch：测量 {second['gimbal.pitch_rad']:.4f} rad，目标 "
-                f"{second['gimbal.pitch_target_rad']:.4f} rad，补偿力矩 "
-                f"{second['gimbal.pitch_diagnostics.compensation_newton_meter']:.3f} N·m；"
-                f"yaw：测量 {second['gimbal.yaw_rad']:.4f} rad，目标 "
-                f"{second['gimbal.yaw_target_rad']:.4f} rad，补偿力矩 "
-                f"{second['gimbal.yaw_diagnostics.compensation_newton_meter']:.3f} N·m",
+                (
+                    f"pitch：测量 {second['gimbal.pitch_rad']:.4f} rad，目标 "
+                    f"{second['gimbal.pitch_target_rad']:.4f} rad，补偿力矩 "
+                    f"{second['gimbal.pitch_diagnostics.compensation_newton_meter']:.3f} N·m；"
+                    f"yaw：测量 {second['gimbal.yaw_rad']:.4f} rad，目标 "
+                    f"{second['gimbal.yaw_target_rad']:.4f} rad，补偿力矩 "
+                    f"{second['gimbal.yaw_diagnostics.compensation_newton_meter']:.3f} N·m"
+                ),
             )
         )
     checks.append(
         (
             bool(second["gimbal.attitude_valid"]),
-            f"姿态有效：{bool(second['gimbal.attitude_valid'])}，imu.attitude 每秒 "
-            f"{delta('topic.attitude.value')} 次，pc_link.control 每秒 {delta('topic.control.value')} 次",
+            (
+                f"姿态有效：{bool(second['gimbal.attitude_valid'])}，imu.attitude 每秒 "
+                f"{delta('topic.attitude.value')} 次，"
+                f"pc_link.control 每秒 {delta('topic.control.value')} 次"
+            ),
         )
     )
     return checks
@@ -159,13 +179,23 @@ def judge(decoded: list[dict[str, object]]) -> list[tuple[bool, str]]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--elf", type=Path, required=True, help="板上正在运行的固件 ELF")
+    parser.add_argument(
+        "--elf", type=Path, required=True, help="板上正在运行的固件 ELF"
+    )
     parser.add_argument("--gdb", default="arm-none-eabi-gdb")
     parser.add_argument("--openocd", default="openocd")
-    parser.add_argument("--interval", type=float, default=1.0, help="两次读数的间隔（s）")
+    parser.add_argument(
+        "--interval", type=float, default=1.0, help="两次读数的间隔（s）"
+    )
     parser.add_argument("--log", type=Path, help="把 OpenOCD 的原始输出另存到这个文件")
-    parser.add_argument("--dry-run", action="store_true", help="只解析 ELF，打印地址、字段与脚本，不连目标")
-    parser.add_argument("--cwd", type=Path, help="OpenOCD 的工作目录（WSL 里调用 Windows 版时用）")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="只解析 ELF，打印地址、字段与脚本，不连目标",
+    )
+    parser.add_argument(
+        "--cwd", type=Path, help="OpenOCD 的工作目录（WSL 里调用 Windows 版时用）"
+    )
     args = parser.parse_args()
 
     regions, _ = probe.resolve(args.gdb, args.elf, ITEMS)
@@ -176,7 +206,9 @@ def main() -> int:
                 print(f"    +{field.offset:<3} {field.name}（{field.kind}）")
         print(probe.build_tcl(regions, int(args.interval * 1000)))
         return 0
-    with tempfile.NamedTemporaryFile("w", suffix=".tcl", delete=False, encoding="utf-8") as script:
+    with tempfile.NamedTemporaryFile(
+        "w", suffix=".tcl", delete=False, encoding="utf-8"
+    ) as script:
         script.write(probe.build_tcl(regions, int(args.interval * 1000)))
     result = subprocess.run(
         [args.openocd, *probe.DEFAULT_SETUP, "-f", script.name],
@@ -199,7 +231,9 @@ def main() -> int:
     print(f"{'项':<52}{'第一次':>16}{'第二次':>16}{'增量':>12}")
     for key in decoded[0]:
         first, second = decoded[0][key], decoded[1][key]
-        delta = second - first if isinstance(first, int) and isinstance(second, int) else ""
+        delta = (
+            second - first if isinstance(first, int) and isinstance(second, int) else ""
+        )
         print(f"{key:<52}{first!s:>16}{second!s:>16}{delta!s:>12}")
 
     checks = judge(decoded)
