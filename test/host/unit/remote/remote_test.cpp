@@ -1,7 +1,7 @@
 // remote::Remote 在 platform/mock 上：UART 替身注入 SBUS 帧，测试核对发布的 two 个 topic。
 // 每个 topic 只能有一个发布者，场景按参数分进程运行（与 imu 相同）。
-// 覆盖：remote.input 的摇杆归一化/死区/反向、拨杆门限、失控保护与超时保持上一份正常值；
-// 安全门那条路（第 2 步搬到仲裁）：运行档、失控保护恢复、超时、拨回再拨上、上电就在运行档、参数检查。
+// 覆盖：remote.input 的摇杆归一化/死区/反向、拨杆门限、失控保护与超时保持上一份正常值、参数检查。
+// 安全门那条路（拨杆上升沿、arm_sequence）已经搬到仲裁，见 unit/command/arbiter_test.cpp。
 #include "mock_hal.hpp"
 #include "remote/remote.hpp"
 #include "topics/operator_input.hpp"
@@ -74,30 +74,18 @@ remote::Remote::Parameters parameters()
         remote::Remote::Switch{5U, 1000U, 1500U, topics::SwitchPosition::DOWN, topics::SwitchPosition::UP},
     };
     parameters.frame_timeout_us = FRAME_TIMEOUT;
-    parameters.channel = RUN_CHANNEL;
-    parameters.run_minimum_raw = RUN_MINIMUM;
-    parameters.run_maximum_raw = RUN_MAXIMUM;
     return parameters;
 }
 
 struct Harness
 {
     remote::Remote remote{hal::Uart{PORT}};
-    topic::Subscriber<topics::safety::Stop> stop{topics::safety::stop};
     topic::Subscriber<topics::OperatorInput> input{topics::remote::input};
 
     bool init()
     {
         mock::uart::reset();
         return remote.init(parameters());
-    }
-
-    topics::safety::Stop publish_stop(hal::os::Microseconds now)
-    {
-        remote.step(now);
-        topics::safety::Stop message{};
-        assert(stop.update(message));
-        return message;
     }
 
     topics::OperatorInput publish_input(hal::os::Microseconds now)
@@ -108,70 +96,6 @@ struct Harness
         return message;
     }
 };
-
-// 运行档：stop 为假；拨回再拨上 → arm_sequence 加 1
-int scenario_run()
-{
-    Harness harness;
-    assert(harness.init());
-    assert(harness.publish_stop(0U).stop); // 还没有帧
-    inject(sbus_frame(channels_with(1700U), 0x00U));
-    const topics::safety::Stop first = harness.publish_stop(1000U);
-    assert(!first.stop && first.arm_sequence == 0U); // 上电就在运行档：没有"拨"的动作
-    assert(harness.remote.report().running && harness.remote.report().fresh);
-    inject(sbus_frame(channels_with(1000U), 0x00U));
-    assert(harness.publish_stop(2000U).stop);
-    inject(sbus_frame(channels_with(1700U), 0x00U));
-    const topics::safety::Stop again = harness.publish_stop(3000U);
-    assert(!again.stop && again.arm_sequence == 1U);
-    inject(sbus_frame(channels_with(1000U), 0x00U));
-    assert(harness.publish_stop(4000U).stop);
-    inject(sbus_frame(channels_with(1700U), 0x00U));
-    assert(harness.publish_stop(5000U).arm_sequence == 2U);
-    inject(sbus_frame(channels_with(1400U), 0x00U)); // 拨杆没到位
-    assert(harness.publish_stop(6000U).stop);
-    return 0;
-}
-
-// 失控保护位：即使拨杆在运行档，stop 为真；位消失后 stop 变假，但这不算一次"拨上"（arm_sequence 不变）
-int scenario_failsafe()
-{
-    Harness harness;
-    assert(harness.init());
-    inject(sbus_frame(channels_with(1700U), 0x00U));
-    const topics::safety::Stop first = harness.publish_stop(1000U);
-    assert(!first.stop && first.arm_sequence == 0U);
-
-    inject(sbus_frame(channels_with(1700U), 0x08U));
-    const topics::safety::Stop failsafe = harness.publish_stop(2000U);
-    assert(failsafe.stop && failsafe.arm_sequence == 0U);
-    assert(harness.remote.report().failsafe == 1U);
-
-    inject(sbus_frame(channels_with(1700U), 0x00U));
-    const topics::safety::Stop recovered = harness.publish_stop(3000U);
-    assert(!recovered.stop && recovered.arm_sequence == 0U);
-
-    inject(sbus_frame(channels_with(1000U), 0x00U));
-    assert(harness.publish_stop(4000U).stop);
-    inject(sbus_frame(channels_with(1700U), 0x00U));
-    assert(harness.publish_stop(5000U).arm_sequence == 1U);
-    return 0;
-}
-
-// 停止注入超过超时：stop 为真；恢复注入后不需要重新"拨"
-int scenario_timeout()
-{
-    Harness harness;
-    assert(harness.init());
-    inject(sbus_frame(channels_with(1700U), 0x00U));
-    assert(!harness.publish_stop(1000U).stop);
-    assert(!harness.publish_stop(1000U + FRAME_TIMEOUT - 1U).stop);
-    assert(harness.publish_stop(1000U + FRAME_TIMEOUT).stop);
-    assert(!harness.remote.report().fresh);
-    inject(sbus_frame(channels_with(1700U), 0x00U));
-    assert(!harness.publish_stop(1000U + FRAME_TIMEOUT + 1000U).stop);
-    return 0;
-}
 
 // 参数检查
 int scenario_reject()
@@ -195,9 +119,6 @@ int scenario_reject()
     assert(!remote.init(bad));
     bad = parameters();
     bad.frame_timeout_us = 0U;
-    assert(!remote.init(bad));
-    bad = parameters();
-    bad.channel = 16U;
     assert(!remote.init(bad));
     std::puts("remote reject: 全部通过");
     return 0;
@@ -278,22 +199,10 @@ int main(int argc, char **argv)
 {
     if (argc != 2)
     {
-        std::fprintf(stderr, "用法：%s run|failsafe|timeout|reject|input\n", argv[0]);
+        std::fprintf(stderr, "用法：%s input|reject\n", argv[0]);
         return 2;
     }
     const char *scenario = argv[1];
-    if (std::strcmp(scenario, "run") == 0)
-    {
-        return scenario_run();
-    }
-    if (std::strcmp(scenario, "failsafe") == 0)
-    {
-        return scenario_failsafe();
-    }
-    if (std::strcmp(scenario, "timeout") == 0)
-    {
-        return scenario_timeout();
-    }
     if (std::strcmp(scenario, "reject") == 0)
     {
         return scenario_reject();

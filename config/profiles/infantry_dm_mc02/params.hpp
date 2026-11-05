@@ -3,6 +3,7 @@
 
 #include "actuator/power_outputs.hpp"
 #include "actuator/safety_gate.hpp"
+#include "command/arbiter.hpp"
 #include "gimbal/gimbal.hpp"
 #include "imu/imu.hpp"
 #include "pc_link/pc_link.hpp"
@@ -77,8 +78,29 @@ inline constexpr gimbal::Gimbal::Parameters GIMBAL{
     100000U, // target_timeout_us：PC 目标默认 100 ms 有效
 };
 
-// 安全门：遥控每 5 ms 发布一次 safety.stop，50 ms 收不到就当发布者挂了
+// 安全门：仲裁每轮（1 kHz）发布一次 safety.stop，50 ms 收不到就当发布者挂了
 inline constexpr actuator::SafetyGate::Parameters SAFETY{50000U};
+
+// 仲裁：拨杆 → 功能。哪个拨杆的哪一档是什么功能是占位值，上板核对后改。
+// 每个功能最多两条绑定（以后一条给遥控、一条给键鼠），任一条成立功能就成立。
+inline constexpr command::Parameters COMMAND{
+    std::array<command::Bindings, command::FUNCTION_COUNT>{
+        // RUN（放开安全门）：拨杆 0 在上档
+        command::Bindings{command::on_switch(command::Source::REMOTE, 0U, topics::SwitchPosition::UP),
+                          command::unbound()},
+        // AUTO_AIM（自瞄开关）：拨杆 1 在上档
+        command::Bindings{command::on_switch(command::Source::REMOTE, 1U, topics::SwitchPosition::UP),
+                          command::unbound()},
+        // FIRE（开火）：拨杆 2 在下档，最好是带回弹的开关
+        command::Bindings{command::on_switch(command::Source::REMOTE, 2U, topics::SwitchPosition::DOWN),
+                          command::unbound()},
+    },
+    // 手动瞄准：右摇杆 x 管 yaw、右摇杆 y 管 pitch；满量程 ±3 rad/s，上限 6 rad/s
+    command::ManualAim{topics::STICK_RIGHT_X, topics::STICK_RIGHT_Y, 3.0F, 3.0F, 6.0F},
+    0.2F,   // engage_range_rad：PC 目标离瞄准方向超过 0.2 rad 就不接管（0 表示不限制）
+    50000U, // input_timeout_us：50 ms 收不到操作输入就当遥控断了
+    20000U, // target_timeout_us：PC 目标的默认有效期
+};
 
 // 遥控：摇杆与拨杆的标定。通道、量程、门限都是占位值（SBUS 典型原始值 172/992/1811、三档 1000/1500/2000），
 // 上板先用 bringup 固件读 bringup.sbus 的通道、把摇杆推到底、把拨杆拨一遍，记下实际值再改这里。
@@ -96,10 +118,6 @@ inline constexpr remote::Remote::Parameters REMOTE{
         remote::Remote::Switch{6U, 1200U, 1600U, topics::SwitchPosition::DOWN, topics::SwitchPosition::UP},
     },
     100000U, // frame_timeout_us：100 ms 没有正常帧就当链路断了
-    // 安全门的拨杆（第 2 步搬到仲裁后删掉）
-    7U,
-    1500U,
-    1900U,
 };
 } // namespace params
 

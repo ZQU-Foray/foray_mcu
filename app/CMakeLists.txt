@@ -19,6 +19,7 @@ endfunction()
 add_library(app_topics INTERFACE
     topics/all.hpp
     topics/bringup.hpp
+    topics/command.hpp
     topics/imu.hpp
     topics/operator_input.hpp
     topics/pc_link.hpp
@@ -60,6 +61,17 @@ target_link_libraries(app_pc_link PUBLIC
     middleware_robolink
     hal
     hal_os)
+
+# app_command：仲裁。把操作输入（现在只有 SBUS 遥控）翻译成功能，发布 safety.stop 与 command.gimbal。
+# 绑定与功能映射在 Parameters 里，能力本身不认具体的拨杆。
+app_library(app_command
+    command/arbiter.cpp
+    command/arbiter.hpp)
+target_link_libraries(app_command PUBLIC
+    app_topics
+    middleware_topic
+    hal_os
+    utils_math)
 
 # app_remote：遥控的最小版——只把 SBUS 解析成 safety.stop（急停与人工确认），不控制云台与底盘。
 # 仲裁能力做好后改发布 remote.input，safety.stop 由仲裁发布。

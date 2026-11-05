@@ -87,7 +87,7 @@ bool parameters_valid(const Remote::Parameters &parameters) noexcept
             return false;
         }
     }
-    return parameters.frame_timeout_us != 0U && parameters.channel < protocol::SbusParser::CHANNEL_COUNT;
+    return parameters.frame_timeout_us != 0U;
 }
 
 } // namespace
@@ -104,12 +104,9 @@ bool Remote::init(const Parameters &parameters) noexcept
     last_frame_us_ = 0U;
     last_normal_frame_us_ = 0U;
     has_frame_ = false;
-    has_previous_frame_ = false;
-    last_run_position_ = false;
     failsafe_ = false;
     input_publisher_ = topics::remote::input.claim_publisher();
-    publisher_ = topics::safety::stop.claim_publisher();
-    return static_cast<bool>(input_publisher_) && static_cast<bool>(publisher_);
+    return static_cast<bool>(input_publisher_);
 }
 
 void Remote::step(hal::os::Microseconds now) noexcept
@@ -139,7 +136,6 @@ void Remote::step(hal::os::Microseconds now) noexcept
     {
         has_frame_ = true;
         last_frame_us_ = now;
-        report_.channel_raw = frame.channels[parameters_.channel];
         failsafe_ = frame.failsafe;
         if (!frame.failsafe)
         {
@@ -158,23 +154,11 @@ void Remote::step(hal::os::Microseconds now) noexcept
                                               ? topics::SwitchPosition::NONE
                                               : switch_position(parameters_.switches[index], frame.channels[channel]);
             }
-
-            // 安全门的拨杆（第 2 步搬到仲裁后删掉）
-            const bool run_position = report_.channel_raw >= parameters_.run_minimum_raw &&
-                                      report_.channel_raw <= parameters_.run_maximum_raw;
-            if (has_previous_frame_ && run_position && !last_run_position_)
-            {
-                ++report_.arm_sequence;
-            }
-            last_run_position_ = run_position;
-            has_previous_frame_ = true;
         }
     }
 
     report_.fresh = has_frame_ && !hal::os::has_elapsed(last_frame_us_, parameters_.frame_timeout_us, now);
     report_.connected = report_.fresh && !failsafe_;
-    report_.running = report_.connected && last_run_position_;
-    report_.stop = !report_.running;
 
     topics::OperatorInput input{};
     input.sticks = report_.sticks;
@@ -184,12 +168,6 @@ void Remote::step(hal::os::Microseconds now) noexcept
     input.connected = report_.connected;
     input.timestamp_us = last_normal_frame_us_;
     input_publisher_.publish(input);
-
-    topics::safety::Stop message{};
-    message.stop = report_.stop;
-    message.arm_sequence = report_.arm_sequence;
-    message.timestamp_us = now;
-    publisher_.publish(message);
 }
 
 } // namespace remote

@@ -7,7 +7,6 @@
 #include "middleware/topic/topic.hpp"
 #include "topics/operator_input.hpp"
 #include "topics/remote.hpp"
-#include "topics/safety.hpp"
 
 #include <array>
 #include <cstdint>
@@ -63,10 +62,6 @@ class Remote final
         std::array<Stick, topics::STICK_COUNT> sticks{};
         std::array<Switch, topics::SWITCH_COUNT> switches{};
         hal::os::Microseconds frame_timeout_us{100000U}; // 这么久没有正常帧就当链路断了
-        // 安全门的拨杆（第 2 步搬到仲裁后删掉）
-        std::uint8_t channel{0U};
-        std::uint16_t run_minimum_raw{0U};
-        std::uint16_t run_maximum_raw{0U};
     };
 
     /** 统计，调试器可读（只有运行 step() 的任务写）。 */
@@ -78,18 +73,14 @@ class Remote final
         std::uint32_t failsafe; // 接收机报告失控保护的帧
         std::array<float, topics::STICK_COUNT> sticks;
         std::array<topics::SwitchPosition, topics::SWITCH_COUNT> switches;
-        bool connected;             // 链路活着：最近一帧正常、没有失控保护
-        std::uint16_t channel_raw;  // 安全门的拨杆通道原始值（第 2 步删）
-        bool fresh;                 // 最近一帧在超时以内
-        bool running;               // 安全门的拨杆在运行档（第 2 步删）
-        bool stop;                  // 发布的 safety.stop.stop（第 2 步删）
-        std::uint32_t arm_sequence; // 第 2 步删
+        bool connected; // 链路活着：最近一帧正常、没有失控保护
+        bool fresh;     // 最近一帧在超时以内
         bool port_ready;
     };
 
     constexpr explicit Remote(hal::Uart port) noexcept : port_{port} {}
 
-    /** 检查参数并取得 remote.input 与 safety.stop 的发布句柄。 */
+    /** 检查参数并取得 remote.input 的发布句柄。 */
     [[nodiscard]] bool init(const Parameters &parameters) noexcept;
 
     void step(hal::os::Microseconds now) noexcept;
@@ -104,13 +95,10 @@ class Remote final
     Parameters parameters_{};
     protocol::SbusParser parser_{};
     topic::Publisher<topics::OperatorInput> input_publisher_{};
-    topic::Publisher<topics::safety::Stop> publisher_{}; // 第 2 步删
     Report report_{};
     hal::os::Microseconds last_frame_us_{0U};
     hal::os::Microseconds last_normal_frame_us_{0U};
     bool has_frame_{false};
-    bool has_previous_frame_{false};
-    bool last_run_position_{false};
     bool failsafe_{false};
 };
 

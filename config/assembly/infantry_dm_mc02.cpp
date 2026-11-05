@@ -4,6 +4,7 @@
 #include "actuator/safety_gate.hpp"
 #include "board.hpp"
 #include "boot/boot.h"
+#include "command/arbiter.hpp"
 #include "common/task_runner.hpp"
 #include "driver/bmi088/bmi088.hpp"
 #include "driver/bmi088/bmi088_heater.hpp"
@@ -57,6 +58,7 @@ imu::Imu g_imu;
 gimbal::Gimbal g_gimbal;
 pc_link::PcLink g_pc_link{board::USB_CDC};
 remote::Remote g_remote{board::UART_SBUS};
+command::Arbiter g_command;
 
 // 安全门管的关节：云台的两个。上电锁住，遥控确认过才放开
 constexpr std::array<device::Joint *, 2> GIMBAL_JOINTS{&g_yaw, &g_pitch};
@@ -71,6 +73,12 @@ void imu_step(hal::os::Microseconds now)
 void gimbal_receive(hal::os::Microseconds)
 {
     g_can_1.receive();
+}
+
+// 仲裁排在云台之前：急停当轮生效，云台用的是这一轮的指令
+void command_step(hal::os::Microseconds now)
+{
+    g_command.step(now);
 }
 
 void gimbal_step(hal::os::Microseconds now)
@@ -110,7 +118,7 @@ constexpr std::array<common::TaskSpec, 4> TASKS{{
      1024U,
      27U,
      common::on_topic(topics::imu::attitude, 2U),
-     {gimbal_receive, gimbal_step, safety_step, gimbal_transmit}},
+     {gimbal_receive, command_step, gimbal_step, safety_step, gimbal_transmit}},
     {"pc_link", 1024U, 26U, common::on_topic(topics::imu::attitude, 1U), {pc_link_step}},
     {"remote", 512U, 25U, common::every_ms(5U), {remote_step}},
 }};

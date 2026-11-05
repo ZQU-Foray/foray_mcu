@@ -339,6 +339,7 @@ WHITELIST = {
         "gimbal",
         "remote",
         "pc_link",  # 上位机链路；不叫 link：与 POSIX 的 link() 重名
+        "command",   # 仲裁：功能映射与安全
         "launch",
     },
     "src": {
