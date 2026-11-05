@@ -143,8 +143,7 @@ class Gimbal final
     [[nodiscard]] bool read_inputs(hal::os::Microseconds now) noexcept;
     [[nodiscard]] topics::command::GimbalMode current_command_mode(hal::os::Microseconds now) const noexcept;
     void apply_target(const topics::command::GimbalMode &command_mode) noexcept;
-    [[nodiscard]] DisableReason blocked_reason(hal::os::Microseconds now) const noexcept;
-    [[nodiscard]] bool joint_dropped() const noexcept;
+    [[nodiscard]] DisableReason stop_reason(hal::os::Microseconds now) const noexcept;
     [[nodiscard]] bool all_joints_enabled() const noexcept;
     [[nodiscard]] bool command_torque(float yaw_torque, float pitch_torque) noexcept;
     void anchor_yaw_continuous() noexcept;

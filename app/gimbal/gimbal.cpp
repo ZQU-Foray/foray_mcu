@@ -154,18 +154,11 @@ void Gimbal::step(hal::os::Microseconds now) noexcept
     }
     const bool new_attitude = read_inputs(now);
 
-    // 出力中任一关节掉了：只有一边出力的云台会乱甩，两个都撤销
-    if ((mode_ == Mode::HOLD || mode_ == Mode::TRACK) && joint_dropped())
+    // 任一条不满足就回到 DISABLED：IMU 的条件、关节故障、关节不可用、出力中掉了
+    const DisableReason stop = stop_reason(now);
+    if (stop != DisableReason::NONE)
     {
-        disable(DisableReason::JOINT_DROPPED);
-        update_report(now);
-        return;
-    }
-
-    const DisableReason blocked = blocked_reason(now);
-    if (blocked != DisableReason::NONE)
-    {
-        disable(blocked);
+        disable(stop);
         update_report(now);
         return;
     }
@@ -228,7 +221,8 @@ void Gimbal::step(hal::os::Microseconds now) noexcept
     // 目标换算。机械限位是关节角，世界系目标与它差一个底座倾斜（世界系 − 关节角）。
     // 有限位的轴一律在关节角里算：先把目标换到关节角、绕限位区间中点回绕、再钳位，最后换回世界系。
     // 不能先钳世界系目标再回绕：限位总宽超过半圈时，合法路线可能要绕远路，回绕会把它改走近路、穿过限位。
-    // 无限位的轴把目标展开到测量值附近即可，误差不会绕远路（PID 的误差是 target − measure，不会自己回绕）。
+    // 无限位的轴把目标展开到测量值附近即可，误差不会绕远路（控制律的误差是 reference − measurement，
+    // 它自己不会回绕）。
     const device::JointState &yaw_state = config_.yaw->state();
     const device::JointState &pitch_state = config_.pitch->state();
     const float yaw_continuous = yaw_unwrapper_.continuous_rad();
@@ -273,7 +267,7 @@ void Gimbal::step(hal::os::Microseconds now) noexcept
     // 往回拉时要先把这段"退"完云台才动（积分饱和）。没被钳住时不写回，避免每拍换算的舍入误差慢慢累积。
     if (yaw_clamped)
     {
-        yaw_target_rad_ = math::wrap_pi(yaw_target); // 无限位的 yaw 也在这里收进 (−π, π]，防止圈数越积越大
+        yaw_target_rad_ = math::wrap_pi(yaw_target); // 存回的目标收进 (−π, π]：后面按连续 yaw 展开，等价
     }
     if (pitch_clamped)
     {
@@ -369,7 +363,7 @@ bool Gimbal::read_inputs(hal::os::Microseconds now) noexcept
     return new_attitude;
 }
 
-Gimbal::DisableReason Gimbal::blocked_reason(hal::os::Microseconds now) const noexcept
+Gimbal::DisableReason Gimbal::stop_reason(hal::os::Microseconds now) const noexcept
 {
     if (!has_attitude_ || !attitude_message_.valid)
     {
@@ -383,30 +377,28 @@ Gimbal::DisableReason Gimbal::blocked_reason(hal::os::Microseconds now) const no
     {
         return DisableReason::IMU_STALE;
     }
+    // 出力中 = 两个环已经在跑（不是 DISABLED / ENABLING）：以后再加模式也不会漏掉
+    const bool running = mode_ != Mode::DISABLED && mode_ != Mode::ENABLING;
     for (const device::Joint *joint : joints_)
     {
-        if (joint == nullptr || !joint->available())
+        if (joint == nullptr)
         {
             return DisableReason::JOINT_UNAVAILABLE;
         }
         if (joint->state().fault)
         {
-            return DisableReason::JOINT_FAULT;
+            return DisableReason::JOINT_FAULT; // 根因：关节自己报了故障
+        }
+        if (!joint->available())
+        {
+            return DisableReason::JOINT_UNAVAILABLE;
+        }
+        if (running && !joint->state().enabled)
+        {
+            return DisableReason::JOINT_DROPPED; // 出力中掉了：只有一边出力的云台会乱甩，两个都撤销
         }
     }
     return DisableReason::NONE;
-}
-
-bool Gimbal::joint_dropped() const noexcept
-{
-    for (const device::Joint *joint : joints_)
-    {
-        if (joint == nullptr || !joint->available() || joint->state().fault || !joint->state().enabled)
-        {
-            return true;
-        }
-    }
-    return false;
 }
 
 bool Gimbal::all_joints_enabled() const noexcept
@@ -448,6 +440,12 @@ void Gimbal::apply_target(const topics::command::GimbalMode &command_mode) noexc
         yaw_rate_feedforward_ = math::limit(command_message_.yaw_rate, -yaw_maximum, yaw_maximum);
         pitch_rate_feedforward_ = math::limit(command_message_.pitch_rate, -pitch_maximum, pitch_maximum);
         yaw_target_rad_ += yaw_rate_feedforward_ * dt_seconds_;
+        if (!config_.parameters.yaw.limited)
+        {
+            // 无限位的 yaw 不会被钳住，也就走不到下面的写回：这里每拍收一次，
+            // 防止手动转很多圈后目标越积越大、慢速转动的小增量被浮点舍入吃掉
+            yaw_target_rad_ = math::wrap_pi(yaw_target_rad_);
+        }
         pitch_target_rad_ += pitch_rate_feedforward_ * dt_seconds_;
         break;
     }
@@ -518,8 +516,8 @@ void Gimbal::disable(DisableReason reason) noexcept
     yaw_loop_.reset();
     pitch_loop_.reset();
     anchor_yaw_continuous();
-    mode_ = Mode::DISABLED;
     reason_ = reason;
+    mode_ = Mode::DISABLED;
     report_.yaw_torque_newton_meter = 0.0F;
     report_.pitch_torque_newton_meter = 0.0F;
     report_.pitch_gravity_newton_meter = 0.0F;

@@ -157,6 +157,7 @@ void JointLink::set_status(Joint &joint, bool online, bool enabled, bool fault, 
 void JointLink::drop_enable(Joint &joint) noexcept
 {
     joint.enable_requested_ = false;
+    joint.state_.enabled = false; // 驱动已经撤销出力：能力这一轮就能看出来，不必等到本轮的 transmit
     joint.clear_command();
 }
 

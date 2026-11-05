@@ -666,6 +666,46 @@ int scenario_state(Publishers &publishers)
     return 0;
 }
 
+// MANUAL 中一台电机失能：两台都撤销，原因是 JOINT_DROPPED（不是等 set_torque 失败才撤）
+int scenario_manual_drop(Publishers &publishers)
+{
+    Rig rig{publishers.attitude, publishers.stop, publishers.command};
+    assert(rig.init());
+    assert(rig.run_until_ready());
+    rig.release_gate();
+    assert(rig.run_until_holding());
+
+    for (std::size_t round = 0U; round < 3U; ++round)
+    {
+        rig.publish_attitude(0.0F, 0.0F, topics::imu::State::READY, true);
+        rig.publish_stop(false);
+        rig.publish_command(topics::command::GimbalMode::RATE, 0.0F, 0.0F, 1.0F, 0.0F);
+        rig.tick();
+    }
+    assert(rig.gimbal().report().mode == gimbal::Gimbal::Mode::MANUAL);
+
+    // yaw 电机自己失能（例如电机复位）：在"刚掉"的那一拍看原因
+    rig.yaw_motor().state = Dm::State::DISABLED;
+    bool dropped = false;
+    for (std::size_t round = 0U; round < 5U; ++round)
+    {
+        rig.publish_attitude(0.0F, 0.0F, topics::imu::State::READY, true);
+        rig.publish_stop(false);
+        rig.publish_command(topics::command::GimbalMode::RATE, 0.0F, 0.0F, 1.0F, 0.0F);
+        rig.tick();
+        if (rig.gimbal().report().mode == gimbal::Gimbal::Mode::DISABLED)
+        {
+            dropped = true;
+            break;
+        }
+    }
+    assert(dropped);
+    assert(rig.gimbal().report().mode == gimbal::Gimbal::Mode::DISABLED);
+    assert(rig.gimbal().report().last_disable_reason == gimbal::Gimbal::DisableReason::JOINT_DROPPED);
+    assert(!rig.yaw().state().enabled && !rig.pitch().state().enabled);
+    return 0;
+}
+
 // 模式切换从当前目标接着走：ABSOLUTE 到 0.5 后切 RATE（角速度 0）与 HOLD，目标都保持 0.5，
 // 不会跳回测量值（0）
 int scenario_mode_switch(Publishers &publishers)
@@ -968,7 +1008,7 @@ int main(int argc, char **argv)
         std::fprintf(stderr,
                      "用法：%s settling|locked|enable|track|estop|fault|attitude_timeout|command_timeout|pitch_limit|"
                      "yaw_limit|yaw_limit_wide|pitch_feedforward|enable_timeout|attitude_ahead|attitude_gap|"
-                     "yaw_cross_pi|manual_rate|manual_clamp|absolute_rate_limit|state|mode_switch|reject\n",
+                     "yaw_cross_pi|manual_rate|manual_clamp|manual_drop|absolute_rate_limit|state|mode_switch|reject\n",
                      argv[0]);
         return 2;
     }
@@ -1060,6 +1100,10 @@ int main(int argc, char **argv)
     if (std::strcmp(scenario, "mode_switch") == 0)
     {
         return scenario_mode_switch(publishers);
+    }
+    if (std::strcmp(scenario, "manual_drop") == 0)
+    {
+        return scenario_manual_drop(publishers);
     }
     std::fprintf(stderr, "未知场景：%s\n", scenario);
     return 2;
