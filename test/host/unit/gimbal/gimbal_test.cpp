@@ -41,15 +41,15 @@ constexpr hal::os::Microseconds TARGET_TIMEOUT{100000U};
 constexpr hal::os::Microseconds STOP_TIMEOUT{50000U};
 constexpr std::uint16_t GIMBAL_FLAG{0x0002U};
 
-// 测试参数：pitch 限位 ±0.5 rad，yaw 限位 ±1.5 rad；增益取仿真里能收敛的一组
+// 测试参数：pitch 限位 ±0.5 rad，yaw 限位 ±3.0 rad；增益取仿真里能收敛的一组
 constexpr gimbal::Gimbal::Parameters PARAMETERS{
-    gimbal::Gimbal::AxisParameters{gimbal::Gimbal::LoopGains{30.0F, 0.0F, 0.0F, 6.0F},
-                                   gimbal::Gimbal::LoopGains{2.0F, 10.0F, 1.0F, 5.0F},
+    gimbal::Gimbal::AxisParameters{gimbal::AxisLoop::Parameters{gimbal::AxisLoop::Gains{30.0F, 0.0F, 0.0F, 6.0F},
+                                                                gimbal::AxisLoop::Gains{2.0F, 10.0F, 1.0F, 5.0F}},
                                    true,
                                    -3.0F,
                                    3.0F},
-    gimbal::Gimbal::AxisParameters{gimbal::Gimbal::LoopGains{30.0F, 0.0F, 0.0F, 6.0F},
-                                   gimbal::Gimbal::LoopGains{2.0F, 10.0F, 1.0F, 5.0F},
+    gimbal::Gimbal::AxisParameters{gimbal::AxisLoop::Parameters{gimbal::AxisLoop::Gains{30.0F, 0.0F, 0.0F, 6.0F},
+                                                                gimbal::AxisLoop::Gains{2.0F, 10.0F, 1.0F, 5.0F}},
                                    true,
                                    -0.5F,
                                    0.5F},
@@ -612,8 +612,8 @@ int scenario_yaw_limit_wide(Publishers &publishers)
 int scenario_pitch_feedforward(Publishers &publishers)
 {
     gimbal::Gimbal::Parameters parameters = PARAMETERS;
-    parameters.pitch.angle.kp = 0.0F;
-    parameters.pitch.angle.ki = 0.0F;
+    parameters.pitch.controller.angle.kp = 0.0F;
+    parameters.pitch.controller.angle.ki = 0.0F;
     Rig rig{publishers.attitude, publishers.stop, publishers.control, parameters};
     assert(rig.init());
     assert(rig.run_until_ready());
@@ -751,6 +751,39 @@ int scenario_attitude_gap(Publishers &publishers)
     return 0;
 }
 
+// 跨 ±π：IMU 的 yaw 从 3.10 匀速走到 3.20，控制律拿到的是连续的角，力矩不跳变
+int scenario_yaw_cross_pi(Publishers &publishers)
+{
+    Rig rig{publishers.attitude, publishers.stop, publishers.control};
+    assert(rig.init());
+    assert(rig.run_until_ready());
+    rig.release_gate(3.1F);
+    assert(rig.run_until_holding(3.1F, 0.0F));
+
+    float previous_torque = rig.gimbal().report().yaw_torque_newton_meter;
+    bool has_previous = false;
+    for (std::size_t index = 0U; index <= 20U; ++index)
+    {
+        const float yaw = 3.10F + 0.005F * static_cast<float>(index); // 3.10 → 3.20，跨过 π
+        rig.publish_attitude(yaw, 0.0F, topics::imu::State::READY, true);
+        rig.publish_stop(false);
+        rig.tick();
+        const gimbal::Gimbal::Report &report = rig.gimbal().report();
+        if (has_previous)
+        {
+            assert(std::fabs(report.yaw_torque_newton_meter - previous_torque) < 1.0F);
+        }
+        previous_torque = report.yaw_torque_newton_meter;
+        has_previous = true;
+    }
+    const gimbal::Gimbal::Report &report = rig.gimbal().report();
+    assert(report.mode == gimbal::Gimbal::Mode::HOLD);
+    assert(report.yaw_continuous_rad > 3.19F); // 连续累计过了 π
+    assert(report.yaw_rad < 0.0F);             // 回绕后的值已经翻到负的一侧
+    assert(rig.yaw().state().enabled && rig.pitch().state().enabled);
+    return 0;
+}
+
 // PC 目标的 pitch 超出限位：目标被钳在限位内
 int scenario_pitch_limit(Publishers &publishers)
 {
@@ -865,6 +898,10 @@ int main(int argc, char **argv)
     if (std::strcmp(scenario, "attitude_gap") == 0)
     {
         return scenario_attitude_gap(publishers);
+    }
+    if (std::strcmp(scenario, "yaw_cross_pi") == 0)
+    {
+        return scenario_yaw_cross_pi(publishers);
     }
     std::fprintf(stderr, "未知场景：%s\n", scenario);
     return 2;

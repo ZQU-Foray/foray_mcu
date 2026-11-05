@@ -57,18 +57,10 @@ class Gimbal final
         COMMAND_REJECTED = 8U   // 力矩指令被关节拒绝
     };
 
-    /**
-     * 一个环的增益（就是 `AxisLoop::Gains`，profile 里只填这几个数）：
-     * integral_limit 是积分项的上限（输出单位），output_limit 是输出上限——角度环是角速度上限 rad/s，
-     * 角速度环是力矩上限 N·m。换控制律时跟着 `AxisLoop` 换。
-     */
-    using LoopGains = AxisLoop::Gains;
-
     struct AxisParameters
     {
-        LoopGains angle; // rad → rad/s
-        LoopGains rate;  // rad/s → N·m
-        bool limited;    // 有机械限位（pitch 有；小 yaw 按线缆限位）
+        AxisLoop::Parameters controller; // 控制律的参数，Gimbal 不看里面有什么
+        bool limited;                    // 有机械限位（pitch 有；小 yaw 按线缆限位）
         float minimum_rad;
         float maximum_rad;
     };
@@ -112,7 +104,8 @@ class Gimbal final
         topics::imu::State imu_state;
         bool attitude_valid;
         hal::os::Microseconds last_attitude_us; // 最近一次收到新姿态的时刻（任务里的 now，判新鲜度用它）
-        float yaw_rad;                          // IMU，世界系
+        float yaw_rad;                          // IMU，世界系，回绕在 (−π, π]
+        float yaw_continuous_rad;               // IMU，连续（不在 ±π 处跳变），控制律用的是它
         float pitch_rad;
         bool target_valid;    // PC 目标有效（TRACK）
         float yaw_target_rad; // 实际用的目标（有限位时钳在限位内，无限位时展开到测量值附近）
@@ -155,6 +148,7 @@ class Gimbal final
     [[nodiscard]] bool all_joints_enabled() const noexcept;
     [[nodiscard]] Setpoint select_target(hal::os::Microseconds now) const noexcept;
     [[nodiscard]] bool command_torque(float yaw_torque, float pitch_torque) noexcept;
+    void anchor_yaw_continuous() noexcept;
     void disable(DisableReason reason) noexcept;
     void update_report() noexcept;
 
@@ -170,6 +164,9 @@ class Gimbal final
 
     // 从姿态换算出来的量
     float yaw_rad_{0.0F};
+    float yaw_continuous_{0.0F}; // 连续 yaw：每次复位时锚定到 yaw_rad_，之后按增量累计
+    float yaw_previous_{0.0F};
+    bool has_yaw_continuous_{false};
     float pitch_rad_{0.0F};
     float yaw_rate_{0.0F};
     float pitch_rate_{0.0F};

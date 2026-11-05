@@ -52,16 +52,20 @@ inline constexpr device::JointMechanics PITCH_MECHANICS{1, 1.0F, 0.0F, 3000U};
 inline constexpr gimbal::Gimbal::Parameters GIMBAL{
     // yaw：小 yaw 按有限位处理，偏移 = IMU 的 yaw − 小 yaw 关节角。范围是占位值，按线缆实测收紧
     gimbal::Gimbal::AxisParameters{
-        gimbal::Gimbal::LoopGains{0.0F, 0.0F, 0.0F, 6.0F},
-        gimbal::Gimbal::LoopGains{0.0F, 0.0F, 0.0F, 1.0F},
+        gimbal::AxisLoop::Parameters{
+            gimbal::AxisLoop::Gains{0.0F, 0.0F, 0.0F, 6.0F},
+            gimbal::AxisLoop::Gains{0.0F, 0.0F, 0.0F, 1.0F},
+        },
         true,
         -3.14159265F,
         3.14159265F,
     },
     // pitch：机械限位按关节角给（水平为 0、低头为正）。范围是占位值，上板实测后改
     gimbal::Gimbal::AxisParameters{
-        gimbal::Gimbal::LoopGains{5.0F, 0.0F, 0.0F, 6.0F},
-        gimbal::Gimbal::LoopGains{0.05F, 0.3F, 1.0F, 1.0F},
+        gimbal::AxisLoop::Parameters{
+            gimbal::AxisLoop::Gains{5.0F, 0.0F, 0.0F, 6.0F},
+            gimbal::AxisLoop::Gains{0.05F, 0.3F, 1.0F, 1.0F},
+        },
         true,
         -0.6F,
         1.0F,

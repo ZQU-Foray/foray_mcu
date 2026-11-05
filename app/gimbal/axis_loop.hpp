@@ -7,12 +7,19 @@ namespace gimbal
 {
 
 /**
- * @brief 单轴串级：角度环（rad → rad/s）串角速度环（rad/s → N·m）。纯计算、SI 单位，不读时间、不碰关节。
+ * @brief 单轴串级控制律：角度（rad）→ 角速度（rad/s）→ 力矩（N·m）。纯计算、SI 单位、不读时间。
  *
- * - 两个环都是 `control::PID` 的 POSITION 模式，不开微分（陀螺本身就是角度的微分，再微一次只会放大噪声）；
- * - `update()` 给出这一拍的力矩，`Gimbal` 加上自己的前馈、做总限幅之后再调 `apply()` 告诉控制器实际下发了多少；
- * - 输入输出与以后换 LQR + ESO 相同：角度、角速度、目标、前馈、dt 进，力矩出。换控制律时只替换这个类，
- *   `Gimbal` 不用改。
+ * 本类同时是"控制律"这一层的接口样例，以后换 LQR + ESO 等按同样的约定实现：
+ * 1. 纯计算、SI 单位、不读时间，`dt` 由调用方给；
+ * 2. `measurement.angle` 是连续的（yaw 不在 ±π 处跳变），`reference.angle` 已经展开到它附近，
+ *    控制律内部不用管回绕；
+ * 3. `reference.rate` 是角速度前馈；
+ * 4. 每次 `update()` 之后、`set_torque()` 之前调用一次 `apply(总限幅之后的力矩 − 重力前馈)`：
+ *    控制器可以据此做抗饱和、观测扰动；
+ * 5. `reset()` 之后的第一次 `update()` 用当时的 `measurement` 初始化内部状态（观测器拿它做初值，
+ *    否则一使能就有一下冲击）；
+ * 6. 输入非有限时输出 0，内部状态不被污染；
+ * 7. `init()` 自己检查参数，调用方不看 `Parameters` 里面有什么。
  */
 class AxisLoop final
 {
@@ -26,11 +33,31 @@ class AxisLoop final
         float output_limit;   // 输出上限
     };
 
-    /** 只给 `Report` 看的中间量；`Gimbal` 的控制逻辑不读它。换控制律时跟着换。 */
+    /** 本控制律自己的参数。换控制律时这个结构跟着换，调用方不用改。 */
+    struct Parameters
+    {
+        Gains angle; // rad → rad/s
+        Gains rate;  // rad/s → N·m
+    };
+
+    /** 只给 `Report` 看，`Gimbal` 的控制逻辑不读。换控制律时 `compensation_newton_meter` 保留。 */
     struct Diagnostics
     {
-        float rate_target;               // 角度环输出加上前馈、限幅后（rad/s）
-        float compensation_newton_meter; // 为抵消扰动多给的力矩：PID 时是角速度环的积分项
+        float compensation_newton_meter; // 为抵消扰动多给的力矩：本控制律是角速度环的积分项
+        float rate_target;               // 角度环输出加前馈、限幅后（rad/s），本控制律才有
+    };
+
+    struct Measurement
+    {
+        float angle;          // rad，连续
+        float rate;           // rad/s，欧拉角速度
+        float joint_velocity; // rad/s，关节相对底座的角速度（本控制律不用）
+    };
+
+    struct Reference
+    {
+        float angle; // rad，已展开到 measurement.angle 附近
+        float rate;  // rad/s，前馈
     };
 
     struct Output
@@ -39,21 +66,20 @@ class AxisLoop final
         Diagnostics diagnostics;
     };
 
-    /** 换算成 `control::PID::Config`。增益非有限、为负，或 translate 失败时返回 false。 */
-    [[nodiscard]] bool init(const Gains &angle, const Gains &rate) noexcept;
+    /** 换算成 `control::PID::Config`。增益非有限、为负时返回 false。 */
+    [[nodiscard]] bool init(const Parameters &parameters) noexcept;
 
+    /** 清零。复位后第一次 `update()` 用当时的测量初始化（本控制律没有需要初始化的内部状态）。 */
     void reset() noexcept;
 
     /**
      * @brief 算一拍。
-     * @param angle 角度反馈（rad）。
-     * @param angle_target 角度目标（rad）；yaw 要先用 `math::wrap_pi` 展开到 angle 附近。
-     * @param rate 角速度反馈（rad/s）。
-     * @param rate_feedforward 角速度前馈（rad/s），加在角度环输出上。
+     * @param measurement 角度、角速度、关节角速度。
+     * @param reference 角度目标（已展开到测量值附近）与角速度前馈。
      * @param dt 这一拍的周期（s）；非正或过大时按 1 ms 算。
-     * @note 输入非有限值时输出 0，环的内部状态不动。
+     * @note 输入非有限值时输出 0，控制律的内部状态不动。
      */
-    [[nodiscard]] Output update(float angle, float angle_target, float rate, float rate_feedforward, float dt) noexcept;
+    [[nodiscard]] Output update(const Measurement &measurement, const Reference &reference, float dt) noexcept;
 
     /**
      * @brief 告诉控制器本周期实际下发了多少力矩，用来做积分抗饱和。

@@ -41,14 +41,14 @@ control::PID::Config pid_config(const AxisLoop::Gains &gains) noexcept
 
 } // namespace
 
-bool AxisLoop::init(const Gains &angle, const Gains &rate) noexcept
+bool AxisLoop::init(const Parameters &parameters) noexcept
 {
     initialized_ = false;
-    if (!gains_valid(angle) || !gains_valid(rate))
+    if (!gains_valid(parameters.angle) || !gains_valid(parameters.rate))
     {
         return false;
     }
-    if (!angle_pid_.init(pid_config(angle)) || !rate_pid_.init(pid_config(rate)))
+    if (!angle_pid_.init(pid_config(parameters.angle)) || !rate_pid_.init(pid_config(parameters.rate)))
     {
         return false;
     }
@@ -66,14 +66,14 @@ void AxisLoop::reset() noexcept
     torque_ = 0.0F;
 }
 
-AxisLoop::Output
-AxisLoop::update(float angle, float angle_target, float rate, float rate_feedforward, float dt) noexcept
+AxisLoop::Output AxisLoop::update(const Measurement &measurement, const Reference &reference, float dt) noexcept
 {
     Output output{};
-    if (!initialized_ || !std::isfinite(angle) || !std::isfinite(angle_target) || !std::isfinite(rate) ||
-        !std::isfinite(rate_feedforward) || !std::isfinite(dt))
+    if (!initialized_ || !std::isfinite(measurement.angle) || !std::isfinite(measurement.rate) ||
+        !std::isfinite(measurement.joint_velocity) || !std::isfinite(reference.angle) ||
+        !std::isfinite(reference.rate) || !std::isfinite(dt))
     {
-        torque_ = 0.0F; // 非有限输入不往下传，环的内部状态不动（PID 失败时自己回退）
+        torque_ = 0.0F; // 非有限输入不往下传，控制律的内部状态不动（PID 失败时自己回退）
         return output;
     }
     if (dt <= 0.0F || dt >= MAXIMUM_DT_SECONDS)
@@ -81,23 +81,22 @@ AxisLoop::update(float angle, float angle_target, float rate, float rate_feedfor
         dt = DEFAULT_DT_SECONDS;
     }
     integral_before_ = rate_pid_.get_integral_error();
-    if (!angle_pid_.calculate_loop(angle, angle_target, dt))
+    if (!angle_pid_.calculate_loop(measurement.angle, reference.angle, dt))
     {
         torque_ = 0.0F;
         return output;
     }
-    const auto &angle_gains = angle_pid_.get_config();
-    const float rate_target =
-        math::limit(angle_pid_.get_out() + rate_feedforward, -angle_gains.maxout, angle_gains.maxout);
-    if (!rate_pid_.calculate_loop(rate, rate_target, dt))
+    const float rate_limit = angle_pid_.get_config().maxout;
+    const float rate_target = math::limit(angle_pid_.get_out() + reference.rate, -rate_limit, rate_limit);
+    if (!rate_pid_.calculate_loop(measurement.rate, rate_target, dt))
     {
         torque_ = 0.0F;
         return output;
     }
     torque_ = rate_pid_.get_out();
     output.torque = torque_;
-    output.diagnostics.rate_target = rate_target;
     output.diagnostics.compensation_newton_meter = rate_pid_.get_integral_error();
+    output.diagnostics.rate_target = rate_target;
     return output;
 }
 

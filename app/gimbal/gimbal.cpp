@@ -27,19 +27,8 @@ constexpr hal::os::Microseconds TARGET_AGE_LIMIT_US{200000U};
 // pitch 有限位挡着，到不了 ±90°；姿态异常时 yaw_rate 的换算要防止除以 0
 constexpr float MINIMUM_COS_PITCH{0.1F};
 
-bool gains_valid(const Gimbal::LoopGains &gains) noexcept
-{
-    return std::isfinite(gains.kp) && std::isfinite(gains.ki) && std::isfinite(gains.integral_limit) &&
-           std::isfinite(gains.output_limit) && gains.kp >= 0.0F && gains.ki >= 0.0F && gains.integral_limit >= 0.0F &&
-           gains.output_limit >= 0.0F;
-}
-
 bool axis_valid(const Gimbal::AxisParameters &axis) noexcept
 {
-    if (!gains_valid(axis.angle) || !gains_valid(axis.rate))
-    {
-        return false;
-    }
     if (!axis.limited)
     {
         return true;
@@ -110,8 +99,7 @@ bool Gimbal::init(const Config &config) noexcept
     {
         return false;
     }
-    if (!yaw_loop_.init(parameters.yaw.angle, parameters.yaw.rate) ||
-        !pitch_loop_.init(parameters.pitch.angle, parameters.pitch.rate))
+    if (!yaw_loop_.init(parameters.yaw.controller) || !pitch_loop_.init(parameters.pitch.controller))
     {
         return false;
     }
@@ -121,11 +109,15 @@ bool Gimbal::init(const Config &config) noexcept
     attitude_message_ = {};
     control_message_ = {};
     yaw_rad_ = 0.0F;
+    yaw_continuous_ = 0.0F;
+    yaw_previous_ = 0.0F;
+    has_yaw_continuous_ = false;
     pitch_rad_ = 0.0F;
     roll_rad_ = 0.0F;
     yaw_rate_ = 0.0F;
     pitch_rate_ = 0.0F;
     attitude_timestamp_us_ = 0U;
+    attitude_received_us_ = 0U;
     dt_seconds_ = DEFAULT_DT_SECONDS;
     has_attitude_ = false;
     has_control_ = false;
@@ -186,10 +178,11 @@ void Gimbal::step(hal::os::Microseconds now) noexcept
     {
         if (all_joints_enabled())
         {
-            // 进入 HOLD：两个环清零，目标取当前姿态，这样一使能不会甩
+            // 进入 HOLD：两个环清零，目标取当前姿态，这样一使能不会甩；连续 yaw 重新锚定到回绕后的值
             yaw_loop_.reset();
             pitch_loop_.reset();
-            yaw_target_rad_ = yaw_rad_;
+            anchor_yaw_continuous();
+            yaw_target_rad_ = yaw_continuous_;
             pitch_target_rad_ = pitch_rad_;
             yaw_rate_feedforward_ = 0.0F;
             pitch_rate_feedforward_ = 0.0F;
@@ -251,7 +244,7 @@ void Gimbal::step(hal::os::Microseconds now) noexcept
     {
         yaw_joint_minimum = config_.parameters.yaw.minimum_rad;
         yaw_joint_maximum = config_.parameters.yaw.maximum_rad;
-        const float tilt = yaw_rad_ - yaw_state.position_rad;
+        const float tilt = yaw_continuous_ - yaw_state.position_rad;
         const float center = 0.5F * (yaw_joint_minimum + yaw_joint_maximum);
         const float joint_target = center + math::wrap_pi(yaw_target_rad_ - tilt - center);
         yaw_joint_target = math::limit(joint_target, yaw_joint_minimum, yaw_joint_maximum);
@@ -259,7 +252,7 @@ void Gimbal::step(hal::os::Microseconds now) noexcept
     }
     else
     {
-        yaw_target = yaw_rad_ + math::wrap_pi(yaw_target_rad_ - yaw_rad_);
+        yaw_target = yaw_continuous_ + math::wrap_pi(yaw_target_rad_ - yaw_continuous_);
     }
     float pitch_target = pitch_target_rad_;
     float pitch_joint_target = pitch_target_rad_;
@@ -273,7 +266,7 @@ void Gimbal::step(hal::os::Microseconds now) noexcept
     applied_yaw_target_rad_ = yaw_target;
     applied_pitch_target_rad_ = pitch_target;
 
-    // 目标被限位钳住的轴不要再加角速度前馈：角度追不上目标，前馈会把轴顶到"前馈 ÷ 角度环 kp"之外，
+    // 目标被限位钳住的轴不要再加角速度前馈：角度追不上目标，前馈会让轴多走"前馈 ÷ 角度环增益"，
     // 可能顶到机械限位。被钳的只是这一拍的前馈，PC 的给定值留着，目标回到限位内就恢复。
     const bool yaw_clamped = config_.parameters.yaw.limited &&
                              (yaw_joint_target <= yaw_joint_minimum || yaw_joint_target >= yaw_joint_maximum);
@@ -284,9 +277,23 @@ void Gimbal::step(hal::os::Microseconds now) noexcept
     const float pitch_feedforward = pitch_clamped ? 0.0F : pitch_rate_feedforward_;
 
     // 两轴各算一拍，pitch 加 τg·cos(pitch) 的重力前馈，最后钳到总限幅
-    const AxisLoop::Output yaw_output = yaw_loop_.update(yaw_rad_, yaw_target, yaw_rate_, yaw_feedforward, dt_seconds_);
-    const AxisLoop::Output pitch_output =
-        pitch_loop_.update(pitch_rad_, pitch_target, pitch_rate_, pitch_feedforward, dt_seconds_);
+    AxisLoop::Measurement yaw_measurement{};
+    yaw_measurement.angle = yaw_continuous_;
+    yaw_measurement.rate = yaw_rate_;
+    yaw_measurement.joint_velocity = yaw_state.velocity_rad_per_second;
+    AxisLoop::Reference yaw_reference{};
+    yaw_reference.angle = yaw_target;
+    yaw_reference.rate = yaw_feedforward;
+    const AxisLoop::Output yaw_output = yaw_loop_.update(yaw_measurement, yaw_reference, dt_seconds_);
+
+    AxisLoop::Measurement pitch_measurement{};
+    pitch_measurement.angle = pitch_rad_;
+    pitch_measurement.rate = pitch_rate_;
+    pitch_measurement.joint_velocity = pitch_state.velocity_rad_per_second;
+    AxisLoop::Reference pitch_reference{};
+    pitch_reference.angle = pitch_target;
+    pitch_reference.rate = pitch_feedforward;
+    const AxisLoop::Output pitch_output = pitch_loop_.update(pitch_measurement, pitch_reference, dt_seconds_);
     const float gravity = config_.parameters.pitch_gravity_newton_meter * std::cos(pitch_rad_);
     const float limit = config_.parameters.torque_limit_newton_meter;
     const float yaw_torque = math::limit(yaw_output.torque, -limit, limit);
@@ -333,6 +340,17 @@ bool Gimbal::read_inputs(hal::os::Microseconds now) noexcept
             const EulerAngles angles = euler_from_attitude(attitude);
             if (angles.valid)
             {
+                // 连续 yaw：第一次直接取，之后按回绕后的增量累计，跨 ±π 不跳变
+                if (!has_yaw_continuous_)
+                {
+                    yaw_continuous_ = angles.yaw;
+                    has_yaw_continuous_ = true;
+                }
+                else
+                {
+                    yaw_continuous_ += math::wrap_pi(angles.yaw - yaw_previous_);
+                }
+                yaw_previous_ = angles.yaw;
                 yaw_rad_ = angles.yaw;
                 pitch_rad_ = angles.pitch;
                 roll_rad_ = angles.roll;
@@ -454,11 +472,19 @@ bool Gimbal::command_torque(float yaw_torque, float pitch_torque) noexcept
     return true;
 }
 
+void Gimbal::anchor_yaw_continuous() noexcept
+{
+    yaw_continuous_ = yaw_rad_;
+    yaw_previous_ = yaw_rad_;
+    has_yaw_continuous_ = has_attitude_;
+}
+
 void Gimbal::disable(DisableReason reason) noexcept
 {
     device::disable_all(joints_.data(), joints_.size());
     yaw_loop_.reset();
     pitch_loop_.reset();
+    anchor_yaw_continuous();
     mode_ = Mode::DISABLED;
     reason_ = reason;
     report_.yaw_torque_newton_meter = 0.0F;
@@ -476,6 +502,7 @@ void Gimbal::update_report() noexcept
     report_.attitude_valid = has_attitude_ && attitude_message_.valid;
     report_.last_attitude_us = attitude_received_us_;
     report_.yaw_rad = yaw_rad_;
+    report_.yaw_continuous_rad = yaw_continuous_;
     report_.pitch_rad = pitch_rad_;
     report_.target_valid = mode_ == Mode::TRACK;
     report_.yaw_target_rad = applied_yaw_target_rad_;

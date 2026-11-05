@@ -182,7 +182,8 @@ host_test(gimbal NO_TEST
     LINK app_gimbal app_actuator driver_motor_dm platform_mock)
 foreach(scenario
         settling locked enable track estop fault attitude_timeout target_expiry pitch_limit yaw_limit
-        yaw_limit_wide pitch_feedforward enable_timeout pc_estop attitude_ahead attitude_gap reject)
+        yaw_limit_wide pitch_feedforward enable_timeout pc_estop attitude_ahead attitude_gap yaw_cross_pi
+        reject)
     add_test(NAME gimbal_${scenario} COMMAND test_gimbal ${scenario})
 endforeach()
 # 通用数学：角度回绕
