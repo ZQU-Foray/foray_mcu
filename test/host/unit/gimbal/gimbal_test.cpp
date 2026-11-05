@@ -666,6 +666,47 @@ int scenario_state(Publishers &publishers)
     return 0;
 }
 
+// 模式切换从当前目标接着走：ABSOLUTE 到 0.5 后切 RATE（角速度 0）与 HOLD，目标都保持 0.5，
+// 不会跳回测量值（0）
+int scenario_mode_switch(Publishers &publishers)
+{
+    Rig rig{publishers.attitude, publishers.stop, publishers.command};
+    assert(rig.init());
+    assert(rig.run_until_ready());
+    rig.release_gate();
+    assert(rig.run_until_holding());
+
+    for (std::size_t round = 0U; round < 5U; ++round)
+    {
+        rig.publish_attitude(0.0F, 0.0F, topics::imu::State::READY, true);
+        rig.publish_stop(false);
+        rig.publish_command(topics::command::GimbalMode::ABSOLUTE, 0.5F, 0.0F);
+        rig.tick();
+    }
+    assert(near(rig.gimbal().report().yaw_target_rad, 0.5F, 1.0e-3F));
+
+    for (std::size_t round = 0U; round < 5U; ++round)
+    {
+        rig.publish_attitude(0.0F, 0.0F, topics::imu::State::READY, true);
+        rig.publish_stop(false);
+        rig.publish_command(topics::command::GimbalMode::RATE, 0.0F, 0.0F, 0.0F, 0.0F);
+        rig.tick();
+    }
+    assert(rig.gimbal().report().mode == gimbal::Gimbal::Mode::MANUAL);
+    assert(near(rig.gimbal().report().yaw_target_rad, 0.5F, 1.0e-3F));
+
+    for (std::size_t round = 0U; round < 5U; ++round)
+    {
+        rig.publish_attitude(0.0F, 0.0F, topics::imu::State::READY, true);
+        rig.publish_stop(false);
+        rig.publish_command(topics::command::GimbalMode::HOLD);
+        rig.tick();
+    }
+    assert(rig.gimbal().report().mode == gimbal::Gimbal::Mode::HOLD);
+    assert(near(rig.gimbal().report().yaw_target_rad, 0.5F, 1.0e-3F));
+    return 0;
+}
+
 // 参数检查：负的重力前馈合法（枪管一侧偏重）、限位总宽正好 2π 合法；
 // 总限幅超过关节能力、时间参数为 0、限位颠倒或超过 2π、目标速度上限非正、关节为空都拒绝
 int scenario_reject(Publishers &publishers)
@@ -927,7 +968,7 @@ int main(int argc, char **argv)
         std::fprintf(stderr,
                      "用法：%s settling|locked|enable|track|estop|fault|attitude_timeout|command_timeout|pitch_limit|"
                      "yaw_limit|yaw_limit_wide|pitch_feedforward|enable_timeout|attitude_ahead|attitude_gap|"
-                     "yaw_cross_pi|manual_rate|manual_clamp|absolute_rate_limit|state|reject\n",
+                     "yaw_cross_pi|manual_rate|manual_clamp|absolute_rate_limit|state|mode_switch|reject\n",
                      argv[0]);
         return 2;
     }
@@ -1015,6 +1056,10 @@ int main(int argc, char **argv)
     if (std::strcmp(scenario, "state") == 0)
     {
         return scenario_state(publishers);
+    }
+    if (std::strcmp(scenario, "mode_switch") == 0)
+    {
+        return scenario_mode_switch(publishers);
     }
     std::fprintf(stderr, "未知场景：%s\n", scenario);
     return 2;

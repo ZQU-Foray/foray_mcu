@@ -2237,7 +2237,15 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 - **自瞄接管范围放到视觉**：视觉要挑最近的目标，但视觉突然跳到远处目标时 MCU 没有兜底。两边都做，MCU 这边是兜底。否决"只靠视觉"。
 - **现在就把键鼠、图传、裁判系统的结构一起做**：没有硬件，协议、CRC、波特率都要抓包确认。推迟到第二部分。
 
-**回滚**：revert 本条相关提交：删 `app/command` 与四个新 topic，`remote` 恢复发布 `safety.stop`（含拨杆上升沿与超时），`gimbal` 恢复订阅 `pc_link.control`、删手动模式与 `gimbal.state`，组合根、params、白名单同步回退。不涉及生成区。
+**实现与验证（2026-11-05）**：
+
+- 第 0–4 步的代码、宿主测试与文档已落地：`topics/operator_input.hpp`、`topics/remote.hpp`、`topics/command.hpp`、`topics/gimbal.hpp`、`app/command/arbiter`；`remote` 只发 `remote.input`；`gimbal` 改订 `command.gimbal`、加 `MANUAL`、目标转动速度上限（`AxisParameters::maximum_target_rate`）与 `gimbal.state`。
+- 宿主测试：`remote_input`/`remote_reject`、`arbiter_*` 12 个场景、`gimbal_*` 21 个场景；四个固件构建通过。
+- **尚未上板**：遥控的通道与门限、拨杆的功能映射、手动方向、自瞄接管范围都要上板核对（`params.hpp` 里现在是占位值）。本条在那些核对通过后改 Accepted。
+- 与计划不一样的地方：
+  - 仲裁的 `Parameters` 用 `std::array<Bindings, FUNCTION_COUNT>` 按下标对应功能，params 里每条绑定单写一行并加注释（比嵌套的花括号可读）；
+  - `remote` 的安全逻辑（拨杆上升沿、`arm_sequence`）在同一个提交里整体搬到仲裁，`remote` 不再保留任何与安全有关的参数；
+  - 云台在**没有被钳住**时不写回目标（计划里只说了被钳住时写回），避免每拍换算的舍入误差累积。
 
 ---
 

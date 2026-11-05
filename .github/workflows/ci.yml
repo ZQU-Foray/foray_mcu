@@ -291,11 +291,22 @@ jobs:
           cmake --preset arm-release -B build/arm-release-link -DPROFILE=link_dm_mc02
           cmake --build build/arm-release-link
 
+      # 第一个兵种 profile：云台 + 遥控 + 仲裁 + 链路
+      - name: 构建固件（infantry_dm_mc02）
+        shell: bash
+        run: |
+          cmake --preset arm-debug -B build/arm-debug-infantry -DPROFILE=infantry_dm_mc02 \
+            --graphviz=build/arm-debug-infantry/graph/targets.dot
+          cmake --build build/arm-debug-infantry
+          cmake --preset arm-release -B build/arm-release-infantry -DPROFILE=infantry_dm_mc02
+          cmake --build build/arm-release-infantry
+
       - name: 依赖图检查（固件）
         shell: bash
         run: |
           python3 tool/ci/arch_check.py graph build/arm-debug/graph/targets.dot --mode firmware
           python3 tool/ci/arch_check.py graph build/arm-debug-link/graph/targets.dot --mode firmware
+          python3 tool/ci/arch_check.py graph build/arm-debug-infantry/graph/targets.dot --mode firmware
 
       - name: HAL 回调符号检查（规则 16）
         shell: bash
