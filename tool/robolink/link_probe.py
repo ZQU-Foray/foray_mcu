@@ -440,7 +440,9 @@ def main() -> int:
         "--gimbal-yaw", type=float, help="控制快照里的云台 yaw 目标（rad，默认 0.125）"
     )
     parser.add_argument(
-        "--gimbal-pitch", type=float, help="云台 pitch 目标（rad，低头为正，默认 −0.0625）"
+        "--gimbal-pitch",
+        type=float,
+        help="云台 pitch 目标（rad，低头为正，默认 −0.0625）",
     )
     parser.add_argument(
         "--sweep",
@@ -495,7 +497,9 @@ def main() -> int:
         if args.reconnect:
             print("--follow 与 --reconnect 不能同时用")
             return 2
-        probe = Probe(path, send_control, args.interval, gimbal_yaw, gimbal_pitch, sweep)
+        probe = Probe(
+            path, send_control, args.interval, gimbal_yaw, gimbal_pitch, sweep
+        )
         print(f"串口 {path}，实时打印姿态（Ctrl-C 停止；每 {args.interval:g} s 一行）")
         try:
             probe.run(None)
