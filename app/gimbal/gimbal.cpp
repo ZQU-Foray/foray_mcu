@@ -17,6 +17,11 @@ constexpr float DEFAULT_DT_SECONDS{0.001F};
 constexpr float MAXIMUM_DT_US{100000.0F}; // 相邻两份姿态相差超过 100 ms 就不当 dt 用
 // pc_link.control.flags 的 bit1：云台子系统的字段有效
 constexpr std::uint16_t GIMBAL_FLAG{0x0002U};
+// flags 的 bit3：PC 请求急停。只当"PC 目标无效"处理，不当急停：急停走遥控 → safety.stop → 安全门，
+// 安全通路要独立于上位机
+constexpr std::uint16_t ESTOP_REQUEST_FLAG{0x0008U};
+// 机械限位的总宽上限：再宽就绕不出一圈，回绕会把目标往回改
+constexpr float MAXIMUM_LIMIT_WIDTH_RAD{2.0F * math::PI + 1.0e-3F};
 // 目标有效期的上限：协议的 validity_hint_ms 不超过 50 ms，参数给大了也按这个上限
 constexpr hal::os::Microseconds TARGET_AGE_LIMIT_US{200000U};
 // pitch 有限位挡着，到不了 ±90°；姿态异常时 yaw_rate 的换算要防止除以 0
@@ -39,7 +44,8 @@ bool axis_valid(const Gimbal::AxisParameters &axis) noexcept
     {
         return true;
     }
-    return std::isfinite(axis.minimum_rad) && std::isfinite(axis.maximum_rad) && axis.minimum_rad <= axis.maximum_rad;
+    return std::isfinite(axis.minimum_rad) && std::isfinite(axis.maximum_rad) && axis.minimum_rad <= axis.maximum_rad &&
+           axis.maximum_rad - axis.minimum_rad <= MAXIMUM_LIMIT_WIDTH_RAD;
 }
 
 struct EulerAngles
@@ -146,7 +152,7 @@ void Gimbal::step(hal::os::Microseconds now) noexcept
     {
         return;
     }
-    read_inputs();
+    const bool new_attitude = read_inputs(now);
 
     // 出力中任一关节掉了：只有一边出力的云台会乱甩，两个都撤销
     if ((mode_ == Mode::HOLD || mode_ == Mode::TRACK) && joint_dropped())
@@ -206,6 +212,14 @@ void Gimbal::step(hal::os::Microseconds now) noexcept
         }
     }
 
+    // 这一轮没有新姿态：同一个测量值再积一次分等于把积分放大，重发上一拍的力矩就行
+    if (!new_attitude)
+    {
+        (void)command_torque(report_.yaw_torque_newton_meter, report_.pitch_torque_newton_meter);
+        update_report();
+        return;
+    }
+
     // 选目标：PC 有效就是 TRACK，否则 HOLD（保持最后一次的目标）
     const Setpoint setpoint = select_target(now);
     if (setpoint.valid)
@@ -230,34 +244,49 @@ void Gimbal::step(hal::os::Microseconds now) noexcept
     const device::JointState &yaw_state = config_.yaw->state();
     const device::JointState &pitch_state = config_.pitch->state();
     float yaw_target = 0.0F;
+    float yaw_joint_target = 0.0F;
+    float yaw_joint_minimum = 0.0F;
+    float yaw_joint_maximum = 0.0F;
     if (config_.parameters.yaw.limited)
     {
+        yaw_joint_minimum = config_.parameters.yaw.minimum_rad;
+        yaw_joint_maximum = config_.parameters.yaw.maximum_rad;
         const float tilt = yaw_rad_ - yaw_state.position_rad;
-        const float center = 0.5F * (config_.parameters.yaw.minimum_rad + config_.parameters.yaw.maximum_rad);
-        const float joint_target = math::limit(center + math::wrap_pi(yaw_target_rad_ - tilt - center),
-                                               config_.parameters.yaw.minimum_rad,
-                                               config_.parameters.yaw.maximum_rad);
-        yaw_target = tilt + joint_target;
+        const float center = 0.5F * (yaw_joint_minimum + yaw_joint_maximum);
+        const float joint_target = center + math::wrap_pi(yaw_target_rad_ - tilt - center);
+        yaw_joint_target = math::limit(joint_target, yaw_joint_minimum, yaw_joint_maximum);
+        yaw_target = tilt + yaw_joint_target;
     }
     else
     {
         yaw_target = yaw_rad_ + math::wrap_pi(yaw_target_rad_ - yaw_rad_);
     }
     float pitch_target = pitch_target_rad_;
+    float pitch_joint_target = pitch_target_rad_;
     if (config_.parameters.pitch.limited)
     {
         const float tilt = pitch_rad_ - pitch_state.position_rad;
-        pitch_target = math::limit(
-            pitch_target, config_.parameters.pitch.minimum_rad + tilt, config_.parameters.pitch.maximum_rad + tilt);
+        pitch_joint_target = math::limit(
+            pitch_target_rad_ - tilt, config_.parameters.pitch.minimum_rad, config_.parameters.pitch.maximum_rad);
+        pitch_target = tilt + pitch_joint_target;
     }
     applied_yaw_target_rad_ = yaw_target;
     applied_pitch_target_rad_ = pitch_target;
 
+    // 目标被限位钳住的轴不要再加角速度前馈：角度追不上目标，前馈会把轴顶到"前馈 ÷ 角度环 kp"之外，
+    // 可能顶到机械限位。被钳的只是这一拍的前馈，PC 的给定值留着，目标回到限位内就恢复。
+    const bool yaw_clamped = config_.parameters.yaw.limited &&
+                             (yaw_joint_target <= yaw_joint_minimum || yaw_joint_target >= yaw_joint_maximum);
+    const bool pitch_clamped =
+        config_.parameters.pitch.limited && (pitch_joint_target <= config_.parameters.pitch.minimum_rad ||
+                                             pitch_joint_target >= config_.parameters.pitch.maximum_rad);
+    const float yaw_feedforward = yaw_clamped ? 0.0F : yaw_rate_feedforward_;
+    const float pitch_feedforward = pitch_clamped ? 0.0F : pitch_rate_feedforward_;
+
     // 两轴各算一拍，pitch 加 τg·cos(pitch) 的重力前馈，最后钳到总限幅
-    const AxisLoop::Output yaw_output =
-        yaw_loop_.update(yaw_rad_, yaw_target, yaw_rate_, yaw_rate_feedforward_, dt_seconds_);
+    const AxisLoop::Output yaw_output = yaw_loop_.update(yaw_rad_, yaw_target, yaw_rate_, yaw_feedforward, dt_seconds_);
     const AxisLoop::Output pitch_output =
-        pitch_loop_.update(pitch_rad_, pitch_target, pitch_rate_, pitch_rate_feedforward_, dt_seconds_);
+        pitch_loop_.update(pitch_rad_, pitch_target, pitch_rate_, pitch_feedforward, dt_seconds_);
     const float gravity = config_.parameters.pitch_gravity_newton_meter * std::cos(pitch_rad_);
     const float limit = config_.parameters.torque_limit_newton_meter;
     const float yaw_torque = math::limit(yaw_output.torque, -limit, limit);
@@ -266,12 +295,8 @@ void Gimbal::step(hal::os::Microseconds now) noexcept
     yaw_loop_.apply(yaw_torque);
     pitch_loop_.apply(pitch_torque - gravity);
 
-    const bool yaw_written = config_.yaw->set_torque(yaw_torque);
-    const bool pitch_written = config_.pitch->set_torque(pitch_torque);
-    if (!yaw_written || !pitch_written)
+    if (!command_torque(yaw_torque, pitch_torque))
     {
-        disable(DisableReason::COMMAND_REJECTED);
-        update_report();
         return;
     }
     report_.yaw_torque_newton_meter = yaw_torque;
@@ -282,11 +307,16 @@ void Gimbal::step(hal::os::Microseconds now) noexcept
     update_report();
 }
 
-void Gimbal::read_inputs() noexcept
+bool Gimbal::read_inputs(hal::os::Microseconds now) noexcept
 {
+    bool new_attitude = false;
     topics::imu::Attitude attitude{};
     if (attitude_.update(attitude))
     {
+        new_attitude = true;
+        // 新鲜度按"这一轮收到"算：采样时刻可能晚于本轮开始时的 now（IMU 任务优先级更高，
+        // 在本轮取好 now 之后插进来发布），拿它做无符号减法会下溢成一个巨大的数、误判成超时
+        attitude_received_us_ = now;
         if (has_attitude_)
         {
             // dt 用相邻两份姿态的采样时刻之差；用有符号差，超出范围就用 1 ms
@@ -321,6 +351,7 @@ void Gimbal::read_inputs() noexcept
         control_message_ = control;
         has_control_ = true;
     }
+    return new_attitude;
 }
 
 Gimbal::DisableReason Gimbal::blocked_reason(hal::os::Microseconds now) const noexcept
@@ -333,7 +364,7 @@ Gimbal::DisableReason Gimbal::blocked_reason(hal::os::Microseconds now) const no
     {
         return DisableReason::IMU_SETTLING;
     }
-    if (hal::os::has_elapsed(attitude_message_.timestamp_us, config_.parameters.attitude_timeout_us, now))
+    if (hal::os::has_elapsed(attitude_received_us_, config_.parameters.attitude_timeout_us, now))
     {
         return DisableReason::IMU_STALE;
     }
@@ -387,6 +418,10 @@ Gimbal::Setpoint Gimbal::select_target(hal::os::Microseconds now) const noexcept
     {
         return setpoint;
     }
+    if ((control_message_.flags & ESTOP_REQUEST_FLAG) != 0U)
+    {
+        return setpoint; // PC 请求急停：目标无效，保持最后一个
+    }
     hal::os::Microseconds validity = config_.parameters.target_timeout_us;
     if (control_message_.validity_hint_ms != 0U)
     {
@@ -404,6 +439,19 @@ Gimbal::Setpoint Gimbal::select_target(hal::os::Microseconds now) const noexcept
     setpoint.pitch_rate = control_message_.gimbal_pitch_rate;
     setpoint.valid = true;
     return setpoint;
+}
+
+bool Gimbal::command_torque(float yaw_torque, float pitch_torque) noexcept
+{
+    const bool yaw_written = config_.yaw->set_torque(yaw_torque);
+    const bool pitch_written = config_.pitch->set_torque(pitch_torque);
+    if (!yaw_written || !pitch_written)
+    {
+        disable(DisableReason::COMMAND_REJECTED); // 关节拒绝了指令（掉线、故障、被撤销出力）
+        update_report();
+        return false;
+    }
+    return true;
 }
 
 void Gimbal::disable(DisableReason reason) noexcept
@@ -426,7 +474,7 @@ void Gimbal::update_report() noexcept
     report_.last_disable_reason = reason_;
     report_.imu_state = attitude_message_.state;
     report_.attitude_valid = has_attitude_ && attitude_message_.valid;
-    report_.last_attitude_us = attitude_message_.timestamp_us;
+    report_.last_attitude_us = attitude_received_us_;
     report_.yaw_rad = yaw_rad_;
     report_.pitch_rad = pitch_rad_;
     report_.target_valid = mode_ == Mode::TRACK;

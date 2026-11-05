@@ -27,6 +27,7 @@ namespace gimbal
  *   （世界系目标减去底座倾斜）绕限位中点回绕、钳到机械限位，再换回世界系，所以不会先钳后绕穿过限位。
  * - 出力：两轴串级（`AxisLoop`），pitch 加 τg·cos(pitch) 的重力前馈，最后钳到总限幅。
  *   每轮必须 `set_torque()`：超过驱动的指令超时时间电机就按 0 力矩发。
+ *   这一轮没有新姿态时不重复积分，重发上一拍的力矩；目标被限位钳住的轴，这一拍不加角速度前馈。
  *
  * @note 在拥有这条 CAN 总线的任务里使用（收 → 算 → 安全门 → 发）。能力零 RTOS。
  * @note `init()` 要用到关节的最大力矩，组合根里品牌驱动的 `init()`（把关节接上）必须排在前面。
@@ -110,7 +111,7 @@ class Gimbal final
         // 输入：核对方向与零点就看姿态与关节这两组
         topics::imu::State imu_state;
         bool attitude_valid;
-        hal::os::Microseconds last_attitude_us; // 最近一份姿态的采样时刻
+        hal::os::Microseconds last_attitude_us; // 最近一次收到新姿态的时刻（任务里的 now，判新鲜度用它）
         float yaw_rad;                          // IMU，世界系
         float pitch_rad;
         bool target_valid;    // PC 目标有效（TRACK）
@@ -148,11 +149,12 @@ class Gimbal final
   private:
     static constexpr std::size_t JOINT_COUNT{2U};
 
-    void read_inputs() noexcept;
+    [[nodiscard]] bool read_inputs(hal::os::Microseconds now) noexcept;
     [[nodiscard]] DisableReason blocked_reason(hal::os::Microseconds now) const noexcept;
     [[nodiscard]] bool joint_dropped() const noexcept;
     [[nodiscard]] bool all_joints_enabled() const noexcept;
     [[nodiscard]] Setpoint select_target(hal::os::Microseconds now) const noexcept;
+    [[nodiscard]] bool command_torque(float yaw_torque, float pitch_torque) noexcept;
     void disable(DisableReason reason) noexcept;
     void update_report() noexcept;
 
@@ -172,7 +174,8 @@ class Gimbal final
     float yaw_rate_{0.0F};
     float pitch_rate_{0.0F};
     float roll_rad_{0.0F};
-    hal::os::Microseconds attitude_timestamp_us_{0U};
+    hal::os::Microseconds attitude_received_us_{0U};  // 最近一次收到新姿态的时刻，判新鲜度用
+    hal::os::Microseconds attitude_timestamp_us_{0U}; // 最近一份姿态的采样时刻，只用来算 dt
     float dt_seconds_{0.001F};
     bool has_attitude_{false};
     bool has_control_{false};
