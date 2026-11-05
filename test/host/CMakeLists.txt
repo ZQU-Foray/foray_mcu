@@ -180,7 +180,8 @@ endforeach()
 host_test(gimbal NO_TEST
     SOURCES unit/gimbal/gimbal_test.cpp
     LINK app_gimbal app_actuator driver_motor_dm platform_mock)
-foreach(scenario settling locked enable track estop fault attitude_timeout target_expiry pitch_limit)
+foreach(scenario
+        settling locked enable track estop fault attitude_timeout target_expiry pitch_limit yaw_limit reject)
     add_test(NAME gimbal_${scenario} COMMAND test_gimbal ${scenario})
 endforeach()
 # 通用数学：角度回绕

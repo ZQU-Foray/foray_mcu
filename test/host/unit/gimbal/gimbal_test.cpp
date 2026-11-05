@@ -41,13 +41,13 @@ constexpr hal::os::Microseconds TARGET_TIMEOUT{100000U};
 constexpr hal::os::Microseconds STOP_TIMEOUT{50000U};
 constexpr std::uint16_t GIMBAL_FLAG{0x0002U};
 
-// 测试参数：pitch 限位 ±0.5 rad，yaw 不限位；增益按第 4 步的仿真值
+// 测试参数：pitch 限位 ±0.5 rad，yaw 限位 ±1.5 rad；增益取仿真里能收敛的一组
 constexpr gimbal::Gimbal::Parameters PARAMETERS{
     gimbal::Gimbal::AxisParameters{gimbal::Gimbal::LoopGains{30.0F, 0.0F, 0.0F, 6.0F},
                                    gimbal::Gimbal::LoopGains{2.0F, 10.0F, 1.0F, 5.0F},
-                                   false,
-                                   0.0F,
-                                   0.0F},
+                                   true,
+                                   -1.5F,
+                                   1.5F},
     gimbal::Gimbal::AxisParameters{gimbal::Gimbal::LoopGains{30.0F, 0.0F, 0.0F, 6.0F},
                                    gimbal::Gimbal::LoopGains{2.0F, 10.0F, 1.0F, 5.0F},
                                    true,
@@ -408,7 +408,7 @@ int scenario_track(Publishers &publishers)
         rig.tick();
     }
     const gimbal::Gimbal::Report &report = rig.gimbal().report();
-    assert(std::fabs(report.yaw_target_rad - report.yaw_rad) <= 3.14159265F);
+    assert(std::fabs(report.yaw_target_rad - report.yaw_rad) <= 3.14159265F); // 不绕远路
     assert(rig.round().yaw_torque > 0.0F);
     return 0;
 }
@@ -505,6 +505,66 @@ int scenario_target_expiry(Publishers &publishers)
     return 0;
 }
 
+// 有限位的 yaw、底座倾斜（偏移）不为 0：目标先在关节角里回绕再钳位，不会跑到另一头的限位
+int scenario_yaw_limit(Publishers &publishers)
+{
+    Rig rig{publishers.attitude, publishers.stop, publishers.control};
+    assert(rig.init());
+    assert(rig.run_until_ready());
+    rig.release_gate();
+    assert(rig.run_until_holding());
+
+    // 底座倾斜 2.5 rad（世界系 2.5、关节约 0），小 yaw 限位 ±1.5：允许的世界系范围约 [1.0, 4.0]。
+    // PC 给 −3.0，与 3.283 等价：对应的关节角约 0.78，在限位内，云台应该往正方向转一点。
+    // 先钳世界系目标再回绕的写法会把它钳到 1.0（关节角 −1.5），方向相反。
+    for (std::size_t round = 0U; round < 10U; ++round)
+    {
+        rig.publish_attitude(2.5F, 0.0F, topics::imu::State::READY, true);
+        rig.publish_stop(false);
+        rig.publish_control(-3.0F, 0.0F);
+        rig.tick();
+    }
+    assert(rig.gimbal().report().mode == gimbal::Gimbal::Mode::TRACK);
+    const float target = rig.gimbal().report().yaw_target_rad;
+    assert(near(target, 3.2832F, 0.01F));
+    assert(target > rig.gimbal().report().yaw_rad);
+    assert(rig.round().yaw_torque > 0.0F);
+    // 关节目标落在限位内（tilt 用「世界系 − 关节角」估算）
+    const float tilt = rig.gimbal().report().yaw_rad - rig.yaw().state().position_rad;
+    assert(std::fabs(target - tilt) <= 1.5F + 0.01F);
+    return 0;
+}
+
+// 参数检查：负的重力前馈合法（枪管一侧偏重），总限幅超过关节能力、时间参数为 0、限位颠倒才拒绝
+int scenario_reject(Publishers &publishers)
+{
+    Rig rig{publishers.attitude, publishers.stop, publishers.control};
+    assert(rig.init());
+    assert(rig.run_until_ready());
+
+    gimbal::Gimbal probe;
+    gimbal::Gimbal::Parameters parameters = PARAMETERS;
+    parameters.pitch_gravity_newton_meter = -0.8F;
+    assert(probe.init(gimbal::Gimbal::Config{&rig.yaw(), &rig.pitch(), parameters}));
+
+    parameters = PARAMETERS;
+    parameters.torque_limit_newton_meter = 11.0F; // 超过 J4310 的 10 N·m
+    assert(!probe.init(gimbal::Gimbal::Config{&rig.yaw(), &rig.pitch(), parameters}));
+
+    parameters = PARAMETERS;
+    parameters.attitude_timeout_us = 0U;
+    assert(!probe.init(gimbal::Gimbal::Config{&rig.yaw(), &rig.pitch(), parameters}));
+
+    parameters = PARAMETERS;
+    parameters.yaw.minimum_rad = 1.0F;
+    parameters.yaw.maximum_rad = -1.0F;
+    assert(!probe.init(gimbal::Gimbal::Config{&rig.yaw(), &rig.pitch(), parameters}));
+
+    parameters = PARAMETERS;
+    assert(!probe.init(gimbal::Gimbal::Config{nullptr, &rig.pitch(), parameters}));
+    return 0;
+}
+
 // PC 目标的 pitch 超出限位：目标被钳在限位内
 int scenario_pitch_limit(Publishers &publishers)
 {
@@ -587,6 +647,14 @@ int main(int argc, char **argv)
     if (std::strcmp(scenario, "pitch_limit") == 0)
     {
         return scenario_pitch_limit(publishers);
+    }
+    if (std::strcmp(scenario, "yaw_limit") == 0)
+    {
+        return scenario_yaw_limit(publishers);
+    }
+    if (std::strcmp(scenario, "reject") == 0)
+    {
+        return scenario_reject(publishers);
     }
     std::fprintf(stderr, "未知场景：%s\n", scenario);
     return 2;

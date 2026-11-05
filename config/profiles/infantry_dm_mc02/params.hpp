@@ -12,18 +12,8 @@
 
 namespace params
 {
-// BMI088 加热：DM-MC02 的热模型（与 bringup 相同）。加热要接 24 V（XT30）
 inline constexpr device::Bmi088Heater::Config HEATER{control::HeaterControl::Model{0.967F, 15.5F, 0.95F}};
 
-// IMU：
-// - 陀螺 2000 Hz / 532 Hz；imu.attitude 最多 1 kHz；加热到 50 ℃，零偏标定在 50 ℃ 上做；
-// - 安装方向：板载 BMI088 的坐标系即云台系（x 沿枪管 / 相机光轴向前、y 向左、z 向上），负责人 2026-11-03 确认；
-//   以后装法不同时改这里（estimate::AxisMapping：云台系每个轴取传感器的哪个轴、什么符号）；
-// - 零偏标定：恒温稳定 20 s、静止窗口 5 s、累计 20 s 没有合格窗口就放弃（旧板实测参数）；
-// - 标定结果交给 VQF 时**不重置协方差**（0）：保留 VQF 的静止零偏更新，让它继续跟踪残余/温度漂移；
-// - VQF 静止门限按 2026-11-03 本板实测：60 s 静止三轴偏差 norm RMS 6.2 °/s、最大 19.3 °/s。
-//   默认 2 °/s 时有 95.4% 的样本超门限，rest 永不触发；0.35 rad/s（20.1 °/s）覆盖实测最大值，
-//   bias_clip 0.05 rad/s（2.9 °/s）大于本板各轴零偏。
 inline constexpr imu::Imu::Parameters IMU{
     device::Bmi088::Config{device::Bmi088Gyro::Bandwidth::ODR_2000_HZ_532_HZ},
     estimate::IDENTITY_AXIS_MAPPING,
@@ -44,7 +34,7 @@ inline constexpr pc_link::PcLink::Parameters PC_LINK{
 
 inline constexpr actuator::PowerOutputs::Parameters POWER_OUTPUTS{true};
 
-// 云台电机：CAN1 上两台 DM-J4310，设置见指引 6.1。机构：输出轴直连云台（传动比 1），
+// 云台电机：CAN1 上两台 DM-J4310（MIT 模式，PMAX 12.5、VMAX 30、TMAX 10）。机构：输出轴直连云台（传动比 1），
 // 方向让关节与 IMU 同号（yaw 左转为正、pitch 低头为正），零点在云台水平朝前。
 inline constexpr std::uint16_t YAW_ESC_ID{1U};
 inline constexpr std::uint16_t YAW_MASTER_ID{0x11U};
@@ -53,7 +43,7 @@ inline constexpr std::uint16_t PITCH_ESC_ID{2U};
 inline constexpr std::uint16_t PITCH_MASTER_ID{0x12U};
 inline constexpr device::JointMechanics PITCH_MECHANICS{1, 1.0F, 0.0F, 3000U};
 
-// 云台（角速度环 → 角度环，力矩模式）。第 6 步的起步值：先 pitch、先角速度环，边调边改这里。
+// 云台（角速度环 → 角度环，力矩模式）。下面是调参的起步值：先 pitch、先角速度环，边调边改这里。
 // - yaw 先不出力：两环增益都给 0，用手扶着；调好 pitch 以后再照同样的顺序调 yaw；
 // - pitch 角速度环 kp 从 0.05 起，每步翻倍到出现嗡嗡声或抖动再退一半；ki 从 kp 的 5–10 倍起，消掉重力下垂；
 // - pitch 角度环 kp 从 5 起往上加，到出现超调再退一点；角速度上限先给 6 rad/s；
@@ -76,7 +66,7 @@ inline constexpr gimbal::Gimbal::Parameters GIMBAL{
         -0.6F,
         1.0F,
     },
-    0.0F,    // pitch_gravity_newton_meter
+    0.0F,    // pitch_gravity_newton_meter：低头方向为正，枪管一侧偏重时是负数
     1.0F,    // torque_limit_newton_meter
     10000U,  // attitude_timeout_us：10 ms 没有新姿态就停
     200000U, // enable_timeout_us：200 ms 没确认就回 DISABLED

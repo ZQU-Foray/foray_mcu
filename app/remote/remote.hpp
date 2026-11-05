@@ -19,6 +19,8 @@ namespace remote
  * "运行"要三条同时满足：最近一帧在 `frame_timeout_us` 以内、帧里没有 failsafe、拨杆在运行档。
  * `arm_sequence` 只在拨杆从非运行档拨到运行档时加 1；上电时拨杆已经在运行档的话没有这个"拨"的动作，
  * 安全门不会放开，要把拨杆拨回去再拨上（故意的）。
+ * 失控保护帧（接收机失联时一般改发带 failsafe 位的帧）不更新拨杆档位，只让"运行"变假：信号恢复后
+ * 拨杆还在运行档不算一次拨上，要像上电时那样拨回去再拨上；与超时那条路的行为一致。
  *
  * 只做这一件事：摇杆控制云台、底盘要经过控制权仲裁，以后单独做。仲裁做好后本能力改发布 `remote.input`，
  * `safety.stop` 由仲裁发布。
@@ -72,8 +74,9 @@ class Remote final
     Report report_{};
     hal::os::Microseconds last_frame_us_{0U};
     bool has_frame_{false};
-    bool has_previous_frame_{false}; // 见过一帧以后才能判"拨"的动作
+    bool has_previous_frame_{false}; // 见过一帧正常帧以后才能判"拨"的动作
     bool last_run_position_{false};
+    bool failsafe_{false}; // 最近一帧是不是失控保护（这一帧的拨杆值不可信）
 };
 
 } // namespace remote

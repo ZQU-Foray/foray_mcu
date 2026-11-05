@@ -1,6 +1,6 @@
 // remote::Remote 在 platform/mock 上：UART 替身注入 SBUS 帧，测试核对发布的 safety.stop。
 // 每个 topic 只能有一个发布者，场景按参数分进程运行（与 imu 相同）。
-// 覆盖：运行档、失控保护、超时、拨回再拨上（arm_sequence 加 1）、上电就在运行档（不加）。
+// 覆盖：运行档、失控保护（恢复后不算一次拨上）、超时、拨回再拨上（arm_sequence 加 1）、上电就在运行档（不加）。
 #include "mock_hal.hpp"
 #include "remote/remote.hpp"
 #include "topics/safety.hpp"
@@ -105,19 +105,31 @@ int scenario_run()
     return 0;
 }
 
-// 失控保护位：即使拨杆在运行档，stop 为真；位消失后不需要重新"拨"也算运行（帧一直正常）
+// 失控保护位：即使拨杆在运行档，stop 为真；位消失后 stop 变假，但这不算一次"拨上"（arm_sequence 不变），
+// 因为失控保护期间的拨杆位置不可信，要像上电时一样拨回去再拨上
 int scenario_failsafe()
 {
     Harness harness;
     assert(harness.init());
     inject(sbus_frame(channels_with(1700U), 0x00U));
-    assert(!harness.publish(1000U).stop);
+    const topics::safety::Stop first = harness.publish(1000U);
+    assert(!first.stop && first.arm_sequence == 0U);
+
     inject(sbus_frame(channels_with(1700U), 0x08U));
     const topics::safety::Stop failsafe = harness.publish(2000U);
-    assert(failsafe.stop);
+    assert(failsafe.stop && failsafe.arm_sequence == 0U);
     assert(harness.remote.report().failsafe == 1U);
+
+    // 信号恢复、拨杆还在运行档：运行恢复，但没有"拨"的动作
     inject(sbus_frame(channels_with(1700U), 0x00U));
-    assert(!harness.publish(3000U).stop);
+    const topics::safety::Stop recovered = harness.publish(3000U);
+    assert(!recovered.stop && recovered.arm_sequence == 0U);
+
+    // 拨回去再拨上才加 1
+    inject(sbus_frame(channels_with(1000U), 0x00U));
+    assert(harness.publish(4000U).stop);
+    inject(sbus_frame(channels_with(1700U), 0x00U));
+    assert(harness.publish(5000U).arm_sequence == 1U);
     return 0;
 }
 

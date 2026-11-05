@@ -23,8 +23,8 @@ namespace gimbal
  * - 状态机：DISABLED → ENABLING → HOLD ⇄ TRACK。
  *   条件不满足（姿态无效或过期、还在 SETTLING、关节不可用或故障）立即两个一起撤销；
  *   进入 HOLD 时两个环清零、目标取当前姿态，所以一使能不会甩；ENABLING 超时回 DISABLED 并计数。
- * - 目标：世界系 yaw / pitch。yaw 的误差回绕（目标展开到测量值附近）；有限位的轴按"世界系 − 关节角"的偏移
- *   把目标钳在机械限位内。
+ * - 目标：世界系 yaw / pitch。无限位的轴把目标展开到测量值附近，误差不绕远路；有限位的轴先在关节角里
+ *   （世界系目标减去底座倾斜）绕限位中点回绕、钳到机械限位，再换回世界系，所以不会先钳后绕穿过限位。
  * - 出力：两轴串级（`AxisLoop`），pitch 加 τg·cos(pitch) 的重力前馈，最后钳到总限幅。
  *   每轮必须 `set_torque()`：超过驱动的指令超时时间电机就按 0 力矩发。
  *
@@ -77,7 +77,7 @@ class Gimbal final
     {
         AxisParameters yaw;
         AxisParameters pitch;
-        float pitch_gravity_newton_meter;          // 云台水平时的重力矩，0 表示不补
+        float pitch_gravity_newton_meter; // 云台水平时的重力矩，0 表示不补；低头方向为正，枪管一侧偏重时是负数
         float torque_limit_newton_meter;           // 总限幅，不超过关节的 maximum_torque_newton_meter()
         hal::os::Microseconds attitude_timeout_us; // 姿态这么久没更新就停
         hal::os::Microseconds enable_timeout_us;   // ENABLING 这么久没确认就回 DISABLED
@@ -107,14 +107,14 @@ class Gimbal final
     {
         Mode mode;
         DisableReason last_disable_reason;
-        // 输入：第 2 步核对方向与零点就看姿态与关节这两组
+        // 输入：核对方向与零点就看姿态与关节这两组
         topics::imu::State imu_state;
         bool attitude_valid;
         hal::os::Microseconds last_attitude_us; // 最近一份姿态的采样时刻
         float yaw_rad;                          // IMU，世界系
         float pitch_rad;
         bool target_valid;    // PC 目标有效（TRACK）
-        float yaw_target_rad; // 回绕、钳位之后实际用的目标
+        float yaw_target_rad; // 实际用的目标（有限位时钳在限位内，无限位时展开到测量值附近）
         float pitch_target_rad;
         // 关节
         float yaw_joint_rad;

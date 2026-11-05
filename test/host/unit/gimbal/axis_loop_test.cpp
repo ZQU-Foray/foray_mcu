@@ -4,6 +4,7 @@
 // 验证：符号、阶跃收敛、重力积分与重力前馈、饱和与积分限幅、总限幅时的积分抗饱和、reset、非有限输入。
 #include "gimbal/axis_loop.hpp"
 
+#include <array>
 #include <cassert>
 #include <cmath>
 #include <cstddef>
@@ -16,7 +17,7 @@ namespace
 constexpr float DT{0.001F};
 constexpr float FRICTION_SPEED{0.01F}; // tanh 的平滑尺度，rad/s
 
-// §3.2 的被控对象：小云台 4310（J、阻尼取估计值，摩擦与峰值力矩按说明书）
+// 被控对象：小云台 4310（J、阻尼取估计值，摩擦与峰值力矩按说明书）
 struct Plant
 {
     float inertia{0.005F}; // kg·m²
@@ -175,6 +176,29 @@ void test_total_limit()
     assert(near(plant.angle, TARGET, 0.005F));
 }
 
+// 有重力前馈、力矩没被总限幅削时，积分照常增长。前馈是 Gimbal 在外面加的、再减掉，
+// 浮点上"输出 + 前馈 − 前馈"不保证逐位等于输出，不能因此把这一拍的积分退回去。
+void test_feedforward_does_not_block_integral()
+{
+    // 恒定误差、不接被控对象：前馈 0 与 0.3 两种情况下，积分应该长得一模一样
+    const std::array<float, 2> feedforwards{0.0F, 0.3F};
+    std::array<float, 2> compensation{0.0F, 0.0F};
+    for (std::size_t index = 0U; index < feedforwards.size(); ++index)
+    {
+        gimbal::AxisLoop loop = make_loop();
+        for (std::size_t cycle = 0U; cycle < 1000U; ++cycle)
+        {
+            const gimbal::AxisLoop::Output output = loop.update(0.0F, 0.03F, 0.0F, 0.0F, DT);
+            // 总限幅给得足够大：力矩没有被削，apply() 收到的是"输出 + 前馈 − 前馈"
+            const float total = std::fmax(std::fmin(output.torque + feedforwards[index], 5.0F), -5.0F);
+            loop.apply(total - feedforwards[index]);
+            compensation[index] = output.diagnostics.compensation_newton_meter;
+        }
+    }
+    assert(compensation[0] > 0.4F);
+    assert(near(compensation[1], compensation[0], 0.01F));
+}
+
 // 没被削时 apply() 什么都不改
 void test_apply_without_clipping()
 {
@@ -243,6 +267,7 @@ int main()
     test_sign();
     test_step_response();
     test_gravity();
+    test_feedforward_does_not_block_integral();
     test_saturation();
     test_total_limit();
     test_apply_without_clipping();

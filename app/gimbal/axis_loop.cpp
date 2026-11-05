@@ -12,6 +12,9 @@ namespace
 
 constexpr float DEFAULT_DT_SECONDS{0.001F};
 constexpr float MAXIMUM_DT_SECONDS{1.0F}; // control::PID 只接受 (0, 1) 的 dt
+// 判断"实际下发的力矩和控制器算的一样不一样"用的容差。调用方会先加自己的前馈、再减掉，浮点上不保证
+// 逐位相等；1e-4 N·m 远小于达妙 12 位量化的一格（约 0.005 N·m），不会把真正的削减漏掉。
+constexpr float TORQUE_COMPARE_TOLERANCE_NEWTON_METER{1.0e-4F};
 
 bool gains_valid(const AxisLoop::Gains &gains) noexcept
 {
@@ -104,7 +107,7 @@ void AxisLoop::apply(float torque) noexcept
     {
         return;
     }
-    if (torque == torque_)
+    if (std::fabs(torque - torque_) <= TORQUE_COMPARE_TOLERANCE_NEWTON_METER)
     {
         return; // 没被总限幅削掉
     }

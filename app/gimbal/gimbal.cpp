@@ -90,10 +90,9 @@ bool Gimbal::init(const Config &config) noexcept
     }
     const Parameters &parameters = config.parameters;
     if (!axis_valid(parameters.yaw) || !axis_valid(parameters.pitch) ||
-        !std::isfinite(parameters.pitch_gravity_newton_meter) || parameters.pitch_gravity_newton_meter < 0.0F ||
-        !std::isfinite(parameters.torque_limit_newton_meter) || parameters.torque_limit_newton_meter <= 0.0F ||
-        parameters.attitude_timeout_us == 0U || parameters.enable_timeout_us == 0U ||
-        parameters.target_timeout_us == 0U)
+        !std::isfinite(parameters.pitch_gravity_newton_meter) || !std::isfinite(parameters.torque_limit_newton_meter) ||
+        parameters.torque_limit_newton_meter <= 0.0F || parameters.attitude_timeout_us == 0U ||
+        parameters.enable_timeout_us == 0U || parameters.target_timeout_us == 0U)
     {
         return false;
     }
@@ -156,7 +155,7 @@ void Gimbal::step(hal::os::Microseconds now) noexcept
         update_report();
         return;
     }
-    // 状态机的条件（§3.3）：任一不满足就回到 DISABLED
+
     const DisableReason blocked = blocked_reason(now);
     if (blocked != DisableReason::NONE)
     {
@@ -224,18 +223,26 @@ void Gimbal::step(hal::os::Microseconds now) noexcept
         pitch_rate_feedforward_ = 0.0F;
     }
 
-    // 有限位的轴：机械限位是关节角，世界系目标要减去底座倾斜（世界系 − 关节角）再比较
+    // 目标换算。机械限位是关节角，世界系目标与它差一个底座倾斜（世界系 − 关节角）。
+    // 有限位的轴一律在关节角里算：先把目标换到关节角、绕限位区间中点回绕、再钳位，最后换回世界系。
+    // 不能先钳世界系目标再回绕：限位总宽超过半圈时，合法路线可能要绕远路，回绕会把它改走近路、穿过限位。
+    // 无限位的轴把目标展开到测量值附近即可，误差不会绕远路（PID 的误差是 target − measure，不会自己回绕）。
     const device::JointState &yaw_state = config_.yaw->state();
     const device::JointState &pitch_state = config_.pitch->state();
-    float yaw_target = yaw_target_rad_;
+    float yaw_target = 0.0F;
     if (config_.parameters.yaw.limited)
     {
         const float tilt = yaw_rad_ - yaw_state.position_rad;
-        yaw_target = math::limit(
-            yaw_target, config_.parameters.yaw.minimum_rad + tilt, config_.parameters.yaw.maximum_rad + tilt);
+        const float center = 0.5F * (config_.parameters.yaw.minimum_rad + config_.parameters.yaw.maximum_rad);
+        const float joint_target = math::limit(center + math::wrap_pi(yaw_target_rad_ - tilt - center),
+                                               config_.parameters.yaw.minimum_rad,
+                                               config_.parameters.yaw.maximum_rad);
+        yaw_target = tilt + joint_target;
     }
-    // 误差要回绕：目标展开到测量值附近，PID 的误差是 target − measure，不会自己回绕
-    yaw_target = yaw_rad_ + math::wrap_pi(yaw_target - yaw_rad_);
+    else
+    {
+        yaw_target = yaw_rad_ + math::wrap_pi(yaw_target_rad_ - yaw_rad_);
+    }
     float pitch_target = pitch_target_rad_;
     if (config_.parameters.pitch.limited)
     {
