@@ -84,11 +84,13 @@ class Field:
     kind: str  # struct 格式字符
 
 
-def field_kind(type_name: str, size: int) -> str:
+def field_kind(type_name: str, size: int) -> str | None:
     if type_name == "float":
         return "f"
     if type_name == "bool":
         return "?"
+    if size not in (1, 2, 4, 8):
+        return None  # 定长数组（size 是总字节数）这类读不出来的字段跳过
     signed = not (
         "unsigned" in type_name or type_name.startswith(("uint", "std::uint"))
     )
@@ -132,11 +134,10 @@ def parse_layout(text: str) -> list[Field]:
         match = LEAF.match(line)
         if match and stack:
             offset, size, type_name, name = match.groups()
-            if "static" in type_name:
+            kind = field_kind(type_name, int(size))
+            if "static" in type_name or kind is None:
                 continue
-            fields.append(
-                Field(name, int(offset), int(size), field_kind(type_name, int(size)))
-            )
+            fields.append(Field(name, int(offset), int(size), kind))
     return fields
 
 
@@ -155,10 +156,17 @@ def gdb_query(gdb: str, elf: Path, expressions: list[str]) -> list[str]:
 Region = tuple[str, int, list[Field], int]
 
 
-def resolve(gdb: str, elf: Path) -> tuple[list[Region], dict[str, int]]:
-    """每一项：(名称, 地址, 字段, 字节数)。数组展开成 名称[i]。"""
+def resolve(
+    gdb: str, elf: Path, items: list[tuple[str, str]] | None = None
+) -> tuple[list[Region], dict[str, int]]:
+    """每一项：(名称, 地址, 字段, 字节数)。数组展开成 名称[i]。
+
+    items 默认是本文件顶部的 ITEMS；其他固件的检查（如 gimbal_probe.py）传自己的清单。
+    """
+    if items is None:
+        items = ITEMS
     commands = []
-    for _, expression in ITEMS:
+    for _, expression in items:
         base = expression.removesuffix("[]")
         element = base + "[0]" if expression.endswith("[]") else base
         commands += [
@@ -170,7 +178,7 @@ def resolve(gdb: str, elf: Path) -> tuple[list[Region], dict[str, int]]:
     commands += ["info address Error_Handler", "info address HardFault_Handler"]
     outputs = gdb_query(gdb, elf, commands)
     resolved = []
-    for index, (name, expression) in enumerate(ITEMS):
+    for index, (name, expression) in enumerate(items):
         address_text, layout_text, total_text, element_text = outputs[
             4 * index : 4 * index + 4
         ]
