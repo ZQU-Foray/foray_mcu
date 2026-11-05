@@ -172,7 +172,7 @@ host_test(bringup_dm
 host_test(remote NO_TEST
     SOURCES unit/remote/remote_test.cpp
     LINK app_remote platform_mock)
-foreach(scenario run failsafe timeout reject)
+foreach(scenario run failsafe timeout reject input)
     add_test(NAME remote_${scenario} COMMAND test_remote ${scenario})
 endforeach()
 # 云台能力：两台达妙电机、CanBus、DmMotor、安全门都是真的，IMU 与 PC 目标由测试发布。

@@ -20,7 +20,9 @@ add_library(app_topics INTERFACE
     topics/all.hpp
     topics/bringup.hpp
     topics/imu.hpp
+    topics/operator_input.hpp
     topics/pc_link.hpp
+    topics/remote.hpp
     topics/safety.hpp)
 target_include_directories(app_topics INTERFACE "${PROJECT_SOURCE_DIR}/app")
 target_link_libraries(app_topics INTERFACE middleware_topic hal_os)

@@ -8,6 +8,10 @@
 
 **文件**：按发布者所属的能力分文件，`app/topics/<capability>.hpp`，命名空间 `topics::<capability>`。一个能力可以发布多个 topic，也可以订阅任何 topic。
 
+**多个能力发布同一种数据时，消息类型单独放一个头**（只有类型、没有 topic 实例），各能力的 topic 头 include 它。例：
+`operator_input.hpp` 定义 `topics::OperatorInput`，SBUS 遥控发 `remote.input`（`remote.hpp`），以后键鼠发
+`referee.operator_input`；订阅方只认这个类型。
+
 **消息**：
 
 - `struct`，可平凡拷贝；只用标准整数、浮点、`bool` 与定长数组，不用 `lib` 的类型（如 `math::Vector3`）；

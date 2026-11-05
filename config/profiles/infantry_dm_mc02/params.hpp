@@ -80,8 +80,27 @@ inline constexpr gimbal::Gimbal::Parameters GIMBAL{
 // 安全门：遥控每 5 ms 发布一次 safety.stop，50 ms 收不到就当发布者挂了
 inline constexpr actuator::SafetyGate::Parameters SAFETY{50000U};
 
-// 遥控最小版：拨杆通道与运行档的原始值。上板先用 bringup 固件读 bringup.sbus 的通道、拨一拨记下三档的值
-inline constexpr remote::Remote::Parameters REMOTE{4U, 1500U, 1900U, 100000U};
+// 遥控：摇杆与拨杆的标定。通道、量程、门限都是占位值（SBUS 典型原始值 172/992/1811、三档 1000/1500/2000），
+// 上板先用 bringup 固件读 bringup.sbus 的通道、把摇杆推到底、把拨杆拨一遍，记下实际值再改这里。
+// 摇杆顺序：右 x、右 y、左 x、左 y（topics::STICK_RIGHT_X 等）。
+inline constexpr remote::Remote::Parameters REMOTE{
+    {
+        remote::Remote::Stick{0U, 172U, 992U, 1811U, false, 0.05F},
+        remote::Remote::Stick{1U, 172U, 992U, 1811U, false, 0.05F},
+        remote::Remote::Stick{2U, 172U, 992U, 1811U, false, 0.05F},
+        remote::Remote::Stick{3U, 172U, 992U, 1811U, false, 0.05F},
+    },
+    {
+        remote::Remote::Switch{4U, 1200U, 1600U, topics::SwitchPosition::DOWN, topics::SwitchPosition::UP},
+        remote::Remote::Switch{5U, 1200U, 1600U, topics::SwitchPosition::DOWN, topics::SwitchPosition::UP},
+        remote::Remote::Switch{6U, 1200U, 1600U, topics::SwitchPosition::DOWN, topics::SwitchPosition::UP},
+    },
+    100000U, // frame_timeout_us：100 ms 没有正常帧就当链路断了
+    // 安全门的拨杆（第 2 步搬到仲裁后删掉）
+    7U,
+    1500U,
+    1900U,
+};
 } // namespace params
 
 #endif
