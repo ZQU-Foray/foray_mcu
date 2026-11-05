@@ -181,7 +181,8 @@ host_test(arbiter NO_TEST
     SOURCES unit/command/arbiter_test.cpp
     LINK app_command platform_mock)
 foreach(scenario
-        run_baseline failsafe input_timeout auto_aim no_engage pc_invalid manual idle reject)
+        run_baseline failsafe input_timeout auto_aim no_engage pc_invalid manual engage_range engage_wrap
+        engage_jump idle reject)
     add_test(NAME arbiter_${scenario} COMMAND test_arbiter ${scenario})
 endforeach()
 # 云台能力：两台达妙电机、CanBus、DmMotor、安全门都是真的，IMU 与 PC 目标由测试发布。
@@ -190,9 +191,9 @@ host_test(gimbal NO_TEST
     SOURCES unit/gimbal/gimbal_test.cpp
     LINK app_gimbal app_actuator driver_motor_dm platform_mock)
 foreach(scenario
-        settling locked enable track estop fault attitude_timeout target_expiry pitch_limit yaw_limit
-        yaw_limit_wide pitch_feedforward enable_timeout pc_estop attitude_ahead attitude_gap yaw_cross_pi
-        reject)
+        settling locked enable track estop fault attitude_timeout command_timeout pitch_limit yaw_limit
+        yaw_limit_wide pitch_feedforward enable_timeout attitude_ahead attitude_gap yaw_cross_pi
+        manual_rate manual_clamp absolute_rate_limit state reject)
     add_test(NAME gimbal_${scenario} COMMAND test_gimbal ${scenario})
 endforeach()
 # 通用数学：角度回绕与连续角度

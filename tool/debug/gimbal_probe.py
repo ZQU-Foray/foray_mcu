@@ -6,7 +6,8 @@
 - 与 bringup_probe.py 共用读内存与解析布局的代码，只是要读的对象不同。
 
 调参时看这几行：
-- `gimbal.mode`：DISABLED / ENABLING / HOLD / TRACK；
+- `gimbal.mode`：DISABLED / ENABLING / HOLD / TRACK（自瞄）/ MANUAL（手动）；
+- `gimbal.command`：这一轮收到的云台指令模式（0 HOLD、1 RATE、2 ABSOLUTE，超时按 HOLD）；
 - `gimbal.last_disable_reason`：最近一次回 DISABLED 的原因（0 无、1 姿态无效、2 标定中、3 姿态过期、
   4 关节不可用、5 关节故障、6 出力中掉了、7 使能超时、8 指令被拒绝）；
 - `gimbal.pitch_rad` / `pitch_target_rad` / `pitch_torque_newton_meter` 与
@@ -43,7 +44,7 @@ ITEMS = [
     ("topic.control", "'topics::pc_link::control'.publish_count_"),
 ]
 TASKS = ["imu", "gimbal", "pc_link", "remote"]  # 与组合根的任务表同序
-MODES = ["DISABLED", "ENABLING", "HOLD", "TRACK"]
+MODES = ["DISABLED", "ENABLING", "HOLD", "TRACK", "MANUAL"]
 REASONS = [
     "无",
     "姿态无效",

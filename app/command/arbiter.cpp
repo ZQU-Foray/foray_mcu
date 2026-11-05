@@ -79,10 +79,12 @@ bool Arbiter::init(const Parameters &parameters) noexcept
     report_ = Report{};
     input_ = {};
     control_message_ = {};
+    gimbal_state_message_ = {};
     input_received_us_ = 0U;
     control_received_us_ = 0U;
     has_input_ = false;
     has_control_ = false;
+    has_gimbal_state_ = false;
     connected_ = false;
     run_ = false;
     run_known_ = false;
@@ -189,6 +191,12 @@ void Arbiter::read_inputs(hal::os::Microseconds now) noexcept
         control_received_us_ = now;
         has_control_ = true;
     }
+    topics::gimbal::State state{};
+    if (gimbal_state_.update(state))
+    {
+        gimbal_state_message_ = state;
+        has_gimbal_state_ = true;
+    }
 }
 
 bool Arbiter::input_connected(hal::os::Microseconds now) const noexcept
@@ -205,8 +213,8 @@ bool Arbiter::binding_active(const Binding &binding, std::size_t function, std::
     case Control::NONE:
         return false;
     case Control::SWITCH:
-        pressed = connected_ && binding.index < topics::SWITCH_COUNT &&
-                  input_.switches[binding.index] == binding.position;
+        pressed =
+            connected_ && binding.index < topics::SWITCH_COUNT && input_.switches[binding.index] == binding.position;
         break;
     case Control::KEYS:
         pressed = connected_ && (input_.keys & binding.mask) == binding.mask;
@@ -246,14 +254,26 @@ bool Arbiter::pc_target_valid(hal::os::Microseconds now) const noexcept
     return !hal::os::has_elapsed(control_received_us_, validity, now);
 }
 
+float Arbiter::engage_error() const noexcept
+{
+    if (!has_gimbal_state_)
+    {
+        return 0.0F;
+    }
+    const float yaw_error =
+        std::fabs(math::wrap_pi(control_message_.gimbal_yaw - gimbal_state_message_.yaw_target_rad));
+    const float pitch_error = std::fabs(control_message_.gimbal_pitch - gimbal_state_message_.pitch_target_rad);
+    return yaw_error > pitch_error ? yaw_error : pitch_error;
+}
+
 float Arbiter::manual_rate(std::size_t stick, float full_scale) const noexcept
 {
     if (!connected_ || stick >= topics::STICK_COUNT)
     {
         return 0.0F;
     }
-    return math::limit(input_.sticks[stick] * full_scale, -parameters_.manual.maximum_rate,
-                       parameters_.manual.maximum_rate);
+    return math::limit(
+        input_.sticks[stick] * full_scale, -parameters_.manual.maximum_rate, parameters_.manual.maximum_rate);
 }
 
 void Arbiter::publish_stop(hal::os::Microseconds now) noexcept
@@ -278,8 +298,11 @@ void Arbiter::publish_command(hal::os::Microseconds now) noexcept
     bool engaged = false;
     if (run_)
     {
+        const float distance = engage_error();
+        const bool in_range =
+            parameters_.engage_range_rad <= 0.0F || (has_gimbal_state_ && distance <= parameters_.engage_range_rad);
         engaged = function_active_[static_cast<std::size_t>(Function::AUTO_AIM)] &&
-                  function_active_[static_cast<std::size_t>(Function::FIRE)] && pc_target_valid(now);
+                  function_active_[static_cast<std::size_t>(Function::FIRE)] && pc_target_valid(now) && in_range;
         if (engaged)
         {
             command.mode = topics::command::GimbalMode::ABSOLUTE;
@@ -292,8 +315,7 @@ void Arbiter::publish_command(hal::os::Microseconds now) noexcept
         {
             command.mode = topics::command::GimbalMode::RATE;
             command.yaw_rate = manual_rate(parameters_.manual.yaw_stick, parameters_.manual.yaw_rate_full_scale);
-            command.pitch_rate =
-                manual_rate(parameters_.manual.pitch_stick, parameters_.manual.pitch_rate_full_scale);
+            command.pitch_rate = manual_rate(parameters_.manual.pitch_stick, parameters_.manual.pitch_rate_full_scale);
         }
     }
     if (engaged && !engaged_)
@@ -302,6 +324,7 @@ void Arbiter::publish_command(hal::os::Microseconds now) noexcept
     }
     engaged_ = engaged;
     report_.engaged = engaged;
+    report_.engage_error_rad = engage_error();
     report_.mode = command.mode;
     command_publisher_.publish(command);
 }

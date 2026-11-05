@@ -5,8 +5,9 @@
 #include "gimbal/axis_loop.hpp"
 #include "hal/os/clock.hpp"
 #include "middleware/topic/topic.hpp"
+#include "topics/command.hpp"
+#include "topics/gimbal.hpp"
 #include "topics/imu.hpp"
-#include "topics/pc_link.hpp"
 #include "utils/math/basic_math.hpp"
 
 #include <array>
@@ -19,18 +20,22 @@ namespace gimbal
 /**
  * @brief 云台能力：按 IMU 稳住世界系指向，跟踪上位机给的目标；yaw 与 pitch 两个关节同进同出。
  *
- * - 输入：`imu.attitude`（云台系 → 世界系的姿态、已扣零偏的角速度）与 `pc_link.control`（第一版的目标来源）；
+ * - 输入：`imu.attitude`（云台系 → 世界系的姿态、已扣零偏的角速度）与 `command.gimbal`（仲裁给的指令）；
  *   输出：两个关节的力矩（`JointMode::TORQUE`）。能力不认识电机品牌，只用 `device::Joint`。
- * - 状态机：DISABLED → ENABLING → HOLD ⇄ TRACK。
+ * - 状态机：DISABLED → ENABLING → HOLD ⇄ TRACK（自瞄）⇄ MANUAL（手动）。
  *   条件不满足（姿态无效或过期、还在 SETTLING、关节不可用或故障）立即两个一起撤销；
  *   进入 HOLD 时两个控制律与连续角度一起复位、目标取当前姿态，所以一使能不会甩；ENABLING 超时回 DISABLED 并计数。
- * - 目标：世界系 yaw / pitch。无限位的轴把目标展开到测量值附近，误差不绕远路；有限位的轴先在关节角里
- *   （世界系目标减去底座倾斜）绕限位中点回绕、钳到机械限位，再换回世界系，所以不会先钳后绕穿过限位。
+ * - 目标：世界系 yaw / pitch。HOLD 不变；RATE 每份新姿态 `目标 += 角速度 × dt`；ABSOLUTE 朝指令目标平滑，
+ *   每拍最多走 `maximum_target_rate × dt`。无限位的轴把目标展开到测量值附近，误差不绕远路；有限位的轴先在
+ *   关节角里（世界系目标减去底座倾斜）绕限位中点回绕、钳到机械限位，再换回世界系，所以不会先钳后绕穿过限位。
+ *   被钳住时把钳完的目标写回（否则摇杆一直往限位外推会积分饱和），前馈同时清零。
  * - 出力：两轴各一个控制律（`AxisLoop`），pitch 加 τg·cos(pitch) 的重力前馈，最后钳到总限幅。
  *   每轮必须 `set_torque()`：超过驱动的指令超时时间电机就按 0 力矩发。
  *   这一轮没有新姿态时不重复积分，重发上一拍的力矩；目标被限位钳住的轴，这一拍不加角速度前馈。
  *
- * @note 在拥有这条 CAN 总线的任务里使用（收 → 算 → 安全门 → 发）。能力零 RTOS。
+ * - 观测：每轮发布 `gimbal.state`（模式、实际用的目标、测量值、yaw 关节角），仲裁与以后的底盘用。
+ *
+ * @note 在拥有这条 CAN 总线的任务里使用（收 → 仲裁 → 算 → 安全门 → 发）。能力零 RTOS。
  * @note `init()` 要用到关节的最大力矩，组合根里品牌驱动的 `init()`（把关节接上）必须排在前面。
  */
 class Gimbal final
@@ -41,7 +46,8 @@ class Gimbal final
         DISABLED = 0U, // 两个环清零，驱动发"失能"保活
         ENABLING = 1U, // 已请求出力，等两个关节都确认
         HOLD = 2U,     // 目标不变（进入时取当前姿态）
-        TRACK = 3U     // 跟踪 PC 目标
+        TRACK = 3U,    // 绝对目标（自瞄、全自动）
+        MANUAL = 4U    // 手动角速度（云台自己积分）
     };
 
     /** 最近一次回 DISABLED 的原因，调试器里看。 */
@@ -64,6 +70,7 @@ class Gimbal final
         bool limited;                    // 有机械限位（pitch 有；小 yaw 按线缆限位）
         float minimum_rad;
         float maximum_rad;
+        float maximum_target_rate; // rad/s，目标转动速度上限：平滑目标每拍最多走这么多
     };
 
     /** 来自 profile 的参数（params.hpp）。 */
@@ -75,7 +82,7 @@ class Gimbal final
         float torque_limit_newton_meter;           // 总限幅，不超过关节的 maximum_torque_newton_meter()
         hal::os::Microseconds attitude_timeout_us; // 姿态这么久没更新就停
         hal::os::Microseconds enable_timeout_us;   // ENABLING 这么久没确认就回 DISABLED
-        hal::os::Microseconds target_timeout_us;   // PC 目标的默认有效期
+        hal::os::Microseconds command_timeout_us;  // 这么久收不到 command.gimbal 就按 HOLD
     };
 
     /** 组合根注入：两个关节与参数。以后加大 yaw 时这里再加一个可选的指针，`JOINT_COUNT` 跟着变。 */
@@ -84,16 +91,6 @@ class Gimbal final
         device::Joint *yaw;
         device::Joint *pitch;
         Parameters parameters;
-    };
-
-    /** "选目标"的输出。以后从 pc_link.control 换成仲裁发布的 command.gimbal，只改 select_target()。 */
-    struct Setpoint
-    {
-        float yaw_rad;
-        float pitch_rad;
-        float yaw_rate;   // 前馈
-        float pitch_rate; // 前馈
-        bool valid;
     };
 
     /** 统计与诊断，调试器可读（只有运行 step() 的任务写）。 */
@@ -108,7 +105,7 @@ class Gimbal final
         float yaw_rad;                          // IMU，世界系，回绕在 (−π, π]
         float yaw_continuous_rad;               // IMU，连续（不在 ±π 处跳变），控制律用的是它
         float pitch_rad;
-        bool target_valid;    // PC 目标有效（TRACK）
+        topics::command::GimbalMode command; // 这一轮收到的云台指令模式（超时按 HOLD）
         float yaw_target_rad; // 实际用的目标（有限位时钳在限位内，无限位时展开到测量值附近）
         float pitch_target_rad;
         // 关节
@@ -144,14 +141,15 @@ class Gimbal final
     static constexpr std::size_t JOINT_COUNT{2U};
 
     [[nodiscard]] bool read_inputs(hal::os::Microseconds now) noexcept;
+    [[nodiscard]] topics::command::GimbalMode current_command_mode(hal::os::Microseconds now) const noexcept;
+    void apply_target(const topics::command::GimbalMode &command_mode) noexcept;
     [[nodiscard]] DisableReason blocked_reason(hal::os::Microseconds now) const noexcept;
     [[nodiscard]] bool joint_dropped() const noexcept;
     [[nodiscard]] bool all_joints_enabled() const noexcept;
-    [[nodiscard]] Setpoint select_target(hal::os::Microseconds now) const noexcept;
     [[nodiscard]] bool command_torque(float yaw_torque, float pitch_torque) noexcept;
     void anchor_yaw_continuous() noexcept;
     void disable(DisableReason reason) noexcept;
-    void update_report() noexcept;
+    void update_report(hal::os::Microseconds now) noexcept;
 
     Config config_{};
     Report report_{};
@@ -159,9 +157,10 @@ class Gimbal final
     AxisLoop yaw_loop_{};
     AxisLoop pitch_loop_{};
     topic::Subscriber<topics::imu::Attitude> attitude_{topics::imu::attitude};
-    topic::Subscriber<topics::pc_link::Control> control_{topics::pc_link::control};
+    topic::Subscriber<topics::command::Gimbal> command_{topics::command::gimbal};
+    topic::Publisher<topics::gimbal::State> state_publisher_{};
     topics::imu::Attitude attitude_message_{};
-    topics::pc_link::Control control_message_{};
+    topics::command::Gimbal command_message_{};
 
     // 从姿态换算出来的量
     float yaw_rad_{0.0F};
@@ -173,8 +172,9 @@ class Gimbal final
     hal::os::Microseconds attitude_received_us_{0U};  // 最近一次收到新姿态的时刻，判新鲜度用
     hal::os::Microseconds attitude_timestamp_us_{0U}; // 最近一份姿态的采样时刻，只用来算 dt
     float dt_seconds_{0.001F};
+    hal::os::Microseconds command_received_us_{0U};
     bool has_attitude_{false};
-    bool has_control_{false};
+    bool has_command_{false};
 
     // 状态机与目标
     Mode mode_{Mode::DISABLED};

@@ -4,6 +4,7 @@
 #include "bringup/monitor.hpp"
 #include "mock_os.hpp"
 #include "topics/all.hpp"
+#include "topics/gimbal.hpp"
 #include "topics/bringup.hpp"
 
 #include <cassert>
@@ -51,12 +52,13 @@ int main()
     assert(monitor.report().last_latency_us == 0x20U);
 
     // 清单列出全部 topic
-    assert(topics::ALL.size() == 10U);
+    assert(topics::ALL.size() == 11U);
     assert(topics::ALL[0] == &topics::bringup::heartbeat);
     assert(topics::ALL[4] == &topics::safety::stop);     // 安全门订阅的急停
     assert(topics::ALL[7] == &topics::pc_link::control); // 上位机链路
     assert(topics::ALL[8] == &topics::remote::input);    // SBUS 遥控的操作输入
     assert(topics::ALL[9] == &topics::command::gimbal);  // 仲裁发给云台的指令
+    assert(topics::ALL[10] == &topics::gimbal::state);   // 云台的当前状态
     assert(topics::ALL[5] == &topics::imu::event && topics::ALL[6] == &topics::imu::attitude); // IMU 能力
     assert(topics::bringup::heartbeat.publish_count() == 4U);
     return 0;

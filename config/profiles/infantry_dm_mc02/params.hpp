@@ -60,6 +60,7 @@ inline constexpr gimbal::Gimbal::Parameters GIMBAL{
         true,
         -3.14159265F,
         3.14159265F,
+        6.0F, // maximum_target_rate：目标转动速度上限 rad/s（自瞄吸过去的速度、手动角速度的钳位）
     },
     // pitch：机械限位按关节角给（水平为 0、低头为正）。范围是占位值，上板实测后改
     gimbal::Gimbal::AxisParameters{
@@ -70,12 +71,13 @@ inline constexpr gimbal::Gimbal::Parameters GIMBAL{
         true,
         -0.6F,
         1.0F,
+        6.0F, // maximum_target_rate
     },
     0.0F,    // pitch_gravity_newton_meter：低头方向为正，枪管一侧偏重时是负数
     1.0F,    // torque_limit_newton_meter
     10000U,  // attitude_timeout_us：10 ms 没有新姿态就停
     200000U, // enable_timeout_us：200 ms 没确认就回 DISABLED
-    100000U, // target_timeout_us：PC 目标默认 100 ms 有效
+    20000U, // command_timeout_us：20 ms 收不到 command.gimbal 就按 HOLD（仲裁同一个任务里每轮都发）
 };
 
 // 安全门：仲裁每轮（1 kHz）发布一次 safety.stop，50 ms 收不到就当发布者挂了

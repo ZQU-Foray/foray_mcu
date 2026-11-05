@@ -1,5 +1,5 @@
 // gimbal::Gimbal 在 platform/mock 上：两台达妙电机（FakeMotor）、真的 CanBus、DmMotor、SafetyGate，
-// 假的 imu.attitude、safety.stop 与 pc_link.control 发布者。
+// 假的 imu.attitude、safety.stop 与 command.gimbal 发布者。
 // 每轮顺序与组合根一致：bus.receive() → gimbal.step() → gate.step() → bus.transmit() → bench.respond() → 时间 +1 ms。
 // 每个 topic 只能有一个发布者，场景按参数分进程运行（与 imu、remote 相同）。
 #include "actuator/safety_gate.hpp"
@@ -9,8 +9,9 @@
 #include "gimbal/gimbal.hpp"
 #include "mock_hal.hpp"
 #include "mock_os.hpp"
+#include "topics/command.hpp"
+#include "topics/gimbal.hpp"
 #include "topics/imu.hpp"
-#include "topics/pc_link.hpp"
 #include "topics/safety.hpp"
 #include "unit/motor/dm_fake_motor.hpp"
 #include "utils/math/quaternion.hpp"
@@ -39,7 +40,6 @@ constexpr hal::os::Microseconds ATTITUDE_TIMEOUT{10000U};
 constexpr hal::os::Microseconds ENABLE_TIMEOUT{200000U};
 constexpr hal::os::Microseconds TARGET_TIMEOUT{100000U};
 constexpr hal::os::Microseconds STOP_TIMEOUT{50000U};
-constexpr std::uint16_t GIMBAL_FLAG{0x0002U};
 
 // 测试参数：pitch 限位 ±0.5 rad，yaw 限位 ±3.0 rad；增益取仿真里能收敛的一组
 constexpr gimbal::Gimbal::Parameters PARAMETERS{
@@ -47,12 +47,14 @@ constexpr gimbal::Gimbal::Parameters PARAMETERS{
                                                                 gimbal::AxisLoop::Gains{2.0F, 10.0F, 1.0F, 5.0F}},
                                    true,
                                    -3.0F,
-                                   3.0F},
+                                   3.0F,
+                                   1000.0F},
     gimbal::Gimbal::AxisParameters{gimbal::AxisLoop::Parameters{gimbal::AxisLoop::Gains{30.0F, 0.0F, 0.0F, 6.0F},
                                                                 gimbal::AxisLoop::Gains{2.0F, 10.0F, 1.0F, 5.0F}},
                                    true,
                                    -0.5F,
-                                   0.5F},
+                                   0.5F,
+                                   1000.0F},
     0.0F, // 重力前馈
     5.0F, // 总限幅
     ATTITUDE_TIMEOUT,
@@ -129,7 +131,7 @@ struct Publishers
 {
     topic::Publisher<topics::imu::Attitude> attitude;
     topic::Publisher<topics::safety::Stop> stop;
-    topic::Publisher<topics::pc_link::Control> control;
+    topic::Publisher<topics::command::Gimbal> command;
 };
 
 class Rig final
@@ -137,10 +139,11 @@ class Rig final
   public:
     Rig(topic::Publisher<topics::imu::Attitude> &attitude,
         topic::Publisher<topics::safety::Stop> &stop,
-        topic::Publisher<topics::pc_link::Control> &control,
-        const gimbal::Gimbal::Parameters &parameters = PARAMETERS) noexcept
-        : driver_{bus_, motor_config(yaw_, pitch_)}, parameters_{parameters}, attitude_{attitude}, stop_{stop},
-          control_{control}
+        topic::Publisher<topics::command::Gimbal> &command,
+        const gimbal::Gimbal::Parameters &parameters = PARAMETERS,
+        bool create_gimbal = true) noexcept
+        : driver_{bus_, motor_config(yaw_, pitch_)}, parameters_{parameters}, create_gimbal_{create_gimbal},
+          attitude_{attitude}, stop_{stop}, command_{command}
     {
     }
 
@@ -160,7 +163,7 @@ class Rig final
         {
             return false;
         }
-        return gimbal_.init(gimbal::Gimbal::Config{&yaw_, &pitch_, parameters_});
+        return !create_gimbal_ || gimbal_.init(gimbal::Gimbal::Config{&yaw_, &pitch_, parameters_});
     }
 
     void publish_attitude(
@@ -190,21 +193,21 @@ class Rig final
         ++arm_sequence_;
     }
 
-    void publish_control(
-        float yaw, float pitch, float yaw_rate = 0.0F, float pitch_rate = 0.0F, std::uint16_t extra_flags = 0U)
+    /** 发布一份云台指令。默认 ABSOLUTE（自瞄），HOLD 时其余字段忽略。 */
+    void publish_command(topics::command::GimbalMode mode,
+                         float yaw = 0.0F,
+                         float pitch = 0.0F,
+                         float yaw_rate = 0.0F,
+                         float pitch_rate = 0.0F)
     {
-        topics::pc_link::Control message{};
-        message.control_seq = ++control_sequence_;
-        message.source = 2U;
-        message.mode = 1U;
-        message.flags = static_cast<std::uint16_t>(GIMBAL_FLAG | extra_flags);
-        message.gimbal_yaw = yaw;
-        message.gimbal_pitch = pitch;
-        message.gimbal_yaw_rate = yaw_rate;
-        message.gimbal_pitch_rate = pitch_rate;
-        message.validity_hint_ms = 0U;
-        message.received_us = hal::os::now_us();
-        control_.publish(message);
+        topics::command::Gimbal message{};
+        message.mode = mode;
+        message.yaw_rad = yaw;
+        message.pitch_rad = pitch;
+        message.yaw_rate = yaw_rate;
+        message.pitch_rate = pitch_rate;
+        message.timestamp_us = hal::os::now_us();
+        command_.publish(message);
     }
 
     void tick(hal::os::Microseconds delta_us = 1000U)
@@ -314,21 +317,21 @@ class Rig final
     device::Joint pitch_{};
     device::DmMotor driver_;
     gimbal::Gimbal::Parameters parameters_{};
+    bool create_gimbal_{true};
     actuator::SafetyGate gate_{};
     gimbal::Gimbal gimbal_{};
     std::array<device::Joint *, 2> joints_{&yaw_, &pitch_};
     topic::Publisher<topics::imu::Attitude> &attitude_;
     topic::Publisher<topics::safety::Stop> &stop_;
-    topic::Publisher<topics::pc_link::Control> &control_;
+    topic::Publisher<topics::command::Gimbal> &command_;
     std::uint32_t arm_sequence_{0U};
-    std::uint32_t control_sequence_{0U};
     RoundFrames round_{};
 };
 
 // IMU 在 SETTLING：两台电机只收到"失能"，没有使能、没有 MIT 力矩
 int scenario_settling(Publishers &publishers)
 {
-    Rig rig{publishers.attitude, publishers.stop, publishers.control};
+    Rig rig{publishers.attitude, publishers.stop, publishers.command};
     assert(rig.init());
     assert(rig.run_until_ready());
     rig.release_gate();
@@ -348,7 +351,7 @@ int scenario_settling(Publishers &publishers)
 // READY，但安全门锁住：同样不出力
 int scenario_locked(Publishers &publishers)
 {
-    Rig rig{publishers.attitude, publishers.stop, publishers.control};
+    Rig rig{publishers.attitude, publishers.stop, publishers.command};
     assert(rig.init());
     assert(rig.run_until_ready());
     for (std::size_t round = 0U; round < 50U; ++round)
@@ -366,7 +369,7 @@ int scenario_locked(Publishers &publishers)
 // 安全门放开：两台都使能，之后每轮都有 MIT 力矩帧；姿态与目标一致时力矩约等于 0（不甩）
 int scenario_enable(Publishers &publishers)
 {
-    Rig rig{publishers.attitude, publishers.stop, publishers.control};
+    Rig rig{publishers.attitude, publishers.stop, publishers.command};
     assert(rig.init());
     assert(rig.run_until_ready());
     rig.release_gate();
@@ -387,7 +390,7 @@ int scenario_enable(Publishers &publishers)
 // PC 目标有效：TRACK；yaw 比目标偏右时 yaw 力矩为正；yaw 的误差回绕（不会绕远路）
 int scenario_track(Publishers &publishers)
 {
-    Rig rig{publishers.attitude, publishers.stop, publishers.control};
+    Rig rig{publishers.attitude, publishers.stop, publishers.command};
     assert(rig.init());
     assert(rig.run_until_ready());
     rig.release_gate();
@@ -398,11 +401,11 @@ int scenario_track(Publishers &publishers)
     {
         rig.publish_attitude(0.0F, 0.0F, topics::imu::State::READY, true);
         rig.publish_stop(false);
-        rig.publish_control(0.1F, 0.0F);
+        rig.publish_command(topics::command::GimbalMode::ABSOLUTE, 0.1F, 0.0F);
         rig.tick();
     }
     assert(rig.gimbal().report().mode == gimbal::Gimbal::Mode::TRACK);
-    assert(rig.gimbal().report().target_valid);
+    assert(rig.gimbal().report().command == topics::command::GimbalMode::ABSOLUTE);
     assert(rig.round().yaw_torque > 0.0F);
     assert(near(rig.gimbal().report().yaw_target_rad, 0.1F, 1.0e-4F));
 
@@ -411,7 +414,7 @@ int scenario_track(Publishers &publishers)
     {
         rig.publish_attitude(3.1F, 0.0F, topics::imu::State::READY, true);
         rig.publish_stop(false);
-        rig.publish_control(-3.1F, 0.0F);
+        rig.publish_command(topics::command::GimbalMode::ABSOLUTE, -3.1F, 0.0F);
         rig.tick();
     }
     const gimbal::Gimbal::Report &report = rig.gimbal().report();
@@ -423,7 +426,7 @@ int scenario_track(Publishers &publishers)
 // 急停：当轮两台都撤销出力，之后回到 DISABLED
 int scenario_estop(Publishers &publishers)
 {
-    Rig rig{publishers.attitude, publishers.stop, publishers.control};
+    Rig rig{publishers.attitude, publishers.stop, publishers.command};
     assert(rig.init());
     assert(rig.run_until_ready());
     rig.release_gate();
@@ -444,7 +447,7 @@ int scenario_estop(Publishers &publishers)
 // 一台电机报故障：两台都撤销，回 DISABLED
 int scenario_fault(Publishers &publishers)
 {
-    Rig rig{publishers.attitude, publishers.stop, publishers.control};
+    Rig rig{publishers.attitude, publishers.stop, publishers.command};
     assert(rig.init());
     assert(rig.run_until_ready());
     rig.release_gate();
@@ -465,7 +468,7 @@ int scenario_fault(Publishers &publishers)
 // 姿态停发超过超时：回 DISABLED
 int scenario_attitude_timeout(Publishers &publishers)
 {
-    Rig rig{publishers.attitude, publishers.stop, publishers.control};
+    Rig rig{publishers.attitude, publishers.stop, publishers.command};
     assert(rig.init());
     assert(rig.run_until_ready());
     rig.release_gate();
@@ -482,10 +485,10 @@ int scenario_attitude_timeout(Publishers &publishers)
     return 0;
 }
 
-// PC 目标有效 → 过期：TRACK → HOLD，目标保持最后一个
-int scenario_target_expiry(Publishers &publishers)
+// 指令超时：TRACK → HOLD，目标保持最后一个
+int scenario_command_timeout(Publishers &publishers)
 {
-    Rig rig{publishers.attitude, publishers.stop, publishers.control};
+    Rig rig{publishers.attitude, publishers.stop, publishers.command};
     assert(rig.init());
     assert(rig.run_until_ready());
     rig.release_gate();
@@ -495,19 +498,19 @@ int scenario_target_expiry(Publishers &publishers)
     {
         rig.publish_attitude(0.0F, 0.0F, topics::imu::State::READY, true);
         rig.publish_stop(false);
-        rig.publish_control(0.2F, 0.0F);
+        rig.publish_command(topics::command::GimbalMode::ABSOLUTE, 0.2F, 0.0F);
         rig.tick();
     }
     assert(rig.gimbal().report().mode == gimbal::Gimbal::Mode::TRACK);
     assert(near(rig.gimbal().report().yaw_target_rad, 0.2F, 1.0e-4F));
 
-    // 不再发目标，等过默认有效期（100 ms）
+    // 不再发指令，等过 command_timeout_us（测试参数 100 ms）
     for (std::size_t round = 0U; round < 120U; ++round)
     {
         rig.tick_alive();
     }
     assert(rig.gimbal().report().mode == gimbal::Gimbal::Mode::HOLD);
-    assert(!rig.gimbal().report().target_valid);
+    assert(rig.gimbal().report().command == topics::command::GimbalMode::HOLD);
     assert(near(rig.gimbal().report().yaw_target_rad, 0.2F, 1.0e-4F)); // 目标保持最后一个
     return 0;
 }
@@ -515,7 +518,7 @@ int scenario_target_expiry(Publishers &publishers)
 // 有限位的 yaw、底座倾斜（偏移）不为 0：目标先在关节角里回绕再钳位，不会跑到另一头的限位
 int scenario_yaw_limit(Publishers &publishers)
 {
-    Rig rig{publishers.attitude, publishers.stop, publishers.control};
+    Rig rig{publishers.attitude, publishers.stop, publishers.command};
     assert(rig.init());
     assert(rig.run_until_ready());
     rig.release_gate();
@@ -528,7 +531,7 @@ int scenario_yaw_limit(Publishers &publishers)
     {
         rig.publish_attitude(2.5F, 0.0F, topics::imu::State::READY, true);
         rig.publish_stop(false);
-        rig.publish_control(-3.0F, 0.0F);
+        rig.publish_command(topics::command::GimbalMode::ABSOLUTE, -3.0F, 0.0F);
         rig.tick();
     }
     assert(rig.gimbal().report().mode == gimbal::Gimbal::Mode::TRACK);
@@ -543,19 +546,137 @@ int scenario_yaw_limit(Publishers &publishers)
     return 0;
 }
 
-// 参数检查：负的重力前馈合法（枪管一侧偏重），总限幅超过关节能力、时间参数为 0、限位颠倒才拒绝
+// 手动：恒定角速度 1 s，目标走了大约「角速度 × 1 s」；回中后不再走
+int scenario_manual_rate(Publishers &publishers)
+{
+    Rig rig{publishers.attitude, publishers.stop, publishers.command};
+    assert(rig.init());
+    assert(rig.run_until_ready());
+    rig.release_gate();
+    assert(rig.run_until_holding());
+
+    const float start = rig.gimbal().report().yaw_target_rad;
+    for (std::size_t round = 0U; round < 1000U; ++round)
+    {
+        rig.publish_attitude(0.0F, 0.0F, topics::imu::State::READY, true);
+        rig.publish_stop(false);
+        rig.publish_command(topics::command::GimbalMode::RATE, 0.0F, 0.0F, 1.0F, 0.0F);
+        rig.tick();
+    }
+    const gimbal::Gimbal::Report &report = rig.gimbal().report();
+    assert(report.mode == gimbal::Gimbal::Mode::MANUAL);
+    assert(near(report.yaw_target_rad - start, 1.0F, 0.02F)); // 1 rad/s × 1 s
+
+    const float held = report.yaw_target_rad;
+    for (std::size_t round = 0U; round < 20U; ++round)
+    {
+        rig.publish_attitude(0.0F, 0.0F, topics::imu::State::READY, true);
+        rig.publish_stop(false);
+        rig.publish_command(topics::command::GimbalMode::RATE, 0.0F, 0.0F, 0.0F, 0.0F);
+        rig.tick();
+    }
+    assert(near(rig.gimbal().report().yaw_target_rad, held, 1.0e-4F)); // 回中：不再走
+    return 0;
+}
+
+// 手动往限位外推一秒，再反向：目标停在限位上，反向后立刻离开（没有积分饱和）
+int scenario_manual_clamp(Publishers &publishers)
+{
+    Rig rig{publishers.attitude, publishers.stop, publishers.command};
+    assert(rig.init());
+    assert(rig.run_until_ready());
+    rig.release_gate();
+    assert(rig.run_until_holding());
+
+    for (std::size_t round = 0U; round < 1000U; ++round)
+    {
+        rig.publish_attitude(0.0F, 0.0F, topics::imu::State::READY, true);
+        rig.publish_stop(false);
+        rig.publish_command(topics::command::GimbalMode::RATE, 0.0F, 0.0F, 6.0F, 0.0F);
+        rig.tick();
+    }
+    const float clamped = rig.gimbal().report().yaw_target_rad;
+    assert(near(clamped, PARAMETERS.yaw.maximum_rad, 0.01F)); // 目标停在限位上
+
+    rig.publish_attitude(0.0F, 0.0F, topics::imu::State::READY, true);
+    rig.publish_stop(false);
+    rig.publish_command(topics::command::GimbalMode::RATE, 0.0F, 0.0F, -1.0F, 0.0F);
+    rig.tick();
+    // 写回了钳完的目标：一拍就离开限位，而不是先把限位外积的那段"退"完
+    assert(rig.gimbal().report().yaw_target_rad < clamped - 0.0005F);
+    return 0;
+}
+
+// 目标转动速度上限：ABSOLUTE 跳 0.5 rad，实际用的目标每拍最多走 maximum_target_rate × dt
+int scenario_absolute_rate_limit(Publishers &publishers)
+{
+    gimbal::Gimbal::Parameters parameters = PARAMETERS;
+    parameters.yaw.maximum_target_rate = 2.0F; // rad/s
+    Rig rig{publishers.attitude, publishers.stop, publishers.command, parameters};
+    assert(rig.init());
+    assert(rig.run_until_ready());
+    rig.release_gate();
+    assert(rig.run_until_holding());
+
+    rig.publish_attitude(0.0F, 0.0F, topics::imu::State::READY, true);
+    rig.publish_stop(false);
+    rig.publish_command(topics::command::GimbalMode::ABSOLUTE, 0.5F, 0.0F);
+    rig.tick();
+    // 第一拍最多走 2 rad/s × 1 ms = 0.002 rad
+    assert(rig.gimbal().report().yaw_target_rad > 0.0F);
+    assert(rig.gimbal().report().yaw_target_rad < 0.003F);
+
+    for (std::size_t round = 0U; round < 300U; ++round)
+    {
+        rig.publish_attitude(0.0F, 0.0F, topics::imu::State::READY, true);
+        rig.publish_stop(false);
+        rig.publish_command(topics::command::GimbalMode::ABSOLUTE, 0.5F, 0.0F);
+        rig.tick();
+    }
+    assert(near(rig.gimbal().report().yaw_target_rad, 0.5F, 0.01F)); // 之后到位
+    return 0;
+}
+
+// gimbal.state 与 Report 一致；模式是这一轮的指令模式
+int scenario_state(Publishers &publishers)
+{
+    Rig rig{publishers.attitude, publishers.stop, publishers.command};
+    assert(rig.init());
+    assert(rig.run_until_ready());
+    rig.release_gate();
+    assert(rig.run_until_holding());
+
+    topic::Subscriber<topics::gimbal::State> state{topics::gimbal::state};
+    for (std::size_t round = 0U; round < 5U; ++round)
+    {
+        rig.publish_attitude(0.0F, 0.0F, topics::imu::State::READY, true);
+        rig.publish_stop(false);
+        rig.publish_command(topics::command::GimbalMode::ABSOLUTE, 0.1F, 0.05F);
+        rig.tick();
+    }
+    topics::gimbal::State message{};
+    assert(state.update(message));
+    const gimbal::Gimbal::Report &report = rig.gimbal().report();
+    assert(message.mode == topics::command::GimbalMode::ABSOLUTE);
+    assert(near(message.yaw_rad, report.yaw_rad, 1.0e-6F));
+    assert(near(message.pitch_rad, report.pitch_rad, 1.0e-6F));
+    assert(near(message.yaw_target_rad, report.yaw_target_rad, 1.0e-6F));
+    assert(near(message.pitch_target_rad, report.pitch_target_rad, 1.0e-6F));
+    assert(near(message.yaw_joint_rad, report.yaw_joint_rad, 1.0e-6F));
+    return 0;
+}
+
+// 参数检查：负的重力前馈合法（枪管一侧偏重）、限位总宽正好 2π 合法；
+// 总限幅超过关节能力、时间参数为 0、限位颠倒或超过 2π、目标速度上限非正、关节为空都拒绝
 int scenario_reject(Publishers &publishers)
 {
-    Rig rig{publishers.attitude, publishers.stop, publishers.control};
+    // 不建 Rig 的云台：Gimbal::init 会占掉 gimbal.state 的发布句柄，一个进程只能成功一次
+    Rig rig{publishers.attitude, publishers.stop, publishers.command, PARAMETERS, false};
     assert(rig.init());
     assert(rig.run_until_ready());
 
     gimbal::Gimbal probe;
     gimbal::Gimbal::Parameters parameters = PARAMETERS;
-    parameters.pitch_gravity_newton_meter = -0.8F;
-    assert(probe.init(gimbal::Gimbal::Config{&rig.yaw(), &rig.pitch(), parameters}));
-
-    parameters = PARAMETERS;
     parameters.torque_limit_newton_meter = 11.0F; // 超过 J4310 的 10 N·m
     assert(!probe.init(gimbal::Gimbal::Config{&rig.yaw(), &rig.pitch(), parameters}));
 
@@ -569,15 +690,23 @@ int scenario_reject(Publishers &publishers)
     assert(!probe.init(gimbal::Gimbal::Config{&rig.yaw(), &rig.pitch(), parameters}));
 
     parameters = PARAMETERS;
+    parameters.yaw.minimum_rad = -3.14159265F;
+    parameters.yaw.maximum_rad = 3.2F; // 总宽超过 2π
+    assert(!probe.init(gimbal::Gimbal::Config{&rig.yaw(), &rig.pitch(), parameters}));
+
+    parameters = PARAMETERS;
+    parameters.pitch.maximum_target_rate = 0.0F;
+    assert(!probe.init(gimbal::Gimbal::Config{&rig.yaw(), &rig.pitch(), parameters}));
+
+    parameters = PARAMETERS;
     assert(!probe.init(gimbal::Gimbal::Config{nullptr, &rig.pitch(), parameters}));
 
-    // 限位总宽超过 2π：回绕会把目标往回改，直接拒绝
+    // 唯一的正例：负的重力前馈 + 限位总宽正好 2π
     parameters = PARAMETERS;
+    parameters.pitch_gravity_newton_meter = -0.8F;
     parameters.yaw.minimum_rad = -3.14159265F;
-    parameters.yaw.maximum_rad = 3.14159265F; // 正好 2π：允许
+    parameters.yaw.maximum_rad = 3.14159265F;
     assert(probe.init(gimbal::Gimbal::Config{&rig.yaw(), &rig.pitch(), parameters}));
-    parameters.yaw.maximum_rad = 3.2F;
-    assert(!probe.init(gimbal::Gimbal::Config{&rig.yaw(), &rig.pitch(), parameters}));
     return 0;
 }
 
@@ -585,7 +714,7 @@ int scenario_reject(Publishers &publishers)
 // 应该是 −2.5（走 5 rad 的远路），不能是 3.78（走近路穿过限位）
 int scenario_yaw_limit_wide(Publishers &publishers)
 {
-    Rig rig{publishers.attitude, publishers.stop, publishers.control};
+    Rig rig{publishers.attitude, publishers.stop, publishers.command};
     // 假电机的位置在第一次反馈之前设好，关节就停在 2.5 rad
     rig.yaw_motor().position = Dm::to_unsigned(2.5F, -12.5F, 12.5F, 16U);
     assert(rig.init());
@@ -599,7 +728,7 @@ int scenario_yaw_limit_wide(Publishers &publishers)
     {
         rig.publish_attitude(2.5F, 0.0F, topics::imu::State::READY, true);
         rig.publish_stop(false);
-        rig.publish_control(-2.5F, 0.0F);
+        rig.publish_command(topics::command::GimbalMode::ABSOLUTE, -2.5F, 0.0F);
         rig.tick();
     }
     assert(rig.gimbal().report().mode == gimbal::Gimbal::Mode::TRACK);
@@ -614,7 +743,7 @@ int scenario_pitch_feedforward(Publishers &publishers)
     gimbal::Gimbal::Parameters parameters = PARAMETERS;
     parameters.pitch.controller.angle.kp = 0.0F;
     parameters.pitch.controller.angle.ki = 0.0F;
-    Rig rig{publishers.attitude, publishers.stop, publishers.control, parameters};
+    Rig rig{publishers.attitude, publishers.stop, publishers.command, parameters};
     assert(rig.init());
     assert(rig.run_until_ready());
     rig.release_gate();
@@ -625,7 +754,7 @@ int scenario_pitch_feedforward(Publishers &publishers)
     {
         rig.publish_attitude(0.0F, 0.0F, topics::imu::State::READY, true);
         rig.publish_stop(false);
-        rig.publish_control(0.0F, 2.0F, 0.0F, 1.0F);
+        rig.publish_command(topics::command::GimbalMode::ABSOLUTE, 0.0F, 2.0F, 0.0F, 1.0F);
         rig.tick();
     }
     assert(rig.gimbal().report().mode == gimbal::Gimbal::Mode::TRACK);
@@ -641,7 +770,7 @@ int scenario_enable_timeout(Publishers &publishers)
     gimbal::Gimbal::Parameters parameters = PARAMETERS;
     // 比达妙驱动自己的使能超时（50 ms）短，先撞到云台这一条
     parameters.enable_timeout_us = 20000U;
-    Rig rig{publishers.attitude, publishers.stop, publishers.control, parameters};
+    Rig rig{publishers.attitude, publishers.stop, publishers.command, parameters};
     assert(rig.init());
     assert(rig.run_until_ready());
     rig.yaw_motor().refuse_enable = true; // 电机收不到使能，永远不确认
@@ -664,43 +793,11 @@ int scenario_enable_timeout(Publishers &publishers)
     return 0;
 }
 
-// PC 的急停请求（flags bit3）只当"目标无效"：回到 HOLD，目标保持最后一个
-int scenario_pc_estop(Publishers &publishers)
-{
-    Rig rig{publishers.attitude, publishers.stop, publishers.control};
-    assert(rig.init());
-    assert(rig.run_until_ready());
-    rig.release_gate();
-    assert(rig.run_until_holding());
-
-    for (std::size_t round = 0U; round < 5U; ++round)
-    {
-        rig.publish_attitude(0.0F, 0.0F, topics::imu::State::READY, true);
-        rig.publish_stop(false);
-        rig.publish_control(0.2F, 0.0F);
-        rig.tick();
-    }
-    assert(rig.gimbal().report().mode == gimbal::Gimbal::Mode::TRACK);
-    assert(near(rig.gimbal().report().yaw_target_rad, 0.2F, 1.0e-3F));
-
-    for (std::size_t round = 0U; round < 5U; ++round)
-    {
-        rig.publish_attitude(0.0F, 0.0F, topics::imu::State::READY, true);
-        rig.publish_stop(false);
-        rig.publish_control(0.3F, 0.0F, 0.0F, 0.0F, 0x0008U); // PC 请求急停
-        rig.tick();
-    }
-    assert(rig.gimbal().report().mode == gimbal::Gimbal::Mode::HOLD);
-    assert(!rig.gimbal().report().target_valid);
-    assert(near(rig.gimbal().report().yaw_target_rad, 0.2F, 1.0e-3F));
-    return 0;
-}
-
 // 采样时刻晚于本轮 now：IMU 任务优先级更高，可能在云台取好 now 之后插进来发布。
 // 无符号相减会下溢成一个巨大的数，不能因此判成姿态过期
 int scenario_attitude_ahead(Publishers &publishers)
 {
-    Rig rig{publishers.attitude, publishers.stop, publishers.control};
+    Rig rig{publishers.attitude, publishers.stop, publishers.command};
     assert(rig.init());
     assert(rig.run_until_ready());
     rig.release_gate();
@@ -722,7 +819,7 @@ int scenario_attitude_ahead(Publishers &publishers)
 // 这一轮没有新姿态：不重复积分，重发上一拍的力矩
 int scenario_attitude_gap(Publishers &publishers)
 {
-    Rig rig{publishers.attitude, publishers.stop, publishers.control};
+    Rig rig{publishers.attitude, publishers.stop, publishers.command};
     assert(rig.init());
     assert(rig.run_until_ready());
     rig.release_gate();
@@ -733,7 +830,7 @@ int scenario_attitude_gap(Publishers &publishers)
     {
         rig.publish_attitude(0.0F, 0.0F, topics::imu::State::READY, true);
         rig.publish_stop(false);
-        rig.publish_control(0.02F, 0.0F);
+        rig.publish_command(topics::command::GimbalMode::ABSOLUTE, 0.02F, 0.0F);
         rig.tick();
     }
     const float compensation = rig.gimbal().report().yaw_diagnostics.compensation_newton_meter;
@@ -754,7 +851,7 @@ int scenario_attitude_gap(Publishers &publishers)
 // 跨 ±π：IMU 的 yaw 从 3.10 匀速走到 3.20，控制律拿到的是连续的角，力矩不跳变
 int scenario_yaw_cross_pi(Publishers &publishers)
 {
-    Rig rig{publishers.attitude, publishers.stop, publishers.control};
+    Rig rig{publishers.attitude, publishers.stop, publishers.command};
     assert(rig.init());
     assert(rig.run_until_ready());
     rig.release_gate(3.1F);
@@ -789,7 +886,7 @@ int scenario_yaw_cross_pi(Publishers &publishers)
 // PC 目标的 pitch 超出限位：目标被钳在限位内
 int scenario_pitch_limit(Publishers &publishers)
 {
-    Rig rig{publishers.attitude, publishers.stop, publishers.control};
+    Rig rig{publishers.attitude, publishers.stop, publishers.command};
     assert(rig.init());
     assert(rig.run_until_ready());
     rig.release_gate();
@@ -799,7 +896,7 @@ int scenario_pitch_limit(Publishers &publishers)
     {
         rig.publish_attitude(0.0F, 0.0F, topics::imu::State::READY, true);
         rig.publish_stop(false);
-        rig.publish_control(0.0F, 2.0F);
+        rig.publish_command(topics::command::GimbalMode::ABSOLUTE, 0.0F, 2.0F);
         rig.tick();
     }
     assert(rig.gimbal().report().mode == gimbal::Gimbal::Mode::TRACK);
@@ -810,7 +907,7 @@ int scenario_pitch_limit(Publishers &publishers)
     {
         rig.publish_attitude(0.0F, 0.0F, topics::imu::State::READY, true);
         rig.publish_stop(false);
-        rig.publish_control(0.0F, 0.2F);
+        rig.publish_command(topics::command::GimbalMode::ABSOLUTE, 0.0F, 0.2F);
         rig.tick();
     }
     assert(rig.round().pitch_torque > 0.0F);
@@ -823,12 +920,14 @@ int main(int argc, char **argv)
 {
     Publishers publishers{topics::imu::attitude.claim_publisher(),
                           topics::safety::stop.claim_publisher(),
-                          topics::pc_link::control.claim_publisher()};
-    assert(publishers.attitude && publishers.stop && publishers.control);
+                          topics::command::gimbal.claim_publisher()};
+    assert(publishers.attitude && publishers.stop && publishers.command);
     if (argc != 2)
     {
         std::fprintf(stderr,
-                     "用法：%s settling|locked|enable|track|estop|fault|attitude_timeout|target_expiry|pitch_limit\n",
+                     "用法：%s settling|locked|enable|track|estop|fault|attitude_timeout|command_timeout|pitch_limit|"
+                     "yaw_limit|yaw_limit_wide|pitch_feedforward|enable_timeout|attitude_ahead|attitude_gap|"
+                     "yaw_cross_pi|manual_rate|manual_clamp|absolute_rate_limit|state|reject\n",
                      argv[0]);
         return 2;
     }
@@ -861,9 +960,9 @@ int main(int argc, char **argv)
     {
         return scenario_attitude_timeout(publishers);
     }
-    if (std::strcmp(scenario, "target_expiry") == 0)
+    if (std::strcmp(scenario, "command_timeout") == 0)
     {
-        return scenario_target_expiry(publishers);
+        return scenario_command_timeout(publishers);
     }
     if (std::strcmp(scenario, "pitch_limit") == 0)
     {
@@ -889,10 +988,6 @@ int main(int argc, char **argv)
     {
         return scenario_enable_timeout(publishers);
     }
-    if (std::strcmp(scenario, "pc_estop") == 0)
-    {
-        return scenario_pc_estop(publishers);
-    }
     if (std::strcmp(scenario, "attitude_ahead") == 0)
     {
         return scenario_attitude_ahead(publishers);
@@ -904,6 +999,22 @@ int main(int argc, char **argv)
     if (std::strcmp(scenario, "yaw_cross_pi") == 0)
     {
         return scenario_yaw_cross_pi(publishers);
+    }
+    if (std::strcmp(scenario, "manual_rate") == 0)
+    {
+        return scenario_manual_rate(publishers);
+    }
+    if (std::strcmp(scenario, "manual_clamp") == 0)
+    {
+        return scenario_manual_clamp(publishers);
+    }
+    if (std::strcmp(scenario, "absolute_rate_limit") == 0)
+    {
+        return scenario_absolute_rate_limit(publishers);
+    }
+    if (std::strcmp(scenario, "state") == 0)
+    {
+        return scenario_state(publishers);
     }
     std::fprintf(stderr, "未知场景：%s\n", scenario);
     return 2;

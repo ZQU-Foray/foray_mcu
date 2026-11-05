@@ -20,6 +20,7 @@ add_library(app_topics INTERFACE
     topics/all.hpp
     topics/bringup.hpp
     topics/command.hpp
+    topics/gimbal.hpp
     topics/imu.hpp
     topics/operator_input.hpp
     topics/pc_link.hpp

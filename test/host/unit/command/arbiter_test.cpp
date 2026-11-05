@@ -6,6 +6,7 @@
 #include "mock_hal.hpp"
 #include "mock_os.hpp"
 #include "topics/command.hpp"
+#include "topics/gimbal.hpp"
 #include "topics/operator_input.hpp"
 #include "topics/pc_link.hpp"
 #include "topics/remote.hpp"
@@ -50,6 +51,7 @@ struct Publishers
 {
     topic::Publisher<topics::OperatorInput> input;
     topic::Publisher<topics::pc_link::Control> control;
+    topic::Publisher<topics::gimbal::State> state;
 };
 
 struct Rig
@@ -68,8 +70,8 @@ struct Rig
     }
 
     /** 发布一份操作输入：三档开关与两根摇杆，其余为默认。 */
-    void publish_input(bool run, bool auto_aim, bool fire, bool connected, float yaw_stick = 0.0F,
-                       float pitch_stick = 0.0F)
+    void
+    publish_input(bool run, bool auto_aim, bool fire, bool connected, float yaw_stick = 0.0F, float pitch_stick = 0.0F)
     {
         topics::OperatorInput message{};
         message.switches[0] = run ? topics::SwitchPosition::UP : topics::SwitchPosition::DOWN;
@@ -81,6 +83,16 @@ struct Rig
         message.connected = connected;
         message.timestamp_us = hal::os::now_us();
         publishers_.input.publish(message);
+    }
+
+    /** 发布云台的当前状态：接管范围用它算。 */
+    void publish_state(float yaw, float pitch)
+    {
+        topics::gimbal::State message{};
+        message.yaw_target_rad = yaw;
+        message.pitch_target_rad = pitch;
+        message.timestamp_us = hal::os::now_us();
+        publishers_.state.publish(message);
     }
 
     void publish_control(float yaw, float pitch, std::uint16_t flags = GIMBAL_FLAG)
@@ -112,7 +124,11 @@ struct Rig
     }
 
     /** 发布输入再跑一轮，返回这一轮发出的两样东西。 */
-    void step_with(bool run, bool auto_aim = false, bool fire = false, bool connected = true, float yaw_stick = 0.0F,
+    void step_with(bool run,
+                   bool auto_aim = false,
+                   bool fire = false,
+                   bool connected = true,
+                   float yaw_stick = 0.0F,
                    float pitch_stick = 0.0F)
     {
         publish_input(run, auto_aim, fire, connected, yaw_stick, pitch_stick);
@@ -203,6 +219,7 @@ int scenario_auto_aim(Publishers &publishers)
 {
     Rig rig{publishers};
     assert(rig.init());
+    rig.publish_state(0.3F, -0.2F);
     rig.publish_control(0.3F, -0.2F);
     rig.step_with(true, true, true);
     const topics::command::Gimbal command = rig.last_command();
@@ -232,8 +249,8 @@ int scenario_pc_invalid(Publishers &publishers)
 {
     Rig rig{publishers};
     assert(rig.init());
-    for (std::uint16_t flags : {static_cast<std::uint16_t>(0U),
-                                static_cast<std::uint16_t>(GIMBAL_FLAG | ESTOP_FLAG)})
+    rig.publish_state(0.0F, 0.0F);
+    for (std::uint16_t flags : {static_cast<std::uint16_t>(0U), static_cast<std::uint16_t>(GIMBAL_FLAG | ESTOP_FLAG)})
     {
         rig.publish_control(0.1F, 0.0F, flags);
         rig.step_with(true, true, true);
@@ -292,6 +309,54 @@ int scenario_idle(Publishers &publishers)
     return 0;
 }
 
+// 接管范围：目标离当前瞄准方向超过 engage_range_rad 就不接管；靠近了才接管
+int scenario_engage_range(Publishers &publishers)
+{
+    Rig rig{publishers};
+    assert(rig.init());
+    rig.publish_state(0.0F, 0.0F);
+    rig.publish_control(0.5F, 0.0F); // 离瞄准方向 0.5 rad，超过 0.2
+    rig.step_with(true, true, true);
+    assert(rig.last_command().mode == Topics::RATE);
+    assert(rig.arbiter.report().engage_error_rad > 0.4F);
+
+    rig.publish_state(0.4F, 0.0F); // 挪到 0.1 rad 之内
+    rig.step_with(true, true, true);
+    assert(rig.last_command().mode == Topics::ABSOLUTE);
+    assert(rig.arbiter.report().engage_error_rad < 0.2F);
+    return 0;
+}
+
+// 接管范围的 yaw 差要回绕：目标 3.1、瞄准 −3.1，实际只差 0.083 rad，应该接管
+int scenario_engage_wrap(Publishers &publishers)
+{
+    Rig rig{publishers};
+    assert(rig.init());
+    rig.publish_state(-3.1F, 0.0F);
+    rig.publish_control(3.1F, 0.0F);
+    rig.step_with(true, true, true);
+    assert(rig.last_command().mode == Topics::ABSOLUTE);
+    assert(rig.arbiter.report().engage_error_rad < 0.1F);
+    return 0;
+}
+
+// 接管中视觉跳到远处的目标：松开接管，回到手动
+int scenario_engage_jump(Publishers &publishers)
+{
+    Rig rig{publishers};
+    assert(rig.init());
+    rig.publish_state(0.3F, 0.0F);
+    rig.publish_control(0.3F, 0.0F);
+    rig.step_with(true, true, true);
+    assert(rig.last_command().mode == Topics::ABSOLUTE);
+
+    rig.publish_control(1.0F, 0.0F); // 视觉跳到 1.0，瞄准方向还在 0.3
+    rig.step_with(true, true, true);
+    assert(rig.last_command().mode == Topics::RATE);
+    assert(!rig.arbiter.report().engaged);
+    return 0;
+}
+
 // 参数检查
 int scenario_reject(Publishers &)
 {
@@ -332,12 +397,15 @@ int scenario_reject(Publishers &)
 
 int main(int argc, char **argv)
 {
-    Publishers publishers{topics::remote::input.claim_publisher(), topics::pc_link::control.claim_publisher()};
-    assert(publishers.input && publishers.control);
+    Publishers publishers{topics::remote::input.claim_publisher(),
+                          topics::pc_link::control.claim_publisher(),
+                          topics::gimbal::state.claim_publisher()};
+    assert(publishers.input && publishers.control && publishers.state);
     if (argc != 2)
     {
         std::fprintf(stderr,
-                     "用法：%s run_baseline|failsafe|input_timeout|auto_aim|no_engage|pc_invalid|manual|idle|reject\n",
+                     "用法：%s run_baseline|failsafe|input_timeout|auto_aim|no_engage|pc_invalid|manual|engage_range|"
+                     "engage_wrap|engage_jump|idle|reject\n",
                      argv[0]);
         return 2;
     }
@@ -369,6 +437,18 @@ int main(int argc, char **argv)
     if (std::strcmp(scenario, "manual") == 0)
     {
         return scenario_manual(publishers);
+    }
+    if (std::strcmp(scenario, "engage_range") == 0)
+    {
+        return scenario_engage_range(publishers);
+    }
+    if (std::strcmp(scenario, "engage_wrap") == 0)
+    {
+        return scenario_engage_wrap(publishers);
+    }
+    if (std::strcmp(scenario, "engage_jump") == 0)
+    {
+        return scenario_engage_jump(publishers);
     }
     if (std::strcmp(scenario, "idle") == 0)
     {

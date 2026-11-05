@@ -4,6 +4,7 @@
 #include "hal/os/clock.hpp"
 #include "middleware/topic/topic.hpp"
 #include "topics/command.hpp"
+#include "topics/gimbal.hpp"
 #include "topics/operator_input.hpp"
 #include "topics/pc_link.hpp"
 #include "topics/remote.hpp"
@@ -58,10 +59,8 @@ constexpr Binding unbound() noexcept
 }
 
 /** 拨杆到某一档。 */
-constexpr Binding on_switch(Source source,
-                            std::uint8_t index,
-                            topics::SwitchPosition position,
-                            Trigger trigger = Trigger::HOLD) noexcept
+constexpr Binding
+on_switch(Source source, std::uint8_t index, topics::SwitchPosition position, Trigger trigger = Trigger::HOLD) noexcept
 {
     return Binding{source, Control::SWITCH, index, position, 0U, trigger};
 }
@@ -114,10 +113,10 @@ struct Report
     bool input_connected; // 操作输入连着
     bool run;             // 运行功能成立（安全门放开）
     std::uint32_t arm_sequence;
-    bool auto_aim;        // 自瞄开关成立
-    bool fire;            // 开火成立
+    bool auto_aim; // 自瞄开关成立
+    bool fire;     // 开火成立
     bool pc_target_valid;
-    bool engaged;         // 自瞄接管中（发出的模式是 ABSOLUTE）
+    bool engaged;           // 自瞄接管中（发出的模式是 ABSOLUTE）
     float engage_error_rad; // PC 目标离当前瞄准方向多远（yaw 回绕后的绝对值与 pitch 的较大者）
     topics::command::GimbalMode mode;
     std::uint32_t release_count; // 从"没运行"变成"运行"的次数
@@ -136,7 +135,8 @@ struct Report
  * - 连着：收到过消息、最近一次**收到**的时刻在 `input_timeout_us` 内、消息里的 `connected` 为真。
  *   不用消息里的时间戳：别的任务填的时刻可能晚于本轮的 now，而且发布任务挂掉时最后一条消息还写着"连着"。
  * - 云台指令：不在运行 → HOLD；自瞄开着、按住开火、PC 目标有效、目标在接管范围内 → ABSOLUTE；
- *   其余 → RATE（手动角速度）。
+ *   其余 → RATE（手动角速度）。接管范围用云台发布的 `gimbal.state` 里的实际目标算（yaw 取回绕后的差），
+ *   没收到过 `gimbal.state` 时按超出范围处理（不接管）。
  *
  * @note 在 gimbal 任务里、云台之前调用：急停当轮生效，自瞄目标不走长周期。
  */
@@ -157,6 +157,7 @@ class Arbiter final
     [[nodiscard]] bool input_connected(hal::os::Microseconds now) const noexcept;
     [[nodiscard]] bool binding_active(const Binding &binding, std::size_t function, std::size_t slot) noexcept;
     [[nodiscard]] bool pc_target_valid(hal::os::Microseconds now) const noexcept;
+    [[nodiscard]] float engage_error() const noexcept;
     [[nodiscard]] float manual_rate(std::size_t stick, float full_scale) const noexcept;
     void publish_stop(hal::os::Microseconds now) noexcept;
     void publish_command(hal::os::Microseconds now) noexcept;
@@ -164,15 +165,18 @@ class Arbiter final
     Parameters parameters_{};
     topic::Subscriber<topics::OperatorInput> remote_{topics::remote::input};
     topic::Subscriber<topics::pc_link::Control> control_{topics::pc_link::control};
+    topic::Subscriber<topics::gimbal::State> gimbal_state_{topics::gimbal::state};
     topic::Publisher<topics::safety::Stop> stop_publisher_{};
     topic::Publisher<topics::command::Gimbal> command_publisher_{};
 
     topics::OperatorInput input_{};
     topics::pc_link::Control control_message_{};
+    topics::gimbal::State gimbal_state_message_{};
     hal::os::Microseconds input_received_us_{0U};
     hal::os::Microseconds control_received_us_{0U};
     bool has_input_{false};
     bool has_control_{false};
+    bool has_gimbal_state_{false};
     bool connected_{false};
     bool run_{false};
     bool run_known_{false};
