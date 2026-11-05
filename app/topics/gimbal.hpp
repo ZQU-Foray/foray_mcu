@@ -14,6 +14,8 @@ namespace topics::gimbal
  * @brief 云台当前的状态：模式、实际用的目标、测量的姿态、yaw 关节角。
  *
  * 仲裁用它判断自瞄目标离当前瞄准方向多远；底盘以后跟随云台也用这一份，不必自己从 imu.attitude 算。
+ * @note mode 是收到的指令模式，不表示云台在出力：DISABLED 时也可能是 ABSOLUTE。底盘跟随之前要再加一个
+ *       "正在出力"的字段。
  */
 struct State
 {

@@ -138,7 +138,7 @@ def judge(decoded: list[dict[str, object]]) -> list[tuple[bool, str]]:
             ),
         )
     )
-    if mode in ("HOLD", "TRACK"):
+    if mode in ("HOLD", "TRACK", "MANUAL"):
         # 4310 的峰值力矩 12.5 N·m：超过它说明限幅或符号出了问题
         checks.append(
             (

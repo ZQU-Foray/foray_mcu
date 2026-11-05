@@ -91,6 +91,7 @@ bool Arbiter::init(const Parameters &parameters) noexcept
     run_last_ = false;
     engaged_ = false;
     was_running_ = false;
+    resync_bindings_ = false;
     arm_sequence_ = 0U;
     binding_level_ = {};
     binding_toggle_ = {};
@@ -125,6 +126,7 @@ void Arbiter::step(hal::os::Microseconds now) noexcept
             toggles.fill(false);
         }
         run_known_ = false;
+        resync_bindings_ = true; // 重连后的第一拍只记状态，不让按着的控件被当成一次按下
     }
 
     for (std::size_t function = 0U; function < FUNCTION_COUNT; ++function)
@@ -135,6 +137,10 @@ void Arbiter::step(hal::os::Microseconds now) noexcept
             active = binding_active(parameters_.functions[function][slot], function, slot) || active;
         }
         function_active_[function] = active;
+    }
+    if (connected_)
+    {
+        resync_bindings_ = false; // 这一拍各绑定都已经记过状态了
     }
 
     run_ = connected_ && function_active_[static_cast<std::size_t>(Function::RUN)];
@@ -229,6 +235,11 @@ bool Arbiter::binding_active(const Binding &binding, std::size_t function, std::
     }
     bool &level = binding_level_[function][slot];
     bool &toggled = binding_toggle_[function][slot];
+    if (resync_bindings_)
+    {
+        level = pressed; // 刚上电、刚重连：只记下当时按没按，不算一次按下
+        return toggled;
+    }
     if (pressed && !level)
     {
         toggled = !toggled; // 上升沿翻转

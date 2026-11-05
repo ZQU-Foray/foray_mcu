@@ -97,11 +97,13 @@ inline constexpr command::Parameters COMMAND{
         command::Bindings{command::on_switch(command::Source::REMOTE, 2U, topics::SwitchPosition::DOWN),
                           command::unbound()},
     },
-    // 手动瞄准：右摇杆 x 管 yaw、右摇杆 y 管 pitch；满量程 ±3 rad/s，上限 6 rad/s
-    command::ManualAim{topics::STICK_RIGHT_X, topics::STICK_RIGHT_Y, 3.0F, 3.0F, 6.0F},
-    0.2F,   // engage_range_rad：PC 目标离瞄准方向超过 0.2 rad 就不接管（0 表示不限制）
-    50000U, // input_timeout_us：50 ms 收不到操作输入就当遥控断了
-    20000U, // target_timeout_us：PC 目标的默认有效期
+    // 手动瞄准：右摇杆 x 管 yaw、右摇杆 y 管 pitch。摇杆向右、向上为正，而 yaw 左转、pitch 低头为正，
+    // 所以两个满量程都是负的（往右推 → yaw 往右转，往上推 → 抬头）；上限 6 rad/s
+    command::ManualAim{topics::STICK_RIGHT_X, topics::STICK_RIGHT_Y, -3.0F, -3.0F, 6.0F},
+    0.2F,    // engage_range_rad：PC 目标离瞄准方向超过 0.2 rad 就不接管（0 表示不限制）
+    50000U,  // input_timeout_us：50 ms 收不到操作输入就当遥控断了
+    100000U, // target_timeout_us：PC 目标的默认有效期。PC 按 100 Hz 发（10 ms 一帧），取 10 倍；
+    // 太短的话 USB 抖一下就会"接管 → 放开 → 再接"来回闪（上限见仲裁里的 200 ms）
 };
 
 // 遥控：摇杆与拨杆的标定。通道、量程、门限都是占位值（SBUS 典型原始值 172/992/1811、三档 1000/1500/2000），

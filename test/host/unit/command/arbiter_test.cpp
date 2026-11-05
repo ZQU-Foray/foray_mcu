@@ -56,7 +56,10 @@ struct Publishers
 
 struct Rig
 {
-    explicit Rig(Publishers &publishers) noexcept : publishers_{publishers} {}
+    explicit Rig(Publishers &publishers, const command::Parameters &configuration = parameters()) noexcept
+        : parameters_{configuration}, publishers_{publishers}
+    {
+    }
 
     command::Arbiter arbiter{};
     topic::Subscriber<topics::safety::Stop> stop{topics::safety::stop};
@@ -66,12 +69,17 @@ struct Rig
     {
         mock::reset();
         mock::set_now_us(1000U);
-        return arbiter.init(parameters());
+        return arbiter.init(parameters_);
     }
 
-    /** 发布一份操作输入：三档开关与两根摇杆，其余为默认。 */
-    void
-    publish_input(bool run, bool auto_aim, bool fire, bool connected, float yaw_stick = 0.0F, float pitch_stick = 0.0F)
+    /** 发布一份操作输入：三档开关、两根摇杆与键盘位，其余为默认。 */
+    void publish_input(bool run,
+                       bool auto_aim,
+                       bool fire,
+                       bool connected,
+                       float yaw_stick = 0.0F,
+                       float pitch_stick = 0.0F,
+                       std::uint16_t keys = 0U)
     {
         topics::OperatorInput message{};
         message.switches[0] = run ? topics::SwitchPosition::UP : topics::SwitchPosition::DOWN;
@@ -79,6 +87,7 @@ struct Rig
         message.switches[2] = fire ? topics::SwitchPosition::DOWN : topics::SwitchPosition::UP;
         message.sticks[topics::STICK_RIGHT_X] = yaw_stick;
         message.sticks[topics::STICK_RIGHT_Y] = pitch_stick;
+        message.keys = keys;
         message.has_remote = true;
         message.connected = connected;
         message.timestamp_us = hal::os::now_us();
@@ -129,9 +138,10 @@ struct Rig
                    bool fire = false,
                    bool connected = true,
                    float yaw_stick = 0.0F,
-                   float pitch_stick = 0.0F)
+                   float pitch_stick = 0.0F,
+                   std::uint16_t keys = 0U)
     {
-        publish_input(run, auto_aim, fire, connected, yaw_stick, pitch_stick);
+        publish_input(run, auto_aim, fire, connected, yaw_stick, pitch_stick, keys);
         tick();
     }
 
@@ -148,6 +158,7 @@ struct Rig
     }
 
   private:
+    command::Parameters parameters_{};
     Publishers &publishers_;
     topics::safety::Stop stop_message_{};
     topics::command::Gimbal command_message_{};
@@ -357,6 +368,51 @@ int scenario_engage_jump(Publishers &publishers)
     return 0;
 }
 
+// TOGGLE 绑定：按一下翻转；重连时正按着不算一次按下，要松开再按
+int scenario_toggle(Publishers &publishers)
+{
+    command::Parameters toggle_parameters = parameters();
+    toggle_parameters.functions[static_cast<std::size_t>(command::Function::AUTO_AIM)][0] =
+        command::on_keys(command::Source::REMOTE, topics::KEY_R, command::Trigger::TOGGLE);
+    Rig rig{publishers, toggle_parameters};
+    assert(rig.init());
+
+    rig.step_with(true); // 上电时没按
+    assert(!rig.arbiter.report().auto_aim);
+    rig.step_with(true, false, false, true, 0.0F, 0.0F, topics::KEY_R); // 按下：翻转成开
+    assert(rig.arbiter.report().auto_aim);
+    rig.step_with(true, false, false, true, 0.0F, 0.0F, topics::KEY_R); // 按住：不变
+    assert(rig.arbiter.report().auto_aim);
+    rig.step_with(true); // 松开：保持开
+    assert(rig.arbiter.report().auto_aim);
+    rig.step_with(true, false, false, true, 0.0F, 0.0F, topics::KEY_R); // 再按：翻转成关
+    assert(!rig.arbiter.report().auto_aim);
+
+    // 断开时按着 R：重连时不能自己打开
+    rig.step_with(true, false, false, false);
+    assert(!rig.arbiter.report().auto_aim);
+    rig.step_with(true, false, false, true, 0.0F, 0.0F, topics::KEY_R);
+    assert(!rig.arbiter.report().auto_aim);                             // 只记下按着，不算一次按下
+    rig.step_with(true);                                                // 松开
+    rig.step_with(true, false, false, true, 0.0F, 0.0F, topics::KEY_R); // 再按：这时才翻成开
+    assert(rig.arbiter.report().auto_aim);
+    return 0;
+}
+
+// 手动角速度超过上限时按上限走
+int scenario_manual_clamp(Publishers &publishers)
+{
+    command::Parameters clamp_parameters = parameters();
+    clamp_parameters.manual.yaw_rate_full_scale = 10.0F; // 满量程 10 rad/s，上限 6
+    Rig rig{publishers, clamp_parameters};
+    assert(rig.init());
+    rig.step_with(true, false, false, true, 1.0F, 0.0F);
+    assert(std::fabs(rig.last_command().yaw_rate - 6.0F) < 1.0e-6F);
+    rig.step_with(true, false, false, true, -1.0F, 0.0F);
+    assert(std::fabs(rig.last_command().yaw_rate + 6.0F) < 1.0e-6F);
+    return 0;
+}
+
 // 参数检查
 int scenario_reject(Publishers &)
 {
@@ -405,7 +461,7 @@ int main(int argc, char **argv)
     {
         std::fprintf(stderr,
                      "用法：%s run_baseline|failsafe|input_timeout|auto_aim|no_engage|pc_invalid|manual|engage_range|"
-                     "engage_wrap|engage_jump|idle|reject\n",
+                     "engage_wrap|engage_jump|toggle|manual_clamp|idle|reject\n",
                      argv[0]);
         return 2;
     }
@@ -449,6 +505,14 @@ int main(int argc, char **argv)
     if (std::strcmp(scenario, "engage_jump") == 0)
     {
         return scenario_engage_jump(publishers);
+    }
+    if (std::strcmp(scenario, "toggle") == 0)
+    {
+        return scenario_toggle(publishers);
+    }
+    if (std::strcmp(scenario, "manual_clamp") == 0)
+    {
+        return scenario_manual_clamp(publishers);
     }
     if (std::strcmp(scenario, "idle") == 0)
     {

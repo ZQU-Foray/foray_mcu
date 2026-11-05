@@ -182,7 +182,7 @@ host_test(arbiter NO_TEST
     LINK app_command platform_mock)
 foreach(scenario
         run_baseline failsafe input_timeout auto_aim no_engage pc_invalid manual engage_range engage_wrap
-        engage_jump idle reject)
+        engage_jump toggle manual_clamp idle reject)
     add_test(NAME arbiter_${scenario} COMMAND test_arbiter ${scenario})
 endforeach()
 # 云台能力：两台达妙电机、CanBus、DmMotor、安全门都是真的，IMU 与 PC 目标由测试发布。

@@ -183,6 +183,7 @@ class Arbiter final
     bool run_last_{false};
     bool engaged_{false};
     bool was_running_{false};
+    bool resync_bindings_{false}; // 刚上电或刚重连：这一拍只记下各绑定按没按，不让 TOGGLE 翻转
     std::uint32_t arm_sequence_{0U};
     std::array<std::array<bool, 2>, FUNCTION_COUNT> binding_level_{};  // 控件上一拍的按下状态（TOGGLE 用）
     std::array<std::array<bool, 2>, FUNCTION_COUNT> binding_toggle_{}; // TOGGLE 出来的状态
