@@ -36,7 +36,7 @@ gimbal::AxisLoop make_controller()
     return loop;
 }
 
-// ---- PID 特有：参数检查 ----
+// PID 特有：参数检查
 void test_gains()
 {
     gimbal::AxisLoop loop;
@@ -47,7 +47,7 @@ void test_gains()
     assert(loop.init(gimbal::AxisLoop::Parameters{angle_gains(), rate_gains()}));
 }
 
-// ---- PID 特有：积分不超过积分限幅；饱和时力矩不超过环的输出上限 ----
+// PID 特有：积分不超过积分限幅；饱和时力矩不超过角度环的输出上限
 void test_integral_limit()
 {
     gimbal::AxisLoop loop = make_controller();
@@ -66,7 +66,7 @@ void test_integral_limit()
     }
 }
 
-// ---- PID 特有：rate_target 诊断（角度环输出加前馈、再按角度环的输出上限钳位）----
+// PID 特有：rate_target 诊断（角度环输出加前馈，再按角度环的输出上限钳位）
 void test_rate_target_diagnostic()
 {
     gimbal::AxisLoop loop = make_controller();

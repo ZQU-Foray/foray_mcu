@@ -186,7 +186,7 @@ foreach(scenario
         reject)
     add_test(NAME gimbal_${scenario} COMMAND test_gimbal ${scenario})
 endforeach()
-# 通用数学：角度回绕
+# 通用数学：角度回绕与连续角度
 host_test(basic_math
     SOURCES unit/math/basic_math_test.cpp
     LINK utils_math)

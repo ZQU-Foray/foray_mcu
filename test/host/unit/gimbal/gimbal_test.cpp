@@ -780,6 +780,8 @@ int scenario_yaw_cross_pi(Publishers &publishers)
     assert(report.mode == gimbal::Gimbal::Mode::HOLD);
     assert(report.yaw_continuous_rad > 3.19F); // 连续累计过了 π
     assert(report.yaw_rad < 0.0F);             // 回绕后的值已经翻到负的一侧
+    // 实际用的目标也是按连续 yaw 算的：回绕后的目标会得到 −3.18
+    assert(report.yaw_target_rad > 3.0F);
     assert(rig.yaw().state().enabled && rig.pitch().state().enabled);
     return 0;
 }

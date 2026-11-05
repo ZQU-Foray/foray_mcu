@@ -46,11 +46,18 @@ inline bool near(float actual, float expected, float tolerance)
     return std::fabs(actual - expected) <= tolerance;
 }
 
+/** apply() 传什么：总限幅之后的力矩减去前馈（Gimbal 的写法），还是控制律自己算出的力矩。 */
+enum class ApplyTorque
+{
+    ACTUAL,  // 实际下发的力矩 − 前馈
+    COMPUTED // 控制律自己算的力矩
+};
+
 /**
  * @brief 跑一拍：算力矩、加重力前馈、总限幅、告诉控制器实际值、推进被控对象。
  * @param target 角度目标。
  * @param target_rate 角速度前馈。
- * @param tell_controller 是否调用 apply()（用来比较"调与不调"的输出轨迹）。
+ * @param apply_torque apply() 收到的是"实际下发的力矩 − 前馈"还是"控制律自己算的力矩"。
  */
 template <typename Controller>
 typename Controller::Output step(Controller &controller,
@@ -59,7 +66,7 @@ typename Controller::Output step(Controller &controller,
                                  float torque_limit,
                                  float gravity_feedforward_newton_meter,
                                  float target_rate = 0.0F,
-                                 bool tell_controller = true)
+                                 ApplyTorque apply_torque = ApplyTorque::ACTUAL)
 {
     typename Controller::Measurement measurement{};
     measurement.angle = plant.angle;
@@ -71,10 +78,7 @@ typename Controller::Output step(Controller &controller,
     const typename Controller::Output output = controller.update(measurement, reference, DT);
     const float feedforward = gravity_feedforward_newton_meter * std::cos(plant.angle);
     const float total = std::fmax(std::fmin(output.torque + feedforward, torque_limit), -torque_limit);
-    if (tell_controller)
-    {
-        controller.apply(total - feedforward);
-    }
+    controller.apply(apply_torque == ApplyTorque::ACTUAL ? total - feedforward : output.torque);
     plant.advance(total, DT);
     return output;
 }
@@ -175,23 +179,25 @@ void total_limit(MakeController make_controller)
     assert(near(plant.angle, TARGET, 0.005F));
 }
 
-// 没被总限幅削的时候，调不调 apply() 的输出轨迹都一样（重力前馈不为 0 时也要成立）
+// 没被总限幅削的时候，apply() 传"实际下发的力矩 − 前馈"与传"控制律自己算的力矩"要给出同一条轨迹：
+// 前者是先加前馈、再减前馈算出来的，浮点上与后者不一定逐位相等，不能因此当成"被削了"。
+// 两边都每拍调用 apply()，符合接口约定（观测器也要每拍拿到实际力矩）。
 template <typename MakeController>
 void apply_neutral(MakeController make_controller)
 {
     constexpr float TARGET{0.02F};
     constexpr float FEEDFORWARD{0.3F}; // 只补一部分，剩下的靠控制器
-    Plant told{};
-    Plant untold{};
-    auto controller = make_controller();
-    auto quiet_controller = make_controller();
+    Plant from_actual{};
+    Plant from_computed{};
+    auto actual_controller = make_controller();
+    auto computed_controller = make_controller();
     for (std::size_t cycle = 0U; cycle < 2000U; ++cycle)
     {
-        (void)step(controller, told, TARGET, 1.0F, FEEDFORWARD);
-        (void)step(quiet_controller, untold, TARGET, 1.0F, FEEDFORWARD, 0.0F, false);
+        (void)step(actual_controller, from_actual, TARGET, 1.0F, FEEDFORWARD, 0.0F, ApplyTorque::ACTUAL);
+        (void)step(computed_controller, from_computed, TARGET, 1.0F, FEEDFORWARD, 0.0F, ApplyTorque::COMPUTED);
     }
-    assert(near(told.angle, untold.angle, 1.0e-3F));
-    assert(near(told.rate, untold.rate, 1.0e-3F));
+    assert(near(from_actual.angle, from_computed.angle, 1.0e-3F));
+    assert(near(from_actual.rate, from_computed.rate, 1.0e-3F));
 }
 
 // 带角速度前馈跟斜坡：目标按 1 rad/s 走，1 s 后跟上

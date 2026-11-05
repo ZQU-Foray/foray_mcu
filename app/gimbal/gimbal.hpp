@@ -7,6 +7,7 @@
 #include "middleware/topic/topic.hpp"
 #include "topics/imu.hpp"
 #include "topics/pc_link.hpp"
+#include "utils/math/basic_math.hpp"
 
 #include <array>
 #include <cstddef>
@@ -22,10 +23,10 @@ namespace gimbal
  *   输出：两个关节的力矩（`JointMode::TORQUE`）。能力不认识电机品牌，只用 `device::Joint`。
  * - 状态机：DISABLED → ENABLING → HOLD ⇄ TRACK。
  *   条件不满足（姿态无效或过期、还在 SETTLING、关节不可用或故障）立即两个一起撤销；
- *   进入 HOLD 时两个环清零、目标取当前姿态，所以一使能不会甩；ENABLING 超时回 DISABLED 并计数。
+ *   进入 HOLD 时两个控制律与连续角度一起复位、目标取当前姿态，所以一使能不会甩；ENABLING 超时回 DISABLED 并计数。
  * - 目标：世界系 yaw / pitch。无限位的轴把目标展开到测量值附近，误差不绕远路；有限位的轴先在关节角里
  *   （世界系目标减去底座倾斜）绕限位中点回绕、钳到机械限位，再换回世界系，所以不会先钳后绕穿过限位。
- * - 出力：两轴串级（`AxisLoop`），pitch 加 τg·cos(pitch) 的重力前馈，最后钳到总限幅。
+ * - 出力：两轴各一个控制律（`AxisLoop`），pitch 加 τg·cos(pitch) 的重力前馈，最后钳到总限幅。
  *   每轮必须 `set_torque()`：超过驱动的指令超时时间电机就按 0 力矩发。
  *   这一轮没有新姿态时不重复积分，重发上一拍的力矩；目标被限位钳住的轴，这一拍不加角速度前馈。
  *
@@ -164,9 +165,7 @@ class Gimbal final
 
     // 从姿态换算出来的量
     float yaw_rad_{0.0F};
-    float yaw_continuous_{0.0F}; // 连续 yaw：每次复位时锚定到 yaw_rad_，之后按增量累计
-    float yaw_previous_{0.0F};
-    bool has_yaw_continuous_{false};
+    math::AngleUnwrapper yaw_unwrapper_{}; // 连续 yaw：每次复位时锚定到 yaw_rad_，之后记圈数
     float pitch_rad_{0.0F};
     float yaw_rate_{0.0F};
     float pitch_rate_{0.0F};

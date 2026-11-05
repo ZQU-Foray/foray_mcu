@@ -2159,13 +2159,15 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
   - 传给控制律的 yaw 在 ±π 处跳 2π。PID 不受影响（误差对着展开后的目标算、不对角度做微分），但 ESO 拿角度当观测量时，会把这次跳变当成一次真实的大扰动；
   - `reset()` 的语义没写下来：PID 清零就够，观测器要拿复位后的第一份测量做初值，否则一使能就有一下冲击；
   - 测试写死了 `AxisLoop` 与 `Gains`，且有几个场景断言的是 PID 内部量（积分不超限、`rate_target`），换控制律时大半要重写。
-- 由此还发现两处遗漏，见 Decision-20261105-01 之后的提交；本条不改它们的行为。
+- 评审时还发现两处与换控制律无关的问题，已在 `fcfa695` 修掉、本条不改它们的行为：姿态新鲜度按"这一轮收到的时刻"算（采样时刻晚于本轮 `now` 时，无符号相减会下溢成巨大的数、被判成过期）；目标被限位钳住的轴，这一拍不加角速度前馈（否则轴会停在"前馈 ÷ 角度环增益"之外）。
 
 **Decision**：
 
 1. **控制律参数不透明**：`AxisLoop::Parameters` 是控制律自己的参数（PID 版是角度环、角速度环两组 `Gains`）；`Gimbal::AxisParameters` 改成 `{AxisLoop::Parameters controller; bool limited; float minimum_rad; float maximum_rad;}`，`Gimbal` 不看 `controller` 里面有什么。删掉 `Gimbal::LoopGains` 别名。`init()` 里由 `AxisLoop` 自己检查参数，`Gimbal` 只检查限位。
 2. **输入打包**：`update(Measurement, Reference, dt)`。`Measurement{angle, rate, joint_velocity}`（`angle` 连续、`rate` 是欧拉角速度、`joint_velocity` 取关节相对底座的速度，PID 不用），`Reference{angle, rate}`（`angle` 已展开到测量值附近，`rate` 是前馈）。以后加输入只在结构体里加字段，签名不变。
-3. **连续角度**：`Gimbal` 自己累计连续 yaw（`yaw_continuous_ += wrap_pi(yaw − yaw_previous_)`），控制律的测量、无限位时的目标展开、有限位时的底座倾斜都用它；`Report` 仍给回绕后的 `yaw_rad`，另加 `yaw_continuous_rad`。两个环每次 reset（进入 HOLD、撤销出力）时把连续 yaw 重新锚定到回绕后的值，并让 HOLD 的目标取它，圈数不会跨多次出力累积。
+3. **连续角度**：`Gimbal` 自己算连续 yaw，控制律的测量、无限位时的目标展开、有限位时的底座倾斜都用它；`Report` 仍给回绕后的 `yaw_rad`，另加 `yaw_continuous_rad`。两个环每次 reset（进入 HOLD、撤销出力）时把连续 yaw 重新锚定到回绕后的值，并让 HOLD 的目标取它，圈数不会跨多次出力累积。
+   - 一开始写的是逐次累加增量（`yaw_continuous_ += wrap_pi(yaw − yaw_previous_)`），评审后发现这会随转动时间累积舍入误差（一直朝一个方向转几分钟能到 0.1 rad 量级，直接变成瞄准偏差）。改为**记圈数**：跨 ±π 时调整整数圈数，连续值 = 回绕角度 + 圈数 × 2π，误差不随转动时间增长。
+   - 这段换算抽成 `math::AngleUnwrapper`（`src/utils/math`），带单元测试：一直朝一个方向转几十万拍，与 double 算的真值比。
 4. **`reset()` 语义写进接口注释**：复位后第一次 `update()` 用当时的测量初始化内部状态（PID 清零就够，观测器拿它做初值）。
 5. **接口约定写进 `axis_loop.hpp` 的类注释**：纯计算、SI、不读时间；角度连续、目标已展开；`apply()` 在每次 `update()` 之后、`set_torque()` 之前调用一次，收到的是总限幅之后的力矩减去重力前馈；输入非有限时输出 0 且不污染内部状态；`init()` 自己检查参数。
 6. **测试拆两份**：`test/host/unit/gimbal/axis_law_scenarios.hpp` 放被控对象与控制律无关的闭环场景（写成对控制器类型通用的模板，只要求"造控制器"的函数）；`axis_loop_test.cpp` 放 PID 版的 `make_controller()`、全部通用场景与 PID 特有场景（积分限幅、`rate_target`、`Gains` 检查）。通用场景文件里不出现 `Gains`、`kp`、`integral`、`rate_target`。

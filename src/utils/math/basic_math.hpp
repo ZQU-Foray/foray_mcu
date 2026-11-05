@@ -91,6 +91,35 @@ Type abs(Type x)
 }
 
 /**
+ * @brief 把回绕在 (−π, π] 的角度累计成连续角度：记圈数，连续值 = 回绕角度 + 圈数 × 2π。
+ * @note 与"每拍累加回绕后的增量"不同：那种写法每加一次都舍入一次，一直朝一个方向转会越积越大
+ *       （1 rad/s 转 7 分钟能差约 0.19 rad）；这里连续值只由当前的回绕角度与整数圈数算出，
+ *       误差不随转动时间增长。
+ * @note 前提是相邻两份回绕角度的真实变化不超过半圈（1 kHz 下相当于 3141 rad/s），否则圈数会记反。
+ */
+class AngleUnwrapper final
+{
+  public:
+    /** 从这份回绕角度重新开始（圈数清零）。复位、进入 HOLD 时用。 */
+    void reset(float wrapped_rad) noexcept;
+
+    /** 喂一份新的回绕角度，返回连续角度；第一次调用等价于 reset()；非有限值不改变状态。 */
+    [[nodiscard]] float update(float wrapped_rad) noexcept;
+
+    /** 当前的连续角度；还没喂过时为 0。 */
+    [[nodiscard]] float continuous_rad() const noexcept
+    {
+        return continuous_rad_;
+    }
+
+  private:
+    float previous_rad_{0.0F};
+    float continuous_rad_{0.0F};
+    std::int32_t turns_{0};
+    bool has_value_{false};
+};
+
+/**
  * @brief 把角度回绕到 [−π, π)。
  * @param angle 任意角度，单位 rad。
  * @return 回绕后的角度；恰好等于 π 时返回 −π（区间右开）；非有限值返回 0。
