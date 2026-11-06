@@ -94,17 +94,18 @@ inline constexpr gimbal::Gimbal::Parameters GIMBAL{
 inline constexpr actuator::SafetyGate::Parameters SAFETY{50000U};
 
 // 仲裁：拨杆 → 功能。每个功能最多两条绑定（以后一条给遥控、一条给键鼠），任一条成立功能就成立。
-// 遥控现在只有一个拨杆（总开关）。自瞄与开火还没有拨杆，先不绑：录辨识数据（PC 正弦扫描要自瞄接管、
-// 按住开火）之前在遥控器上加一个两档开关，两个功能都绑到它上面。
+// 自瞄开着并按住开火、PC 目标有效时，云台由 PC 接管。
 inline constexpr command::Parameters COMMAND{
     std::array<command::Bindings, command::FUNCTION_COUNT>{
         // RUN（放开安全门）：拨杆 0（总开关）在上档
         command::Bindings{command::on_switch(command::Source::REMOTE, 0U, topics::SwitchPosition::UP),
                           command::unbound()},
-        // AUTO_AIM（自瞄开关）：未绑定
-        command::Bindings{command::unbound(), command::unbound()},
-        // FIRE（开火）：未绑定
-        command::Bindings{command::unbound(), command::unbound()},
+        // AUTO_AIM（自瞄开关）：拨杆 1（三档）在上档；中档、下档是关
+        command::Bindings{command::on_switch(command::Source::REMOTE, 1U, topics::SwitchPosition::UP),
+                          command::unbound()},
+        // FIRE（开火）：拨杆 2（弹性开关）按住
+        command::Bindings{command::on_switch(command::Source::REMOTE, 2U, topics::SwitchPosition::DOWN),
+                          command::unbound()},
     },
     // 手动瞄准：右摇杆 x 管 yaw、右摇杆 y 管 pitch。摇杆向右、向上为正，而 yaw 左转、pitch 低头为正，
     // 所以两个满量程都是负的（往右推 → yaw 往右转，往上推 → 抬头）；上限 6 rad/s
@@ -116,8 +117,10 @@ inline constexpr command::Parameters COMMAND{
 };
 
 // 遥控：摇杆与拨杆的标定，2026-11-06 上板实测（负责人在遥控器上设好通道后，经 SWD 读 SBUS 原始帧）。
-// 通道号从 0 起：0 总开关（两档），1 左摇杆上下，2 左摇杆左右，3 右摇杆上下，4 右摇杆左右。
-// 四个摇杆方向都是 321 / 992 / 1663（两端 / 回中）；总开关关 321、开 1663。
+// 通道号从 0 起（遥控器上的第 n 条是 n − 1 号）：0 总开关（两档），1 左摇杆上下，2 左摇杆左右，
+// 3 右摇杆上下，4 右摇杆左右，11 三档开关，12 弹性开关；5–10 号没有设。
+// 四个摇杆方向都是 321 / 992 / 1663（两端 / 回中）；总开关关 321、开 1663；三档开关上 1663、中 992、下 321；
+// 弹性开关松开 321、按住 1663。
 // 约定摇杆向右、向上为正。右 y、左 x、左 y 往正方向推时原始值变小，所以设 inverted。
 // 摇杆顺序：右 x、右 y、左 x、左 y（topics::STICK_RIGHT_X 等）。
 inline constexpr remote::Remote::Parameters REMOTE{
@@ -130,8 +133,10 @@ inline constexpr remote::Remote::Parameters REMOTE{
     {
         // 拨杆 0：总开关，两档（两个门限相同），开 = UP
         remote::Remote::Switch{0U, 992U, 992U, topics::SwitchPosition::DOWN, topics::SwitchPosition::UP},
-        remote::Remote::Switch{}, // 还没有
-        remote::Remote::Switch{}, // 还没有
+        // 拨杆 1：三档开关，门限取相邻两档的中点
+        remote::Remote::Switch{11U, 656U, 1328U, topics::SwitchPosition::DOWN, topics::SwitchPosition::UP},
+        // 拨杆 2：弹性开关，两档；按住记作 DOWN、松开记作 UP
+        remote::Remote::Switch{12U, 992U, 992U, topics::SwitchPosition::UP, topics::SwitchPosition::DOWN},
     },
     100000U, // frame_timeout_us：100 ms 没有正常帧就当链路断了
 };
