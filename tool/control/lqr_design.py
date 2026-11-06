@@ -31,15 +31,23 @@ from models import MODELS, Model
 SQRT_HALF = 0.7071067811865476
 
 
-def parse_diagonal(text: str, count: int, name: str) -> np.ndarray:
-    """把 "2.56e6,0" 这样的逗号分隔值读成对角向量；个数必须与状态（或输入）数一致。"""
+def parse_diagonal(
+    text: str, count: int, name: str, require_positive: bool = False
+) -> np.ndarray:
+    """把 "2.56e6,0" 这样的逗号分隔值读成对角向量；个数必须与状态（或输入）数一致。
+
+    Q 的对角元可以有个别为 0（只罚某些状态），R 的每个对角元都必须大于 0
+    （输入不允许"免费"）。
+    """
     try:
         values = [float(item) for item in text.replace(" ", "").split(",")]
     except ValueError:
         raise SystemExit(f"{name} 的写法是逗号分隔的数，例如 2.56e6,0") from None
     if len(values) != count:
         raise SystemExit(f"{name} 要有 {count} 个对角元，现在给了 {len(values)} 个")
-    if any(value < 0.0 for value in values):
+    if require_positive and any(value <= 0.0 for value in values):
+        raise SystemExit(f"{name} 的对角元必须都大于 0（输入不能没有代价）")
+    if not require_positive and any(value < 0.0 for value in values):
         raise SystemExit(f"{name} 的对角元不能为负")
     if all(value == 0.0 for value in values):
         raise SystemExit(f"{name} 不能全为 0")
@@ -89,13 +97,27 @@ def continuous_poles(
 
 
 def dominant_bandwidth_damping(poles: np.ndarray) -> tuple[float, float]:
-    """主导极点（|s| 最小的那个）的 ω_n 与 ζ。"""
-    magnitudes = np.abs(poles)
-    index = int(np.argmin(magnitudes))
-    speed = float(magnitudes[index])
+    """主导的一对极点（|s| 最小的两个）的 ω_n 与 ζ。
+
+    复极点对：ω_n = |s|、ζ = −Re/|s|。两个实极点（过阻尼）：ω_n = √(p₁·p₂)、
+    ζ = −(p₁+p₂)/(2·ω_n)——这样 ζ > 1 时报出的仍是设计时给的阻尼，而不是恒等于 1；
+    ω_n 也不再只是那个慢极点。
+    """
+    if len(poles) == 0:
+        return 0.0, 1.0
+    ordered = poles[np.argsort(np.abs(poles))]
+    first = ordered[0]
+    if len(ordered) >= 2:
+        second = ordered[1]
+        if abs(first.imag) < 1.0e-9 and abs(second.imag) < 1.0e-9:
+            product = float(first.real * second.real)
+            if product > 0.0:
+                speed = float(np.sqrt(product))
+                return speed, float(-(first.real + second.real) / (2.0 * speed))
+    speed = float(abs(first))
     if speed <= 0.0:
         return 0.0, 1.0
-    return speed, float(-poles[index].real / speed)
+    return speed, float(-first.real / speed)
 
 
 def format_value(value: float) -> str:
@@ -281,7 +303,25 @@ def selftest() -> int:
             abs(outcome.bandwidth - width) < 0.01 * width,
         )
 
-    # 4) --bandwidth 40 --damping 0.707 与 --q 2.56e6,0 给出同样的 K
+    # 4) 过阻尼（ζ = 1.5）：按两个实极点报 ω_n 与 ζ，不是 ζ 恒等于 1
+    overdamped = design(
+        "double-integrator", 0.001, bandwidth_to_q(40.0, 1.5), np.array([1.0])
+    )
+    check(
+        f"ζ 1.5：ω_n = {overdamped.bandwidth:.2f} rad/s、ζ = {overdamped.damping:.3f}",
+        abs(overdamped.bandwidth - 40.0) < 0.4 and abs(overdamped.damping - 1.5) < 0.03,
+    )
+
+    # 5) R 的每个对角元都要大于 0
+    try:
+        parse_diagonal("1,0", 2, "--r", require_positive=True)
+    except SystemExit:
+        rejected = True
+    else:
+        rejected = False
+    check("--r 里有 0 时拒绝", rejected)
+
+    # 6) --bandwidth 40 --damping 0.707 与 --q 2.56e6,0 给出同样的 K
     q_from_bandwidth = bandwidth_to_q(40.0, 0.707)
     from_bandwidth = design(
         "double-integrator", 0.001, q_from_bandwidth, np.array([1.0])
@@ -357,7 +397,7 @@ def main() -> int:
             return 2
         model = MODELS[model_name]()
         q = parse_diagonal(args.q, len(model.states), "--q")
-        r = parse_diagonal(args.r, len(model.inputs), "--r")
+        r = parse_diagonal(args.r, len(model.inputs), "--r", require_positive=True)
         command = command_line(model_name, args.dt, q, r, None, None)
 
     print_design(design(model_name, args.dt, q, r), command)

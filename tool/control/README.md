@@ -28,8 +28,10 @@ python3 -m venv ~/.local/venvs/control
 ```
 
 做的是：零阶保持离散化（`scipy.linalg.expm`）→ 解离散 DARE（`solve_discrete_are`）→
-K = (R + Bdᵀ·P·Bd)⁻¹·Bdᵀ·P·Ad。输出 K（按状态名逐个打印）、闭环极点（z 与
-s = ln(z)/dt）、闭环 ω_n 与 ζ，以及一段能直接粘贴的 C++：
+K = (R + Bdᵀ·P·Bd)⁻¹·Bdᵀ·P·Ad。Q 的对角元可以有个别为 0（只罚某些状态），R 的每个
+对角元必须大于 0（输入不能没有代价）。输出 K（按状态名逐个打印）、闭环极点（z 与
+s = ln(z)/dt）、闭环 ω_n 与 ζ（ζ > 1 时按两个实极点换算，仍是设计时给的阻尼），
+以及一段能直接粘贴的 C++：
 
 ```cpp
 // tool/control/lqr_design.py double-integrator --dt 0.001 --q 2.56e+06,0 --r 1
