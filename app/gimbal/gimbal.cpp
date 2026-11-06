@@ -169,6 +169,13 @@ void Gimbal::step(hal::os::Microseconds now) noexcept
     }
     const bool new_attitude = read_inputs(now);
     new_attitude_ = new_attitude;
+    if (new_attitude)
+    {
+        // 在线调参：每份新姿态都处理一次，不管当前是什么模式。没出力的时候改参数最安全，
+        // 也要当场能看到生效（applied_sequence 跟上）或被拒（rejected_count 加 1），
+        // 不能等到使能以后才处理——那时电机已经在用力矩了。
+        apply_tuning();
+    }
 
     // 任一条不满足就回到 DISABLED：IMU 的条件、关节故障、关节不可用、出力中掉了
     const DisableReason stop = stop_reason(now);
@@ -230,9 +237,6 @@ void Gimbal::step(hal::os::Microseconds now) noexcept
         update_report(now);
         return;
     }
-
-    // 在线调参：每份新姿态、算力矩之前处理一次（没有新姿态的那一轮上面已经返回）
-    apply_tuning();
 
     // 云台指令：没收到过、或者超过 command_timeout_us 没更新，就按 HOLD
     const topics::command::GimbalMode command_mode = current_command_mode(now);

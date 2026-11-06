@@ -188,7 +188,7 @@
 - [x] 第 3 步 设计工具（`feat/lqr-design-tool`）：`tool/control/`（`models.py`、`lqr_design.py`、`README.md`、`requirements.txt`）；`--selftest` 复现设计表的四行；ruff/black
 - [x] 第 4 步 链接脚本 overlay（`feat/axi-overlay`）：`platform/st/dm_mc02/board/overlay.ld`（`.axi_bss`，第二个 `-T`、不用 `INSERT`，例外 X-03 关闭）、board 的 CMake、architecture/AGENTS/tree；六个固件链接与超容量的反向验证
 - [x] 第 4b 步 Release 带调试信息（`build/release-debug-info`）：`-Os -g0` → `-Os -g3`，三个 Release 固件的 `.bin` SHA-256 逐字节不变
-- [x] 第 5 步 云台的调试接口（`feat/gimbal-debug-interface`）：录制（`CaptureSample`、`Capture`、组合根里放 `.axi_bss` 的存储）与在线调参（`Tuning`、`AxisLoop::retune()`，约定加两条）；宿主测试 `gimbal_capture`/`gimbal_capture_off`/`gimbal_tuning`/`gimbal_tuning_reject`；`link_probe.py --sweep-axis`；故意改坏 4 处被抓到
+- [x] 第 5 步 云台的调试接口（`feat/gimbal-debug-interface`）：录制（`CaptureSample`、`Capture`、组合根里放 `.axi_bss` 的存储）与在线调参（`Tuning`、`AxisLoop::retune()`，约定加两条）；宿主测试 `gimbal_capture`/`gimbal_capture_off`/`gimbal_tuning`/`gimbal_tuning_reject`/`gimbal_tuning_idle`；`link_probe.py --sweep-axis`；故意改坏 4 处被抓到
 - [x] 第 6 步 辨识工具（`feat/axis-identify-tool`）：`tool/control/identify_axis.py`（回归式、Savitzky–Golay 求导、延迟搜索、`--simulate` 自检）；两个轴的 `--simulate` 通过
 - 上板：指引 1 第 6 步 PID 点亮，用 EmberProbe 在线调参，**顺便按 §11 录辨识数据**（需要第 4、4b、5 步）
 - 第二部分（录到数据以后）：第 7 步辨识结果与记录（`docs/gimbal-identification`）；第 8 步 `AxisLoop` 改写成 LQR + ESO + 前馈、仿真场景加噪声与正弦跟踪（`feat/gimbal-lqr-eso`）；第 9 步上板调 ω_n、ω₀、k_c（`params/gimbal-lqr-eso`）；第 10 步收尾（`docs/control-framework-close`）

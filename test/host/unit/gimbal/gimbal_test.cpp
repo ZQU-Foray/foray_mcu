@@ -1244,6 +1244,48 @@ int scenario_tuning_reject(Publishers &publishers)
     return 0;
 }
 
+// 未出力（安全门锁着）时改参数：每份新姿态都处理，生效/被拒当场看到，使能后仍是新参数
+int scenario_tuning_idle(Publishers &publishers)
+{
+    Rig rig{publishers.attitude, publishers.stop, publishers.command};
+    assert(rig.init());
+    assert(rig.run_until_ready());
+    // 不放安全门：云台一直是 DISABLED
+    for (std::size_t round = 0U; round < 5U; ++round)
+    {
+        rig.tick_alive();
+    }
+    assert(rig.gimbal().report().mode == gimbal::Gimbal::Mode::DISABLED);
+
+    // 有效参数：当场生效
+    const gimbal::AxisLoop::Parameters original_pitch = rig.gimbal().tuning().pitch;
+    gimbal::AxisLoop::Parameters yaw_parameters = rig.gimbal().tuning().yaw;
+    gimbal::AxisLoop::Parameters pitch_parameters = original_pitch;
+    yaw_parameters.angle.kp = 1.0F;
+    rig.gimbal().request_tuning(yaw_parameters, pitch_parameters, 0.0F);
+    rig.tick_alive();
+    assert(rig.gimbal().tuning().applied_sequence == rig.gimbal().tuning().sequence);
+    assert(rig.gimbal().tuning().rejected_count == 0U);
+
+    // 无效参数：当场被拒、值改回当前生效的
+    pitch_parameters.rate.kp = -1.0F;
+    rig.gimbal().request_tuning(yaw_parameters, pitch_parameters, 0.0F);
+    rig.tick_alive();
+    assert(rig.gimbal().tuning().rejected_count == 1U);
+    assert(near(rig.gimbal().tuning().pitch.rate.kp, original_pitch.rate.kp, 1.0e-6F));
+    assert(rig.gimbal().report().mode == gimbal::Gimbal::Mode::DISABLED);
+
+    // 使能以后新参数还在（进入 HOLD 的 reset 只清状态、不还原参数）：yaw 偏 0.1 rad 时力矩很小
+    rig.release_gate();
+    assert(rig.run_until_holding());
+    rig.publish_attitude(0.1F, 0.02F, topics::imu::State::READY, true);
+    rig.publish_stop(false);
+    rig.publish_command(topics::command::GimbalMode::HOLD);
+    rig.tick();
+    assert(std::fabs(rig.gimbal().report().yaw_torque_newton_meter) < 1.0F);
+    return 0;
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -1258,7 +1300,7 @@ int main(int argc, char **argv)
                      "用法：%s settling|locked|enable|track|estop|fault|attitude_timeout|command_timeout|pitch_limit|"
                      "yaw_limit|yaw_limit_wide|pitch_feedforward|enable_timeout|attitude_ahead|attitude_gap|"
                      "yaw_cross_pi|manual_rate|manual_clamp|manual_drop|fault_beats_drop|absolute_rate_limit|state|"
-                     "mode_switch|reject|capture|capture_off|tuning|tuning_reject\n",
+                     "mode_switch|reject|capture|capture_off|tuning|tuning_reject|tuning_idle\n",
                      argv[0]);
         return 2;
     }
@@ -1374,6 +1416,10 @@ int main(int argc, char **argv)
     if (std::strcmp(scenario, "tuning_reject") == 0)
     {
         return scenario_tuning_reject(publishers);
+    }
+    if (std::strcmp(scenario, "tuning_idle") == 0)
+    {
+        return scenario_tuning_idle(publishers);
     }
     std::fprintf(stderr, "未知场景：%s\n", scenario);
     return 2;

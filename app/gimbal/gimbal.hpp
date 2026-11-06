@@ -160,7 +160,8 @@ class Gimbal final
 
     /**
      * 在线调参：改好 yaw、pitch、pitch_gravity_newton_meter 后把 sequence 加 1，
-     * 下一份新姿态时一起生效。任何一项无效时整块都不生效：块里的值改回当前生效的，rejected_count 加 1。
+     * 下一份新姿态时一起生效（DISABLED、ENABLING 时也处理：没出力时改参数最安全，也要当场看得出生效或被拒）。
+     * 任何一项无效时整块都不生效：块里的值改回当前生效的，rejected_count 加 1。
      * 字段全是 32 位，调试器写对齐的 32 位量不用停核。总限幅不在这里：安全参数只从 params.hpp 来。
      */
     struct Tuning
