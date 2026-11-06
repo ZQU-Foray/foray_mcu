@@ -26,7 +26,7 @@ foray_mcu/
 │   ├── boot/                 boot.h：生成区唯一调用的启动入口（F2）
 │   ├── utils/                math、crc（F1 第 1 步由 lib 移入）、concurrency（spsc_queue、latest_value，F1 第 2 步）
 │   ├── middleware/           fsm（F1 第 1 步由 lib 移入）、topic（topic.hpp，F1 第 4 步）、robolink（上位机链路协议，阶段 A）
-│   ├── lib/                  control（pid、slope、heater_control）、estimate、filter、kinematics、component（目录名即命名空间名）
+│   ├── lib/                  control（pid、slope、heater_control、state_feedback）、estimate（vqf、四元数 EKF、零偏标定、eso）、filter、kinematics、component（目录名即命名空间名）
 │   └── driver/               can_bus（CAN 总线分发）、motor（joint.hpp 关节；dji/、dm/ 品牌驱动与型号常量，Decision-20261102-03）、bmi088、buzzer、ws2812、protocol/{dji,dm,sbus}（构造时接收 hal 句柄，F2 第 5 步）
 ├── app/                      产品（include 根：#include "topics/bringup.hpp"）；固件与宿主构建都加入
 │   ├── CMakeLists.txt        产品的全部 target：app_topics、app_actuator、app_imu、app_pc_link、app_gimbal、app_remote、app_command、app_bringup、app_common（只在固件构建中）
@@ -52,7 +52,7 @@ foray_mcu/
 ├── legacy/                   迁移源的 README 与既有架构图（源码已在 P2、P2.5 全部搬出）
 │   ├── .docs/images/         既有架构图
 │   └── README.md
-├── test/host/                宿主测试（由根工程 host-tests preset 引入，27 项 ctest；来源 fd1edbb 与 F1–F4 新增，见 test/host/README.md）
+├── test/host/                宿主测试（由根工程 host-tests preset 引入，89 项 ctest；来源 fd1edbb 与 F1–F4 新增，见 test/host/README.md）
 ├── test/framework/           框架独立构建用：template_check.cpp 显式实例化只有头文件的模板（F1，Decision-20261031-06）
 ├── test/data/imu/            真实 IMU 数据（原固件静态陀螺采集 ×2）
 ├── test/data/heater/         加热冷启动曲线：原固件（L6 的验收下限）、2026-11-01 旧 PI 与模型预测的对照
@@ -106,7 +106,7 @@ foray_mcu/
 │   │   ├── topic/                topic 机制：最新值、单发布者、中断发布、阻塞等待
 │   │   ├── robolink/             上位机链路协议 RoboLink v0.2：wire（组帧、解析）、messages（8 条消息）、session（连接会话）
 │   │   └── fsm/                  通用状态机
-│   ├── lib/                      领域算法：control（pid、slope、heater_control）、estimate、filter、kinematics、component
+│   ├── lib/                      领域算法：control（pid、slope、heater_control、state_feedback）、estimate（vqf、eso 等）、filter、kinematics、component
 │   ├── driver/                   设备驱动与设备协议：can_bus、motor（joint；dji、dm）、bmi088、buzzer、ws2812、protocol/{dji,dm,sbus}（F3 适配 hal v1）
 │   └── third_party/              vendor 生成头（预留；RoboLink 没有生成器，Decision-20261103-01）
 ├── platform/                     厂商 / 板两级

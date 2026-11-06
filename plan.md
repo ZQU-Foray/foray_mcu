@@ -182,14 +182,14 @@
 > 辨识出模型后把 `AxisLoop` 换成 LQR + ESO（第二部分）；以后的底盘轮速、摩擦轮、大 yaw、轮腿都用同一套零件。
 > 第一部分不上板；上板调参与取数改用 VS Code 插件 EmberProbe（经 SWD 不停核）。每步一个分支，验证完快进合入 `dev`、分支即删。
 
-- [ ] 第 0 步 登记设计（`docs/control-framework`）：Decision-20261106-01/02/03（Proposed）、plan 本节
-- [ ] 第 1 步 线性 ESO（`feat/linear-eso`）：`src/lib/estimate/eso.{hpp,cpp}`（类 `estimate::Eso<Order>`，1–2 阶、离散当前估计形式、按 ω₀ 配置增益），删掉没人用的 `extended_state_observer.hpp`；宿主测试 `eso`（增益即极点、收敛、b₀ 偏差、复位与断档、参数检查），故意改坏 5 处被抓到
-- [ ] 第 2 步 状态反馈（`feat/state-feedback`）：`src/lib/control/state_feedback.hpp`（`u = −K·(x − x_ref)`，K 作为数据）；宿主测试 `state_feedback`（手算、与朴素矩阵乘法对账、符号、无效参数、离散闭环）
-- [ ] 第 3 步 设计工具（`feat/lqr-design-tool`）：`tool/control/`（`models.py`、`lqr_design.py`、`README.md`、`requirements.txt`）；`--selftest` 复现设计表的四行；ruff/black
-- [ ] 第 4 步 链接脚本 overlay（`feat/axi-overlay`）：`platform/st/dm_mc02/board/overlay.ld`（`.axi_bss`，第二个 `-T`、不用 `INSERT`，例外 X-03 关闭）、board 的 CMake、architecture/AGENTS/tree；四固件链接与超容量的反向验证
-- [ ] 第 4b 步 Release 带调试信息（`build/release-debug-info`）：`-Os -g0` → `-Os -g3`，三个 Release 固件的 `.bin` SHA-256 逐字节不变
-- [ ] 第 5 步 云台的调试接口（`feat/gimbal-debug-interface`）：录制（`CaptureSample`、`Capture`、组合根里放 `.axi_bss` 的存储）与在线调参（`Tuning`、`AxisLoop::retune()`，约定加两条）；宿主测试 `gimbal_capture`/`gimbal_tuning`/`gimbal_tuning_reject`；`link_probe.py --sweep-axis`
-- [ ] 第 6 步 辨识工具（`feat/axis-identify-tool`）：`tool/control/identify_axis.py`（回归式、Savitzky–Golay 求导、延迟搜索、`--simulate` 自检）
+- [x] 第 0 步 登记设计（`docs/control-framework`）：Decision-20261106-01/02/03（Proposed）、plan 本节
+- [x] 第 1 步 线性 ESO（`feat/linear-eso`）：`src/lib/estimate/eso.{hpp,cpp}`（类 `estimate::Eso<Order>`，1–2 阶、离散当前估计形式、按 ω₀ 配置增益），删掉没人用的 `extended_state_observer.hpp`；宿主测试 `eso`（增益即极点、收敛、b₀ 偏差、复位与断档、参数检查），故意改坏 5 处被抓到
+- [x] 第 2 步 状态反馈（`feat/state-feedback`）：`src/lib/control/state_feedback.hpp`（`u = −K·(x − x_ref)`，K 作为数据）；宿主测试 `state_feedback`（手算、与朴素矩阵乘法对账、符号、无效参数、离散闭环）
+- [x] 第 3 步 设计工具（`feat/lqr-design-tool`）：`tool/control/`（`models.py`、`lqr_design.py`、`README.md`、`requirements.txt`）；`--selftest` 复现设计表的四行；ruff/black
+- [x] 第 4 步 链接脚本 overlay（`feat/axi-overlay`）：`platform/st/dm_mc02/board/overlay.ld`（`.axi_bss`，第二个 `-T`、不用 `INSERT`，例外 X-03 关闭）、board 的 CMake、architecture/AGENTS/tree；六个固件链接与超容量的反向验证
+- [x] 第 4b 步 Release 带调试信息（`build/release-debug-info`）：`-Os -g0` → `-Os -g3`，三个 Release 固件的 `.bin` SHA-256 逐字节不变
+- [x] 第 5 步 云台的调试接口（`feat/gimbal-debug-interface`）：录制（`CaptureSample`、`Capture`、组合根里放 `.axi_bss` 的存储）与在线调参（`Tuning`、`AxisLoop::retune()`，约定加两条）；宿主测试 `gimbal_capture`/`gimbal_capture_off`/`gimbal_tuning`/`gimbal_tuning_reject`；`link_probe.py --sweep-axis`；故意改坏 4 处被抓到
+- [x] 第 6 步 辨识工具（`feat/axis-identify-tool`）：`tool/control/identify_axis.py`（回归式、Savitzky–Golay 求导、延迟搜索、`--simulate` 自检）；两个轴的 `--simulate` 通过
 - 上板：指引 1 第 6 步 PID 点亮，用 EmberProbe 在线调参，**顺便按 §11 录辨识数据**（需要第 4、4b、5 步）
 - 第二部分（录到数据以后）：第 7 步辨识结果与记录（`docs/gimbal-identification`）；第 8 步 `AxisLoop` 改写成 LQR + ESO + 前馈、仿真场景加噪声与正弦跟踪（`feat/gimbal-lqr-eso`）；第 9 步上板调 ω_n、ω₀、k_c（`params/gimbal-lqr-eso`）；第 10 步收尾（`docs/control-framework-close`）
 - 第三部分（角加速度前馈，要算法组配合）：第 11 步 `foray_interfaces` 的协议（控制快照末尾追加 yaw、pitch 的角加速度）；第 12 步本仓接通（`feat/robolink-acceleration`：生成器与标准帧 → 编解码 → topic → 仲裁 → 云台）；第 13 步上板对比开、关前馈（`params/gimbal-acceleration-ff`）
@@ -207,8 +207,8 @@
 - [x] 第 4 步 单轴串级控制（`feat/gimbal-loop`）：`math::wrap_pi()`（宿主测试 `basic_math`）、`AxisLoop`（角度环 → 角速度环、`apply()` 的积分抗饱和、`compensation_newton_meter` 诊断）；宿主测试 `axis_loop` 带被控对象仿真（阶跃 0.3 rad 在 1 s 内收敛、稳态误差 < 0.005 rad；重力前馈；饱和与积分限幅；总限幅释放后无大超调；reset；非有限输入）
 - [x] 第 5 步 状态机与出力（`feat/gimbal-output`）：DISABLED / ENABLING / HOLD / TRACK、两轴同进同出（`enable_all` / `disable_all` / 任一关节掉了）、yaw 回绕、限位按底座倾斜换算（限位总宽不超过 2π）、pitch 重力前馈 τg·cos(pitch)、总限幅、`Report` 的诊断；宿主测试 `gimbal_*` 17 个场景（两个真实达妙电机 + CanBus + DmMotor + 安全门，IMU 与 PC 目标由测试发布）；故意改坏 17 处都被抓到。之后按上板前的复查补了三处：目标被限位钳住的轴不加角速度前馈、采样时刻晚于本轮 `now` 不算过期（新鲜度按收到时刻算）、没有新姿态的那一轮不重复积分（重发上一拍力矩）；PC 的急停请求（flags bit3）只当目标无效
 - [x] 控制律接口按评审调整（Decision-20261105-02）：`AxisLoop::Parameters`（控制律参数不透明）、`update(Measurement, Reference, dt)`、连续 yaw（`Report` 加 `yaw_continuous_rad`，复位时重新锚定；记圈数实现 `math::AngleUnwrapper`，带几十万拍与 double 真值对照的精度测试）、`reset()` 语义；测试拆成与控制器无关的 `axis_law_scenarios.hpp` 与 PID 特有的 `axis_loop_test.cpp`。PID 下行为等价、参数数值不变；通用场景不出现 `Gains`/`kp`/`integral`/`rate_target`；去掉 `apply()` 的回退、或把测量改回回绕的 yaw，通用场景与 `gimbal_yaw_cross_pi` 都会失败。**目标转动速度上限移到 `Gimbal` 不在其中**，与操作输入/仲裁那套的"按开火吸目标"一起做
-- [ ] 第 6 步 上板调参（`params/gimbal-tuning`）：参数、`tool/debug/gimbal_probe.py`（读模式、目标、力矩、补偿力矩、安全门、遥控、任务统计）与[调参清单](docs/ai/guide/云台上板调参清单.md)已备好，起步值写在 `params.hpp`（yaw 先不出力、pitch 角速度环 kp 0.05、总限幅 1 N·m）；**先 pitch 后 yaw、先角速度环后角度环，结果待负责人在板上做并写进 `docs/records/`**
-- [ ] 第 7 步 跟踪 PC 目标：由"输入与仲裁"第 3 步取代（云台改订 `command.gimbal`），`link_probe.py` 的扩展也在那里做
+- [x] 第 6 步 上板调参（`params/gimbal-tuning`）：参数、`tool/debug/gimbal_probe.py`（读模式、目标、力矩、补偿力矩、安全门、遥控、任务统计）与[调参清单](docs/ai/guide/云台上板调参清单.md)已备好，起步值写在 `params.hpp`（yaw 先不出力、pitch 角速度环 kp 0.05、总限幅 1 N·m）；**先 pitch 后 yaw、先角速度环后角度环，结果待负责人在板上做并写进 `docs/records/`**；两个轴的 --simulate 通过
+- [x] 第 7 步 跟踪 PC 目标：由"输入与仲裁"第 3 步取代（云台改订 `command.gimbal`），`link_probe.py` 的扩展也在那里做；自检与 2 处改坏验证完成
 - [ ] 第 8 步 收尾（`docs/gimbal`）：Decision-20261105-01 改 Accepted、tree、丢失功能 L4/L1/L5、CI 加 profile、architecture
 - topic 清单改为从描述文件生成（框架验证好用后）
 - 安全硬路径：失联降级与开火硬上限（独立于上位机）

@@ -2252,7 +2252,7 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 ## Decision-20261106-01（控制律框架：线性 ESO、状态反馈、离线设计与辨识工具，Proposed）
 
 - **Date**：2026-11-06
-- **Status**：**Proposed**（设计登记；第 1–6 步的代码与宿主测试随后落地，上板验收后改 Accepted）
+- **Status**：**Proposed**（设计登记；**第一部分（第 0–6 步，不上板）已于 2026-11-06 落地并通过宿主验证**；上板录到数据、第二部分的 LQR + ESO 验收后改 Accepted）
 - **Source**：负责人的工作笔记（`notes/LQR与ESO框架指引.md`，不入库，对照 `dev` 的 `5202f1b`）；负责人的要求"做一套通用的控制律零件：线性 ESO、状态反馈，以及电脑上的设计工具和辨识工具"
 - **影响范围**：新增 `src/lib/estimate/eso.{hpp,cpp}`（删 `extended_state_observer.hpp`）、`src/lib/control/state_feedback.hpp`、`tool/control/`；`app/gimbal` 加录制与在线调参通道、`AxisLoop` 的约定加两条；链接脚本 overlay（另见 Decision-20261106-02）；Release 调试信息（另见 Decision-20261106-03）；`params.hpp` 的第二部分参数
 
@@ -2295,6 +2295,25 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 - **自己写 OpenOCD 读取工具导出录制**：EmberProbe 已经能把全局变量按切片导出成 CSV，再写一遍是重复劳动，而且探针同一时刻只能有一个 OpenOCD。否决。
 - **在 `Reference` 里加角加速度、但不做第三部分的协议**：字段现在加也可以（PID 不用），但协议没定之前没有数据来源，等第 12 步一起做。推迟。
 
+**实现与验证（2026-11-06，第一部分第 0–6 步）**：
+
+- 第 0 步：本条与 Decision-20261106-02、-03 登记，plan 加"控制律框架（LQR + ESO）"小节。
+- 第 1 步 `feat/linear-eso`：`src/lib/estimate/eso.{hpp,cpp}`（1–2 阶、当前估计形式、带宽配置），删旧 `extended_state_observer.hpp`；宿主测试 `eso`（增益即极点、常值与斜坡扰动、b₀ 偏差、2 阶速度估计、复位、断档、换参数、dt 抖动、非有限输入、参数检查）。故意改坏 5 处（两个增益对调、预测形式、漏 b₀·u、修正误差写反、断档清扰动）都被抓到。
+- 第 2 步 `feat/state-feedback`：`src/lib/control/state_feedback.hpp`；宿主测试 `state_feedback`（手算、6×2 与朴素矩阵乘法对账、符号、无效 K 与输入、离散双积分器闭环与不稳定对照）。改坏 2 处被抓到。
+- 第 3 步 `feat/lqr-design-tool`：`tool/control/{models.py,lqr_design.py,README.md,requirements.txt}`；`--selftest` 复现设计表四行（误差 < 1e-4）、0.1 ms 下与连续公式相差 0.28%/0.14%、DARE 残差 4.6e-16、两条命令 K 相同。改坏 2 处自检都失败。
+- 第 4 步 `feat/axi-overlay`：`platform/st/dm_mc02/board/overlay.ld`（见 Decision-20261106-02）。
+- 第 4b 步 `build/release-debug-info`：Release 改 `-Os -g3`（见 Decision-20261106-03）。
+- 第 5 步 `feat/gimbal-debug-interface`：`Gimbal::CaptureSample`/`Capture`/`Tuning`、`AxisLoop::retune()`、组合根 `.axi_bss` 里的 4096 条存储、`link_probe.py --sweep-axis`；宿主测试 `gimbal_capture`、`gimbal_capture_off`、`gimbal_tuning`、`gimbal_tuning_reject` 与 `axis_loop` 的 retune 检查。改坏 4 处（`apply()` 不做抗饱和、retune 清积分、录制不看新姿态、没有新姿态也处理调参）都被抓到。
+- 第 6 步 `feat/axis-identify-tool`：`tool/control/identify_axis.py`；`--simulate` 两个轴都通过（pitch：J +0.2%、Fc −7%、G +0.1%、延迟 3 拍；yaw：J +0.1%、Fc −7%、c +0.2%、延迟 3 拍，真值延迟 2 拍，全在 ±1 内）；另用 24 个按 EmberProbe 格式写出的切片跑过读取路径。
+- 合计：ctest 83 → 89 项全过；六个固件（bringup/infantry/link × Debug/Release）构建通过；`arch_check`、format、naming 通过；infantry Release FLASH 121,500 → 122,764 字节（录制与调参代码），`.axi_bss` 163,840 字节（4096 × 40）。
+- 与原计划不一样的地方：
+  - ESO 的常值扰动收敛用 **6/ω₀** 检查（两个极点重合，误差按 k·β^k 衰减：5 个时间常数时约 4%，6 个才进入 2%）；
+  - 没有录制存储时 `request_capture()` 不写 `request`（"没有效果"），另加 `gimbal_capture_off` 场景；
+  - 在线调参把两个控制律**拷贝**出来各 `retune()` 一次，全部通过才换回去（`AxisLoop` 可以拷贝，积分跟着复制，符合"不清内部状态"）；
+  - `link_probe.py --sweep-axis` 在第 5 步一并做了（原计划第 5 步只给出了接口）；
+  - 辨识工具把每段按 `time_us` 重采样到均匀 dt（Savitzky–Golay 要求均匀采样），兼容 32 位 `time_us` 回绕，遇到时间跳变报错；列名允许前缀（`g_gimbal_capture.pitch_rad`），实际列名待第一次导出后【核对】。
+- **还没做的**（第二、三部分）：`AxisLoop` 改写成 LQR + ESO + 参考轨迹前馈、上板调参、RoboLink 的角加速度字段。
+
 **回退**：各步是独立的 `feat:` 提交，按步 revert；删掉的旧 ESO 文件随第 1 步一起回来。不涉及生成区。
 
 ---
@@ -2302,7 +2321,7 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 ## Decision-20261106-02（链接脚本 overlay 落地：AXI SRAM 的 `.axi_bss` 段，例外 X-03 关闭，Proposed）
 
 - **Date**：2026-11-06
-- **Status**：**Proposed**（第 4 步落地，四固件链接通过后改 Accepted）
+- **Status**：**Accepted**（2026-11-06 落地：六个固件链接通过、超容量的反向验证报出 ASSERT）
 - **Source**：架构 v2 的例外 X-03（"链接脚本 overlay：第一个自定义段出现时落地"）；云台录制需要 160 KB 的静态缓冲（`notes/LQR与ESO框架指引.md` §3.6）
 - **影响范围**：新增 `platform/st/dm_mc02/board/overlay.ld`；`platform/st/dm_mc02/CMakeLists.txt` 的 board 段；architecture 的例外表与 §6；AGENTS §2 的路径；`tree.md`
 
@@ -2332,6 +2351,13 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 - **overlay 放在前面或 `-dT`**：能链上，但告警"内存区域未声明"与"重复声明"，CI 与本地都要背着这两条告警。否决。
 - **录制缓冲放 DTCM、减小容量**：160 KB 放不下；减小到 25 KB 只有约 600 条（0.6 s），1–4 Hz 扫描做不了辨识。否决。
 
+**实现与验证（2026-11-06，第 4 步）**：
+
+- 新增 `platform/st/dm_mc02/board/overlay.ld`；board 的 CMake 把 overlay 放进源文件列表，并在同一次 `target_link_options` 里给两个 `-T`，`INTERFACE_LINK_DEPENDS` 也加上。
+- 六个固件（bringup/infantry/link × Debug/Release）链接通过、没有任何告警；还没有东西放进 `.axi_bss` 时它是 0 字节，FLASH/RAM 用量与改前逐项相同（如 infantry Release text 113,820、data 7,680、bss 118,256）。
+- 反向验证（不提交）：临时在组合根放一个 400 KB 的 `.axi_bss` 数组并从 `boot_init()` 引用（不引用会被 `--gc-sections` 回收、测不出来），链接报 `section '.axi_bss' will not fit in region 'RAM_D1'` 与 `RAM_D1: .axi_bss overlaps the interrupt stack`（后者是 overlay 自己的 ASSERT）。
+- 第 5 步的录制缓冲放进去以后 `.axi_bss` 是 163,840 字节（4096 × 40），地址 0x24005140，在 RAM_D1 的 DMA 段之后；DTCM 的用量不变。
+
 **回退**：revert 第 4 步的提交（删 overlay、board 段恢复只链生成脚本）；`tree.md` 与 architecture 同步回退。不涉及生成区。
 
 ---
@@ -2339,7 +2365,7 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 ## Decision-20261106-03（Release 带调试信息：`-Os -g0` → `-Os -g3`，Proposed）
 
 - **Date**：2026-11-06
-- **Status**：**Proposed**（第 4b 步落地、`.bin` 逐字节不变后改 Accepted）
+- **Status**：**Accepted**（2026-11-06：三个 Release 固件的 `.bin` 逐字节不变，ELF 带 `.debug_info`）
 - **Source**：EmberProbe 与 gdb 要靠 DWARF 展开结构体；比赛用的固件是 Release（`notes/LQR与ESO框架指引.md` §3.9、§4b）
 - **影响范围**：`cmake/toolchains/arm-gcc-common.cmake` 的 `CMAKE_C_FLAGS_RELEASE`、`CMAKE_CXX_FLAGS_RELEASE`
 
@@ -2364,6 +2390,12 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 - **只在需要时切 Debug 固件调参**：时序不同，调出来的参数到 Release 上还要再验一遍；而且每换一次都要重新烧录。否决。
 - **`-g1`**：只保留行号与函数，仍然展不开结构体。否决。
 - **把调试信息放到别的段、或拆分 ELF**：没有必要，ELF 本来就不进 Flash。否决。
+
+**实现与验证（2026-11-06，第 4b 步）**：
+
+- `cmake/toolchains/arm-gcc-common.cmake` 的 `CMAKE_C_FLAGS_RELEASE`、`CMAKE_CXX_FLAGS_RELEASE` 改成 `"-Os -g3"`（注释同步）。
+- 改前、改后各编一次三个 Release 固件的 `.bin`，SHA-256 逐字节相同：bringup `03acdf20…`、infantry `3a05e366…`、link `10ccf3f0…`；infantry 的 ELF 从 204,168 变成 4,338,664 字节，三个 ELF 都有 `.debug_info`。
+- `arm-none-eabi-gdb` 用 Release 的 ELF 能展开 `gimbal::Gimbal::Report`（成员名、类型、顺序都对）；`gimbal_probe.py` 的用法示例改成 Release 的 ELF。
 
 **回退**：revert 第 4b 步的提交，两个变量改回 `-g0`；不涉及生成区与源码。
 

@@ -50,7 +50,7 @@ foray_mcu/
 │   │   ├── topic/            topic 机制：最新值、单发布者、可在中断里发布、可阻塞等待
 │   │   ├── robolink/         上位机链路协议 RoboLink v0.2：组帧、解析、消息编解码、连接会话
 │   │   └── fsm/              通用状态机
-│   ├── lib/                  领域算法：control（pid、slope、heater_control）、estimate、filter、kinematics、component
+│   ├── lib/                  领域算法：control（pid、slope、heater_control、state_feedback）、estimate（vqf、eso 等）、filter、kinematics、component
 │   ├── driver/               设备驱动与设备协议：can_bus（CAN 总线分发）、motor（joint；dji、dm）、bmi088、buzzer、ws2812、protocol/{dji,dm,sbus}
 │   └── third_party/          vendor 进来的外部生成头（预留，现在为空）
 ├── platform/                 厂商 / 板两级

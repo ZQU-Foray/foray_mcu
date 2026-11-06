@@ -46,3 +46,40 @@ python3 tool/debug/imu_capture_decode.py axi_after.bin --base 0x24000000 \
 
 - 日志第一列是主机单调时间，只表示到达先后（OpenOCD 输出可能成批到达）；精确时间请把 DWT_CYCCNT（`0xE0001004`）作为一个区域一起读取，以它为准。
 - OpenOCD 连接时会写调试寄存器（DBGMCU），这些寄存器断电即恢复，不影响 Flash 与应用状态。
+
+## 上板调参与取数：EmberProbe（VS Code 插件）
+
+在线调参、看波形、触发录制、把录制缓冲导出成 CSV 用 EmberProbe（`bakesheep.emberprobe` 0.9.1，
+经 SWD、不停核），比本目录的轮询工具更适合这几件事；本目录的工具留着写日志、脚本化与冷启动记录。
+
+**在线调参**（PID 点亮时就能用）：
+
+1. 侧栏"ELF 全部变量"搜 `tuning_`，把要调的项（如 `g_gimbal.tuning_.pitch.angle.kp`）与
+   `g_gimbal.tuning_.sequence` 加进写入列表；
+2. 波形窗口加 `g_gimbal.report_` 里的 `pitch_rad`、`pitch_target_rad`、`pitch_torque_newton_meter`、
+   `pitch_diagnostics.compensation_newton_meter`，采样 100–200 Hz；
+3. 改数值，再把 `sequence` 加 1；`applied_sequence` 跟上、`rejected_count` 没涨就是生效了
+   （被拒时块里的值会改回当前生效的）；
+4. 调完读 `g_gimbal.tuning_`，把值抄回 `params.hpp`。
+
+**录制**（一段 4 s、1 kHz；一条 40 字节）：
+
+1. 写 `g_gimbal.capture_.request = 4000`；
+2. 等 `g_gimbal.capture_.count` 到 4000；
+3. 按 `g_gimbal_capture[0:99]`、`[100:199]`……分片导出到 `build/capture/<段名>/`（一次最多读 4096 字节，
+   一片约 100 条；4000 条约 40 片）；
+4. `tool/control/identify_axis.py build/capture/<段名> --axis pitch` 辨识。
+
+**限制与注意**：
+
+- 运行中只写对齐的 32 位量（`float` / `std::uint32_t`）；写 `bool`、`uint8_t`、枚举会短暂停核，
+  CAN 指令会断、加热 PWM 可能卡在高电平；
+- 一个探针同一时刻只能有一个 OpenOCD：用本目录的 `*_probe.py` 或 `tool/flash` 之前，先在 EmberProbe
+  里停止采样；反过来也一样；
+- 名字有歧义时写成 `infantry_dm_mc02.cpp::g_gimbal.tuning_.sequence` 这种带文件名的形式；
+- ELF 必须与板上固件一致（用 EmberProbe 烧录一次，读写结果会标 `match`）；Release 从 2026-11-06 起
+  带调试信息（`-Os -g3`），EmberProbe 能展开 `g_gimbal.report_`、`g_gimbal.tuning_`；
+- 一次读取最多 4096 字节、大数组按切片读（`LIVE_READ_BUDGET_EXCEEDED` 就是这个限制）；
+- 写入前先在对话里确认变量、旧值、新值；超时的写入算"结果未知"，先读回再决定，不自动重发；
+- `.axi_bss` 是 `NOLOAD`、启动时不清零：录制只读自己写过的部分；以后开 D-cache 要用 MPU 把这一段
+  设成不缓存，否则调试器读到旧数据。
