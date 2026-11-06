@@ -59,7 +59,8 @@ inline constexpr device::JointMechanics PITCH_MECHANICS{1, 1.0F, 0.0F, 3000U};
 // - yaw 角度环 kp 8、角速度上限 3 rad/s：yaw 惯量是 pitch 的 3–5 倍，总限幅 1 N·m 下 kp 20 会打满力矩、
 //   来回猛抖（约 5 Hz）；kp 8 时拨开 2–4° 约 0.5 s 回位、无超调；
 // - 总限幅 1 N·m（4310 峰值 12.5 N·m，夹到手指会很疼），放宽前先重新验 yaw；
-// - 重力前馈 0：重力矩比摩擦小，稳态补偿力矩随摩擦在 −0.1 ~ +0.05 N·m 之间漂，读不出 τ_g，留给辨识的 G 项；
+// - 重力前馈：点亮时读不出 τ_g（重力矩比摩擦小，稳态补偿力矩随摩擦在 −0.1 ~ +0.05 N·m 之间漂）；
+//   2026-11-06 辨识的 G 项（四段扫描合并）是 −0.046 N·m，按它填；
 // - 积分碰上库仑摩擦会慢慢"爬行"：静止时每十来秒跳一次、幅度约 0.2°。
 inline constexpr gimbal::Gimbal::Parameters GIMBAL{
     // yaw：小 yaw 没有滑环，按有限位处理，偏移 = IMU 的 yaw − 小 yaw 关节角。
@@ -86,7 +87,7 @@ inline constexpr gimbal::Gimbal::Parameters GIMBAL{
         0.32F,
         6.0F, // maximum_target_rate
     },
-    0.0F,    // pitch_gravity_newton_meter：低头方向为正，枪管一侧偏重时是负数
+    -0.046F, // pitch_gravity_newton_meter：低头方向为正，枪管一侧偏重时是负数；辨识值
     1.0F,    // torque_limit_newton_meter
     10000U,  // attitude_timeout_us：10 ms 没有新姿态就停
     200000U, // enable_timeout_us：200 ms 没确认就回 DISABLED
