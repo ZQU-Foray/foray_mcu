@@ -103,6 +103,10 @@ endforeach()
 host_test(heater_control
     SOURCES unit/control/heater_control_test.cpp
     LINK lib_control)
+# 状态反馈：手算、与朴素矩阵乘法对账、符号、无效 K 与输入、离散双积分器的闭环
+host_test(state_feedback
+    SOURCES unit/control/state_feedback_test.cpp
+    LINK lib_control)
 host_test(gyro_bias_calibration
     SOURCES unit/estimate/gyro_bias_calibration_test.cpp
     LINK lib_estimate)

@@ -121,7 +121,8 @@ framework_library(lib_control
     lib/control/pid.cpp
     lib/control/pid.hpp
     lib/control/slope.cpp
-    lib/control/slope.hpp)
+    lib/control/slope.hpp
+    lib/control/state_feedback.hpp)
 target_link_libraries(lib_control PUBLIC utils_math)
 
 framework_library(lib_filter
