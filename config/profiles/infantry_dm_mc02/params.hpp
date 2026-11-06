@@ -37,9 +37,12 @@ inline constexpr pc_link::PcLink::Parameters PC_LINK{
 
 inline constexpr actuator::PowerOutputs::Parameters POWER_OUTPUTS{true};
 
-// 云台电机：CAN1 上两台 DM-J4310（MIT 模式，PMAX 12.5、VMAX 30、TMAX 10）。机构：输出轴直连云台（传动比 1），
+// 云台电机：CAN1 上两台 DM-J4310（MIT 模式，PMAX 12.5、VMAX 30、TMAX 10）。
+// 机构：pitch 输出轴直连云台；yaw 经同步带传动，约 1:1（实测关节角与 IMU 的比约 1.02，按 1 处理）。
 // 方向让关节与 IMU 同号（yaw 左转为正、pitch 低头为正），零点在云台水平朝前。
 // 2026-11-06 实测：两台的方向都是 +1；零点已在电机里设成云台水平朝前（断电不丢），所以 zero_offset_rad 为 0。
+// yaw 的同步带松了会跳齿：力矩打满来回猛抖时跳过约 66°，零点和软限位跟着偏。跳过以后要拉紧、在正前方
+// 重新设零点；平时看 IMU yaw 与关节角之差（底座朝向）是否不变。
 inline constexpr std::uint16_t YAW_ESC_ID{1U};
 inline constexpr std::uint16_t YAW_MASTER_ID{0x11U};
 inline constexpr device::JointMechanics YAW_MECHANICS{1, 1.0F, 0.0F, 3000U};
