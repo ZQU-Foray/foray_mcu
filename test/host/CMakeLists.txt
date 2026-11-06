@@ -106,6 +106,10 @@ host_test(heater_control
 host_test(gyro_bias_calibration
     SOURCES unit/estimate/gyro_bias_calibration_test.cpp
     LINK lib_estimate)
+# 线性扩张状态观测器：增益对应的极点、收敛、b₀ 偏差、复位与断档、参数检查
+host_test(eso
+    SOURCES unit/estimate/eso_test.cpp
+    LINK lib_estimate)
 # IMU 能力：每个 topic 只能有一个发布者，场景按参数分进程运行。
 host_test(imu NO_TEST
     SOURCES unit/imu/imu_test.cpp
