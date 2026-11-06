@@ -39,6 +39,8 @@ SAVGOL_WINDOW = 21
 SAVGOL_POLY = 3
 FRICTION_SPEED = 0.01
 MAX_DELAY_SAMPLES = 5
+# 中心差分求导的时间对齐比实际多算半拍（见脚本开头），自检时先减掉
+HALF_SAMPLE = 0.5
 # 真值（仿真自检用）：DM-J4310 云台量级
 TRUE_J = 0.005
 TRUE_B = 0.02
@@ -477,9 +479,13 @@ def selftest(axis: str, seed: int) -> int:
             f"c 在 ±15% 内（{result['c']:.6g}）",
             abs(result["c"] - TRUE_C) / TRUE_C <= 0.15,
         )
+    # 求导用中心差分，时间对齐会多算约半拍：先减掉再比，否则 ±1 拍的条件
+    # 对 2 拍的真值几乎不起作用（2、3 拍都算过）。
+    physical_delay = result["delay_samples"] - HALF_SAMPLE
     check(
-        f"延迟在真值 ±1 拍内（{result['delay']} 拍，插值 {result['delay_samples']:.2f}）",
-        abs(result["delay_samples"] - TRUE_DELAY) <= 1,
+        f"延迟（插值 {result['delay_samples']:.2f} 拍，减半拍后 {physical_delay:.2f}）"
+        f"在真值 ±0.5 拍内",
+        abs(physical_delay - TRUE_DELAY) <= 0.5,
     )
     return 0 if failures == 0 else 1
 
