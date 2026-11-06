@@ -197,13 +197,17 @@ link_object_library(port_${BOARD_ID}
 # USB 设备句柄等也放进 DMA 可达内存（随 X-03）后再删除。
 target_link_options(port_${BOARD_ID} INTERFACE "-Wl,--wrap=HAL_PCD_EP_Transmit")
 
-# ---- board：板级内容——board.hpp（物理资源句柄、外设个数与能力常量）与链接脚本
-#      （CubeMX 生成，冻结）；链接脚本 overlay 在第一个自定义段出现时加入（Q9） ----
+# ---- board：板级内容——board.hpp（物理资源句柄、外设个数与能力常量）、生成的链接脚本
+#      （冻结）与自定义段的 overlay ----
 # board.hpp 只给组合根与本板的 port：include 路径只开到 board/，看不到 port/（规则 1）。
 set(linker_script "${cubemx_dir}/STM32H723xG_flash.ld")
-add_library(board_${BOARD_ID} OBJECT "${linker_script}" board/board.hpp)
+# 自定义段（.axi_bss）放 board/overlay.ld，作为第二个 -T 追加，不改生成的脚本（Q9）。
+# 两个 -T 必须在同一次调用里给，保证生成脚本在前。
+set(linker_overlay "${CMAKE_CURRENT_SOURCE_DIR}/board/overlay.ld")
+add_library(board_${BOARD_ID} OBJECT "${linker_script}" "${linker_overlay}" board/board.hpp)
 set_target_properties(board_${BOARD_ID} PROPERTIES LINKER_LANGUAGE C)
 target_include_directories(board_${BOARD_ID} INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/board")
 target_link_libraries(board_${BOARD_ID} INTERFACE hal)
-target_link_options(board_${BOARD_ID} INTERFACE "-T${linker_script}")
-set_property(TARGET board_${BOARD_ID} APPEND PROPERTY INTERFACE_LINK_DEPENDS "${linker_script}")
+target_link_options(board_${BOARD_ID} INTERFACE "-T${linker_script}" "-T${linker_overlay}")
+set_property(TARGET board_${BOARD_ID} APPEND PROPERTY INTERFACE_LINK_DEPENDS
+    "${linker_script}" "${linker_overlay}")
