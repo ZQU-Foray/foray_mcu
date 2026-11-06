@@ -14,8 +14,9 @@ inline constexpr device::Bmi088Heater::Config HEATER{control::HeaterControl::Mod
 
 // IMU：
 // - 陀螺 2000 Hz / 532 Hz；imu.attitude 最多 1 kHz；加热到 50 ℃，零偏标定在 50 ℃ 上做；
-// - 安装方向：板载 BMI088 的坐标系即云台系（x 沿枪管 / 相机光轴向前、y 向左、z 向上），负责人 2026-11-03 确认；
-//   以后装法不同时改这里（estimate::AxisMapping：云台系每个轴取传感器的哪个轴、什么符号）；
+// - 安装方向：云台系 x 沿枪管 / 相机光轴向前、y 向左、z 向上。板子跟着 pitch 转，但水平转了 90°，
+//   BMI088 的 x 指向云台左、y 指向后、z 朝上（2026-11-06 实测），所以云台系 x = −y、y = x、z = z；
+//   与 infantry_dm_mc02 相同，装法变了两处一起改（estimate::AxisMapping：云台系每个轴取传感器的哪个轴、什么符号）；
 // - 零偏标定：恒温稳定 20 s、静止窗口 5 s、累计 20 s 没有合格窗口就放弃（旧板实测参数）；
 // - 标定结果交给 VQF 时**不重置协方差**（0）：保留 VQF 的静止零偏更新，让它继续跟踪残余/温度漂移；
 // - VQF 静止门限按 2026-11-03 本板实测：60 s 静止三轴偏差 norm RMS 6.2 °/s、最大 19.3 °/s。
@@ -23,7 +24,7 @@ inline constexpr device::Bmi088Heater::Config HEATER{control::HeaterControl::Mod
 //   bias_clip 0.05 rad/s（2.9 °/s）大于本板各轴零偏。
 inline constexpr imu::Imu::Parameters IMU{
     device::Bmi088::Config{device::Bmi088Gyro::Bandwidth::ODR_2000_HZ_532_HZ},
-    estimate::IDENTITY_AXIS_MAPPING,
+    estimate::AxisMapping{{1U, 0U, 2U}, {-1, 1, 1}},
     1000U,
     50.0F,
     estimate::GyroBiasCalibration::Config{},

@@ -15,9 +15,11 @@ namespace params
 {
 inline constexpr device::Bmi088Heater::Config HEATER{control::HeaterControl::Model{0.967F, 15.5F, 0.95F}};
 
+// IMU 的安装方向：板子跟着 pitch 转，但水平转了 90°，BMI088 的 x 指向云台左、y 指向后、z 朝上
+// （2026-11-06 实测：低头时不改映射的话 IMU 报的是 roll）。云台系 x（枪管向前）= −y，y（向左）= x，z = z。
 inline constexpr imu::Imu::Parameters IMU{
     device::Bmi088::Config{device::Bmi088Gyro::Bandwidth::ODR_2000_HZ_532_HZ},
-    estimate::IDENTITY_AXIS_MAPPING,
+    estimate::AxisMapping{{1U, 0U, 2U}, {-1, 1, 1}},
     1000U,
     50.0F,
     estimate::GyroBiasCalibration::Config{},
@@ -37,6 +39,7 @@ inline constexpr actuator::PowerOutputs::Parameters POWER_OUTPUTS{true};
 
 // 云台电机：CAN1 上两台 DM-J4310（MIT 模式，PMAX 12.5、VMAX 30、TMAX 10）。机构：输出轴直连云台（传动比 1），
 // 方向让关节与 IMU 同号（yaw 左转为正、pitch 低头为正），零点在云台水平朝前。
+// 2026-11-06 实测：两台的方向都是 +1；零点已在电机里设成云台水平朝前（断电不丢），所以 zero_offset_rad 为 0。
 inline constexpr std::uint16_t YAW_ESC_ID{1U};
 inline constexpr std::uint16_t YAW_MASTER_ID{0x11U};
 inline constexpr device::JointMechanics YAW_MECHANICS{1, 1.0F, 0.0F, 3000U};
@@ -51,26 +54,28 @@ inline constexpr device::JointMechanics PITCH_MECHANICS{1, 1.0F, 0.0F, 3000U};
 // - 总限幅第一次出力只给 1 N·m（4310 峰值 12.5 N·m，夹到手指会很疼），调好后再放宽；
 // - 重力前馈先给 0：水平静止时读 Report 里 pitch 的 compensation_newton_meter，那个稳态值就是 τ_g。
 inline constexpr gimbal::Gimbal::Parameters GIMBAL{
-    // yaw：小 yaw 按有限位处理，偏移 = IMU 的 yaw − 小 yaw 关节角。范围是占位值，按线缆实测收紧
+    // yaw：小 yaw 没有滑环，按有限位处理，偏移 = IMU 的 yaw − 小 yaw 关节角。
+    // 2026-11-06 实测两端在 +1.574（左）与 −1.573（右），每边往里收 0.07 rad
     gimbal::Gimbal::AxisParameters{
         gimbal::AxisLoop::Parameters{
             gimbal::AxisLoop::Gains{0.0F, 0.0F, 0.0F, 6.0F},
             gimbal::AxisLoop::Gains{0.0F, 0.0F, 0.0F, 1.0F},
         },
         true,
-        -3.14159265F,
-        3.14159265F,
+        -1.50F,
+        1.50F,
         6.0F, // maximum_target_rate：目标转动速度上限 rad/s（自瞄吸过去的速度、手动角速度的钳位）
     },
-    // pitch：机械限位按关节角给（水平为 0、低头为正）。范围是占位值，上板实测后改
+    // pitch：机械限位按关节角给（水平为 0、低头为正）。
+    // 2026-11-06 实测挡块在 −0.581（抬头）与 +0.378（低头），每边往里收 0.06 rad
     gimbal::Gimbal::AxisParameters{
         gimbal::AxisLoop::Parameters{
             gimbal::AxisLoop::Gains{5.0F, 0.0F, 0.0F, 6.0F},
             gimbal::AxisLoop::Gains{0.05F, 0.3F, 1.0F, 1.0F},
         },
         true,
-        -0.6F,
-        1.0F,
+        -0.52F,
+        0.32F,
         6.0F, // maximum_target_rate
     },
     0.0F,    // pitch_gravity_newton_meter：低头方向为正，枪管一侧偏重时是负数
