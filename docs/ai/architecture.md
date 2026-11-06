@@ -432,7 +432,7 @@ EXECUTABLE  firmware_<profile>
 
 | 编号 | 例外 | 涉及规则 | 处置与到期 |
 |---|---|---|---|
-| X-02 | **USB 发送的链接接缝**：`-Wl,--wrap=HAL_PCD_EP_Transmit`。OTG HS 内部 DMA 访问不到 DTCM，也要求 4 字节对齐；CDC 收发缓冲区与 USB 栈静态内存已在 `.usb_dma_buffer`（AXI SRAM），但控制端点会从 USB 设备句柄（`hUsbDeviceHS`，在 DTCM）发数据，所以发送前按需拷进弹跳缓冲区 | 16 | 长期；USB 设备句柄等也放进 DMA 可达内存（随 X-03 的链接脚本 overlay）、确认所有发送都 4 字节对齐后删除（Decision-20261103-04） |
+| X-02 | **USB 发送的链接接缝**：`-Wl,--wrap=HAL_PCD_EP_Transmit`。OTG HS 内部 DMA 访问不到 DTCM，也要求 4 字节对齐；CDC 收发缓冲区与 USB 栈静态内存已在 `.usb_dma_buffer`（AXI SRAM），但控制端点会从 USB 设备句柄（`hUsbDeviceHS`，在 DTCM）发数据，所以发送前按需拷进弹跳缓冲区 | 16 | 长期；USB 设备句柄等也放进 DMA 可达内存（`.axi_bss` 已随 X-03 落地，可用）、确认所有发送都 4 字节对齐后删除（Decision-20261103-04、Decision-20261106-02） |
 | X-05 | **电机型号常量**：`dji/dji_models.hpp`（电调档案、原生减速比）、`dm/dm_models.hpp`（量程、峰值扭矩、通讯超时）是型号固有参数，留在驱动层；选型与机构参数在 profile（Decision-20261102-03） | §2.3 | 长期 |
 | X-06 | **`-Wdouble-promotion` 豁免**：`src/lib/estimate/vqf.cpp`（按文件关掉，有意用 double）；"目标没有双精度 FPU 就报错"的检查推迟到阶段 B（Decision-20261101-02） | 14 | 长期；F407 等 M4F 板链接姿态解算时由板级 CMake 声明 FPU 能力、组合根检查 |
 | X-16 | **RTOS 头的可见范围**：`os_freertos_<board>` 只能整目录暴露 CubeMX 的 `Core/Inc` | 10 | 长期（CubeMX 生成布局决定） |
