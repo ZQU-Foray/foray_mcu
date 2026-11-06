@@ -171,7 +171,7 @@
 - [x] 第 0 步 登记设计（`docs/input-design`）：decision.md 的 Decision-20261105-03（Proposed）、plan 本节、云台第 7 步改为指向这里
 - [x] 第 1 步 remote 加发 `remote.input`（`feat/remote-input`）：`topics/operator_input.hpp`（统一的输入类型）、`topics/remote.hpp`、摇杆与拨杆的标定参数；`safety.stop` 先留着；宿主测试 `remote_input`；上板核对摇杆与拨杆读数待负责人做
 - [x] 第 2 步 仲裁能力（`feat/command-arbiter`）：`app/command`（绑定、功能、`safety.stop` 与 `command.gimbal`）、`topics/command.hpp`；`safety.stop` 从 remote 搬过来；组合根把 `command_step` 放进 gimbal 任务、排在云台之前；白名单加 `command`；宿主测试 `arbiter_*` 12 个场景（Decision-20261105-03）；上板核对急停与放开 2026-11-06 通过（同时发现并补上组合根漏掉的 `g_command.init()`，记录见 [docs/ai/decisions/2026-11-06-云台点亮上板/](docs/ai/decisions/2026-11-06-云台点亮上板/README.md)）
-- [x] 第 3 步 云台改订 `command.gimbal`（`feat/gimbal-command`）：手动 `RATE` 与目标转动速度上限、发布 `gimbal.state`、删掉 PC 目标的判断；仲裁加自瞄接管范围；宿主测试 `gimbal_*` 21 个场景（含手动 RATE、限位写回、目标速度上限、`gimbal.state`）与 `arbiter_engage_*` 3 个场景；`link_probe.py` 加 `--gimbal-yaw`/`--gimbal-pitch`/`--sweep`；上板核对手动瞄准与按住开火自瞄待负责人做
+- [x] 第 3 步 云台改订 `command.gimbal`（`feat/gimbal-command`）：手动 `RATE` 与目标转动速度上限、发布 `gimbal.state`、删掉 PC 目标的判断；仲裁加自瞄接管范围；宿主测试 `gimbal_*` 21 个场景（含手动 RATE、限位写回、目标速度上限、`gimbal.state`）与 `arbiter_engage_*` 3 个场景；`link_probe.py` 加 `--gimbal-yaw`/`--gimbal-pitch`/`--sweep`；上板核对手动瞄准与按住开火自瞄：2026-11-06 用海康相机加简单装甲板检测验证通过（`docs/ai/decisions/2026-11-06-视觉自瞄验证/`）
 - [x] 第 4 步 收尾（`docs/input`）：decision 的实现与验证、architecture 白名单与安全那一条、tree、topics README、test README、丢失功能 L5
 - 第二部分（图传与键鼠、裁判系统）等硬件到位：远程输入 `referee.operator_input`、来源切换规则、`command.chassis` / `command.shooter`
 
