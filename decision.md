@@ -2249,6 +2249,126 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 
 ---
 
+## Decision-20261106-01（控制律框架：线性 ESO、状态反馈、离线设计与辨识工具，Proposed）
+
+- **Date**：2026-11-06
+- **Status**：**Proposed**（设计登记；第 1–6 步的代码与宿主测试随后落地，上板验收后改 Accepted）
+- **Source**：负责人的工作笔记（`notes/LQR与ESO框架指引.md`，不入库，对照 `dev` 的 `5202f1b`）；负责人的要求"做一套通用的控制律零件：线性 ESO、状态反馈，以及电脑上的设计工具和辨识工具"
+- **影响范围**：新增 `src/lib/estimate/eso.{hpp,cpp}`（删 `extended_state_observer.hpp`）、`src/lib/control/state_feedback.hpp`、`tool/control/`；`app/gimbal` 加录制与在线调参通道、`AxisLoop` 的约定加两条；链接脚本 overlay（另见 Decision-20261106-02）；Release 调试信息（另见 Decision-20261106-03）；`params.hpp` 的第二部分参数
+
+**Context**：
+
+- 云台现在用 PID 串级（`AxisLoop`，Decision-20261105-01、-02），上板调参还没做（plan 云台第 6 步）。即便把 PID 调好，摩擦、重力前馈误差、底盘耦合这些扰动也只能靠积分慢慢补。
+- 想要的是一套可以复用的零件：观测器（线性 ESO）、状态反馈（K 在电脑上算好，板上只做乘法）、电脑上的设计工具（模型 + Q、R → K）与辨识工具（录到的数据 → J、摩擦、重力、延迟）。云台先用 PID 点亮，点亮时顺便录辨识数据，辨识出模型后把 `AxisLoop` 换成 LQR + ESO；以后的底盘轮速、摩擦轮、大 yaw、轮腿都用同一套零件。
+- 迁移源带来的 `src/lib/estimate/extended_state_observer.hpp` 没人用、没有测试：非线性 `fal`、函数指针修正、10 阶上限、只测角度（n = 2），反而用不上陀螺仪。它不是这套零件的基础，留着只会让人以为它是。
+
+**Decision**：
+
+1. **ESO 重写**（第 1 步）：`src/lib/estimate/eso.{hpp,cpp}`，类 `estimate::Eso<Order>`，替换旧实现（旧文件删掉）。线性、离散、**当前估计形式**（每拍先预测、再修正，修正后的值就是这一拍的估计，比预测形式少一拍滞后）；`Order` 只支持 1、2（增益有闭式解，`static_assert` 挡住其他阶数）；增益按带宽 ω₀ 一个数配置（误差的 `Order + 1` 个极点都在 `e^(−ω₀·h)`）；`init()` 检查 ω₀、b₀、h 与 ω₀·h，只换参数与增益、不动状态（在线调参靠这一点）；`reset()` 后第一次 `update()` 用测量初始化；`dt` 超过 10 倍设计周期时不跨着预测（前 `Order` 个状态用测量重新初始化，扰动估计保留）；输入非有限时返回 false、状态不动。旧的非线性 `fal`、`CorrectionFunction`、诊断计数、10 阶上限都不搬过来。
+2. **状态反馈**（第 2 步）：`src/lib/control/state_feedback.hpp`，命名空间 `control`，只有头文件（模板 `StateFeedback<States, Inputs>`）：`u = −K·(x − x_ref)`，K 作为数据给进来（行是输入、列是状态），可以每拍换 K（以后按腿长调度）。不在板上检查闭环稳定性：N 阶特征值不划算，具体的控制律自己做（云台用 §3.3 的三个不等式）。
+3. **K 在电脑上离线算**（第 3 步）：`tool/control/lqr_design.py`（零阶保持离散化 → DARE → K → 闭环极点与 ω_n、ζ → 可直接粘贴的 C++ 片段，注释里带可重跑的命令）、`models.py`（被控对象的连续 A、B 与状态名）、`requirements.txt`（numpy、scipy）、`README.md`。板上不解 Riccati 方程。理由：
+   - 轮腿的 K 随腿长变：离线对一组腿长求 K、拟合成多项式，板上按腿长求值；启动时解一次覆盖不了；
+   - 选 Q、R 要看闭环极点、阶跃响应、模型误差下的余量，这些都在电脑上看；
+   - 板上少一个求解器：没有"不收敛""精度不够"这类故障，也不占启动时间；
+   - 速度不是问题：每拍的 `u = −Kx` 只有几十次乘加。工具的自检（`--selftest`，复现设计表）在本地跑，CI 只对 Python 做 ruff 与 black。
+4. **云台的调试接口**（第 5 步）：录制（`Gimbal::CaptureSample`、`Capture`、`Config` 带存储指针与容量，在 `update_report()` 里每份新姿态录一条）与在线调参通道（`Gimbal::Tuning`、`AxisLoop::retune()`，改完 `sequence` 加 1 才生效，无效时整块拒绝并记 `rejected_count`）。`AxisLoop` 的约定加两条：`retune()` 换参数、不清内部状态；`Parameters` 只放 `float` / `std::uint32_t`（调试器只有写对齐的 32 位量才不停核）。安全参数（总限幅）不进调参区，只从 `params.hpp` 来。
+5. **上板调参与取数用 EmberProbe**（VS Code 插件，经 SWD 不停核）：在线改参数、看波形、触发录制、按切片把录制缓冲导出成 CSV。不自己写 OpenOCD 读取工具（`tool/debug/gimbal_probe.py` 留着，用于写日志与脚本化）。辨识工具 `identify_axis.py`（第 6 步）读导出的切片。
+6. **参考轨迹前馈**（第二部分实现）：角加速度前馈 αr（上位机给）；库仑摩擦前馈 `F̂c·tanh(ωr/ωs)`（按参考角速度算，**那份力矩不送进 ESO**）；ESO 补偿系数 `k_c`（0–1）与补偿限幅（上板调试的旋钮）；通用场景加正弦跟踪。不采纳：角度积分（LQI）、按"下发力矩 − 反馈力矩"积分的偏置、按角速度与参考加速度决定 ESO 接不接入、角度误差死区、随 J 变的连续 K。
+7. **角加速度由上位机给**（第三部分，方案一）：协议改动在 `foray_interfaces`（控制快照末尾追加 yaw、pitch 的角加速度，由负责人在算法组那边定），本仓只做准备，协议定稿之前不开工（规则 11：改协议先改生成器）。
+8. **云台先用 PID 点亮**：换控制律是第二部分，录到辨识数据以后另开一条决策（参数结构变了、行为变了、PID 版删掉）。
+9. **与之前说法不同的地方**：ESO 放 `src/lib/estimate`（指引 1 §8 原来写的是 `src/lib/control`）——它是观测器，与 VQF、四元数 EKF、零偏标定同类；`lib/control` 放"误差 → 控制量"的东西（PID、斜坡、状态反馈），两个 lib 之间不产生依赖，控制律在能力里组合它们。另外，指引 1 没有参考轨迹前馈，本指引对照南理工的 yaw 自瞄控制器后补上（§3.8）。
+
+**Reason**：
+
+- 零件与产品分开：观测器、状态反馈、设计工具、辨识工具都是通用的，云台只是第一个用户；第二部分的 `AxisLoop` 只做组合，不改零件。
+- 线性、按带宽配置是最省事的：只有一个 ω₀ 要调，参数有物理意义（b₀ 靠辨识，ω_n、ω₀ 是两个带宽）。非线性 `fal` 那套修正函数在嵌入式里既难调又难查。
+- 离线算 K、在线只做乘法的理由见第 3 条；辨识必须在实物上做，因为 b₀ = 1/J 是 ESO 唯一要"知道"的模型参数，延迟决定 ω₀ 能给多高。
+
+**Alternatives / Rejected**：
+
+- **保留旧的 `ExtendedStateObserver`、往上加功能**：非线性 `fal`、函数指针修正、10 阶上限都在这套零件里用不到；按角度观测（n = 2）用不上陀螺仪，扰动估计还多一拍滞后。删掉重写比改便宜。否决。
+- **ESO 放 `src/lib/control`**（指引 1 §8 原来的说法）：观测器不产生控制量，放进去以后 `control` 里既有"误差 → 控制量"又有"测量 → 估计"，两类东西混在一起。否决。
+- **板上解 Riccati 方程**：轮腿的变 K 覆盖不了，还多一类故障与启动时间的开销。否决。
+- **启动时解一次、以后不换 K**：腿长变化时 K 就错了。否决。
+- **给 `StateFeedback` 加闭环稳定性检查**：N 阶特征值在板上算不划算，而且"稳定"的判据与具体控制律的模型有关。由控制律自己检查。否决。
+- **在线调参直接改对象里的数**：`AxisLoop` 的参数在 `init()` 里换算过（PID 现在是 `control::PID::Config`，以后 ESO 要从 ω₀ 算增益），直接改要么不生效、要么只改了一半。必须走"改完 `sequence` 加 1、由云台统一检查后生效"的通道。否决。
+- **自己写 OpenOCD 读取工具导出录制**：EmberProbe 已经能把全局变量按切片导出成 CSV，再写一遍是重复劳动，而且探针同一时刻只能有一个 OpenOCD。否决。
+- **在 `Reference` 里加角加速度、但不做第三部分的协议**：字段现在加也可以（PID 不用），但协议没定之前没有数据来源，等第 12 步一起做。推迟。
+
+**回退**：各步是独立的 `feat:` 提交，按步 revert；删掉的旧 ESO 文件随第 1 步一起回来。不涉及生成区。
+
+---
+
+## Decision-20261106-02（链接脚本 overlay 落地：AXI SRAM 的 `.axi_bss` 段，例外 X-03 关闭，Proposed）
+
+- **Date**：2026-11-06
+- **Status**：**Proposed**（第 4 步落地，四固件链接通过后改 Accepted）
+- **Source**：架构 v2 的例外 X-03（"链接脚本 overlay：第一个自定义段出现时落地"）；云台录制需要 160 KB 的静态缓冲（`notes/LQR与ESO框架指引.md` §3.6）
+- **影响范围**：新增 `platform/st/dm_mc02/board/overlay.ld`；`platform/st/dm_mc02/CMakeLists.txt` 的 board 段；architecture 的例外表与 §6；AGENTS §2 的路径；`tree.md`
+
+**Context**：
+
+- 录制要 1 kHz 的角度、角速度、力矩，一条 40 字节、4096 条共 160 KB。DTCM 的 `.bss` 默认放这里，Release 固件实测只剩约 25 KB，要留给以后的底盘、发射、裁判系统；AXI SRAM（RAM_D1）还空着约 300 KB。所以录制缓冲必须放 AXI SRAM，也就是一个自定义段。
+- 生成的 `STM32H723xG_flash.ld` 属于 CubeMX 生成区，禁止手工编辑（AGENTS §2）；自定义段用第二个 `-T` 追加 overlay（Q9、例外 X-03）。
+- 在 scratch 里试过三种写法：第二个 `-T` 不加 `INSERT`（干净、无告警，新段落在 RAM_D1 里 `.dma_buffer` 后面）；第二个 `-T` + `INSERT AFTER .dma_buffer`（报 ".dma_buffer not found for insert"）；overlay 放前面或用 `-dT`（能链上，但报 "memory region RAM_D1 not declared" 与 "redeclaration" 两条告警）。
+
+**Decision**：
+
+1. **用法**：生成的 `.ld` 不动；overlay 作为第二个 `-T`、在 `target_link_options` 的**同一次调用里**写在生成脚本之后（保证顺序）；不用 `INSERT`。
+2. **段的语义**：`.axi_bss` 是大块静态缓冲，不给 DMA 用（DMA 可达的内存在 `.dma_buffer`），启动时**不清零**（`NOLOAD`，启动代码只清 `.bss`），代码不能假设里面是 0；录制只读自己写过的部分。
+3. **自证**：overlay 里自带 `ASSERT(. <= _sstack, "RAM_D1: .axi_bss overlaps the interrupt stack")`，放超了在链接期报错，而不是运行期踩坏中断栈。
+4. **文件路径**：`platform/st/dm_mc02/board/overlay.ld`（与 architecture §6 一致）；AGENTS §2 原来写的 `board/link/overlay.ld` 改成一致。
+5. **CMake**：overlay 也进 `board_<板>` 的源文件列表（和生成的 `.ld` 一样，只为在 IDE 里看得见）与 `INTERFACE_LINK_DEPENDS`（改 overlay 会重新链接）。
+
+**Reason**：
+
+- 第二个 `-T` 不加 `INSERT` 是三种写法里唯一没有告警的：追加的 `SECTIONS` 按内存区域放置，不需要知道生成脚本里的段名与顺序。
+- 段单独命名（不塞进 `.bss` 或 `.data`）：放进 DTCM 放不下，放进 `.bss` 会在启动时白白清零 160 KB（拖慢启动），放进 `.dma_buffer` 会与 DMA 的语义混淆。
+
+**Alternatives / Rejected**：
+
+- **手工改生成的 `.ld`**：违反生成区规则，重新生成即丢失。否决。
+- **`INSERT AFTER`**：生成脚本里没有 `.dma_buffer`（那是 `STM32H723xG_flash.ld` 自己排的段名），报错。否决。
+- **overlay 放在前面或 `-dT`**：能链上，但告警"内存区域未声明"与"重复声明"，CI 与本地都要背着这两条告警。否决。
+- **录制缓冲放 DTCM、减小容量**：160 KB 放不下；减小到 25 KB 只有约 600 条（0.6 s），1–4 Hz 扫描做不了辨识。否决。
+
+**回退**：revert 第 4 步的提交（删 overlay、board 段恢复只链生成脚本）；`tree.md` 与 architecture 同步回退。不涉及生成区。
+
+---
+
+## Decision-20261106-03（Release 带调试信息：`-Os -g0` → `-Os -g3`，Proposed）
+
+- **Date**：2026-11-06
+- **Status**：**Proposed**（第 4b 步落地、`.bin` 逐字节不变后改 Accepted）
+- **Source**：EmberProbe 与 gdb 要靠 DWARF 展开结构体；比赛用的固件是 Release（`notes/LQR与ESO框架指引.md` §3.9、§4b）
+- **影响范围**：`cmake/toolchains/arm-gcc-common.cmake` 的 `CMAKE_C_FLAGS_RELEASE`、`CMAKE_CXX_FLAGS_RELEASE`
+
+**Context**：
+
+- 在线调参与录制要在**比赛用的固件**上做（Release，`-Os`），不是只能用 Debug（`-O0`）。但 Release 现在是 `-g0`，插件与 gdb 展不开 `g_gimbal.tuning_`、`g_gimbal.report_` 这类结构体，只看得到推测类型。
+- GCC 的 `-g` 只影响调试信息，不改变生成的代码。2026-11-06 在 scratch 里实测：infantry 固件用 `-Os -g0` 与 `-Os -g3` 各编一次，`.bin` 的 SHA-256 都是 `3a05e366…`，ELF 从 204,100 字节变成 4,338,648 字节。
+
+**Decision**：
+
+1. `CMAKE_C_FLAGS_RELEASE`、`CMAKE_CXX_FLAGS_RELEASE` 从 `"-Os -g0"` 改成 `"-Os -g3"`（与 Debug 的调试信息级别一样）。
+2. **验证**：改前、改后各编一次 bringup、link、infantry 三个 Release 固件，`sha256sum` 对比 `.bin` 必须逐字节相同；ELF 里有 `.debug_info`（`arm-none-eabi-readelf -S`）。
+3. 只有 ELF 变大；`.bin`、`.hex`、烧进 Flash 的内容都不变，烧录与运行行为不受影响。
+
+**Reason**：
+
+- 调参、录制、看诊断都应该在比赛用的固件上做：Debug 固件的时序与代码大小都不一样，`-O0` 下的抖动与延迟不代表实际。
+- 代价只是 ELF 变大（MB 级），对烧录（按 `.bin`）与 CI 的存档体积都无影响。
+
+**Alternatives / Rejected**：
+
+- **只在需要时切 Debug 固件调参**：时序不同，调出来的参数到 Release 上还要再验一遍；而且每换一次都要重新烧录。否决。
+- **`-g1`**：只保留行号与函数，仍然展不开结构体。否决。
+- **把调试信息放到别的段、或拆分 ELF**：没有必要，ELF 本来就不进 Flash。否决。
+
+**回退**：revert 第 4b 步的提交，两个变量改回 `-g0`；不涉及生成区与源码。
+
+---
+
 ## 待登记
 
 - 分支保护的具体设置（组织规范 §6.1、§10，负责人在 GitHub 上操作后补记）。

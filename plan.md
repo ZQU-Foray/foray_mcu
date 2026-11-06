@@ -175,6 +175,25 @@
 - [x] 第 4 步 收尾（`docs/input`）：decision 的实现与验证、architecture 白名单与安全那一条、tree、topics README、test README、丢失功能 L5
 - 第二部分（图传与键鼠、裁判系统）等硬件到位：远程输入 `referee.operator_input`、来源切换规则、`command.chassis` / `command.shooter`
 
+#### 控制律框架（LQR + ESO；Decision-20261106-01）
+
+> 目标：做一套通用的控制律零件——线性 ESO（`src/lib/estimate`）、状态反馈（`src/lib/control`），以及电脑上的设计工具
+> （模型 + Q、R → K）与辨识工具（录到的数据 → J、摩擦、重力、延迟）。云台先用 PID 点亮、上板时顺便录辨识数据，
+> 辨识出模型后把 `AxisLoop` 换成 LQR + ESO（第二部分）；以后的底盘轮速、摩擦轮、大 yaw、轮腿都用同一套零件。
+> 第一部分不上板；上板调参与取数改用 VS Code 插件 EmberProbe（经 SWD 不停核）。每步一个分支，验证完快进合入 `dev`、分支即删。
+
+- [ ] 第 0 步 登记设计（`docs/control-framework`）：Decision-20261106-01/02/03（Proposed）、plan 本节
+- [ ] 第 1 步 线性 ESO（`feat/linear-eso`）：`src/lib/estimate/eso.{hpp,cpp}`（类 `estimate::Eso<Order>`，1–2 阶、离散当前估计形式、按 ω₀ 配置增益），删掉没人用的 `extended_state_observer.hpp`；宿主测试 `eso`（增益即极点、收敛、b₀ 偏差、复位与断档、参数检查），故意改坏 5 处被抓到
+- [ ] 第 2 步 状态反馈（`feat/state-feedback`）：`src/lib/control/state_feedback.hpp`（`u = −K·(x − x_ref)`，K 作为数据）；宿主测试 `state_feedback`（手算、与朴素矩阵乘法对账、符号、无效参数、离散闭环）
+- [ ] 第 3 步 设计工具（`feat/lqr-design-tool`）：`tool/control/`（`models.py`、`lqr_design.py`、`README.md`、`requirements.txt`）；`--selftest` 复现设计表的四行；ruff/black
+- [ ] 第 4 步 链接脚本 overlay（`feat/axi-overlay`）：`platform/st/dm_mc02/board/overlay.ld`（`.axi_bss`，第二个 `-T`、不用 `INSERT`，例外 X-03 关闭）、board 的 CMake、architecture/AGENTS/tree；四固件链接与超容量的反向验证
+- [ ] 第 4b 步 Release 带调试信息（`build/release-debug-info`）：`-Os -g0` → `-Os -g3`，三个 Release 固件的 `.bin` SHA-256 逐字节不变
+- [ ] 第 5 步 云台的调试接口（`feat/gimbal-debug-interface`）：录制（`CaptureSample`、`Capture`、组合根里放 `.axi_bss` 的存储）与在线调参（`Tuning`、`AxisLoop::retune()`，约定加两条）；宿主测试 `gimbal_capture`/`gimbal_tuning`/`gimbal_tuning_reject`；`link_probe.py --sweep-axis`
+- [ ] 第 6 步 辨识工具（`feat/axis-identify-tool`）：`tool/control/identify_axis.py`（回归式、Savitzky–Golay 求导、延迟搜索、`--simulate` 自检）
+- 上板：指引 1 第 6 步 PID 点亮，用 EmberProbe 在线调参，**顺便按 §11 录辨识数据**（需要第 4、4b、5 步）
+- 第二部分（录到数据以后）：第 7 步辨识结果与记录（`docs/gimbal-identification`）；第 8 步 `AxisLoop` 改写成 LQR + ESO + 前馈、仿真场景加噪声与正弦跟踪（`feat/gimbal-lqr-eso`）；第 9 步上板调 ω_n、ω₀、k_c（`params/gimbal-lqr-eso`）；第 10 步收尾（`docs/control-framework-close`）
+- 第三部分（角加速度前馈，要算法组配合）：第 11 步 `foray_interfaces` 的协议（控制快照末尾追加 yaw、pitch 的角加速度）；第 12 步本仓接通（`feat/robolink-acceleration`：生成器与标准帧 → 编解码 → topic → 仲裁 → 云台）；第 13 步上板对比开、关前馈（`params/gimbal-acceleration-ff`）
+
 #### 云台（两台 DM-J4310，小 yaw + pitch；Decision-20261105-01）
 
 > 目标：按 IMU 稳住指向（世界系），能跟踪上位机的目标；顺便把框架从能力、profile、组合根到调参走一遍。
