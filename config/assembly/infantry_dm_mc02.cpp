@@ -145,7 +145,8 @@ bool boot_init(void)
                actuator::SafetyGate::Config{GIMBAL_JOINTS.data(), GIMBAL_JOINTS.size(), params::SAFETY}) &&
            g_gimbal.init(gimbal::Gimbal::Config{
                &g_yaw, &g_pitch, params::GIMBAL, g_gimbal_capture.data(), g_gimbal_capture.size()}) &&
-           g_remote.init(params::REMOTE) && g_pc_link.init(params::PC_LINK) && g_runner.init();
+           g_remote.init(params::REMOTE) && g_command.init(params::COMMAND) && g_pc_link.init(params::PC_LINK) &&
+           g_runner.init();
 }
 
 bool boot_init_rtos(void)
