@@ -47,19 +47,24 @@ inline constexpr std::uint16_t PITCH_ESC_ID{2U};
 inline constexpr std::uint16_t PITCH_MASTER_ID{0x12U};
 inline constexpr device::JointMechanics PITCH_MECHANICS{1, 1.0F, 0.0F, 3000U};
 
-// 云台（角速度环 → 角度环，力矩模式）。下面是调参的起步值：先 pitch、先角速度环，边调边改这里。
-// - yaw 先不出力：两环增益都给 0，用手扶着；调好 pitch 以后再照同样的顺序调 yaw；
-// - pitch 角速度环 kp 从 0.05 起，每步翻倍到出现嗡嗡声或抖动再退一半；ki 从 kp 的 5–10 倍起，消掉重力下垂；
-// - pitch 角度环 kp 从 5 起往上加，到出现超调再退一点；角速度上限先给 6 rad/s；
-// - 总限幅第一次出力只给 1 N·m（4310 峰值 12.5 N·m，夹到手指会很疼），调好后再放宽；
-// - 重力前馈先给 0：水平静止时读 Report 里 pitch 的 compensation_newton_meter，那个稳态值就是 τ_g。
+// 云台（角速度环 → 角度环，力矩模式）。2026-11-06 上板调出的 PID（点亮用，之后换 LQR + ESO）：
+// - 角速度环 kp：只开 P、逐档翻倍。pitch 在 1.6 振荡（约 49 Hz），yaw 在 3.2 振荡（约 24 Hz）；
+//   陀螺静止噪声约 0.06 rad/s，kp 再大主要是放大噪声，所以离振荡点留 2.5 倍以上：pitch 0.5、yaw 0.6；
+// - 角速度环积分取 kp 的 5 倍，积分上限 0.3 N·m：上限给 1 N·m 时按住再松手会攒满积分、超调约 90%；
+//   托住云台只要零点几 N·m（重力矩约 0.05，齿轮箱静摩擦约 0.2）；
+// - pitch 角度环 kp 20：压下 3–5° 松手约 0.15 s 回位、超调约 10%；
+// - yaw 角度环 kp 8、角速度上限 3 rad/s：yaw 惯量是 pitch 的 3–5 倍，总限幅 1 N·m 下 kp 20 会打满力矩、
+//   来回猛抖（约 5 Hz）；kp 8 时拨开 2–4° 约 0.5 s 回位、无超调；
+// - 总限幅 1 N·m（4310 峰值 12.5 N·m，夹到手指会很疼），放宽前先重新验 yaw；
+// - 重力前馈 0：重力矩比摩擦小，稳态补偿力矩随摩擦在 −0.1 ~ +0.05 N·m 之间漂，读不出 τ_g，留给辨识的 G 项；
+// - 积分碰上库仑摩擦会慢慢"爬行"：静止时每十来秒跳一次、幅度约 0.2°。
 inline constexpr gimbal::Gimbal::Parameters GIMBAL{
     // yaw：小 yaw 没有滑环，按有限位处理，偏移 = IMU 的 yaw − 小 yaw 关节角。
     // 2026-11-06 实测两端在 +1.574（左）与 −1.573（右），每边往里收 0.07 rad
     gimbal::Gimbal::AxisParameters{
         gimbal::AxisLoop::Parameters{
-            gimbal::AxisLoop::Gains{0.0F, 0.0F, 0.0F, 6.0F},
-            gimbal::AxisLoop::Gains{0.0F, 0.0F, 0.0F, 1.0F},
+            gimbal::AxisLoop::Gains{8.0F, 0.0F, 0.0F, 3.0F},
+            gimbal::AxisLoop::Gains{0.6F, 3.0F, 0.3F, 1.0F},
         },
         true,
         -1.50F,
@@ -70,8 +75,8 @@ inline constexpr gimbal::Gimbal::Parameters GIMBAL{
     // 2026-11-06 实测挡块在 −0.581（抬头）与 +0.378（低头），每边往里收 0.06 rad
     gimbal::Gimbal::AxisParameters{
         gimbal::AxisLoop::Parameters{
-            gimbal::AxisLoop::Gains{5.0F, 0.0F, 0.0F, 6.0F},
-            gimbal::AxisLoop::Gains{0.05F, 0.3F, 1.0F, 1.0F},
+            gimbal::AxisLoop::Gains{20.0F, 0.0F, 0.0F, 6.0F},
+            gimbal::AxisLoop::Gains{0.5F, 2.5F, 0.3F, 1.0F},
         },
         true,
         -0.52F,
