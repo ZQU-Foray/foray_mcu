@@ -190,8 +190,9 @@
 - [x] 第 4b 步 Release 带调试信息（`build/release-debug-info`）：`-Os -g0` → `-Os -g3`，三个 Release 固件的 `.bin` SHA-256 逐字节不变
 - [x] 第 5 步 云台的调试接口（`feat/gimbal-debug-interface`）：录制（`CaptureSample`、`Capture`、组合根里放 `.axi_bss` 的存储）与在线调参（`Tuning`、`AxisLoop::retune()`，约定加两条）；宿主测试 `gimbal_capture`/`gimbal_capture_off`/`gimbal_tuning`/`gimbal_tuning_reject`/`gimbal_tuning_idle`；`link_probe.py --sweep-axis`；故意改坏 4 处被抓到
 - [x] 第 6 步 辨识工具（`feat/axis-identify-tool`）：`tool/control/identify_axis.py`（回归式、Savitzky–Golay 求导、延迟搜索、`--simulate` 自检）；两个轴的 `--simulate` 通过
-- 上板：指引 1 第 6 步 PID 点亮，用 EmberProbe 在线调参，**顺便按 §11 录辨识数据**（需要第 4、4b、5 步）
-- 第二部分（录到数据以后）：第 7 步辨识结果与记录（`docs/gimbal-identification`）；第 8 步 `AxisLoop` 改写成 LQR + ESO + 前馈、仿真场景加噪声与正弦跟踪（`feat/gimbal-lqr-eso`）；第 9 步上板调 ω_n、ω₀、k_c（`params/gimbal-lqr-eso`）；第 10 步收尾（`docs/control-framework-close`）
+- [x] 上板：指引 1 第 6 步 PID 点亮，**顺便按 §11 录辨识数据**（2026-11-06）：pitch、yaw 各录静止、0.5–4 Hz 正弦扫描、摇杆快推；录制经 EmberProbe 工作区 skills 脚本触发与导出；点亮记录见 `docs/ai/decisions/2026-11-06-云台点亮上板/`
+- [x] 第 7 步 辨识结果与记录（`docs/gimbal-identification`，2026-11-06）：pitch J 0.0037（b₀ 270）、延迟约 4.2 ms、G −0.046 N·m；yaw（同步带）J 0.0029（b₀ 340）、延迟约 8.7 ms；MANUAL 段交叉验证 J 差 6–7%；ω₀ 上限 pitch 约 95、yaw 约 52 rad/s；每轴三段放 `test/data/gimbal/`；记录见 `docs/ai/decisions/2026-11-06-云台辨识/`。顺带修了 `link_probe` 扫描启动即崩（`d4be485`）、`identify_axis` 延迟只扫 5 拍（`1aafe44`），仲裁按 PC 角速度外推目标（`bc90450`，Decision-20261105-03 补充）
+- 第二部分（录到数据以后）：第 8 步 `AxisLoop` 改写成 LQR + ESO + 前馈、仿真场景加噪声与正弦跟踪（`feat/gimbal-lqr-eso`）；第 9 步上板调 ω_n、ω₀、k_c（`params/gimbal-lqr-eso`）；第 10 步收尾（`docs/control-framework-close`）
 - 第三部分（角加速度前馈，要算法组配合）：第 11 步 `foray_interfaces` 的协议（控制快照末尾追加 yaw、pitch 的角加速度）；第 12 步本仓接通（`feat/robolink-acceleration`：生成器与标准帧 → 编解码 → topic → 仲裁 → 云台）；第 13 步上板对比开、关前馈（`params/gimbal-acceleration-ff`）
 
 #### 云台（两台 DM-J4310，小 yaw + pitch；Decision-20261105-01）
