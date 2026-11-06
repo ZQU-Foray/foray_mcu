@@ -422,7 +422,7 @@ EXECUTABLE  firmware_<profile>
 - 生成区的其他变更只能通过重新生成，并先在 decision.md 登记。
 - 再生成可复现：CI 用 sha256 清单校验；有装 CubeMX 的 runner 时再加 regenerate-diff。
 - 板级 CMake 的再生成防护保留：USB OTG HS 内部 DMA 必须开启；USB port 必须含 PA11/PA12 复用配置。
-- 链接脚本：生成的 `.ld` 不改，自定义段放 `platform/<厂商>/<board>/board/overlay.ld`，作为第二个 `-T` 追加（Q9，Decision-20261106-02）；不用 `INSERT`（`INSERT` 要求目标段先于 overlay 出现，overlay 提前又会因 `RAM_D1` 先引用后声明而告警），追加的 `SECTIONS` 按内存区域放置。现在只有 `st/dm_mc02` 一个 overlay：`.axi_bss`（大块静态缓冲，不给 DMA 用，`NOLOAD`、启动时不清零），自带 `ASSERT` 防止压到中断栈。
+- 链接脚本：生成的 `.ld` 不改，自定义段放 `platform/<厂商>/<board>/board/overlay.ld`，作为第二个 `-T` 追加（Q9，Decision-20261106-02）；不用 `INSERT`（`INSERT` 会把它之前的全部链接脚本语句搬到目标段之后：overlay 排在生成脚本后面时，连生成脚本带 `.dma_buffer` 一起被搬走，目标段反而找不到；overlay 提前又因 `RAM_D1` 先引用后声明而告警），追加的 `SECTIONS` 按内存区域放置。现在只有 `st/dm_mc02` 一个 overlay：`.axi_bss`（大块静态缓冲，不给 DMA 用，`NOLOAD`、启动时不清零），自带 `ASSERT` 防止压到中断栈。
 - vendor 生成头：`src/third_party/foray_interfaces/` 固定版本并记录 sha256，CI 校验，不手改（预留：RoboLink 没有生成器，见规则 11）。
 - 层级声明：`.foray-layer` 为 `layer: MCU`、`depends_on_layers: [X2]`，对 X2（`foray_interfaces`）只消费 vendor 的生成头。
 

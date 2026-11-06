@@ -2332,12 +2332,13 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 - 生成的 `STM32H723xG_flash.ld` 属于 CubeMX 生成区，禁止手工编辑（AGENTS §2）；自定义段用第二个 `-T` 追加 overlay（Q9、例外 X-03）。
 - 三种写法都试过（先在 scratch、落地后又在仓库里复现过一遍）：
   - **第二个 `-T`、不加 `INSERT`**：干净、无告警，新段落在 RAM_D1 里 `.dma_buffer` 后面——用这个；
-  - **第二个 `-T` + `INSERT AFTER .dma_buffer`**：报 `'.dma_buffer not found for insert'`。原因是 `INSERT` 在读到 overlay 的那一刻就按名字匹配目标段，而这时生成脚本还没被读进来；**不是**生成脚本里没有这个段（它在生成脚本第 234 行）；
-  - **overlay 放前面 + `INSERT`**：能链上，也能找到 `.dma_buffer`，但 overlay 先于生成脚本，引用 `RAM_D1` 时它还没声明，报 `memory region 'RAM_D1' not declared`（overlay）与 `redeclaration of memory region 'RAM_D1'`（生成脚本）两条告警。
+  - **第二个 `-T` + `INSERT AFTER .dma_buffer`**：报 `'.dma_buffer not found for insert'`；
+  - **overlay 放前面 + `INSERT`**：能链上、也找得到 `.dma_buffer`，但报 `memory region 'RAM_D1' not declared`（overlay）与 `redeclaration of memory region 'RAM_D1'`（生成脚本）两条告警。
+- 差别在 `INSERT` 的语义：按 GNU ld 手册，`INSERT` 把**它之前的全部链接脚本语句**搬到目标输出段之后，并且在输入段映射完之后才插入。overlay 排在生成脚本后面时，"之前的全部语句"就是整个生成脚本，`.dma_buffer` 自己也在被搬走的语句里，等到按名字找目标段时它已经不在原处，所以报 not found——生成脚本里确实有 `.dma_buffer`（第 234 行），只是被搬走了。overlay 排在前面时只搬 overlay 自己的语句，`.dma_buffer` 还在、找得到，但 overlay 先用到还没声明的 `RAM_D1`（它在后读的生成脚本里才声明），于是报那两条告警。
 
 **Decision**：
 
-1. **用法**：生成的 `.ld` 不动；overlay 作为第二个 `-T`、在 `target_link_options` 的**同一次调用里**写在生成脚本之后（保证顺序）；不用 `INSERT`——`INSERT` 要求目标段先于 overlay 出现，把 overlay 提前又会因为 `RAM_D1` 先引用后声明而告警，两头都不好。
+1. **用法**：生成的 `.ld` 不动；overlay 作为第二个 `-T`、在 `target_link_options` 的**同一次调用里**写在生成脚本之后（保证顺序）；不用 `INSERT`——`INSERT` 会把 overlay 之前的全部链接脚本语句（这里是整个生成脚本，连同 `.dma_buffer` 自己）搬到目标段之后，目标段反而找不到了；把 overlay 提前虽然找得到，但 `RAM_D1` 先引用后声明会告警，两头都不好。
 2. **段的语义**：`.axi_bss` 是大块静态缓冲，不给 DMA 用（DMA 可达的内存在 `.dma_buffer`），启动时**不清零**（`NOLOAD`，启动代码只清 `.bss`），代码不能假设里面是 0；录制只读自己写过的部分。
 3. **自证**：overlay 里自带 `ASSERT(. <= _sstack, "RAM_D1: .axi_bss overlaps the interrupt stack")`，放超了在链接期报错，而不是运行期踩坏中断栈。
 4. **文件路径**：`platform/st/dm_mc02/board/overlay.ld`（与 architecture §6 一致）；AGENTS §2 原来写的 `board/link/overlay.ld` 改成一致。
@@ -2345,13 +2346,13 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 
 **Reason**：
 
-- 第二个 `-T` 不加 `INSERT` 是三种写法里唯一没有告警的：追加的 `SECTIONS` 按内存区域放置，不需要知道生成脚本里的段名与顺序，也不必调整两个 `-T` 的先后。
+- 第二个 `-T` 不加 `INSERT` 是三种写法里唯一没有告警的：追加的 `SECTIONS` 按内存区域放置，不需要把生成脚本的语句搬来搬去（`INSERT` 正是要搬），也不必调整两个 `-T` 的先后。
 - 段单独命名（不塞进 `.bss` 或 `.data`）：放进 DTCM 放不下，放进 `.bss` 会在启动时白白清零 160 KB（拖慢启动），放进 `.dma_buffer` 会与 DMA 的语义混淆。
 
 **Alternatives / Rejected**：
 
 - **手工改生成的 `.ld`**：违反生成区规则，重新生成即丢失。否决。
-- **`INSERT AFTER .dma_buffer`**：生成脚本里确实有 `.dma_buffer`，但 `INSERT` 的匹配发生在读 overlay 的时候，它必须排在生成脚本之前；那样 `RAM_D1` 就是先引用后声明，报两条告警。两种顺序各有一条路：不加 `INSERT` 才是干净的。否决。
+- **`INSERT AFTER .dma_buffer`**：生成脚本里确实有 `.dma_buffer`，但 `INSERT` 要把它之前的全部语句搬到目标段后面——overlay 排在后面时连同整个生成脚本一起被搬走，`.dma_buffer` 反而找不到；排在前面时只搬 overlay 自己，找得到，但 `RAM_D1` 先引用后声明，报两条告警。两种顺序都不干净。否决。
 - **overlay 放在前面或 `-dT`**：能链上，但告警"内存区域未声明"与"重复声明"，CI 与本地都要背着这两条告警。否决。
 - **录制缓冲放 DTCM、减小容量**：160 KB 放不下；减小到 25 KB 只有约 600 条（0.6 s），1–4 Hz 扫描做不了辨识。否决。
 
