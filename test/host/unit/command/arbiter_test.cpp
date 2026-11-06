@@ -1,7 +1,7 @@
 // command::Arbiter 在 platform/mock 上：remote.input 与 pc_link.control 由测试发布，订阅 safety.stop 与
 // command.gimbal。一个 topic 只能有一个发布者，场景按参数分进程运行（同 imu）。
 // 覆盖：上电取基线、拨回再拨上、失控保护与超时后重连要重新拨、自瞄接管条件、手动角速度与钳位、
-// 不在运行时 HOLD、参数检查。
+// 不在运行时 HOLD、接管时的目标外推、参数检查。
 #include "command/arbiter.hpp"
 #include "mock_hal.hpp"
 #include "mock_os.hpp"
@@ -104,12 +104,20 @@ struct Rig
         publishers_.state.publish(message);
     }
 
-    void publish_control(float yaw, float pitch, std::uint16_t flags = GIMBAL_FLAG)
+    void publish_control(float yaw,
+                         float pitch,
+                         std::uint16_t flags = GIMBAL_FLAG,
+                         float yaw_rate = 0.0F,
+                         float pitch_rate = 0.0F,
+                         std::uint16_t validity_hint_ms = 0U)
     {
         topics::pc_link::Control message{};
         message.flags = flags;
         message.gimbal_yaw = yaw;
         message.gimbal_pitch = pitch;
+        message.gimbal_yaw_rate = yaw_rate;
+        message.gimbal_pitch_rate = pitch_rate;
+        message.validity_hint_ms = validity_hint_ms;
         message.received_us = hal::os::now_us();
         publishers_.control.publish(message);
     }
@@ -238,6 +246,53 @@ int scenario_auto_aim(Publishers &publishers)
     assert(std::fabs(command.yaw_rad - 0.3F) < 1.0e-6F);
     assert(std::fabs(command.pitch_rad + 0.2F) < 1.0e-6F);
     assert(rig.arbiter.report().engaged && rig.arbiter.report().engage_count == 1U);
+    return 0;
+}
+
+// 接管时按 PC 给的角速度把目标外推到这一轮：两帧之间线性外推、最多推 20 ms、新帧到了从新帧算、
+// yaw 跨 ±π 时回绕。不外推的话两帧之间目标是阶梯、前馈却是连续的速度
+int scenario_extrapolate(Publishers &publishers)
+{
+    Rig rig{publishers};
+    assert(rig.init());
+    rig.publish_state(0.3F, -0.2F);
+    rig.publish_control(0.3F, -0.2F, GIMBAL_FLAG, 2.0F, -1.0F, 50U); // 有效期 50 ms，比外推上限长
+    rig.step_with(true, true, true);
+    assert(rig.last_command().mode == Topics::ABSOLUTE);
+    assert(std::fabs(rig.last_command().yaw_rad - 0.3F) < 1.0e-6F);
+    for (int index = 0; index < 5; ++index)
+    {
+        rig.step_with(true, true, true); // 5 ms 没有新帧
+    }
+    assert(rig.last_command().mode == Topics::ABSOLUTE);
+    assert(std::fabs(rig.last_command().yaw_rad - (0.3F + 2.0F * 0.005F)) < 1.0e-5F);
+    assert(std::fabs(rig.last_command().pitch_rad - (-0.2F - 1.0F * 0.005F)) < 1.0e-5F);
+    assert(std::fabs(rig.last_command().yaw_rate - 2.0F) < 1.0e-6F);
+    for (int index = 0; index < 25; ++index)
+    {
+        rig.step_with(true, true, true); // 共 30 ms：超过外推上限 20 ms，但还在有效期内
+    }
+    assert(rig.last_command().mode == Topics::ABSOLUTE);
+    assert(std::fabs(rig.last_command().yaw_rad - (0.3F + 2.0F * 0.020F)) < 1.0e-5F);
+    assert(std::fabs(rig.last_command().pitch_rad - (-0.2F - 1.0F * 0.020F)) < 1.0e-5F);
+
+    // 新帧到了：从新帧重新算，这一拍不外推
+    rig.publish_state(0.35F, -0.22F);
+    rig.publish_control(0.35F, -0.22F, GIMBAL_FLAG, 2.0F, -1.0F, 50U);
+    rig.step_with(true, true, true);
+    assert(std::fabs(rig.last_command().yaw_rad - 0.35F) < 1.0e-6F);
+
+    // yaw 外推跨过 +π：回绕到 −π 那一侧
+    rig.publish_state(3.13F, -0.2F);
+    rig.publish_control(3.13F, -0.2F, GIMBAL_FLAG, 2.0F, 0.0F, 50U);
+    rig.step_with(true, true, true);
+    for (int index = 0; index < 10; ++index)
+    {
+        rig.step_with(true, true, true);
+    }
+    const float expected = 3.13F + 2.0F * 0.010F - 2.0F * 3.14159265F;
+    assert(rig.last_command().mode == Topics::ABSOLUTE);
+    assert(std::fabs(rig.last_command().yaw_rad - expected) < 1.0e-4F);
     return 0;
 }
 
@@ -478,7 +533,7 @@ int main(int argc, char **argv)
     {
         std::fprintf(stderr,
                      "用法：%s run_baseline|failsafe|input_timeout|auto_aim|no_engage|pc_invalid|manual|engage_range|"
-                     "engage_wrap|engage_jump|toggle|toggle_initial|manual_clamp|idle|reject\n",
+                     "engage_wrap|engage_jump|toggle|toggle_initial|manual_clamp|idle|extrapolate|reject\n",
                      argv[0]);
         return 2;
     }
@@ -538,6 +593,10 @@ int main(int argc, char **argv)
     if (std::strcmp(scenario, "idle") == 0)
     {
         return scenario_idle(publishers);
+    }
+    if (std::strcmp(scenario, "extrapolate") == 0)
+    {
+        return scenario_extrapolate(publishers);
     }
     if (std::strcmp(scenario, "reject") == 0)
     {

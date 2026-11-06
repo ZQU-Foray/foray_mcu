@@ -16,6 +16,23 @@ constexpr std::uint16_t GIMBAL_FLAG{0x0002U};
 constexpr std::uint16_t ESTOP_REQUEST_FLAG{0x0008U};
 // PC 目标有效期的上限：协议的 validity_hint_ms 不超过 50 ms，参数给大了也按这个上限
 constexpr hal::os::Microseconds TARGET_AGE_LIMIT_US{200000U};
+// PC 目标最多外推这么久（视觉 100 Hz 时两帧之间 10 ms，留一帧余量）：PC 停发时目标不会被推得太远，
+// 过期另有有效期管
+constexpr hal::os::Microseconds TARGET_EXTRAPOLATION_LIMIT_US{20000U};
+constexpr float SECONDS_PER_MICROSECOND{1.0e-6F};
+
+/** 收到 PC 目标到这一轮过了多久（s），钳在 [0, TARGET_EXTRAPOLATION_LIMIT_US]。 */
+float extrapolation_seconds(hal::os::Microseconds received_us, hal::os::Microseconds now) noexcept
+{
+    // 有符号差：收到的时刻不会晚于本轮的 now，但计时回绕时无符号相减会得到很大的数
+    const std::int32_t age = static_cast<std::int32_t>(now - received_us);
+    if (age <= 0)
+    {
+        return 0.0F;
+    }
+    const auto limit = static_cast<std::int32_t>(TARGET_EXTRAPOLATION_LIMIT_US);
+    return static_cast<float>(age < limit ? age : limit) * SECONDS_PER_MICROSECOND;
+}
 
 bool binding_valid(const Binding &binding) noexcept
 {
@@ -317,8 +334,10 @@ void Arbiter::publish_command(hal::os::Microseconds now) noexcept
         if (engaged)
         {
             command.mode = topics::command::GimbalMode::ABSOLUTE;
-            command.yaw_rad = control_message_.gimbal_yaw;
-            command.pitch_rad = control_message_.gimbal_pitch;
+            // 按 PC 给的角速度外推到本轮（见类注释）
+            const float age_s = extrapolation_seconds(control_received_us_, now);
+            command.yaw_rad = math::wrap_pi(control_message_.gimbal_yaw + control_message_.gimbal_yaw_rate * age_s);
+            command.pitch_rad = control_message_.gimbal_pitch + control_message_.gimbal_pitch_rate * age_s;
             command.yaw_rate = control_message_.gimbal_yaw_rate;
             command.pitch_rate = control_message_.gimbal_pitch_rate;
         }
