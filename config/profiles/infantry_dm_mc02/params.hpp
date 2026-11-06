@@ -88,19 +88,18 @@ inline constexpr gimbal::Gimbal::Parameters GIMBAL{
 // 安全门：仲裁每轮（1 kHz）发布一次 safety.stop，50 ms 收不到就当发布者挂了
 inline constexpr actuator::SafetyGate::Parameters SAFETY{50000U};
 
-// 仲裁：拨杆 → 功能。哪个拨杆的哪一档是什么功能是占位值，上板核对后改。
-// 每个功能最多两条绑定（以后一条给遥控、一条给键鼠），任一条成立功能就成立。
+// 仲裁：拨杆 → 功能。每个功能最多两条绑定（以后一条给遥控、一条给键鼠），任一条成立功能就成立。
+// 遥控现在只有一个拨杆（总开关）。自瞄与开火还没有拨杆，先不绑：录辨识数据（PC 正弦扫描要自瞄接管、
+// 按住开火）之前在遥控器上加一个两档开关，两个功能都绑到它上面。
 inline constexpr command::Parameters COMMAND{
     std::array<command::Bindings, command::FUNCTION_COUNT>{
-        // RUN（放开安全门）：拨杆 0 在上档
+        // RUN（放开安全门）：拨杆 0（总开关）在上档
         command::Bindings{command::on_switch(command::Source::REMOTE, 0U, topics::SwitchPosition::UP),
                           command::unbound()},
-        // AUTO_AIM（自瞄开关）：拨杆 1 在上档
-        command::Bindings{command::on_switch(command::Source::REMOTE, 1U, topics::SwitchPosition::UP),
-                          command::unbound()},
-        // FIRE（开火）：拨杆 2 在下档，最好是带回弹的开关
-        command::Bindings{command::on_switch(command::Source::REMOTE, 2U, topics::SwitchPosition::DOWN),
-                          command::unbound()},
+        // AUTO_AIM（自瞄开关）：未绑定
+        command::Bindings{command::unbound(), command::unbound()},
+        // FIRE（开火）：未绑定
+        command::Bindings{command::unbound(), command::unbound()},
     },
     // 手动瞄准：右摇杆 x 管 yaw、右摇杆 y 管 pitch。摇杆向右、向上为正，而 yaw 左转、pitch 低头为正，
     // 所以两个满量程都是负的（往右推 → yaw 往右转，往上推 → 抬头）；上限 6 rad/s
@@ -111,20 +110,23 @@ inline constexpr command::Parameters COMMAND{
     // 太短的话 USB 抖一下就会"接管 → 放开 → 再接"来回闪（上限见仲裁里的 200 ms）
 };
 
-// 遥控：摇杆与拨杆的标定。通道、量程、门限都是占位值（SBUS 典型原始值 172/992/1811、三档 1000/1500/2000），
-// 上板先用 bringup 固件读 bringup.sbus 的通道、把摇杆推到底、把拨杆拨一遍，记下实际值再改这里。
+// 遥控：摇杆与拨杆的标定，2026-11-06 上板实测（负责人在遥控器上设好通道后，经 SWD 读 SBUS 原始帧）。
+// 通道号从 0 起：0 总开关（两档），1 左摇杆上下，2 左摇杆左右，3 右摇杆上下，4 右摇杆左右。
+// 四个摇杆方向都是 321 / 992 / 1663（两端 / 回中）；总开关关 321、开 1663。
+// 约定摇杆向右、向上为正。右 y、左 x、左 y 往正方向推时原始值变小，所以设 inverted。
 // 摇杆顺序：右 x、右 y、左 x、左 y（topics::STICK_RIGHT_X 等）。
 inline constexpr remote::Remote::Parameters REMOTE{
     {
-        remote::Remote::Stick{0U, 172U, 992U, 1811U, false, 0.05F},
-        remote::Remote::Stick{1U, 172U, 992U, 1811U, false, 0.05F},
-        remote::Remote::Stick{2U, 172U, 992U, 1811U, false, 0.05F},
-        remote::Remote::Stick{3U, 172U, 992U, 1811U, false, 0.05F},
+        remote::Remote::Stick{4U, 321U, 992U, 1663U, false, 0.05F}, // 右 x：往右 1663
+        remote::Remote::Stick{3U, 321U, 992U, 1663U, true, 0.05F},  // 右 y：往上 321
+        remote::Remote::Stick{2U, 321U, 992U, 1663U, true, 0.05F},  // 左 x：往右 321
+        remote::Remote::Stick{1U, 321U, 992U, 1663U, true, 0.05F},  // 左 y：往上 321
     },
     {
-        remote::Remote::Switch{4U, 1200U, 1600U, topics::SwitchPosition::DOWN, topics::SwitchPosition::UP},
-        remote::Remote::Switch{5U, 1200U, 1600U, topics::SwitchPosition::DOWN, topics::SwitchPosition::UP},
-        remote::Remote::Switch{6U, 1200U, 1600U, topics::SwitchPosition::DOWN, topics::SwitchPosition::UP},
+        // 拨杆 0：总开关，两档（两个门限相同），开 = UP
+        remote::Remote::Switch{0U, 992U, 992U, topics::SwitchPosition::DOWN, topics::SwitchPosition::UP},
+        remote::Remote::Switch{}, // 还没有
+        remote::Remote::Switch{}, // 还没有
     },
     100000U, // frame_timeout_us：100 ms 没有正常帧就当链路断了
 };
