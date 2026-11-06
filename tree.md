@@ -52,7 +52,7 @@ foray_mcu/
 ├── legacy/                   迁移源的 README 与既有架构图（源码已在 P2、P2.5 全部搬出）
 │   ├── .docs/images/         既有架构图
 │   └── README.md
-├── test/host/                宿主测试（由根工程 host-tests preset 引入，89 项 ctest；来源 fd1edbb 与 F1–F4 新增，见 test/host/README.md）
+├── test/host/                宿主测试（由根工程 host-tests preset 引入，90 项 ctest；来源 fd1edbb 与 F1–F4 新增，见 test/host/README.md）
 ├── test/framework/           框架独立构建用：template_check.cpp 显式实例化只有头文件的模板（F1，Decision-20261031-06）
 ├── test/data/imu/            真实 IMU 数据（原固件静态陀螺采集 ×2）
 ├── test/data/heater/         加热冷启动曲线：原固件（L6 的验收下限）、2026-11-01 旧 PI 与模型预测的对照

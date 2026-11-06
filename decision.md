@@ -2305,7 +2305,7 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 - 第 4b 步 `build/release-debug-info`：Release 改 `-Os -g3`（见 Decision-20261106-03）。
 - 第 5 步 `feat/gimbal-debug-interface`：`Gimbal::CaptureSample`/`Capture`/`Tuning`、`AxisLoop::retune()`、组合根 `.axi_bss` 里的 4096 条存储、`link_probe.py --sweep-axis`；宿主测试 `gimbal_capture`、`gimbal_capture_off`、`gimbal_tuning`、`gimbal_tuning_reject` 与 `axis_loop` 的 retune 检查。改坏 4 处（`apply()` 不做抗饱和、retune 清积分、录制不看新姿态、没有新姿态也处理调参）都被抓到。
 - 第 6 步 `feat/axis-identify-tool`：`tool/control/identify_axis.py`；`--simulate` 两个轴都通过（pitch：J +0.2%、Fc −7%、G +0.1%、延迟 3 拍；yaw：J +0.1%、Fc −7%、c +0.2%、延迟 3 拍，真值延迟 2 拍，全在 ±1 内）；另用 24 个按 EmberProbe 格式写出的切片跑过读取路径。
-- 合计：ctest 83 → 89 项全过；六个固件（bringup/infantry/link × Debug/Release）构建通过；`arch_check`、format、naming 通过；infantry Release FLASH 121,500 → 122,764 字节（录制与调参代码），`.axi_bss` 163,840 字节（4096 × 40）。
+- 合计：ctest 83 → 90 项全过（复查后补了 `gimbal_tuning_idle`）；六个固件（bringup/infantry/link × Debug/Release）构建通过；`arch_check`、format、naming 通过；infantry Release FLASH 121,500 → 122,764 字节（录制与调参代码），`.axi_bss` 163,840 字节（4096 × 40）。
 - 与原计划不一样的地方：
   - ESO 的常值扰动收敛用 **6/ω₀** 检查（两个极点重合，误差按 k·β^k 衰减：5 个时间常数时约 4%，6 个才进入 2%）；
   - 没有录制存储时 `request_capture()` 不写 `request`（"没有效果"），另加 `gimbal_capture_off` 场景；
