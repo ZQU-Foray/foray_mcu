@@ -34,7 +34,7 @@ foray_mcu/
 │   ├── imu/                  IMU 能力 Imu：云台姿态 imu.attitude、上电零偏标定、yaw 归零（Decision-20261103-01）
 │   ├── pc_link/              上位机链路能力 PcLink：RoboLink v0.2 经 USB，姿态上传、控制快照只记账（Decision-20261103-01）
 │   ├── actuator/             安全门 SafetyGate：按 safety.stop 集中禁止关节出力（Decision-20261102-03）；PowerOutputs：板上可控 24 V 输出，从 bringup 移入（Decision-20261105-01）
-│   ├── gimbal/               云台能力 Gimbal：IMU 闭环双轴串级、力矩模式、DISABLED/ENABLING/HOLD/TRACK、安全门（Decision-20261105-01）；axis_loop.hpp 是单轴控制律
+│   ├── gimbal/               云台能力 Gimbal：IMU 闭环双轴串级、力矩模式、DISABLED/ENABLING/HOLD/TRACK、安全门（Decision-20261105-01）；axis_loop.hpp 是单轴控制律；调试接口：录制与在线调参（Decision-20261106-01）
 │   ├── remote/               遥控能力 Remote：SBUS → 统一的操作输入 remote.input（Decision-20261105-03）
 │   ├── command/              仲裁 Arbiter：操作输入 → 功能（RUN/AUTO_AIM/FIRE）与安全；发布 safety.stop 与 command.gimbal（Decision-20261105-03）
 │   ├── bringup/              框架验证用的能力：Heartbeat、Monitor（F2）；ImuCheck、CanCheck、SbusCheck、UsbReport、Indicator（外设检查，Decision-20261101-03）；DmCheck（CAN1 上的达妙电机，Decision-20261102-02）

@@ -6,7 +6,8 @@
 - 解析收到的每一帧（魔数定界、帧头、CRC、槽位），统计状态与姿态的频率、帧序号跳变、样本在 MCU 里的停留时间
   （帧头时刻 − 采样时刻）、IMU 状态的变化；
 - 可选测拔线重连（--reconnect）：关串口 1 s 再打开，量重新握手的时间；
-- 控制快照里的云台目标可以给固定值（--gimbal-yaw、--gimbal-pitch），也可以给正弦扫描（--sweep 振幅,频率），
+- 控制快照里的云台目标可以给固定值（--gimbal-yaw、--gimbal-pitch），也可以给正弦扫描（--sweep 振幅,频率；
+  --sweep-axis yaw|pitch 选扫哪个轴，pitch 时给 pitch 的角速度前馈），
   扫描时同时发对应的角速度前馈。这两个选项会自动打开 --control。
 
 组帧用 make_golden.py 里只照协议文本写的那套实现；解析也只照协议写，不用本仓的 C++。
@@ -169,12 +170,14 @@ class Probe:
         gimbal_yaw: float = 0.125,
         gimbal_pitch: float = -0.0625,
         sweep: tuple[float, float] | None = None,
+        sweep_axis: str = "yaw",
     ) -> None:
         self.path = path
         self.control_enabled = send_control
         self.gimbal_yaw = gimbal_yaw
         self.gimbal_pitch = gimbal_pitch
         self.sweep = sweep
+        self.sweep_axis = sweep_axis
         self.control_start_s = self.now()
         self.follow_interval = follow_interval
         self.fd = open_port(path)
@@ -212,14 +215,16 @@ class Probe:
         self.hello_sent_s = self.now()
 
     def gimbal_setpoint(self) -> tuple[float, float, float, float]:
-        """云台目标与前馈：固定值，或者围绕 yaw 目标的正弦扫描（同时给出角速度前馈）。"""
+        """云台目标与前馈：固定值，或者围绕目标的正弦扫描（同时给出该轴的角速度前馈）。"""
         if self.sweep is None:
             return self.gimbal_yaw, self.gimbal_pitch, 0.0, 0.0
         amplitude, frequency = self.sweep
         phase = 2.0 * math.pi * frequency * (self.now() - self.control_start_s)
-        yaw = self.gimbal_yaw + amplitude * math.sin(phase)
-        yaw_rate = amplitude * 2.0 * math.pi * frequency * math.cos(phase)
-        return yaw, self.gimbal_pitch, yaw_rate, 0.0
+        offset = amplitude * math.sin(phase)
+        rate = amplitude * 2.0 * math.pi * frequency * math.cos(phase)
+        if self.sweep_axis == "pitch":
+            return self.gimbal_yaw, self.gimbal_pitch + offset, 0.0, rate
+        return self.gimbal_yaw + offset, self.gimbal_pitch, rate, 0.0
 
     def send_control(self) -> None:
         yaw, pitch, yaw_rate, pitch_rate = self.gimbal_setpoint()
@@ -449,6 +454,12 @@ def main() -> int:
         help="正弦目标：振幅(rad),频率(Hz)，如 0.3,0.5；围绕 yaw 目标扫描，同时发角速度前馈",
     )
     parser.add_argument(
+        "--sweep-axis",
+        choices=("yaw", "pitch"),
+        default="yaw",
+        help="--sweep 扫哪个轴（默认 yaw）；pitch 时给 pitch 的角速度前馈",
+    )
+    parser.add_argument(
         "--follow",
         action="store_true",
         help="实时打印姿态的 yaw/pitch/roll，直到 Ctrl-C（忽略 --duration）",
@@ -472,6 +483,9 @@ def main() -> int:
         if sweep[0] < 0.0 or sweep[1] <= 0.0:
             print("--sweep 的振幅不能为负、频率必须大于 0")
             return 2
+    elif args.sweep_axis != "yaw":
+        print("--sweep-axis 要配 --sweep")
+        return 2
     gimbal_yaw = 0.125 if args.gimbal_yaw is None else args.gimbal_yaw
     gimbal_pitch = -0.0625 if args.gimbal_pitch is None else args.gimbal_pitch
     send_control = (
@@ -498,7 +512,13 @@ def main() -> int:
             print("--follow 与 --reconnect 不能同时用")
             return 2
         probe = Probe(
-            path, send_control, args.interval, gimbal_yaw, gimbal_pitch, sweep
+            path,
+            send_control,
+            args.interval,
+            gimbal_yaw,
+            gimbal_pitch,
+            sweep,
+            args.sweep_axis,
         )
         print(f"串口 {path}，实时打印姿态（Ctrl-C 停止；每 {args.interval:g} s 一行）")
         try:
@@ -508,7 +528,9 @@ def main() -> int:
         finally:
             os.close(probe.fd)
         return 0
-    probe = Probe(path, send_control, None, gimbal_yaw, gimbal_pitch, sweep)
+    probe = Probe(
+        path, send_control, None, gimbal_yaw, gimbal_pitch, sweep, args.sweep_axis
+    )
     probe.run(args.duration)
     s = probe.stats
     elapsed = args.duration

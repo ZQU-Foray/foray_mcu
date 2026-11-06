@@ -22,6 +22,7 @@
 #include "topics/imu.hpp"
 
 #include <array>
+#include <cstddef>
 
 namespace
 {
@@ -56,6 +57,10 @@ constexpr std::array POWER_24V_OUTPUTS{board::POWER_24V_0, board::POWER_24V_1};
 actuator::PowerOutputs g_power_outputs;
 imu::Imu g_imu;
 gimbal::Gimbal g_gimbal;
+// 云台录制的存储：160 KB，放 AXI SRAM（DTCM 放不下）；启动时不清零，云台只读自己写过的部分
+constexpr std::size_t GIMBAL_CAPTURE_CAPACITY{4096U};
+__attribute__((section(".axi_bss"))) std::array<gimbal::Gimbal::CaptureSample, GIMBAL_CAPTURE_CAPACITY>
+    g_gimbal_capture;
 pc_link::PcLink g_pc_link{board::USB_CDC};
 remote::Remote g_remote{board::UART_SBUS};
 command::Arbiter g_command;
@@ -138,8 +143,9 @@ bool boot_init(void)
            g_can_1.init() && g_dm_can_1.init() &&
            g_safety_gate.init(
                actuator::SafetyGate::Config{GIMBAL_JOINTS.data(), GIMBAL_JOINTS.size(), params::SAFETY}) &&
-           g_gimbal.init(gimbal::Gimbal::Config{&g_yaw, &g_pitch, params::GIMBAL}) && g_remote.init(params::REMOTE) &&
-           g_pc_link.init(params::PC_LINK) && g_runner.init();
+           g_gimbal.init(gimbal::Gimbal::Config{
+               &g_yaw, &g_pitch, params::GIMBAL, g_gimbal_capture.data(), g_gimbal_capture.size()}) &&
+           g_remote.init(params::REMOTE) && g_pc_link.init(params::PC_LINK) && g_runner.init();
 }
 
 bool boot_init_rtos(void)

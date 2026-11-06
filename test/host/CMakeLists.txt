@@ -201,7 +201,8 @@ host_test(gimbal NO_TEST
 foreach(scenario
         settling locked enable track estop fault attitude_timeout command_timeout pitch_limit yaw_limit
         yaw_limit_wide pitch_feedforward enable_timeout attitude_ahead attitude_gap yaw_cross_pi
-        manual_rate manual_clamp manual_drop fault_beats_drop absolute_rate_limit state mode_switch reject)
+        manual_rate manual_clamp manual_drop fault_beats_drop absolute_rate_limit state mode_switch reject
+        capture capture_off tuning tuning_reject)
     add_test(NAME gimbal_${scenario} COMMAND test_gimbal ${scenario})
 endforeach()
 # 通用数学：角度回绕与连续角度

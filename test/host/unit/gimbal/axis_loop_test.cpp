@@ -80,6 +80,50 @@ void test_rate_target_diagnostic()
     assert(near(clamped.diagnostics.rate_target, 6.0F, 1.0e-3F));
 }
 
+// PID 特有：retune() 不清积分；无效参数返回 false 且行为不变；没 init() 时返回 false
+void test_retune()
+{
+    gimbal::AxisLoop loop = make_controller();
+    Plant plant; // 重力 0.5 N·m、不加前馈：积分托着它
+    for (std::size_t cycle = 0U; cycle < 2000U; ++cycle)
+    {
+        (void)step(loop, plant, 0.0F, 1.0F, 0.0F);
+    }
+    // 零误差调用一次：积分不再变化，记下来
+    gimbal::AxisLoop::Output output = loop.update(gimbal::AxisLoop::Measurement{plant.angle, plant.rate, 0.0F},
+                                                  gimbal::AxisLoop::Reference{plant.angle, plant.rate},
+                                                  DT);
+    const float compensation = output.diagnostics.compensation_newton_meter;
+    assert(std::fabs(compensation) > 0.1F);
+
+    // 换一组参数（角速度环 kp 0.6 → 0.8），积分不清零
+    gimbal::AxisLoop::Gains rate = rate_gains();
+    rate.kp = 0.8F;
+    assert(loop.retune(gimbal::AxisLoop::Parameters{angle_gains(), rate}));
+    output = loop.update(gimbal::AxisLoop::Measurement{plant.angle, plant.rate, 0.0F},
+                         gimbal::AxisLoop::Reference{plant.angle, plant.rate},
+                         DT);
+    assert(near(output.diagnostics.compensation_newton_meter, compensation, 1.0e-6F));
+
+    // 无效参数：返回 false，行为不变（与没调过的副本逐拍相同）
+    gimbal::AxisLoop reference = loop;
+    assert(!loop.retune(gimbal::AxisLoop::Parameters{
+        angle_gains(), gimbal::AxisLoop::Gains{0.0F, std::numeric_limits<float>::quiet_NaN(), 0.0F, 1.0F}}));
+    assert(!loop.retune(gimbal::AxisLoop::Parameters{gimbal::AxisLoop::Gains{-1.0F, 0.0F, 0.0F, 1.0F}, rate_gains()}));
+    for (std::size_t cycle = 0U; cycle < 100U; ++cycle)
+    {
+        const gimbal::AxisLoop::Measurement measurement{plant.angle, plant.rate, 0.0F};
+        const gimbal::AxisLoop::Reference target{0.2F, 0.0F};
+        const gimbal::AxisLoop::Output actual = loop.update(measurement, target, DT);
+        const gimbal::AxisLoop::Output expected = reference.update(measurement, target, DT);
+        assert(near(actual.torque, expected.torque, 1.0e-6F));
+    }
+
+    // 还没 init()：返回 false
+    gimbal::AxisLoop uninitialized;
+    assert(!uninitialized.retune(gimbal::AxisLoop::Parameters{angle_gains(), rate_gains()}));
+}
+
 } // namespace
 
 int main()
@@ -88,5 +132,6 @@ int main()
     test_gains();
     test_integral_limit();
     test_rate_target_diagnostic();
+    test_retune();
     return 0;
 }

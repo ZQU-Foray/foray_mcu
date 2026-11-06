@@ -58,6 +58,29 @@ bool AxisLoop::init(const Parameters &parameters) noexcept
     return true;
 }
 
+bool AxisLoop::retune(const Parameters &parameters) noexcept
+{
+    if (!initialized_ || !gains_valid(parameters.angle) || !gains_valid(parameters.rate))
+    {
+        return false;
+    }
+    // 先在副本上改：两个环都成功才换上去，免得一个改了一半
+    control::PID angle_pid = angle_pid_;
+    control::PID rate_pid = rate_pid_;
+    const control::PID::Config angle_config = pid_config(parameters.angle);
+    const control::PID::Config rate_config = pid_config(parameters.rate);
+    if (!angle_pid.set_param(angle_config.kp, angle_config.ki, angle_config.kd) ||
+        !angle_pid.set_i_out_max(angle_config.integral_limit) || !angle_pid.set_out_max(angle_config.maxout) ||
+        !rate_pid.set_param(rate_config.kp, rate_config.ki, rate_config.kd) ||
+        !rate_pid.set_i_out_max(rate_config.integral_limit) || !rate_pid.set_out_max(rate_config.maxout))
+    {
+        return false;
+    }
+    angle_pid_ = angle_pid;
+    rate_pid_ = rate_pid;
+    return true;
+}
+
 void AxisLoop::reset() noexcept
 {
     angle_pid_.reset();

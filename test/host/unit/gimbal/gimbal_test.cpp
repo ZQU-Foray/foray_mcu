@@ -23,6 +23,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <limits>
 
 namespace
 {
@@ -141,9 +142,12 @@ class Rig final
         topic::Publisher<topics::safety::Stop> &stop,
         topic::Publisher<topics::command::Gimbal> &command,
         const gimbal::Gimbal::Parameters &parameters = PARAMETERS,
-        bool create_gimbal = true) noexcept
+        bool create_gimbal = true,
+        gimbal::Gimbal::CaptureSample *capture_buffer = nullptr,
+        std::size_t capture_capacity = 0U) noexcept
         : driver_{bus_, motor_config(yaw_, pitch_)}, parameters_{parameters}, create_gimbal_{create_gimbal},
-          attitude_{attitude}, stop_{stop}, command_{command}
+          capture_buffer_{capture_buffer}, capture_capacity_{capture_capacity}, attitude_{attitude}, stop_{stop},
+          command_{command}
     {
     }
 
@@ -163,7 +167,8 @@ class Rig final
         {
             return false;
         }
-        return !create_gimbal_ || gimbal_.init(gimbal::Gimbal::Config{&yaw_, &pitch_, parameters_});
+        return !create_gimbal_ ||
+               gimbal_.init(gimbal::Gimbal::Config{&yaw_, &pitch_, parameters_, capture_buffer_, capture_capacity_});
     }
 
     void publish_attitude(
@@ -318,6 +323,8 @@ class Rig final
     device::DmMotor driver_;
     gimbal::Gimbal::Parameters parameters_{};
     bool create_gimbal_{true};
+    gimbal::Gimbal::CaptureSample *capture_buffer_{nullptr};
+    std::size_t capture_capacity_{0U};
     actuator::SafetyGate gate_{};
     gimbal::Gimbal gimbal_{};
     std::array<device::Joint *, 2> joints_{&yaw_, &pitch_};
@@ -1027,6 +1034,216 @@ int scenario_pitch_limit(Publishers &publishers)
     return 0;
 }
 
+// 录制：request 开始录、每份新姿态一条、录到条数或容量就停、再请求从头录；没有新姿态的轮次不录
+int scenario_capture(Publishers &publishers)
+{
+    std::array<gimbal::Gimbal::CaptureSample, 8U> buffer{};
+    Rig rig{publishers.attitude, publishers.stop, publishers.command, PARAMETERS, true, buffer.data(), buffer.size()};
+    assert(rig.init());
+    assert(rig.run_until_ready());
+    rig.release_gate();
+    assert(rig.run_until_holding());
+
+    // 没有请求时不录
+    for (std::size_t round = 0U; round < 5U; ++round)
+    {
+        rig.tick_alive();
+    }
+    assert(rig.gimbal().capture().count == 0U);
+    assert(rig.gimbal().capture().sequence == 0U);
+
+    // 请求 5 条：5 份新姿态、每份一条，角度与力矩与当拍 report() 一致
+    rig.gimbal().request_capture(5U);
+    for (std::size_t round = 0U; round < 5U; ++round)
+    {
+        rig.tick_alive();
+        const std::uint32_t count = rig.gimbal().capture().count;
+        assert(count == round + 1U);
+        const gimbal::Gimbal::CaptureSample &sample = buffer[count - 1U];
+        const gimbal::Gimbal::Report &report = rig.gimbal().report();
+        assert(sample.mode == static_cast<std::uint32_t>(report.mode));
+        assert(near(sample.yaw_rad, report.yaw_continuous_rad, 1.0e-6F));
+        assert(near(sample.pitch_rad, report.pitch_rad, 1.0e-6F));
+        assert(near(sample.yaw_torque_newton_meter, report.yaw_torque_newton_meter, 1.0e-6F));
+        assert(near(sample.pitch_torque_newton_meter, report.pitch_torque_newton_meter, 1.0e-6F));
+        assert(std::isfinite(sample.yaw_feedback_torque_newton_meter));
+        assert(std::isfinite(sample.pitch_feedback_torque_newton_meter));
+        if (count >= 2U)
+        {
+            assert(sample.time_us > buffer[count - 2U].time_us); // 采样时刻递增
+        }
+    }
+    assert(rig.gimbal().capture().target == 5U);
+    assert(rig.gimbal().capture().request == 0U);
+    assert(rig.gimbal().capture().sequence == 1U);
+    rig.tick_alive();
+    assert(rig.gimbal().capture().count == 5U); // 到条数就停
+
+    // 请求 100 条、容量只有 8：录满 8 条就停，sequence 加 1
+    rig.gimbal().request_capture(100U);
+    for (std::size_t round = 0U; round < 10U; ++round)
+    {
+        rig.tick_alive();
+    }
+    assert(rig.gimbal().capture().count == 8U);
+    assert(rig.gimbal().capture().target == 8U);
+    assert(rig.gimbal().capture().sequence == 2U);
+
+    // 没有新姿态的轮次不录：请求先留着，下一份新姿态才开始
+    rig.gimbal().request_capture(1U);
+    rig.tick();
+    assert(rig.gimbal().capture().count == 8U);
+    assert(rig.gimbal().capture().request == 1U);
+    rig.tick_alive();
+    assert(rig.gimbal().capture().count == 1U);
+    assert(rig.gimbal().capture().sequence == 3U);
+    return 0;
+}
+
+// 没有存储：request 没有效果，count 一直是 0
+int scenario_capture_off(Publishers &publishers)
+{
+    Rig rig{publishers.attitude, publishers.stop, publishers.command};
+    assert(rig.init());
+    assert(rig.run_until_ready());
+    rig.release_gate();
+    assert(rig.run_until_holding());
+    rig.gimbal().request_capture(5U);
+    for (std::size_t round = 0U; round < 20U; ++round)
+    {
+        rig.tick_alive();
+    }
+    assert(rig.gimbal().capture().count == 0U);
+    assert(rig.gimbal().capture().sequence == 0U);
+    assert(rig.gimbal().capture().request == 0U);
+    return 0;
+}
+
+// 在线调参：改完 sequence 加 1，下一份新姿态生效；积分不清；没有新姿态的轮次不处理
+int scenario_tuning(Publishers &publishers)
+{
+    Rig rig{publishers.attitude, publishers.stop, publishers.command};
+    assert(rig.init());
+    assert(rig.run_until_ready());
+    rig.release_gate();
+    assert(rig.run_until_holding());
+
+    // 恒定的 pitch 偏差：角速度环积分涨到限幅（1 N·m），力矩稳定在 −2.2 N·m 左右
+    for (std::size_t round = 0U; round < 500U; ++round)
+    {
+        rig.publish_attitude(0.0F, 0.02F, topics::imu::State::READY, true);
+        rig.publish_stop(false);
+        rig.publish_command(topics::command::GimbalMode::HOLD);
+        rig.tick();
+    }
+    const float pitch_before = rig.gimbal().report().pitch_torque_newton_meter;
+    const float compensation_before = rig.gimbal().report().pitch_diagnostics.compensation_newton_meter;
+    assert(std::fabs(compensation_before) > 0.9F); // 积分确实攒到了限幅
+    assert(pitch_before < -1.5F);
+
+    // 改 pitch 角度环 kp（30 → 1）与 yaw 角度环 kp（30 → 1），sequence 加 1
+    gimbal::AxisLoop::Parameters yaw_parameters = rig.gimbal().tuning().yaw;
+    gimbal::AxisLoop::Parameters pitch_parameters = rig.gimbal().tuning().pitch;
+    yaw_parameters.angle.kp = 1.0F;
+    pitch_parameters.angle.kp = 1.0F;
+    const float gravity = rig.gimbal().tuning().pitch_gravity_newton_meter;
+    rig.gimbal().request_tuning(yaw_parameters, pitch_parameters, gravity);
+
+    // 没有新姿态的轮次不处理：applied_sequence 不动
+    const std::uint32_t applied = rig.gimbal().tuning().applied_sequence;
+    assert(rig.gimbal().tuning().sequence == applied + 1U);
+    rig.tick();
+    assert(rig.gimbal().tuning().applied_sequence == applied);
+
+    // 下一份新姿态生效：力矩按新 kp 变小，积分没有被清掉
+    rig.publish_attitude(0.0F, 0.02F, topics::imu::State::READY, true);
+    rig.publish_stop(false);
+    rig.publish_command(topics::command::GimbalMode::HOLD);
+    rig.tick();
+    assert(rig.gimbal().tuning().applied_sequence == rig.gimbal().tuning().sequence);
+    assert(rig.gimbal().tuning().rejected_count == 0U);
+    assert(near(rig.gimbal().tuning().pitch.angle.kp, 1.0F, 1.0e-6F));
+    const float pitch_after = rig.gimbal().report().pitch_torque_newton_meter;
+    assert(std::fabs(pitch_after) < std::fabs(pitch_before) - 0.5F);
+    assert(std::fabs(rig.gimbal().report().pitch_diagnostics.compensation_newton_meter) > 0.9F);
+
+    // yaw 也一样：偏 0.1 rad，新 kp 下力矩很小（旧 kp 会被总限幅钳住）
+    rig.publish_attitude(0.1F, 0.02F, topics::imu::State::READY, true);
+    rig.publish_stop(false);
+    rig.publish_command(topics::command::GimbalMode::HOLD);
+    rig.tick();
+    assert(std::fabs(rig.gimbal().report().yaw_torque_newton_meter) < 1.0F);
+    return 0;
+}
+
+// 调参被拒：任何一项无效时整块都不生效，值改回当前生效的，行为照旧
+int scenario_tuning_reject(Publishers &publishers)
+{
+    Rig rig{publishers.attitude, publishers.stop, publishers.command};
+    assert(rig.init());
+    assert(rig.run_until_ready());
+    rig.release_gate();
+    assert(rig.run_until_holding());
+
+    // 两轴都偏 0.1 rad：旧增益下力矩被总限幅钳在 −5 N·m
+    const auto publish_offset = [&rig]()
+    {
+        rig.publish_attitude(0.1F, 0.1F, topics::imu::State::READY, true);
+        rig.publish_stop(false);
+        rig.publish_command(topics::command::GimbalMode::HOLD);
+        rig.tick();
+    };
+    for (std::size_t round = 0U; round < 5U; ++round)
+    {
+        publish_offset();
+    }
+    assert(near(rig.gimbal().report().yaw_torque_newton_meter, -5.0F, 1.0e-3F));
+    assert(near(rig.gimbal().report().pitch_torque_newton_meter, -5.0F, 1.0e-3F));
+    const gimbal::AxisLoop::Parameters original_yaw = rig.gimbal().tuning().yaw;
+    const gimbal::AxisLoop::Parameters original_pitch = rig.gimbal().tuning().pitch;
+
+    // 1) yaw 有效、pitch 的角速度环 kp 给了负数：整块拒绝，yaw 也不生效
+    gimbal::AxisLoop::Parameters yaw_parameters = original_yaw;
+    gimbal::AxisLoop::Parameters pitch_parameters = original_pitch;
+    yaw_parameters.angle.kp = 1.0F;
+    pitch_parameters.rate.kp = -1.0F;
+    rig.gimbal().request_tuning(yaw_parameters, pitch_parameters, 0.0F);
+    publish_offset();
+    assert(rig.gimbal().tuning().rejected_count == 1U);
+    assert(rig.gimbal().tuning().applied_sequence == rig.gimbal().tuning().sequence);
+    assert(near(rig.gimbal().tuning().yaw.angle.kp, original_yaw.angle.kp, 1.0e-6F));
+    assert(near(rig.gimbal().tuning().pitch.rate.kp, original_pitch.rate.kp, 1.0e-6F));
+    assert(near(rig.gimbal().report().yaw_torque_newton_meter, -5.0F, 1.0e-3F));
+
+    // 2) pitch 的 kp 是 NaN
+    pitch_parameters = original_pitch;
+    pitch_parameters.angle.kp = std::numeric_limits<float>::quiet_NaN();
+    rig.gimbal().request_tuning(original_yaw, pitch_parameters, 0.0F);
+    publish_offset();
+    assert(rig.gimbal().tuning().rejected_count == 2U);
+    assert(near(rig.gimbal().tuning().pitch.angle.kp, original_pitch.angle.kp, 1.0e-6F));
+
+    // 3) 重力前馈超过总限幅
+    rig.gimbal().request_tuning(original_yaw, original_pitch, 6.0F);
+    publish_offset();
+    assert(rig.gimbal().tuning().rejected_count == 3U);
+    assert(rig.gimbal().tuning().pitch_gravity_newton_meter == PARAMETERS.pitch_gravity_newton_meter);
+    assert(near(rig.gimbal().report().pitch_torque_newton_meter, -5.0F, 1.0e-3F));
+
+    // 4) 全部有效：生效，两轴的力矩都按新 kp 变小
+    yaw_parameters = original_yaw;
+    pitch_parameters = original_pitch;
+    yaw_parameters.angle.kp = 1.0F;
+    pitch_parameters.angle.kp = 1.0F;
+    rig.gimbal().request_tuning(yaw_parameters, pitch_parameters, 0.0F);
+    publish_offset();
+    assert(rig.gimbal().tuning().rejected_count == 3U);
+    assert(rig.gimbal().tuning().applied_sequence == rig.gimbal().tuning().sequence);
+    assert(std::fabs(rig.gimbal().report().pitch_torque_newton_meter) < 4.0F);
+    assert(std::fabs(rig.gimbal().report().yaw_torque_newton_meter) < 1.0F);
+    return 0;
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -1041,7 +1258,7 @@ int main(int argc, char **argv)
                      "用法：%s settling|locked|enable|track|estop|fault|attitude_timeout|command_timeout|pitch_limit|"
                      "yaw_limit|yaw_limit_wide|pitch_feedforward|enable_timeout|attitude_ahead|attitude_gap|"
                      "yaw_cross_pi|manual_rate|manual_clamp|manual_drop|fault_beats_drop|absolute_rate_limit|state|"
-                     "mode_switch|reject\n",
+                     "mode_switch|reject|capture|capture_off|tuning|tuning_reject\n",
                      argv[0]);
         return 2;
     }
@@ -1141,6 +1358,22 @@ int main(int argc, char **argv)
     if (std::strcmp(scenario, "manual_drop") == 0)
     {
         return scenario_manual_drop(publishers);
+    }
+    if (std::strcmp(scenario, "capture") == 0)
+    {
+        return scenario_capture(publishers);
+    }
+    if (std::strcmp(scenario, "capture_off") == 0)
+    {
+        return scenario_capture_off(publishers);
+    }
+    if (std::strcmp(scenario, "tuning") == 0)
+    {
+        return scenario_tuning(publishers);
+    }
+    if (std::strcmp(scenario, "tuning_reject") == 0)
+    {
+        return scenario_tuning_reject(publishers);
     }
     std::fprintf(stderr, "未知场景：%s\n", scenario);
     return 2;

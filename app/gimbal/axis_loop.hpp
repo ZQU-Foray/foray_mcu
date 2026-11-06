@@ -19,7 +19,10 @@ namespace gimbal
  * 5. `reset()` 之后的第一次 `update()` 用当时的 `measurement` 初始化内部状态（观测器拿它做初值，
  *    否则一使能就有一下冲击）；
  * 6. 输入非有限时输出 0，内部状态不被污染；
- * 7. `init()` 自己检查参数，调用方不看 `Parameters` 里面有什么。
+ * 7. `init()` 自己检查参数，调用方不看 `Parameters` 里面有什么；
+ * 8. `retune()` 换参数、不清内部状态，参数无效时返回 false 且什么都不改（在线调参用）；
+ * 9. `Parameters` 只放 `float` / `std::uint32_t`：调试器要能在运行中改它，而 EmberProbe 只有写对齐的
+ *    32 位量才不停核。
  */
 class AxisLoop final
 {
@@ -71,6 +74,13 @@ class AxisLoop final
 
     /** 清零。复位后第一次 `update()` 用当时的测量初始化（本控制律没有需要初始化的内部状态）。 */
     void reset() noexcept;
+
+    /**
+     * @brief 换参数，不清内部状态（PID 的积分；以后是观测器的状态）。
+     * @return 参数无效或还没 `init()` 时返回 false，什么都不改。
+     * @note 给在线调参用：换参数时积分不清零，pitch 不会一沉。
+     */
+    [[nodiscard]] bool retune(const Parameters &parameters) noexcept;
 
     /**
      * @brief 算一拍。

@@ -34,6 +34,9 @@ namespace gimbal
  *   这一轮没有新姿态时不重复积分，重发上一拍的力矩；目标被限位钳住的轴，这一拍不加角速度前馈。
  *
  * - 观测：每轮发布 `gimbal.state`（模式、实际用的目标、测量值、yaw 关节角），仲裁与以后的底盘用。
+ * - 调试接口：每份新姿态往 `CaptureSample` 录一条（调试器写 `Capture::request` 开始录）；在线调参块 `Tuning`
+ *   改完把 `sequence` 加 1，下一份新姿态时统一检查、统一生效，无效时整块拒绝。字段全是 32 位，调试器
+ *   （EmberProbe）写对齐的 32 位量不用停核。
  *
  * @note 在拥有这条 CAN 总线的任务里使用（收 → 仲裁 → 算 → 安全门 → 发）。能力零 RTOS。
  * @note `init()` 要用到关节的最大力矩，组合根里品牌驱动的 `init()`（把关节接上）必须排在前面。
@@ -85,12 +88,29 @@ class Gimbal final
         hal::os::Microseconds command_timeout_us;  // 这么久收不到 command.gimbal 就按 HOLD
     };
 
-    /** 组合根注入：两个关节与参数。以后加大 yaw 时这里再加一个可选的指针，`JOINT_COUNT` 跟着变。 */
+    /** 辨识与调参用的录制：一条对应一份新姿态。字段只给电脑上的工具看，全是 32 位。 */
+    struct CaptureSample
+    {
+        hal::os::Microseconds time_us;          // 这份姿态的采样时刻
+        std::uint32_t mode;                     // Mode 的数值（存成 32 位，导出的 CSV 里是数字）
+        float yaw_rad;                          // 连续 yaw
+        float yaw_rate;                         // rad/s
+        float yaw_torque_newton_meter;          // 下发的总力矩
+        float yaw_feedback_torque_newton_meter; // 电机反馈的力矩
+        float pitch_rad;
+        float pitch_rate;
+        float pitch_torque_newton_meter; // 含重力前馈
+        float pitch_feedback_torque_newton_meter;
+    };
+
+    /** 组合根注入：两个关节、参数，以及录制的存储。以后加大 yaw 时这里再加一个可选的指针，`JOINT_COUNT` 跟着变。 */
     struct Config
     {
         device::Joint *yaw;
         device::Joint *pitch;
         Parameters parameters;
+        CaptureSample *capture_buffer{nullptr}; // 录制缓冲；nullptr 或容量 0 表示不录
+        std::size_t capture_capacity{0U};       // 缓冲能放多少条
     };
 
     /** 统计与诊断，调试器可读（只有运行 step() 的任务写）。 */
@@ -129,6 +149,30 @@ class Gimbal final
         std::uint32_t enable_failure_count;
     };
 
+    /** 录制的状态：调试器把 request 写成要录的条数就开始，录满或达到 request 就停。 */
+    struct Capture
+    {
+        volatile std::uint32_t request; // 调试器写；云台开始录时清零
+        std::uint32_t count;            // 这一次已录的条数
+        std::uint32_t target;           // 这一次要录的条数（不超过容量）
+        std::uint32_t sequence;         // 每开始一次加 1，工具据此认出新的一份
+    };
+
+    /**
+     * 在线调参：改好 yaw、pitch、pitch_gravity_newton_meter 后把 sequence 加 1，
+     * 下一份新姿态时一起生效。任何一项无效时整块都不生效：块里的值改回当前生效的，rejected_count 加 1。
+     * 字段全是 32 位，调试器写对齐的 32 位量不用停核。总限幅不在这里：安全参数只从 params.hpp 来。
+     */
+    struct Tuning
+    {
+        AxisLoop::Parameters yaw;
+        AxisLoop::Parameters pitch;
+        float pitch_gravity_newton_meter;
+        volatile std::uint32_t sequence; // 调试器改完参数后加 1
+        std::uint32_t applied_sequence;  // 云台处理到的 sequence（生效或拒绝都算处理过）
+        std::uint32_t rejected_count;
+    };
+
     [[nodiscard]] bool init(const Config &config) noexcept;
 
     void step(hal::os::Microseconds now) noexcept;
@@ -137,6 +181,27 @@ class Gimbal final
     {
         return report_;
     }
+
+    [[nodiscard]] const Capture &capture() const noexcept
+    {
+        return capture_;
+    }
+
+    [[nodiscard]] const Tuning &tuning() const noexcept
+    {
+        return tuning_;
+    }
+
+    /** 请求录 count 条（给测试用；板上是调试器直接写 `capture().request`）。没有存储时无效。 */
+    void request_capture(std::uint32_t count) noexcept;
+
+    /**
+     * @brief 请求换一块参数（给测试用；板上是调试器改 `Tuning` 的字段再把 `sequence` 加 1）。
+     * @note 只写进调参区并把 sequence 加 1，生效在下一份新姿态。
+     */
+    void request_tuning(const AxisLoop::Parameters &yaw_parameters,
+                        const AxisLoop::Parameters &pitch_parameters,
+                        float pitch_gravity_newton_meter) noexcept;
 
   private:
     static constexpr std::size_t JOINT_COUNT{2U};
@@ -150,6 +215,8 @@ class Gimbal final
     void anchor_yaw_continuous() noexcept;
     void disable(DisableReason reason) noexcept;
     void update_report(hal::os::Microseconds now) noexcept;
+    void record() noexcept;
+    void apply_tuning() noexcept;
 
     Config config_{};
     Report report_{};
@@ -189,6 +256,13 @@ class Gimbal final
     float applied_pitch_target_rad_{0.0F};
     std::uint32_t enable_failure_count_{0U};
     bool initialized_{false};
+
+    // 调试接口：录制与在线调参
+    Capture capture_{};
+    Tuning tuning_{};
+    CaptureSample *capture_buffer_{nullptr};
+    std::size_t capture_capacity_{0U};
+    bool new_attitude_{false}; // 这一轮有新姿态：update_report() 里录一条
 };
 
 } // namespace gimbal

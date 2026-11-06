@@ -4,6 +4,7 @@
 #include "utils/math/quaternion.hpp"
 #include "utils/math/vector3.hpp"
 
+#include <atomic>
 #include <cmath>
 #include <cstdint>
 
@@ -134,6 +135,20 @@ bool Gimbal::init(const Config &config) noexcept
     applied_yaw_target_rad_ = 0.0F;
     applied_pitch_target_rad_ = 0.0F;
     enable_failure_count_ = 0U;
+    // 调试接口：录制与在线调参。调参区先填成 params.hpp 的值，调试器一打开就看到当前值
+    capture_.request = 0U;
+    capture_.count = 0U;
+    capture_.target = 0U;
+    capture_.sequence = 0U;
+    tuning_.yaw = parameters.yaw.controller;
+    tuning_.pitch = parameters.pitch.controller;
+    tuning_.pitch_gravity_newton_meter = parameters.pitch_gravity_newton_meter;
+    tuning_.sequence = 0U;
+    tuning_.applied_sequence = 0U;
+    tuning_.rejected_count = 0U;
+    capture_buffer_ = config.capture_buffer;
+    capture_capacity_ = config.capture_buffer != nullptr ? config.capture_capacity : 0U;
+    new_attitude_ = false;
     state_publisher_ = topics::gimbal::state.claim_publisher();
     if (!state_publisher_)
     {
@@ -153,6 +168,7 @@ void Gimbal::step(hal::os::Microseconds now) noexcept
         return;
     }
     const bool new_attitude = read_inputs(now);
+    new_attitude_ = new_attitude;
 
     // 任一条不满足就回到 DISABLED：IMU 的条件、关节故障、关节不可用、出力中掉了
     const DisableReason stop = stop_reason(now);
@@ -214,6 +230,9 @@ void Gimbal::step(hal::os::Microseconds now) noexcept
         update_report(now);
         return;
     }
+
+    // 在线调参：每份新姿态、算力矩之前处理一次（没有新姿态的那一轮上面已经返回）
+    apply_tuning();
 
     // 云台指令：没收到过、或者超过 command_timeout_us 没更新，就按 HOLD
     const topics::command::GimbalMode command_mode = current_command_mode(now);
@@ -584,6 +603,101 @@ void Gimbal::update_report(hal::os::Microseconds now) noexcept
     state.yaw_joint_rad = yaw_state.position_rad;
     state.timestamp_us = now;
     state_publisher_.publish(state);
+
+    // 录制只在这一处：只有这一轮有新姿态才录一条，各条路径（DISABLED、ENABLING、出力）都经过这里
+    record();
+    new_attitude_ = false;
+}
+
+void Gimbal::request_capture(const std::uint32_t count) noexcept
+{
+    // 没有存储时请求无效：免得调试器写了一个不会生效的数
+    capture_.request = capture_capacity_ != 0U ? count : 0U;
+}
+
+void Gimbal::request_tuning(const AxisLoop::Parameters &yaw_parameters,
+                            const AxisLoop::Parameters &pitch_parameters,
+                            const float pitch_gravity_newton_meter) noexcept
+{
+    tuning_.yaw = yaw_parameters;
+    tuning_.pitch = pitch_parameters;
+    tuning_.pitch_gravity_newton_meter = pitch_gravity_newton_meter;
+    ++tuning_.sequence;
+}
+
+void Gimbal::record() noexcept
+{
+    if (!new_attitude_ || capture_buffer_ == nullptr || capture_capacity_ == 0U)
+    {
+        return;
+    }
+    if (capture_.request != 0U)
+    {
+        // 开始新的一段：target 不超过容量，从第一条开始，sequence 加 1 让工具认出是新的一份
+        const std::uint32_t requested = capture_.request;
+        const std::uint32_t capacity = capture_capacity_ < static_cast<std::size_t>(0xFFFFFFFFU)
+                                           ? static_cast<std::uint32_t>(capture_capacity_)
+                                           : 0xFFFFFFFFU;
+        capture_.target = requested < capacity ? requested : capacity;
+        capture_.count = 0U;
+        capture_.request = 0U;
+        ++capture_.sequence;
+    }
+    if (capture_.count >= capture_.target)
+    {
+        return;
+    }
+    CaptureSample &sample = capture_buffer_[capture_.count];
+    sample.time_us = attitude_timestamp_us_;
+    sample.mode = static_cast<std::uint32_t>(mode_);
+    sample.yaw_rad = report_.yaw_continuous_rad;
+    sample.yaw_rate = yaw_rate_;
+    sample.yaw_torque_newton_meter = report_.yaw_torque_newton_meter;
+    sample.yaw_feedback_torque_newton_meter = config_.yaw->state().torque_newton_meter;
+    sample.pitch_rad = pitch_rad_;
+    sample.pitch_rate = pitch_rate_;
+    sample.pitch_torque_newton_meter = report_.pitch_torque_newton_meter;
+    sample.pitch_feedback_torque_newton_meter = config_.pitch->state().torque_newton_meter;
+    ++capture_.count;
+}
+
+void Gimbal::apply_tuning() noexcept
+{
+    if (tuning_.sequence == tuning_.applied_sequence)
+    {
+        return;
+    }
+    // 先读 sequence，再读参数：这是编译器屏障，保证参数真的从内存读（调试器在程序外面改它们）。
+    // 不是原子读改写，M0+ 上也没有问题（规则 13 不受影响）。
+    const std::uint32_t sequence = tuning_.sequence;
+    std::atomic_signal_fence(std::memory_order_acquire);
+
+    const AxisLoop::Parameters yaw_parameters = tuning_.yaw;
+    const AxisLoop::Parameters pitch_parameters = tuning_.pitch;
+    const float gravity = tuning_.pitch_gravity_newton_meter;
+    const float limit = config_.parameters.torque_limit_newton_meter;
+    // 在两个控制律的副本上各调一次：全部通过才换上去，有一项不行就整块都不生效
+    AxisLoop yaw_candidate = yaw_loop_;
+    AxisLoop pitch_candidate = pitch_loop_;
+    const bool accepted = yaw_candidate.retune(yaw_parameters) && pitch_candidate.retune(pitch_parameters) &&
+                          std::isfinite(gravity) && std::fabs(gravity) <= limit;
+    if (!accepted)
+    {
+        ++tuning_.rejected_count;
+        // 块里的值改回当前生效的，免得界面上还显示被拒的值
+        tuning_.yaw = config_.parameters.yaw.controller;
+        tuning_.pitch = config_.parameters.pitch.controller;
+        tuning_.pitch_gravity_newton_meter = config_.parameters.pitch_gravity_newton_meter;
+    }
+    else
+    {
+        yaw_loop_ = yaw_candidate;
+        pitch_loop_ = pitch_candidate;
+        config_.parameters.yaw.controller = yaw_parameters;
+        config_.parameters.pitch.controller = pitch_parameters;
+        config_.parameters.pitch_gravity_newton_meter = gravity;
+    }
+    tuning_.applied_sequence = sequence;
 }
 
 } // namespace gimbal
