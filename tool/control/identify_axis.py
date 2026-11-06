@@ -5,7 +5,7 @@
     τ[k−d] = J·ω̇[k] + B·ω[k] + Fc·tanh(ω/ωs) + G·cos θ[k]     ← pitch
     τ[k−d] = J·ω̇[k] + B·ω[k] + Fc·tanh(ω/ωs) + c               ← yaw（c：线缆之类的常值力矩）
 ω̇ 用 Savitzky–Golay 求导（窗口 21 点、3 次），ω 用同一窗口平滑，ωs = 0.01 rad/s；
-延迟 d 在 0–5 拍里取 R² 最大的，并在峰值附近抛物线插值、报成小数拍（中心差分的
+延迟 d 在 0–15 拍（--max-delay）里取 R² 最大的，并在峰值附近抛物线插值、报成小数拍（中心差分的
 时间对齐会多算约半拍，实物按需减 0.5）。只用出力模式（HOLD / TRACK / MANUAL）的
 样本，进入出力后的前 0.2 s 不要。pitch 不加常数项（cos θ 在小范围里几乎是常数，
 和常数项分不开）。B 估不准（粘滞摩擦与库仑摩擦分不开），只作参考。
@@ -38,7 +38,8 @@ SETTLE_SECONDS = 0.2
 SAVGOL_WINDOW = 21
 SAVGOL_POLY = 3
 FRICTION_SPEED = 0.01
-MAX_DELAY_SAMPLES = 5
+# 步兵 yaw（同步带）约 9 拍、pitch 约 5 拍；峰值落在上限上时 report() 会提示加大 --max-delay
+MAX_DELAY_SAMPLES = 15
 # 中心差分求导的时间对齐比实际多算半拍（见脚本开头），自检时先减掉
 HALF_SAMPLE = 0.5
 # 真值（仿真自检用）：DM-J4310 云台量级
@@ -257,10 +258,10 @@ def fit(segments: list[Segment], axis: str, delay: int) -> dict:
     }
 
 
-def fit_feedback(segments: list[Segment]) -> dict:
+def fit_feedback(segments: list[Segment], max_delay: int = MAX_DELAY_SAMPLES) -> dict:
     """电机反馈力矩对下发力矩的比例与延迟（看电机的力矩跟得怎么样）。"""
     best: dict = {"valid": False, "r2": -math.inf}
-    for delay in range(MAX_DELAY_SAMPLES + 1):
+    for delay in range(max_delay + 1):
         ratios = []
         targets = []
         predictions = []
@@ -306,9 +307,9 @@ def fit_feedback(segments: list[Segment]) -> dict:
     return best
 
 
-def interpolate_delay(scans: dict[int, dict], delay: int) -> float:
+def interpolate_delay(scans: dict[int, dict], delay: int, max_delay: int) -> float:
     """在 R² 峰值附近做抛物线插值，延迟报成小数拍（峰值在两端时不插值）。"""
-    if delay <= 0 or delay >= MAX_DELAY_SAMPLES:
+    if delay <= 0 or delay >= max_delay:
         return float(delay)
     previous = scans[delay - 1]["r2"]
     peak = scans[delay]["r2"]
@@ -320,14 +321,22 @@ def interpolate_delay(scans: dict[int, dict], delay: int) -> float:
     return float(delay + max(-0.5, min(0.5, offset)))
 
 
-def identify(segments: list[Segment], axis: str) -> dict:
-    scans = {
-        delay: fit(segments, axis, delay) for delay in range(MAX_DELAY_SAMPLES + 1)
-    }
+def identify(
+    segments: list[Segment], axis: str, max_delay: int = MAX_DELAY_SAMPLES
+) -> dict:
+    scans = {delay: fit(segments, axis, delay) for delay in range(max_delay + 1)}
+    if not any(scan["valid"] for scan in scans.values()):
+        modes = sorted({int(mode) for segment in segments for mode in segment.mode})
+        raise SystemExit(
+            "没有可用样本：只用出力模式（HOLD 2 / TRACK 3 / MANUAL 4）、进入出力 "
+            f"{SETTLE_SECONDS:g} s 以后的样本，这些录制里出现的模式是 {modes}。"
+            "检查录制时云台是不是在出力。"
+        )
     delay = max(scans, key=lambda value: scans[value]["r2"])
-    delay_samples = interpolate_delay(scans, delay)
+    delay_samples = interpolate_delay(scans, delay, max_delay)
     result = dict(scans[delay])
     result["delay"] = delay
+    result["max_delay"] = max_delay
     result["delay_samples"] = delay_samples
     result["scans"] = scans
     coefficients = result["coefficients"]
@@ -345,7 +354,7 @@ def identify(segments: list[Segment], axis: str) -> dict:
     dely_s = delay_samples * dt
     result["delay_s"] = dely_s
     result["bandwidth_limit"] = 0.5 / (dely_s + 0.0005)
-    result["feedback"] = fit_feedback(segments)
+    result["feedback"] = fit_feedback(segments, max_delay)
     return result
 
 
@@ -360,6 +369,11 @@ def report(result: dict, gravity_feedforward: float | None) -> None:
         f"{result['delay_s'] * 1e3:.2f} ms；中心差分求导多算约半拍），"
         f"R² = {result['r2']:.5f}，残差 RMS = {result['residual_rms']:.4f} N·m（{result['count']} 个样本）"
     )
+    if result["delay"] >= result["max_delay"]:
+        print(
+            f"注意：R² 的峰值落在扫描上限 {result['max_delay']} 拍上，真实延迟可能更大，"
+            "加大 --max-delay 再算"
+        )
     print(f"J = {result['j']:.6g} kg·m² → b₀ = 1/J = {result['b0']:.6g} rad/s² 每 N·m")
     print(
         f"B = {result['b']:.6g} N·m·s/rad（不可靠：粘滞摩擦与库仑摩擦分不开，不用它）"
@@ -487,6 +501,13 @@ def selftest(axis: str, seed: int) -> int:
         f"在真值 ±0.5 拍内",
         abs(physical_delay - TRUE_DELAY) <= 0.5,
     )
+    idle = simulate_segment(axis, 1.0, seed)
+    idle.mode[:] = 0  # 全程 DISABLED：没有可用样本
+    try:
+        identify([prepare(idle, "不出力")], axis)
+        check("不出力的数据给出清楚的提示（没有提示）", False)
+    except SystemExit as error:
+        check("不出力的数据给出清楚的提示", "没有可用样本" in str(error))
     return 0 if failures == 0 else 1
 
 
@@ -508,11 +529,20 @@ def main() -> int:
         "--seed", type=int, default=7, help="--simulate 的随机种子（默认 7）"
     )
     parser.add_argument(
+        "--max-delay",
+        type=int,
+        default=MAX_DELAY_SAMPLES,
+        help=f"延迟扫描的上限（拍，默认 {MAX_DELAY_SAMPLES}）",
+    )
+    parser.add_argument(
         "--gravity-feedforward",
         type=float,
         help="params.hpp 的 pitch_gravity_newton_meter，用来提示 G 偏了多少",
     )
     args = parser.parse_args()
+    if args.max_delay < 2:
+        print("--max-delay 至少是 2（峰值两边都要有点才能插值）")
+        return 2
 
     if args.simulate:
         return selftest(args.axis, args.seed)
@@ -525,7 +555,7 @@ def main() -> int:
     print(
         f"{args.axis}：{len(segments)} 段，共 {sum(len(segment.time_s) for segment in segments)} 个样本"
     )
-    report(identify(segments, args.axis), args.gravity_feedforward)
+    report(identify(segments, args.axis, args.max_delay), args.gravity_feedforward)
     return 0
 
 
