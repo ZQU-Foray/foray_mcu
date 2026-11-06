@@ -51,13 +51,41 @@ J 测准了只改 b₀，K 不用重算。
 
 ## identify_axis.py：录到的数据 → 模型参数
 
-`tool/control/identify_axis.py` 读 EmberProbe 导出的录制切片，辨识 J、b₀、库仑摩擦、
-重力与延迟，输出建议的 b₀、ω₀ 上限。用法：
+辨识 J（→ b₀ = 1/J）、库仑摩擦 Fc、重力 G（pitch）或常值力矩 c（yaw）与延迟。
+回归式（τ 是下发的总力矩，含重力前馈；两个轴分开做）：
+
+```text
+τ[k−d] = J·ω̇[k] + B·ω[k] + Fc·tanh(ω/ωs) + G·cos θ[k]     ← pitch
+τ[k−d] = J·ω̇[k] + B·ω[k] + Fc·tanh(ω/ωs) + c               ← yaw
+```
+
+- ω̇ 用 Savitzky–Golay 求导（窗口 21 点、3 次），ω 用同一窗口平滑，ωs = 0.01 rad/s；
+  每段按 `time_us` 换成均匀采样（dt 取中位数）再算；
+- 延迟 d 在 0–5 拍里取 R² 最大的；只用出力模式（HOLD / TRACK / MANUAL）的样本，
+  进入出力后的前 0.2 s 不要；
+- pitch 不加常数项（`cos θ` 在小范围里几乎是常数，和常数项分不开）；
+- B 估不准（粘滞摩擦与库仑摩擦分不开），只作参考、不用它。
+
+输入是 EmberProbe 按切片导出的 CSV：每段一个目录（里面是切片）或一个 CSV。
+切片按 `index` 列拼起来、检查没有缺口；时间列是 `time_us`；除 `index`、`time_us`、
+`mode` 外还要有 `{轴}_rad`、`{轴}_rate`、`{轴}_torque_newton_meter`、
+`{轴}_feedback_torque_newton_meter` 四列（允许前缀，如
+`g_gimbal_capture.pitch_rad`）。**第一次导出后要核对实际的列名。**
 
 ```sh
 ~/.local/venvs/control/bin/python tool/control/identify_axis.py build/capture/pitch_sweep_2hz --axis pitch
+~/.local/venvs/control/bin/python tool/control/identify_axis.py build/capture/pitch_sweep_* --axis pitch   # 多段合起来拟合
 ~/.local/venvs/control/bin/python tool/control/identify_axis.py --simulate --axis pitch
+~/.local/venvs/control/bin/python tool/control/identify_axis.py ... --axis pitch --gravity-feedforward 0.4
 ```
+
+输出：J、b₀、B（标"不可靠"）、Fc、G 或 c、延迟（拍数与 ms）、R²、残差 RMS；电机
+反馈力矩对下发力矩的比例与延迟；建议的 b₀ 与 ω₀ 上限 `0.5/(延迟 + 0.5 ms)`。
+给了 `--gravity-feedforward` 时，G 与它相差超过 10% 会提示先改 `params.hpp`。
+
+`--simulate` 自己生成闭环仿真数据（PI 角速度环 + P 角度环、0.15 rad 正弦目标
+1/2/4 Hz、力矩延迟 2 拍、陀螺噪声 σ 0.01、角度噪声 1e-4），跑同一条回归，要求
+J ±5%、G ±5%（pitch；yaw 的 c ±15%）、Fc ±15%、延迟 ±1 拍。真值写在脚本开头。
 
 ## 提交前
 

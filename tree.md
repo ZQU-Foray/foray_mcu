@@ -57,6 +57,8 @@ foray_mcu/
 ├── test/data/imu/            真实 IMU 数据（原固件静态陀螺采集 ×2）
 ├── test/data/heater/         加热冷启动曲线：原固件（L6 的验收下限）、2026-11-01 旧 PI 与模型预测的对照
 ├── tool/debug/               SWD 只读轮询、bringup 上板探测（bringup_probe.py）、云台调参探测（gimbal_probe.py）、IMU 采集与加热日志解码（Python）
+├── tool/control/             控制律的设计与辨识工具（lqr_design.py、identify_axis.py、models.py；Decision-20261106-01）
+├── tool/robolink/            上位机链路的 PC 端探测与标准帧生成（link_probe.py、make_golden.py）
 ├── tool/flash/openocd/       OpenOCD 配置（DM-MC02 + CMSIS-DAP）
 ├── tool/ci/                  format.py（格式）、naming.py（命名）、symbols.py（符号对照与段大小报告）、arch_check.py（依赖图、文本扫描、M0+ 原子与 HAL 回调检查）
 └── docs/
@@ -129,6 +131,8 @@ foray_mcu/
 │   ├── framework/                框架独立构建用的检查（实例化只有头文件的模板）
 │   └── data/                     录制数据（IMU、加热曲线等），回放回归
 ├── tool/
+│   ├── control/                 控制律的设计与辨识（LQR 设计、单轴辨识、被控对象模型）
+│   ├── robolink/                上位机链路的 PC 端探测与标准帧生成
 │   ├── flash/                    OpenOCD 配置
 │   ├── debug/                    SWD 读取、数据解码
 │   └── ci/                       格式、命名、依赖图与文本扫描、M0+ 原子库调用、（F2 起）HAL 回调符号检查
