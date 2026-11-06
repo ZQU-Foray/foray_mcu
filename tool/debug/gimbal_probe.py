@@ -18,7 +18,7 @@
 - `runner[1].*`：gimbal 任务的轮数、单轮最长耗时、错过周期。
 
 用法（DM-MC02 + CMSIS-DAP，先烧录同一个 ELF）：
-    gimbal_probe.py --elf build/arm-debug-infantry/firmware_infantry_dm_mc02.elf
+    gimbal_probe.py --elf build/arm-release-infantry/firmware_infantry_dm_mc02.elf
     gimbal_probe.py --elf ... --interval 0.5 --log gimbal.log
 需要 arm-none-eabi-gdb（--gdb）与 openocd（--openocd）在 PATH 上或显式给出。
 """

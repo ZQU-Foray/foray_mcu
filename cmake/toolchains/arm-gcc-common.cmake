@@ -5,7 +5,8 @@
 # GNU 专属的编译、链接选项只出现在工具链与 platform 的 CMake 中（评审报告 §5.4）。
 #
 # 编译选项与迁移源的 cmake/gcc-arm-none-eabi.cmake 一致（该文件已在 P2 删除，见 git 历史；符号对照依赖这一点）：
-#   - Debug 为 -O0 -g3，Release 为 -Os -g0，Release 不定义 NDEBUG（断言保留）；
+#   - Debug 为 -O0 -g3，Release 为 -Os -g3（带调试信息：EmberProbe 与 gdb 要在比赛用的固件上展开结构体，
+#     -g 不改变生成的代码），Release 不定义 NDEBUG（断言保留）；
 #   - 汇编的配置选项沿用 CMake 默认值；
 #   - -Wall 作用于全部 C/C++ 代码（含厂商与生成代码）：GCC 15 在 -O0 下 -Wall 会改变生成的代码
 #     （空死循环里多一条 nop，2026-10-26 实测），只给部分代码加会使符号大小与迁移源不同；
@@ -63,9 +64,9 @@ set(CMAKE_C_FLAGS "${TOOLCHAIN_CPU_FLAGS} -Wall -fdata-sections -ffunction-secti
 set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -fno-rtti -fno-exceptions -fno-threadsafe-statics")
 set(CMAKE_ASM_FLAGS "${TOOLCHAIN_CPU_FLAGS} -x assembler-with-cpp -MMD -MP")
 set(CMAKE_C_FLAGS_DEBUG "-O0 -g3")
-set(CMAKE_C_FLAGS_RELEASE "-Os -g0")
+set(CMAKE_C_FLAGS_RELEASE "-Os -g3")
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g3")
-set(CMAKE_CXX_FLAGS_RELEASE "-Os -g0")
+set(CMAKE_CXX_FLAGS_RELEASE "-Os -g3")
 
 set(CMAKE_EXE_LINKER_FLAGS
     "${TOOLCHAIN_CPU_FLAGS} --specs=nano.specs -Wl,--gc-sections -Wl,--print-memory-usage")
