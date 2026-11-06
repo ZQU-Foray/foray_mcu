@@ -161,6 +161,11 @@ def euler_zyx(q: tuple[float, float, float, float]) -> tuple[float, float, float
     return yaw, pitch, roll
 
 
+def to_f32(value: float) -> float:
+    """舍入到最近的 float32（线上传的就是 float32）。"""
+    return struct.unpack("<f", struct.pack("<f", value))[0]
+
+
 class Probe:
     def __init__(
         self,
@@ -178,12 +183,12 @@ class Probe:
         self.gimbal_pitch = gimbal_pitch
         self.sweep = sweep
         self.sweep_axis = sweep_axis
+        self.t0 = time.monotonic()  # now() 以它为零点，要先于 control_start_s
         self.control_start_s = self.now()
         self.follow_interval = follow_interval
         self.fd = open_port(path)
         self.parser = Parser()
         self.stats = Stats()
-        self.t0 = time.monotonic()
         self.frame_seq = 0
         self.hello_seq = 0
         self.control_seq = 0
@@ -233,7 +238,11 @@ class Probe:
             2,
             2,
             0x0002,
-            [0.0, 0.0, 0.0, yaw, pitch, yaw_rate, pitch_rate, 0.0, 0.0],
+            # make_golden 的 f32() 只收能精确表示的值（为标准帧），这里先舍入到 float32
+            [
+                to_f32(v)
+                for v in (0.0, 0.0, 0.0, yaw, pitch, yaw_rate, pitch_rate, 0.0, 0.0)
+            ],
             0,
         )
         self.write(
