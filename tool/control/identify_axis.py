@@ -5,9 +5,10 @@
     τ[k−d] = J·ω̇[k] + B·ω[k] + Fc·tanh(ω/ωs) + G·cos θ[k]     ← pitch
     τ[k−d] = J·ω̇[k] + B·ω[k] + Fc·tanh(ω/ωs) + c               ← yaw（c：线缆之类的常值力矩）
 ω̇ 用 Savitzky–Golay 求导（窗口 21 点、3 次），ω 用同一窗口平滑，ωs = 0.01 rad/s；
-延迟 d 在 0–5 拍里取 R² 最大的。只用出力模式（HOLD / TRACK / MANUAL）的样本，
-进入出力后的前 0.2 s 不要。pitch 不加常数项（cos θ 在小范围里几乎是常数，和常数项
-分不开）。B 估不准（粘滞摩擦与库仑摩擦分不开），只作参考。
+延迟 d 在 0–5 拍里取 R² 最大的，并在峰值附近抛物线插值、报成小数拍（中心差分的
+时间对齐会多算约半拍，实物按需减 0.5）。只用出力模式（HOLD / TRACK / MANUAL）的
+样本，进入出力后的前 0.2 s 不要。pitch 不加常数项（cos θ 在小范围里几乎是常数，
+和常数项分不开）。B 估不准（粘滞摩擦与库仑摩擦分不开），只作参考。
 
 用法：
     tool/control/identify_axis.py build/capture/pitch_sweep_2hz --axis pitch
@@ -303,13 +304,29 @@ def fit_feedback(segments: list[Segment]) -> dict:
     return best
 
 
+def interpolate_delay(scans: dict[int, dict], delay: int) -> float:
+    """在 R² 峰值附近做抛物线插值，延迟报成小数拍（峰值在两端时不插值）。"""
+    if delay <= 0 or delay >= MAX_DELAY_SAMPLES:
+        return float(delay)
+    previous = scans[delay - 1]["r2"]
+    peak = scans[delay]["r2"]
+    following = scans[delay + 1]["r2"]
+    denominator = previous - 2.0 * peak + following
+    if denominator == 0.0 or not math.isfinite(denominator):
+        return float(delay)
+    offset = 0.5 * (previous - following) / denominator
+    return float(delay + max(-0.5, min(0.5, offset)))
+
+
 def identify(segments: list[Segment], axis: str) -> dict:
     scans = {
         delay: fit(segments, axis, delay) for delay in range(MAX_DELAY_SAMPLES + 1)
     }
     delay = max(scans, key=lambda value: scans[value]["r2"])
+    delay_samples = interpolate_delay(scans, delay)
     result = dict(scans[delay])
     result["delay"] = delay
+    result["delay_samples"] = delay_samples
     result["scans"] = scans
     coefficients = result["coefficients"]
     result["j"] = float(coefficients[0])
@@ -323,7 +340,7 @@ def identify(segments: list[Segment], axis: str) -> dict:
     dt = float(np.median([segment.dt for segment in segments]))
     result["dt"] = dt
     result["b0"] = 1.0 / result["j"] if result["j"] != 0.0 else math.inf
-    dely_s = delay * dt
+    dely_s = delay_samples * dt
     result["delay_s"] = dely_s
     result["bandwidth_limit"] = 0.5 / (dely_s + 0.0005)
     result["feedback"] = fit_feedback(segments)
@@ -337,7 +354,8 @@ def report(result: dict, gravity_feedforward: float | None) -> None:
         + "、".join(f"d={delay} {scans[delay]['r2']:.4f}" for delay in sorted(scans))
     )
     print(
-        f"选定延迟：{result['delay']} 拍（{result['delay_s'] * 1e3:.2f} ms），"
+        f"选定延迟：{result['delay']} 拍（峰值附近插值 {result['delay_samples']:.2f} 拍，"
+        f"{result['delay_s'] * 1e3:.2f} ms；中心差分求导多算约半拍），"
         f"R² = {result['r2']:.5f}，残差 RMS = {result['residual_rms']:.4f} N·m（{result['count']} 个样本）"
     )
     print(f"J = {result['j']:.6g} kg·m² → b₀ = 1/J = {result['b0']:.6g} rad/s² 每 N·m")
@@ -460,8 +478,8 @@ def selftest(axis: str, seed: int) -> int:
             abs(result["c"] - TRUE_C) / TRUE_C <= 0.15,
         )
     check(
-        f"延迟在真值 ±1 拍内（{result['delay']}）",
-        abs(result["delay"] - TRUE_DELAY) <= 1,
+        f"延迟在真值 ±1 拍内（{result['delay']} 拍，插值 {result['delay_samples']:.2f}）",
+        abs(result["delay_samples"] - TRUE_DELAY) <= 1,
     )
     return 0 if failures == 0 else 1
 
