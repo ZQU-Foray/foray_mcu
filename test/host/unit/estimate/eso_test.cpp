@@ -141,7 +141,7 @@ void input_gain_error_is_absorbed()
 /** 2 阶：测位置、u 恒定，速度估计收敛。 */
 void second_order_estimates_rate()
 {
-    constexpr float INPUT{2.0F}; // rad/s²
+    constexpr float INPUT{2.0F}; // 输入 u；乘上 b₀ 才是角加速度（200 × 2 = 400 rad/s²）
     Eso2 eso;
     assert(eso.init(Eso2::Parameters{150.0F, INPUT_GAIN, H}));
     float angle = 0.0F;
