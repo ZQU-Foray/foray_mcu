@@ -42,6 +42,8 @@ CMakeUserPresets.json
 .sisyphus/
 .reasonix/
 .agent/
+# EmberProbe 装进工程的技能文件（14 MB，不是本仓内容）
+.agents/
 
 # ---- Python 环境与缓存 ----
 .venv/
