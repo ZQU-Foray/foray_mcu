@@ -635,10 +635,10 @@ void Gimbal::record() noexcept
     {
         return;
     }
-    if (capture_.request != 0U)
+    const std::uint32_t requested = capture_.request;
+    if (requested != 0U)
     {
         // 开始新的一段：target 不超过容量，从第一条开始，sequence 加 1 让工具认出是新的一份
-        const std::uint32_t requested = capture_.request;
         const std::uint32_t capacity = capture_capacity_ < static_cast<std::size_t>(0xFFFFFFFFU)
                                            ? static_cast<std::uint32_t>(capture_capacity_)
                                            : 0xFFFFFFFFU;
