@@ -107,9 +107,11 @@ inline constexpr command::Parameters COMMAND{
         // AUTO_AIM（自瞄开关）：拨杆 1（三档）在上档；中档、下档是关
         command::Bindings{command::on_switch(command::Source::REMOTE, 1U, topics::SwitchPosition::UP),
                           command::unbound()},
-        // FIRE（开火）：拨杆 2（弹性开关）按住
+        // FIRE（开火）：拨杆 2（弹性开关）按住，或者拨杆 1（自瞄开关）在上档。
+        // 临时：给算法组调自瞄用，打开自瞄就等于一直按着开火，PC 发目标就接管，不用再按弹性开关。
+        // 这样就没有"松手即停"了，只能靠自瞄开关和总开关停下；调完删掉第二条绑定。
         command::Bindings{command::on_switch(command::Source::REMOTE, 2U, topics::SwitchPosition::DOWN),
-                          command::unbound()},
+                          command::on_switch(command::Source::REMOTE, 1U, topics::SwitchPosition::UP)},
     },
     // 手动瞄准：右摇杆 x 管 yaw、右摇杆 y 管 pitch。摇杆向右、向上为正，而 yaw 左转、pitch 低头为正，
     // 所以两个满量程都是负的（往右推 → yaw 往右转，往上推 → 抬头）；上限 6 rad/s
