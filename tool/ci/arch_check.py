@@ -341,6 +341,7 @@ WHITELIST = {
         "pc_link",  # 上位机链路；不叫 link：与 POSIX 的 link() 重名
         "command",  # 仲裁：功能映射与安全
         "launch",
+        "host_sim",  # 宿主下位机的组合点（Decision-20261113-01）
     },
     "src": {
         "hal",
@@ -352,8 +353,8 @@ WHITELIST = {
         "utils",
         "third_party",
     },
-    # 板级目录是"厂商 / 板"两级：一级是厂商与 mock，二级见 BOARD_WHITELIST
-    "platform": {"st", "mock"},
+    # 板级目录是"厂商 / 板"两级：一级是厂商、mock 与宿主后端，二级见 BOARD_WHITELIST
+    "platform": {"st", "mock", "host_sim"},
 }
 # 每个厂商目录下的板标识（规则 12）
 BOARD_WHITELIST = {"st": {"dm_mc02"}}

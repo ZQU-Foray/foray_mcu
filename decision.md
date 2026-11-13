@@ -2428,6 +2428,55 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 
 ---
 
+## Decision-20261113-01（仿真宿主后端：`hal::UsbCdc` 落到伪终端，链路代码原样在 PC 上跑，Accepted）
+
+- **Date**：2026-11-13
+- **Status**：**Accepted**（2026-11-13：宿主回归 `host_sim_link` 14 项断言通过、`host-tests` 91/91、与仿真仓 `virtual_cdc.py` 联调进入 `USB_CONNECTED`）
+- **Source**：仿真仓要把「上位机 → USB CDC → 下位机」这条链路打通，需要一个能跑**本仓真源码**的下位机；负责人问的是「能不能装载下位机代码 / 打通 USB CDC 虚拟通道」
+- **影响范围**：新增 `platform/host_sim/`、`test/host_sim/`；根 `CMakeLists.txt` 的宿主分支与 `CMakePresets.json` 新增 `HOST_SIM`、`host-sim`。不改 `src/`、`app/`，不改固件与生成区
+
+**Context**：
+
+- 仿真里原本是 `ros_gz_bridge` 把 `/cmd_vel` 直接桥进 gz，协议层被完全绕过，验证不到「上位机发的帧到底会不会被固件正确解析」。
+- 想在仿真里跑真固件，最直觉的是 QEMU/Renode。但 QEMU 没有 STM32H7 整机模型，更没有 USB OTG device 模型；Renode 有 `stm32h7.repl`，但 STM32 的 USB CDC 至今没有仿真支持（renode#722、renode#533 均未合并）。也就是说固件能跑起来，`hal::UsbCdc` 却没有外设，链路永远连不上。
+- 本仓已经有 `host-tests` preset 与 `platform/mock`：`hal` 与 `hal/os` 的契约本来就是句柄类，实现可替换。缺的只是一个"把 USB CDC 换成宿主能提供的东西"的后端。
+
+**Decision**：
+
+1. 新增 `platform/host_sim/`，实现 `hal/os` 三件（`now_us()` 用 `steady_clock`、`CriticalSection` 递归锁、`Signal` 条件变量）与 `hal::UsbCdc`（打开环境变量 `DIESEL_SIM_USB_CDC` 指定的字符设备/伪终端，`cfmakeraw` + `VMIN=1`，写不完整进待发队列，100 ms 节流重开）。`src/` 与 `app/` **一行不改**。
+2. `hal::UsbCdc` 的另一端是伪终端（PTY），由仿真仓的 `virtual_cdc.py` 提供一对互连的 PTY，上位机侧用同一份 `RoboLinkHostLink` 打开另一端。不用 usbip/tty0tty：前者要内核模块与 root，后者要自己编驱动；PTY 是内核自带、进程内可清理、CI 也能跑。
+3. 不做 QEMU/Renode 全系统仿真：验证价值在**帧与状态机**，不在外设时序；真伪取决于跑的是不是同一份编解码与状态机，这一点 host_sim 已经满足。
+4. 宿主构建二选一：`HOST_SIM=ON` 时编 `platform/host_sim` + `test/host_sim` 与 `firmware_sim`；否则仍是 `platform/mock` + `test/host`。两者**不能同时链接**（`hal::UsbCdc`、`hal::os` 符号重复）。
+5. 控制快照仍然只记账、不执行（沿用阶段 A 的约定），本后端不改变这一点。
+
+**Reason**：
+
+- 宿主后端跑的是同一份 `hal::UsbCdc` 契约、同一份 `robolink` 编解码与 `Session` 状态机、"同一份 `app/pc_link` 逻辑，改的只有外设实现——这正是仿真要验的东西。
+- PTY 不需要任何特权，`posix_openpt` / `openpt` 在 CI 容器里也能用；设备路径是环境变量，仿真仓可以按轮次换名，不污染宿主。
+- `host_sim` 与 `platform/mock` 互斥，避免"两个 `hal::UsbCdc` 实现同时进链接"这种静默错误；用 option 而不是新 preset 之外的新开关，构建入口只有 `host-tests` 与 `host-sim` 两个。
+
+**Alternatives / Rejected**：
+
+- **QEMU/Renode 跑真固件**：STM32H7 + USB CDC 都没有可用模型，做不出来。否决（理由写在 Context）。
+- **usbip / tty0tty / vhci 驱动**：要内核模块或自编驱动，仿真仓的使用者得先配环境。否决。
+- **在 `app/pc_link` 里加一层"模拟模式"**：等于把仿真逻辑塞进产品能力，且绕过了真实的 `hal::UsbCdc` 契约。否决。
+- **让仿真直接调 `robolink` 的编解码而不经 `hal`**：验不到字节流与判活，和现有 `ros_gz_bridge` 直连没有本质区别。否决。
+
+**实现与验证（2026-11-13，第 1–3 步）**：
+
+- 新增 `platform/host_sim/host_os.cpp`、`host_usb_cdc.cpp`（`platform_host_sim` 库），组合点 `app/host_sim/main.cpp` 与可执行目标 `firmware_sim` **放在根 `CMakeLists.txt`**（与固件目标同一层，框架目录不引用产品，规则 15），`test/host_sim/host_sim_link.cpp`；根 `CMakeLists.txt` 加 `option(HOST_SIM)` 并让宿主分支二选一；`CMakePresets.json` 加 `host-sim`。
+- 调试中修掉三个真问题：PTY 默认行缓冲会吞/改二进制帧（必须 `cfmakeraw`）；`VMIN=0` 时"没数据"与"断开"都返回 0（必须 `VMIN=1`，空读是 `EAGAIN`）；`posix_openpt` 的主端默认阻塞（测试要 `O_NONBLOCK`，否则挂死）。
+- 文件落位：`platform/host_sim/` 只留 `hal` 的两个实现与库目标（框架，不引用产品）；组合点 `app/host_sim/main.cpp` + 可执行 `firmware_sim` 在根 `CMakeLists.txt`，与 `firmware_<profile>` 的结构一致。
+- `ctest --test-dir build/host-sim`：`host_sim_link` 0.50 s 通过，14 项断言（握手到 READY、控制快照记账、HELLO_ACK status=OK 与版本 v0.2、静默 500 ms 退回 `USB_CONNECTED`、主端关闭后 `DISCONNECTED`）；`build/host-tests` 91/91；`arch_check.py scan`「架构检查通过」；`format.py --check` 221 个文件完成。
+- 与仿真仓联调：`virtual_cdc.py` 建 `/tmp/diesel_host`、`/tmp/diesel_mcu`，`DIESEL_SIM_USB_CDC=/tmp/diesel_mcu ./firmware_sim` 输出 `state=USB_CONNECTED connected=1`。
+- 未跑：`arch_check.py graph/atomics/callbacks` 需要 arm 构建产物（本机无 arm 工具链）；`naming.py` 需要 clang-tidy 18（本机只有 clang-format 18.1.8）。
+
+**脚本改动**：`tool/ci/arch_check.py` 的一级目录白名单加 `platform/host_sim` 与 `app/host_sim`（规则 12 新增一类目录，按 AGENTS §5「先登记再改脚本」在本决策里登记）。
+
+**回退**：删除 `platform/host_sim/`、`app/host_sim/` 与 `test/host_sim/`，`option(HOST_SIM)` 默认 OFF 时宿主构建行为与之前完全一致；不影响固件与生成区。
+
+---
+
 ## 待登记
 
 - 分支保护的具体设置（组织规范 §6.1、§10，负责人在 GitHub 上操作后补记）。

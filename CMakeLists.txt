@@ -26,6 +26,7 @@ list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 include(targets)
 
 option(FRAMEWORK_ONLY "只构建框架（src；宿主上另加 platform/mock），不含产品、板卡与宿主测试" OFF)
+option(HOST_SIM "宿主下位机：用 platform/host_sim 顶替板卡，构建 firmware_sim（不构建宿主测试）" OFF)
 
 if(FRAMEWORK_ONLY)
     # 框架独立构建（规则 2、15）。交叉编译时不选板卡：框架只依赖契约，
@@ -83,10 +84,23 @@ else()
         message(FATAL_ERROR "宿主构建需要 GCC 或 Clang（当前为 ${CMAKE_CXX_COMPILER_ID}）")
     endif()
 
-    # 框架 + 平台替身 + 能力 + 宿主测试；不含 config/ 与任何板卡。能力零 RTOS，宿主测试直接链接。
+    # 框架 + 能力；不含 config/ 与任何板卡。能力零 RTOS。
     add_subdirectory(src)
-    add_subdirectory(platform/mock)
     add_subdirectory(app)
-    enable_testing()
-    add_subdirectory(test/host)
+    if(HOST_SIM)
+        # 宿主下位机：真实时钟 + PTY 上的 hal::UsbCdc，组装 firmware_sim。
+        # 与 platform/mock 符号重复，二者只能选一个；这类构建不做宿主单测。
+        add_subdirectory(platform/host_sim)
+        # 宿主下位机：把 app/pc_link 与 platform_host_sim 组装成可执行文件，参数与 link_dm_mc02 一致。
+        # 组合点放在这里（与固件目标同一层），framework 目录不引用产品。
+        add_executable(firmware_sim app/host_sim/main.cpp)
+        target_link_libraries(firmware_sim PRIVATE app_pc_link platform_host_sim)
+        enable_strict_warnings(firmware_sim)
+        enable_testing()
+        add_subdirectory(test/host_sim)
+    else()
+        add_subdirectory(platform/mock)
+        enable_testing()
+        add_subdirectory(test/host)
+    endif()
 endif()

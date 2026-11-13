@@ -52,6 +52,17 @@
       }
     },
     {
+      "name": "host-sim",
+      "inherits": "base",
+      "displayName": "宿主下位机（firmware_sim：app/pc_link + platform/host_sim）",
+      "description": "本机 GCC 或 Clang；不上板、不建宿主测试，产物 firmware_sim 走 virtual_cdc.py 的 PTY",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/host.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "HOST_SIM": "ON"
+      }
+    },
+    {
       "name": "framework",
       "inherits": "base",
       "displayName": "框架独立构建（src + platform/mock，宿主）",
