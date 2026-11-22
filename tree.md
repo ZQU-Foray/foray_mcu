@@ -37,6 +37,7 @@ foray_mcu/
 │   ├── gimbal/               云台能力 Gimbal：IMU 闭环双轴串级、力矩模式、DISABLED/ENABLING/HOLD/TRACK、安全门（Decision-20261105-01）；axis_loop.hpp 是单轴控制律；调试接口：录制与在线调参（Decision-20261106-01）
 │   ├── remote/               遥控能力 Remote：SBUS → 统一的操作输入 remote.input（Decision-20261105-03）
 │   ├── command/              仲裁 Arbiter：操作输入 → 功能（RUN/AUTO_AIM/FIRE）与安全；发布 safety.stop 与 command.gimbal（Decision-20261105-03）
+│   ├── host_sim/             宿主下位机的组合点（host-sim preset）：main.cpp 组装 app/pc_link 与 platform/host_sim，可执行目标 firmware_sim 在根 CMakeLists（Decision-20261113-01）
 │   ├── bringup/              框架验证用的能力：Heartbeat、Monitor（F2）；ImuCheck、CanCheck、SbusCheck、UsbReport、Indicator（外设检查，Decision-20261101-03）；DmCheck（CAN1 上的达妙电机，Decision-20261102-02）
 │   └── common/               task_runner.hpp：任务运行器（F2）
 ├── config/
@@ -48,11 +49,13 @@ foray_mcu/
 │   │   ├── cubemx/           CubeMX 生成物：Core、Drivers、Middlewares、USB_DEVICE、.ioc、启动文件、链接脚本（冻结）
 │   │   ├── port/             hal 与 hal/os 契约的 C++ 实现（每个外设一个 .cpp，F2 第 5 步）、port.hpp（外设初始化、中断通知）；os/ 是 hal/os 的实现（TIM2、BASEPRI、任务通知槽）；UsbCdc.h 被 USB 生成桩按名字 include（Q8 方案①：生成桩归板级实现）
 │   │   └── board/            board.hpp：物理资源句柄、外设个数、能力常量（只给组合根与 port，F2 第 5 步）；overlay.ld：自定义段 .axi_bss（Decision-20261106-02）
-│   └── mock/                 platform_mock：hal 与 hal_os 的宿主替身（mock_hal.hpp、mock_os.hpp：注入输入、检查输出、测试推进时间）
+│   ├── mock/                 platform_mock：hal 与 hal_os 的宿主替身（mock_hal.hpp、mock_os.hpp：注入输入、检查输出、测试推进时间）
+│   └── host_sim/             hal 与 hal_os 的宿主真实实现（host-sim preset）：时基、递归锁临界区、条件变量信号；hal::UsbCdc 落在 PTY 上（Decision-20261113-01）
 ├── legacy/                   迁移源的 README 与既有架构图（源码已在 P2、P2.5 全部搬出）
 │   ├── .docs/images/         既有架构图
 │   └── README.md
 ├── test/host/                宿主测试（由根工程 host-tests preset 引入，90 项 ctest；来源 fd1edbb 与 F1–F4 新增，见 test/host/README.md）
+├── test/host_sim/            宿主后端的联调测试（由 host-sim preset 引入）：自建 PTY 扮上位机，验握手、判活与断开（Decision-20261113-01）
 ├── test/framework/           框架独立构建用：template_check.cpp 显式实例化只有头文件的模板（F1，Decision-20261031-06）
 ├── test/data/imu/            真实 IMU 数据（原固件静态陀螺采集 ×2）
 ├── test/data/heater/         加热冷启动曲线：原固件（L6 的验收下限）、2026-11-01 旧 PI 与模型预测的对照
@@ -81,7 +84,7 @@ foray_mcu/
 ```
 
 **事实**：
-- CMake 文件按层组织：手写的 `CMakeLists.txt` 共 7 个（根、`src/`、`app/`、`config/`、每块板一个、`platform/mock`、`test/host`），一层的全部 target 定义在该层的文件里（Decision-20261026-07）；
+- CMake 文件按层组织：手写的 `CMakeLists.txt` 共 9 个（根、`src/`、`app/`、`config/`、每块板一个、`platform/mock`、`platform/host_sim`、`test/host`、`test/host_sim`），一层的全部 target 定义在该层的文件里（Decision-20261026-07）；
 - 根工程按目标结构组织 target；P1–P2.5 期间固件 `firmware_baseline` 的符号集合与迁移源一致。旧能力代码与 `baseline` 已在 F2 归档到 tag `archive/pre-rebuild`（Decision-20261031-13），现在的固件是 `firmware_bringup_dm_mc02`；
 - 源码已全部搬出 `legacy/`（P2、P2.5），`legacy/` 只剩迁移源 README 与架构图；迁移期过渡件（`hal_detail`、PortKit、`legacy_build_options`、DWT 时基）已在 F2 第 5 步删除；
 - `src/utils`、`src/hal/os`、`src/middleware/topic` 已在 F1 建立；`platform/st/dm_mc02`（厂商 / 板两级，Decision-20261101-04）、`src/boot/boot.h`、`src/hal/init.hpp`、任务运行器、第一个 topic 与 bringup profile 在 F2 建立；hal 契约 v1、`board.hpp`、C++ port 与全部外设的替身在 F2 第 5 步建立。
@@ -128,6 +131,7 @@ foray_mcu/
 │   └── assembly/<profile>.cpp    组合根：构造对象、注入参数、任务表、实现 boot_*
 ├── test/
 │   ├── host/                     宿主单元测试（链接 platform/mock，ctest）
+│   ├── host_sim/                 宿主后端联调测试（链接 platform/host_sim，ctest；Decision-20261113-01）
 │   ├── framework/                框架独立构建用的检查（实例化只有头文件的模板）
 │   └── data/                     录制数据（IMU、加热曲线等），回放回归
 ├── tool/

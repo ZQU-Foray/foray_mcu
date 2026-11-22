@@ -163,6 +163,15 @@
 - [x] yaw 漂移修正（2026-11-03，Decision-20261103-03）：恢复旧 `AttitudeEstimator` 的 VQF 板级参数（静止门限 0.35 rad/s、bias clip 0.05、标定不重置协方差），`Imu::Report` 补 bias/rest 诊断；宿主测试 39/39、link 固件构建通过；2026-11-03 上板 5 min 实测 yaw -0.05°（-0.010 °/min），rest_detected=1
 - [x] 仓库整理（2026-11-03，Decision-20261103-05，负责人要求）：工作区按类提交；本地分支链快进合入 `dev`（提交号不变）；删除 GitHub 上 49 个与本地 50 个功能分支，丢弃已存为补丁的 stash；整理前的全部引用打包存档。以后每步一个分支，验证后快进合入 `dev` 即删
 - [x] 代码注释删掉决策号（2026-11-03，Decision-20261103-06，负责人要求）：先是头文件（55 个文件 77 处），再是其余代码与配置文件（76 个），文档不动；只改注释，四个固件逐字节相同；以后代码与配置文件的注释不写决策号（AGENTS §1）
+
+#### 仿真宿主后端（host_sim；2026-11-13，Decision-20261113-01）
+
+> 目标：让上位机侧（`foray_platform` 的 `RoboLinkHostLink`）与仿真里的车联调时，中间跑的是**本仓真源码**——`hal::UsbCdc`、`robolink`、`app/pc_link` 全部原样，只把 USB CDC 这个外设换成宿主上的伪终端（PTY），虚拟 CDC 的另一端由仿真仓的 `virtual_cdc.py` 提供。QEMU/Renode 跑真固件不可行（STM32 USB CDC 无仿真模型），故不做。
+
+- [x] 第 1 步 `platform/host_sim/`（分支 `feat/host-sim`）：`host_os.cpp`（`steady_clock` 时基 + 递归锁临界区 + `condition_variable_any` 信号，误用直接 `abort`）、`host_usb_cdc.cpp`（`hal::UsbCdc` 落在 `DIESEL_SIM_USB_CDC` 指定的 PTY 上，`cfmakeraw` + `VMIN=1`，写不完整留在待发队列，100 ms 节流重开）、`main.cpp`（`firmware_sim`：`PcLink` 1 ms 步进，状态变化打一行）。根工程加 `option(HOST_SIM)`，宿主分支二选一（`HOST_SIM` 用 `platform/host_sim` + `test/host_sim`，否则仍是 `platform/mock` + `test/host`）；`CMakePresets.json` 加 `host-sim` preset（`HOST_SIM=ON`）
+- [x] 第 2 步 宿主回归 `test/host_sim/host_sim_link.cpp`：自建 PTY 扮上位机，握手到 READY、控制快照记账、HELLO_ACK 可解码（status=OK、版本 v0.2）、静默 500 ms 退回 USB_CONNECTED、主端关闭后 DISCONNECTED，14 项断言全过。调试中发现并修掉：PTY 默认行缓冲会吞/改二进制帧；`VMIN=0` 时"没数据"与"断开"都返回 0；`posix_openpt` 主端默认阻塞
+- [x] 第 3 步 与仿真仓联调冒烟：`virtual_cdc.py` 建 `/tmp/diesel_host`、`/tmp/diesel_mcu` 两个 PTY，`DIESEL_SIM_USB_CDC=/tmp/diesel_mcu ./firmware_sim` 进入 `state=USB_CONNECTED connected=1`；`host_sim_link` 0.5 s 通过，`build/host-tests` 91/91，`arch_check.py scan` 与 `format.py --check` 通过
+- 待做：`tool/ci/arch_check.py` 的 `graph/atomics/callbacks` 需要固件构建产物，本机无 arm 工具链未跑；`naming.py` 需要 clang-tidy 18，本机只有 clang-format 18.1.8
 #### 输入与仲裁（遥控器为中心；Decision-20261105-03）
 
 > 目标：功能的开关由遥控器决定。第一个功能是自瞄——大范围移动靠操作手，按住开火时自瞄才接管（有接管范围），
@@ -350,3 +359,4 @@ Q1–Q18 已全部确认（见评审报告 v1.0 §11.1 与 decision.md）。仍�
 | 2026-11-03 | A（链路） | yaw 漂移修正（Decision-20261103-03）：恢复 VQF 板级静止零偏参数（静止门限 0.35 rad/s），标定后不重置协方差；上板 5 min yaw -0.05° | 完成 |
 | 2026-11-03 | 整理 | 仓库整理（Decision-20261103-05）：本地分支链快进合入 `dev`（提交号不变），删除 49 个远端与 50 个本地功能分支，stash 存为补丁后丢弃，整理前的引用打包存档 | 完成 |
 | 2026-11-03 | 整理 | 代码注释删掉决策号（Decision-20261103-06）：头文件 55 个、其余代码与配置文件 76 个，文档不动；四个固件逐字节相同，两个提交登记到 `.git-blame-ignore-revs` | 完成 |
+| 2026-11-13 | A（链路） | 仿真宿主后端 `platform/host_sim`（Decision-20261113-01）：`hal::UsbCdc` 换到 PTY、`hal/os` 换到 `steady_clock`/递归锁/条件变量，QEMU/Renode 不做；新增 `host-sim` preset 与 `firmware_sim`，宿主回归 `test_host_sim_link` 14 项断言通过、`host-tests` 91/91，`arch_check.py scan` 与 `format.py --check` 通过；与仿真仓 `virtual_cdc.py` 冒烟联调进入 USB_CONNECTED | 第 1–3 步完成；`graph/atomics/callbacks` 与 `naming.py` 待 arm 工具链与 clang-tidy 18 |
