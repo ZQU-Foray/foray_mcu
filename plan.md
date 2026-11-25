@@ -172,6 +172,15 @@
 - [x] 第 2 步 宿主回归 `test/host_sim/host_sim_link.cpp`：自建 PTY 扮上位机，握手到 READY、控制快照记账、HELLO_ACK 可解码（status=OK、版本 v0.2）、静默 500 ms 退回 USB_CONNECTED、主端关闭后 DISCONNECTED，14 项断言全过。调试中发现并修掉：PTY 默认行缓冲会吞/改二进制帧；`VMIN=0` 时"没数据"与"断开"都返回 0；`posix_openpt` 主端默认阻塞
 - [x] 第 3 步 与仿真仓联调冒烟：`virtual_cdc.py` 建 `/tmp/diesel_host`、`/tmp/diesel_mcu` 两个 PTY，`DIESEL_SIM_USB_CDC=/tmp/diesel_mcu ./firmware_sim` 进入 `state=USB_CONNECTED connected=1`；`host_sim_link` 0.5 s 通过，`build/host-tests` 91/91，`arch_check.py scan` 与 `format.py --check` 通过
 - 待做：`tool/ci/arch_check.py` 的 `graph/atomics/callbacks` 需要固件构建产物，本机无 arm 工具链未跑；`naming.py` 需要 clang-tidy 18，本机只有 clang-format 18.1.8
+#### 上电启动：从 42 s 到 1 s 量级（负责人 2026-11-24 提出）
+
+> 目标：冷启动、热复位与掉电重启（比赛复活）后尽快进入 READY，云台不再等加热与长标定。2026-11-24 的时间拆分：加热 39.5 → 50 ℃ 约 15 s、温度稳定门槛 20 s、静止窗口 5 s、其余约 2 s；热复位也要 20 + 5 s。20 s 稳定门槛是给旧 PI 加热器（过冲 6.9 ℃）定的，现在的加热器只过冲 0.125 ℃；长期精度靠 READY 之后 VQF 的静止零偏更新（2026-11-03 实测 −0.01 °/min），不靠上电标定。顺带修掉隐患：温度到不了目标时标定永远停在 `WAITING_FOR_TEMPERATURE`，云台永不出力。安全门"复位后拨上就开"负责人 2026-11-25 指示先不做（保留拨下再拨上的人工确认）。
+
+- [x] 第 1 步 恢复 5 V 输出（`fix/power-5v`，Decision-20261125-01）：迁移源的启动入口打开 `POWER_5V`，重建时漏了；5 V 给无线烧录器供电，三个 profile 的电源表都改成两路 24 V + 5 V
+- [ ] 第 2 步 快速 READY（`feat/imu-fast-ready`，Decision-20261125-02）：READY 与精确标定解耦——0.5 s 无温度门控的静止窗口先给零偏，精确标定转到后台，完成时只交零偏、不重取 yaw 零点；短窗口拿不到就进 DEGRADED，加热器失效不再卡死
+- [ ] 第 3 步 零偏-温度存储（`feat/bias-store`，Decision-20261125-03）：新增 `hal::Nvs` 契约与 DM-MC02 最后一个 Flash 扇区的实现，`estimate::BiasStore` 以日志式记录存 `(T, b)`，启动时给出 `b(T₀)`；overlay 加链接期断言，复位后沿用标定
+- [ ] 上板验证：冷启动 / 热复位 / 断电重启的 READY 计时、前 1 min 的 yaw 漂移、重刷固件后记录还在
+
 #### 输入与仲裁（遥控器为中心；Decision-20261105-03）
 
 > 目标：功能的开关由遥控器决定。第一个功能是自瞄——大范围移动靠操作手，按住开火时自瞄才接管（有接管范围），

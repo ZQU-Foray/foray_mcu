@@ -9,8 +9,8 @@ namespace actuator
 {
 
 /**
- * @brief 板上可控电源输出：上电时按 profile 打开或关闭，接在这些输出上的电机随之上电。
- *        只在 init() 里写一次，没有 step()。
+ * @brief 板上可控电源输出：上电时按 profile 打开或关闭（DM-MC02 是两路 24 V 电机电源与一路 5 V
+ *        外设电源，无线烧录器接在 5 V 上）。只在 init() 里写一次，没有 step()。
  * @note 达妙电机上电默认失能，大疆电调没有控制帧时不出力，只收不发：打开电源不会让电机动。
  */
 class PowerOutputs final

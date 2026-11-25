@@ -3,11 +3,15 @@
 
 // link_dm_mc02 的参数（只含数据，规则 4）。
 
+#include "actuator/power_outputs.hpp"
 #include "imu/imu.hpp"
 #include "pc_link/pc_link.hpp"
 
 namespace params
 {
+
+// 板上电源输出：上电打开（24 V 电机电源与 5 V 外设电源）。本 profile 不接电机，5 V 仍要打开
+inline constexpr actuator::PowerOutputs::Parameters POWER_OUTPUTS{true};
 
 // BMI088 加热：DM-MC02 的热模型（与 bringup 相同）。加热要接 24 V（XT30）
 inline constexpr device::Bmi088Heater::Config HEATER{control::HeaterControl::Model{0.967F, 15.5F, 0.95F}};

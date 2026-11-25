@@ -2477,6 +2477,45 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 
 ---
 
+## Decision-20261125-01（恢复 5 V 输出：无线烧录器供电，Proposed）
+
+- **Date**：2026-11-25
+- **Status**：**Proposed**（2026-11-25：三个 profile 构建通过；上板复核待做）
+- **Source**：负责人 2026-11-25："在上一个固件中，关掉了 5 V 的额外供电，需要重新打开，不然无线烧录器的供电无法工作，目前烧录器处于有线状态下，可以直接烧录"
+- **影响范围**：`config/assembly/{bringup,infantry,link}_dm_mc02.cpp`、`config/profiles/link_dm_mc02/params.hpp`、`config/profiles/link_dm_mc02/profile.cmake`、`app/actuator/power_outputs.hpp` 的注释
+
+**Context**：
+
+- 迁移源的启动入口（`archive/pre-rebuild:config/assembly/entry_legacy.cpp`）在 `boot_init()` 里把 `POWER_5V` 写成 HIGH。
+- 重建时 `PowerOutputs`（Decision-20261101-06）只把两路 24 V 收进 profile 的数组：5 V 不是电机电源，当时没跟上。
+- 板上的 5 V 输出给无线烧录器供电。5 V 关着时只能用 USB 线烧录，无线模式用不了；任何一份"忘了 5 V"的固件烧进去，下一次无线烧录就做不了。
+
+**Decision**：
+
+1. 电源表改成三路：两路 24 V 加 5 V（`board::POWER_5V`），bringup、infantry、link 三个 profile 都在 `boot_init()` 里打开。
+2. link profile 原来不接电源输出，为 5 V 增加 `actuator` 能力与 `POWER_OUTPUTS` 参数。
+3. `PowerOutputs` 的注释从"接在这些输出上的电机随之上电"改成"24 V 电机电源与 5 V 外设电源"。
+
+**Reason**：
+
+- 5 V 与 24 V 都是"上电就打开"的板级电源，放进同一张表最省事，以后新增 profile 也不会漏。
+- 5 V 的负载是烧录器这类外设，不是电机：打开它不会让云台动（安全门仍锁着、达妙电机上电默认失能）。
+
+**Alternatives / Rejected**：
+
+- **只在 infantry 加 5 V**：link 与 bringup 固件都会把 5 V 关掉，下一次无线烧录就断供。否决。
+- **在 `hal::init()` 里打开 5 V**：板级 port 偷偷改硬件状态，组合根看不见，违反"板级资源在组合根注入"的约定。否决。
+- **把 5 V 做成独立能力**：只为一路电源多一个 target，没有收益。否决。
+
+**实现与验证（2026-11-25，第 1 步）**：
+
+- 三个 profile 的 Debug 固件构建通过（bringup FLASH 239,392 B、infantry 284,200 B、link 223,512 B）；`tool/ci/format.py --check` 221 个文件完成。
+- 上板：烧 infantry 固件后 DC5 输出（PC15）为高、无线烧录器能上电——待探针/桥接可用后补。
+
+**回退**：revert 本提交，三个数组恢复两路 24 V，link profile 的 `actuator` 与参数一并删掉。
+
+---
+
 ## 待登记
 
 - 分支保护的具体设置（组织规范 §6.1、§10，负责人在 GitHub 上操作后补记）。

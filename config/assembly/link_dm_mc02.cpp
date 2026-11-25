@@ -1,5 +1,6 @@
 // 组合根：link_dm_mc02（上位机链路联调）。
 // 构造驱动与能力对象、注入板级句柄与参数、定义任务表、实现启动入口 boot_*；不含行为。
+#include "actuator/power_outputs.hpp"
 #include "board.hpp"
 #include "boot/boot.h"
 #include "common/task_runner.hpp"
@@ -23,6 +24,11 @@ static_assert(!device::Bmi088::REQUIRES_SPI_ASYNC || board::SPI_ASYNC, "BMI088 �
 // 驱动：板级句柄在这里注入
 device::Bmi088 g_bmi088{board::SPI_IMU_ACCEL, board::SPI_IMU_GYRO};
 device::Bmi088Heater g_heater{board::PWM_IMU_HEATER, params::HEATER};
+
+// 板上电源输出，高电平打开：两路 24 V（电机，本 profile 不接）与 5 V（无线烧录器等外设）。
+// 5 V 即使在不用电机的 profile 里也要打开，否则无线烧录器没有供电。
+constexpr std::array POWER_RAILS{board::POWER_24V_0, board::POWER_24V_1, board::POWER_5V};
+actuator::PowerOutputs g_power_outputs;
 
 // 能力
 imu::Imu g_imu;
@@ -54,6 +60,8 @@ common::TaskRunner<TASKS> g_runner;
 bool boot_init(void)
 {
     return hal::init() &&
+           g_power_outputs.init(actuator::PowerOutputs::Config{
+               POWER_RAILS.data(), POWER_RAILS.size(), hal::Gpio::Level::HIGH, params::POWER_OUTPUTS}) &&
            g_imu.init(imu::Imu::Config{
                &g_bmi088, &g_heater, board::IMU_ACCEL_INTERRUPT, board::IMU_GYRO_INTERRUPT, params::IMU}) &&
            g_pc_link.init(params::PC_LINK) && g_runner.init();

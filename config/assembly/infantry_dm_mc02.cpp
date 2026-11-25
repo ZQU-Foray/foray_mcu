@@ -52,8 +52,8 @@ device::DmMotor g_dm_can_1{g_can_1, gimbal_motors()};
 static_assert(device::can_load_percent(device::DmMotor::frames_per_second(2U, 1000U)) <= 80U, "CAN1 在 1 kHz 下超载");
 
 // 能力
-// 板上两路 24 V 输出，高电平打开
-constexpr std::array POWER_24V_OUTPUTS{board::POWER_24V_0, board::POWER_24V_1};
+// 板上电源输出，高电平打开：两路 24 V（电机）与 5 V（无线烧录器等外设）
+constexpr std::array POWER_RAILS{board::POWER_24V_0, board::POWER_24V_1, board::POWER_5V};
 actuator::PowerOutputs g_power_outputs;
 imu::Imu g_imu;
 gimbal::Gimbal g_gimbal;
@@ -137,7 +137,7 @@ bool boot_init(void)
     // 电源输出最先打开：达妙电机上电自检约 1 s。达妙驱动的 init() 接上关节，所以排在云台之前
     return hal::init() &&
            g_power_outputs.init(actuator::PowerOutputs::Config{
-               POWER_24V_OUTPUTS.data(), POWER_24V_OUTPUTS.size(), hal::Gpio::Level::HIGH, params::POWER_OUTPUTS}) &&
+               POWER_RAILS.data(), POWER_RAILS.size(), hal::Gpio::Level::HIGH, params::POWER_OUTPUTS}) &&
            g_imu.init(imu::Imu::Config{
                &g_bmi088, &g_heater, board::IMU_ACCEL_INTERRUPT, board::IMU_GYRO_INTERRUPT, params::IMU}) &&
            g_can_1.init() && g_dm_can_1.init() &&

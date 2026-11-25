@@ -8,4 +8,4 @@ set(PROFILE_ID link_dm_mc02)
 set(BOARD st/dm_mc02)
 
 # 链接的能力：app_<能力>。组合根是 config/assembly/link_dm_mc02.cpp。
-set(CAPABILITIES imu pc_link)
+set(CAPABILITIES actuator imu pc_link)
