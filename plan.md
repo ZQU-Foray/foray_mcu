@@ -179,7 +179,7 @@
 - [x] 第 1 步 恢复 5 V 输出（`fix/power-5v`，Decision-20261125-01）：迁移源的启动入口打开 `POWER_5V`，重建时漏了；5 V 给无线烧录器供电，三个 profile 的电源表都改成两路 24 V + 5 V
 - [x] 第 2 步 快速 READY（`feat/imu-fast-ready`，Decision-20261125-02）：READY 与精确标定解耦——0.5 s 无温度门控的静止窗口先给零偏，精确标定转到后台，完成时只交零偏、不重取 yaw 零点；短窗口拿不到就进 DEGRADED，加热器失效不再卡死。宿主测试 92/92（新增 `imu_heater` 与无温度门控用例），三个 profile 构建通过
 - [x] 第 3 步 零偏-温度存储（`feat/bias-store`，Decision-20261125-03）：新增 `hal::Nvs` 契约与 DM-MC02 最后一个 Flash 扇区的实现，`estimate::BiasStore` 以日志式记录存 `(T, b)`，启动时给出 `b(T₀)`；overlay 加链接期断言，复位后沿用标定。宿主 96/96，三个 profile 构建通过，overlay 断言负向验证通过
-- [ ] 上板验证：冷启动 / 热复位 / 断电重启的 READY 计时、前 1 min 的 yaw 漂移、重刷固件后记录还在
+- [x] 上板验证（2026-11-25，infantry Release `d44ddced…`）：冷启动 0.66 s、热复位 0.16 s（原来 42 s / 25 s）；重刷固件后零偏记录还在；5 V 输出为高。断电冷启动与前 1 min 的 yaw 漂移待测。见[上板记录](docs/ai/decisions/2026-11-25-IMU快速启动上板验证/README.md)
 
 #### 输入与仲裁（遥控器为中心；Decision-20261105-03）
 

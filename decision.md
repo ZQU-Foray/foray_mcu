@@ -2480,7 +2480,7 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 ## Decision-20261125-01（恢复 5 V 输出：无线烧录器供电，Proposed）
 
 - **Date**：2026-11-25
-- **Status**：**Proposed**（2026-11-25：三个 profile 构建通过；上板复核待做）
+- **Status**：**Accepted**（2026-11-25：三个 profile 构建通过；上板 `GPIOC_ODR = 0x0000E009`，DC5 为高，见[上板记录](docs/ai/decisions/2026-11-25-IMU快速启动上板验证/README.md)）
 - **Source**：负责人 2026-11-25："在上一个固件中，关掉了 5 V 的额外供电，需要重新打开，不然无线烧录器的供电无法工作，目前烧录器处于有线状态下，可以直接烧录"
 - **影响范围**：`config/assembly/{bringup,infantry,link}_dm_mc02.cpp`、`config/profiles/link_dm_mc02/params.hpp`、`config/profiles/link_dm_mc02/profile.cmake`、`app/actuator/power_outputs.hpp` 的注释
 
@@ -2510,7 +2510,7 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 **实现与验证（2026-11-25，第 1 步）**：
 
 - 三个 profile 的 Debug 固件构建通过（bringup FLASH 239,392 B、infantry 284,200 B、link 223,512 B）；`tool/ci/format.py --check` 221 个文件完成。
-- 上板：烧 infantry 固件后 DC5 输出（PC15）为高、无线烧录器能上电——待探针/桥接可用后补。
+- 上板（2026-11-25）：烧 infantry Release 固件后 `GPIOC_ODR`（`0x58020814`）= `0x0000E009`，bit 15（DC5）与 bit 14/13（两路 24 V）都是 1；见[上板记录](docs/ai/decisions/2026-11-25-IMU快速启动上板验证/README.md)。
 
 **回退**：revert 本提交，三个数组恢复两路 24 V，link profile 的 `actuator` 与参数一并删掉。
 
@@ -2519,7 +2519,7 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 ## Decision-20261125-02（IMU 上电快速 READY：短静止窗口先出力，精确标定转后台，Proposed）
 
 - **Date**：2026-11-25
-- **Status**：**Proposed**（2026-11-25：宿主测试 92/92、三个 profile 构建通过；上板计时待做）
+- **Status**：**Accepted**（2026-11-25：宿主测试 92/92、三个 profile 构建通过；上板冷启动 0.66 s、热复位 0.16 s，见[上板记录](docs/ai/decisions/2026-11-25-IMU快速启动上板验证/README.md)）
 - **Source**：负责人 2026-11-24"肯定是越快越好"、"能接受前几十秒在临时零偏下工作"；2026-11-25 选择先写代码、上板验证随后
 - **影响范围**：`src/lib/estimate/gyro_bias_calibration.{hpp,cpp}`、`app/imu/imu.{hpp,cpp}`、`app/topics/imu.hpp` 与 `app/gimbal/gimbal.hpp` 的注释、两个 profile 的 `IMU` 参数、`docs/ai/guide/{上位机接入现状,云台上板调参清单}.md`
 
@@ -2559,7 +2559,7 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 
 - 宿主 `ctest` 92/92（原 91，新增 `imu_heater`；`gyro_bias_calibration` 加无温度门控用例）：`imu_ready` 在 0.5 s 进 READY、精确标定约 2 s 后完成且 `yaw_zero_rad` 不变、`imu_degraded` 在 1 s 超时进 DEGRADED、`imu_heater` 在 42 ℃ 下 10 s 仍是 READY 且精确标定停在等温度。
 - 三个 profile 的 Debug 固件构建通过、无告警；infantry FLASH 284,200 → 284,944 B。
-- 上板：冷启动 / 热复位 / 断电重启的 READY 计时、快窗口零偏与精确零偏的差、拔掉 24 V 的场景——待探针/桥接可用后补。
+- 上板（2026-11-25）：冷启动（记录区空）`settled_us` 661,209 µs = 0.66 s、热复位（有记录）161,571 / 162,031 µs = 0.16 s；同一时刻 `calibration = WAITING_FOR_TEMPERATURE`（板子 48.6 ℃、加热中）而 `imu_state = READY`，说明 READY 已与精确标定解耦。断电冷启动、拔 24 V 与前一分钟的 yaw 漂移没有测，见[上板记录](docs/ai/decisions/2026-11-25-IMU快速启动上板验证/README.md)的"没做的"。
 
 **回退**：revert 本提交：删掉 `temperature_gated` 与快速零偏，`Imu::step` 恢复"精确标定完成才 READY"；profile 与 `Report` 同步回退。
 
@@ -2568,7 +2568,7 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 ## Decision-20261125-03（零偏存储：`hal::Nvs` 契约与 DM-MC02 Flash 扇区、`estimate::BiasStore` 日志式记录，Proposed）
 
 - **Date**：2026-11-25
-- **Status**：**Proposed**（2026-11-25：宿主测试 96/96、三个 profile 构建通过、overlay 断言的负向验证通过；上板待做）
+- **Status**：**Accepted**（2026-11-25：宿主测试 96/96、三个 profile 构建通过、overlay 断言负向验证通过；上板重刷固件后记录仍在、热复位沿用标定，见[上板记录](docs/ai/decisions/2026-11-25-IMU快速启动上板验证/README.md)）
 - **Source**：负责人 2026-11-24"比赛中主控板会断电"、"肯定是越快越好"、"能接受前一段时间的临时零偏"；2026-11-25 开始实现
 - **影响范围**：新增 `src/hal/nvs.hpp`、`platform/st/dm_mc02/port/nvs.cpp`、`platform/mock/mock_nvs.cpp`、`src/lib/estimate/bias_store.{hpp,cpp}`；`app/imu`、`board.hpp`、两个 profile 与组合根、`platform/st/dm_mc02/board/overlay.ld`、`src/CMakeLists.txt`、`platform/mock/CMakeLists.txt`、`platform/st/dm_mc02/CMakeLists.txt`
 
@@ -2611,7 +2611,7 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 - 三个 profile 的 Debug 固件构建通过、无告警；infantry FLASH 284,944 → 296,120 B。
 - overlay 断言做过负向验证：临时把边界改成 `0x08030000`，链接报 `flash image overlaps the NVS sector`；改回即恢复。
 - `format.py --check`、`naming.py --check`、`arch_check.py scan` 通过。
-- 上板：Flash 记录在重新烧录后是否还在、冷启动/断电重启的 READY 计时、b(T₀) 与精确值的差——待探针/桥接可用后补。
+- 上板（2026-11-25）：第一次上电记录区是空的（最后一个扇区全是 `0xFF`）→ 冷启动按 QUICK 0.66 s；之后两次复位都走 STORED、0.16 s；**重刷同一固件后记录仍在**（`store_has_bias = 1`、3 条），因为 OpenOCD 只擦镜像覆盖的扇区。b(T₀) 与精确值的差、断电冷启动还没测，见[上板记录](docs/ai/decisions/2026-11-25-IMU快速启动上板验证/README.md)。
 
 **回退**：revert 本提交：删掉 `hal::Nvs`、port 与 mock、`BiasStore` 与 `Imu` 的接入、overlay 断言；Flash 最后一个扇区的内容不参与运行，回退后不用擦它。
 
