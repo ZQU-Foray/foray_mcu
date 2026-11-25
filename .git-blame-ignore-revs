@@ -36,3 +36,5 @@ f71cdb0eaee4bfd7bfb58bc23dd80dbe34216895
 
 # 代码与配置文件的注释删掉决策号（style: 4540b4b，Decision-20261103-06，只改注释，固件逐字节相同）
 4540b4bb3f66993e819299425d7974e9b0708a67
+# 补上 bias_store 与 mock_nvs 的 clang-format（style: b91eaa9，新文件当时未 git add）
+b91eaa9b8bcb7d9e797e55bb9de8dab442ddfb3f
