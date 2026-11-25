@@ -97,51 +97,63 @@ void GyroBiasCalibration::process(const math::Vector3 &gyro_rad_per_sec,
     last_timestamp_us_ = timestamp_us;
     temperature_celsius_ = temperature_celsius;
 
-    // 温度门控：离开容差就清空窗口与稳定保持
-    const bool temperature_ready =
-        std::isfinite(temperature_celsius) &&
-        std::fabs(temperature_celsius - config_.target_celsius) <= config_.temperature_tolerance_celsius;
-    if (!temperature_ready)
+    if (!config_.temperature_gated)
     {
-        if (state_ != State::WAITING_FOR_TEMPERATURE || count_ != 0U)
+        // 快速零偏：不等温度，第一个样本就开窗
+        if (state_ == State::WAITING_FOR_TEMPERATURE)
         {
+            state_ = State::SAMPLING;
             restart_window();
         }
-        state_ = State::WAITING_FOR_TEMPERATURE;
-        hold_active_ = false;
-        hold_us_ = 0U;
-        return;
-    }
-
-    // 温度稳定门控：带内极差超限就从当前温度重新计时
-    if (!hold_active_)
-    {
-        hold_active_ = true;
-        hold_us_ = 0U;
-        hold_minimum_ = temperature_celsius;
-        hold_maximum_ = temperature_celsius;
     }
     else
     {
-        hold_minimum_ = std::min(hold_minimum_, temperature_celsius);
-        hold_maximum_ = std::max(hold_maximum_, temperature_celsius);
-    }
-    hold_us_ += delta_us;
-    if (hold_maximum_ - hold_minimum_ > config_.temperature_stability_celsius)
-    {
-        hold_minimum_ = temperature_celsius;
-        hold_maximum_ = temperature_celsius;
-        hold_us_ = 0U;
-    }
-
-    if (state_ == State::WAITING_FOR_TEMPERATURE)
-    {
-        if (hold_us_ < config_.temperature_settle_us)
+        // 温度门控：离开容差就清空窗口与稳定保持
+        const bool temperature_ready =
+            std::isfinite(temperature_celsius) &&
+            std::fabs(temperature_celsius - config_.target_celsius) <= config_.temperature_tolerance_celsius;
+        if (!temperature_ready)
         {
-            return; // 温度还没稳定够久
+            if (state_ != State::WAITING_FOR_TEMPERATURE || count_ != 0U)
+            {
+                restart_window();
+            }
+            state_ = State::WAITING_FOR_TEMPERATURE;
+            hold_active_ = false;
+            hold_us_ = 0U;
+            return;
         }
-        state_ = State::SAMPLING;
-        restart_window();
+
+        // 温度稳定门控：带内极差超限就从当前温度重新计时
+        if (!hold_active_)
+        {
+            hold_active_ = true;
+            hold_us_ = 0U;
+            hold_minimum_ = temperature_celsius;
+            hold_maximum_ = temperature_celsius;
+        }
+        else
+        {
+            hold_minimum_ = std::min(hold_minimum_, temperature_celsius);
+            hold_maximum_ = std::max(hold_maximum_, temperature_celsius);
+        }
+        hold_us_ += delta_us;
+        if (hold_maximum_ - hold_minimum_ > config_.temperature_stability_celsius)
+        {
+            hold_minimum_ = temperature_celsius;
+            hold_maximum_ = temperature_celsius;
+            hold_us_ = 0U;
+        }
+
+        if (state_ == State::WAITING_FOR_TEMPERATURE)
+        {
+            if (hold_us_ < config_.temperature_settle_us)
+            {
+                return; // 温度还没稳定够久
+            }
+            state_ = State::SAMPLING;
+            restart_window();
+        }
     }
 
     // 采样预算跨窗口累计：窗口因运动重启不重置；温度出带后暂停增长但保留已用额度

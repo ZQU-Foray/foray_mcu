@@ -21,7 +21,8 @@ inline constexpr device::Bmi088Heater::Config HEATER{control::HeaterControl::Mod
 // - 安装方向：云台系 x 沿枪管 / 相机光轴向前、y 向左、z 向上。板子跟着 pitch 转，但水平转了 90°，
 //   BMI088 的 x 指向云台左、y 指向后、z 朝上（2026-11-06 实测），所以云台系 x = −y、y = x、z = z；
 //   与 infantry_dm_mc02 相同，装法变了两处一起改（estimate::AxisMapping：云台系每个轴取传感器的哪个轴、什么符号）；
-// - 零偏标定：恒温稳定 20 s、静止窗口 5 s、累计 20 s 没有合格窗口就放弃（旧板实测参数）；
+// - 零偏分两段：上电先用 power_on_calibration 的 0.5 s 静止窗口（不等温度，约 1 s 内进 READY），
+//   精确标定在恒温稳定 20 s、静止窗口 5 s，累计 20 s 没有合格窗口就放弃（旧板实测参数），后台完成；
 // - 标定结果交给 VQF 时**不重置协方差**（0）：保留 VQF 的静止零偏更新，让它继续跟踪残余/温度漂移；
 // - VQF 静止门限按 2026-11-03 本板实测：60 s 静止三轴偏差 norm RMS 6.2 °/s、最大 19.3 °/s。
 //   默认 2 °/s 时有 95.4% 的样本超门限，rest 永不触发；0.35 rad/s（20.1 °/s）覆盖实测最大值，
@@ -32,6 +33,7 @@ inline constexpr imu::Imu::Parameters IMU{
     1000U,
     50.0F,
     estimate::GyroBiasCalibration::Config{},
+    imu::power_on_calibration(),
     0.0F,
     0.35F,
     0.05F,

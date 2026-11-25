@@ -2516,6 +2516,55 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 
 ---
 
+## Decision-20261125-02（IMU 上电快速 READY：短静止窗口先出力，精确标定转后台，Proposed）
+
+- **Date**：2026-11-25
+- **Status**：**Proposed**（2026-11-25：宿主测试 92/92、三个 profile 构建通过；上板计时待做）
+- **Source**：负责人 2026-11-24"肯定是越快越好"、"能接受前几十秒在临时零偏下工作"；2026-11-25 选择先写代码、上板验证随后
+- **影响范围**：`src/lib/estimate/gyro_bias_calibration.{hpp,cpp}`、`app/imu/imu.{hpp,cpp}`、`app/topics/imu.hpp` 与 `app/gimbal/gimbal.hpp` 的注释、两个 profile 的 `IMU` 参数、`docs/ai/guide/{上位机接入现状,云台上板调参清单}.md`
+
+**Context**：
+
+- 冷启动约 42 s 才进 READY，拆开是：加热 39.5 → 50 ℃ 约 15 s、温度稳定门槛 20 s、静止窗口 5 s、其余约 2 s；热复位也要 20 + 5 s。云台只在 `SETTLING` 时禁止出力（`Gimbal::stop_reason` 的 `IMU_SETTLING`）。
+- 20 s 稳定门槛是给旧 PI 加热器定的（过冲 6.9 ℃）；现在的加热器只过冲 0.125 ℃，它要防的升温瞬态零偏偏差只有 0.008 °/s。
+- 长期精度不靠上电标定：READY 之后只要静止，VQF 一直在修零偏，2026-11-03 实测静止 5 min 漂 −0.01 °/min。
+- 隐患：标定超时预算只在 `SAMPLING` 累加，温度门控不过时永远停在 `WAITING_FOR_TEMPERATURE`。不接 24 V 或加热器坏了，IMU 永远不 READY、云台永远不出力。
+
+**Decision**：
+
+1. `estimate::GyroBiasCalibration::Config` 增加 `temperature_gated`（默认 `true`）。为 `false` 时跳过温度门控与温度稳定门控，第一个样本就进采样；窗口、静止门控、超时预算照旧。
+2. `imu::Imu` 同时跑两个估计器：
+   - `quick_calibration`（默认 `imu::power_on_calibration()`：无温度门控、0.5 s 窗口、1 s 超时）决定什么时候进 READY；
+   - `calibration`（原参数：50 ℃ 恒温稳定 20 s、5 s 窗口、累计 20 s 超时）转到后台。
+3. READY / DEGRADED 由快窗口决定：完成后把零偏交给 VQF、在那一刻取世界系 yaw 零点、进 READY；1 s 还拿不到（上电时在动）就按零偏 0 进 DEGRADED。**状态一旦定下，整个上电周期不再变化。**
+4. 精确标定完成时只调 `set_bias_estimate`（沿用"不重置协方差"的参数），**不重取 yaw 零点、不改状态**：正在保持的云台和 PC 的世界系目标都不会跳。
+5. `Report` 增加 `quick_calibration`、`bias_source`（NONE/QUICK/PRECISE）、`precise_applied`；`calibrated_bias_rad_per_sec` 先是快窗口结果、精确完成后被覆盖。
+6. 静止门控阈值沿用旧板实测：均值 0.05 rad/s、极差 1.0 rad/s、加速度模长 0.5 m/s²。
+
+**Reason**：
+
+- 停在上电温度的 0.5 s 静止均值误差约 0.1 °/s 量级（单样本噪声约 4 °/s，2000 个样本平均），够云台先动；精确值随后补上。
+- 把 READY 与"标定完"解耦，25 s 的稳定门槛与窗口从关键路径上消失，冷启动与热复位都进 1 s 量级。
+- 快窗口不等温度，顺带修掉"加热器坏了永远 SETTLING"的隐患。
+- 精确标定不重取 yaw 零点，是因为零点是世界系目标与云台保持的共同基准；在云台出力后重取会让两边一起跳。
+
+**Alternatives / Rejected**：
+
+- **只缩短稳定门槛与静止窗口（2026-11-24 的方案）**：冷启动仍要 15–20 s、热复位 5 s 量级，且要等零偏-温度数据才能定参数。保留为后续调参，不作为第一步。
+- **传感器一就绪就用零偏 0 进 READY**：能再快 0.3 s，但零偏 0 时 yaw 以约 0.018 rad/s 漂，yaw 零点与 PC 目标的质量明显变差；0.5 s 窗口的代价只有 0.3 s。
+- **DEGRADED 之后精确标定完成时升为 READY**：协议的 READY 是上位机"作废世界系目标"的时刻，而 yaw 零点已在 DEGRADED 取过；升级会让上位机白作废一次，语义也乱。否决。
+- **在 `app/imu` 另写一个静止窗口平均器**：与 lib 里的累加、极差、均值门控重复。否决（改成一个配置项）。
+
+**实现与验证（2026-11-25，第 2 步）**：
+
+- 宿主 `ctest` 92/92（原 91，新增 `imu_heater`；`gyro_bias_calibration` 加无温度门控用例）：`imu_ready` 在 0.5 s 进 READY、精确标定约 2 s 后完成且 `yaw_zero_rad` 不变、`imu_degraded` 在 1 s 超时进 DEGRADED、`imu_heater` 在 42 ℃ 下 10 s 仍是 READY 且精确标定停在等温度。
+- 三个 profile 的 Debug 固件构建通过、无告警；infantry FLASH 284,200 → 284,944 B。
+- 上板：冷启动 / 热复位 / 断电重启的 READY 计时、快窗口零偏与精确零偏的差、拔掉 24 V 的场景——待探针/桥接可用后补。
+
+**回退**：revert 本提交：删掉 `temperature_gated` 与快速零偏，`Imu::step` 恢复"精确标定完成才 READY"；profile 与 `Report` 同步回退。
+
+---
+
 ## 待登记
 
 - 分支保护的具体设置（组织规范 §6.1、§10，负责人在 GitHub 上操作后补记）。

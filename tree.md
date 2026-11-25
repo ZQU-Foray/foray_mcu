@@ -31,7 +31,7 @@ foray_mcu/
 ├── app/                      产品（include 根：#include "topics/bringup.hpp"）；固件与宿主构建都加入
 │   ├── CMakeLists.txt        产品的全部 target：app_topics、app_actuator、app_imu、app_pc_link、app_gimbal、app_remote、app_command、app_bringup、app_common（只在固件构建中）
 │   ├── topics/               topic 清单：bringup.hpp（heartbeat、imu_event、imu、sbus）、safety.hpp（stop）、imu.hpp（event、attitude）、pc_link.hpp（control）、operator_input.hpp（共用的操作输入类型）、remote.hpp（input）、command.hpp（gimbal）、gimbal.hpp（state）、all.hpp（topics::ALL）；约定见 README.md
-│   ├── imu/                  IMU 能力 Imu：云台姿态 imu.attitude、上电零偏标定、yaw 归零（Decision-20261103-01）
+│   ├── imu/                  IMU 能力 Imu：云台姿态 imu.attitude、上电快速零偏（0.5 s）与后台精确标定、yaw 归零（Decision-20261103-01、20261125-02）
 │   ├── pc_link/              上位机链路能力 PcLink：RoboLink v0.2 经 USB，姿态上传、控制快照只记账（Decision-20261103-01）
 │   ├── actuator/             安全门 SafetyGate：按 safety.stop 集中禁止关节出力（Decision-20261102-03）；PowerOutputs：板上可控 24 V 输出，从 bringup 移入（Decision-20261105-01）
 │   ├── gimbal/               云台能力 Gimbal：IMU 闭环双轴串级、力矩模式、DISABLED/ENABLING/HOLD/TRACK、安全门（Decision-20261105-01）；axis_loop.hpp 是单轴控制律；调试接口：录制与在线调参（Decision-20261106-01）

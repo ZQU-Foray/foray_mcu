@@ -15,7 +15,9 @@ namespace estimate
  * 累加改为 float（规则 14：没有双精度 FPU 的板也要能跑；1 万个样本的舍入误差约 4e-8 rad/s，远小于
  * 零偏估计本身约 7e-4 rad/s 的不确定度），门控与参数不变。
  *
- * - 温度门控：零偏随温度变化，恒温目标到位才开窗；温度离开容差就清空窗口重新计时。
+ * - 温度门控（`temperature_gated`，默认开）：零偏随温度变化，恒温目标到位才开窗；温度离开容差就清空窗口重新计时。
+ *   关掉时跳过温度门控与稳定门控，第一个样本就进采样：用于上电的快速零偏——此时温度还没甚至没读到，
+ *   但停在当前温度上的短窗口均值已经够云台先动起来，精确标定随后在后台做。
  * - 温度稳定门控：进带后还要把带内极差压在 temperature_stability_celsius 以内并保持 temperature_settle_us，
  *   升温、过冲瞬态里采到的零偏与稳态可差 0.008 °/s（约 0.5 °/min），是静态漂移的主项。
  * - 静止门控：加速度模长接近重力；窗口内任一轴的极差超限（被碰、振动）或部分均值超限（缓慢转动）都判为运动，
@@ -39,6 +41,8 @@ class GyroBiasCalibration final
     {
         float target_celsius{50.0F}; // 与加热目标相同
         float temperature_tolerance_celsius{0.5F};
+        // false：不做温度门控与温度稳定门控，第一个样本就进采样（上电快速零偏）
+        bool temperature_gated{true};
         // 温度稳定门控。旧板实测：温度量化步长 0.125 ℃，稳定平台的 20 s 滚动极差 0.125–0.25 ℃
         std::uint32_t temperature_settle_us{20000000U};
         float temperature_stability_celsius{0.25F};

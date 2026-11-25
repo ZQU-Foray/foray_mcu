@@ -26,7 +26,9 @@ bool Imu::init(const Config &config) noexcept
     }
     estimate::GyroBiasCalibration::Config calibration = config.parameters.calibration;
     calibration.target_celsius = config.parameters.heater_target_celsius; // 标定在恒温目标上做
-    if (!calibration_.init(calibration))
+    estimate::GyroBiasCalibration::Config quick = config.parameters.quick_calibration;
+    quick.target_celsius = config.parameters.heater_target_celsius; // 快速零偏不看温度，目标只保持一致
+    if (!calibration_.init(calibration) || !quick_calibration_.init(quick))
     {
         return false;
     }
@@ -68,6 +70,8 @@ bool Imu::init(const Config &config) noexcept
     has_temperature_ = false;
     has_new_gyro_ = false;
     has_published_ = false;
+    quick_applied_ = false;
+    precise_applied_ = false;
     return true;
 }
 
@@ -100,32 +104,44 @@ void Imu::step(hal::os::Microseconds now) noexcept
     report_.sensor_ready = imu.is_ready();
     report_.sensor_error = imu.get_state() == device::Bmi088::State::ERROR;
 
-    // 零偏标定的结果
+    // 上电快速零偏：短静止窗口，不等温度。它决定什么时候进 READY（云台从这一刻起才出力）
+    const estimate::GyroBiasCalibration::Snapshot quick = quick_calibration_.snapshot();
+    report_.quick_calibration = quick.state;
+    if (!quick_applied_ && report_.accel_samples > 0U)
+    {
+        if (quick.state == estimate::GyroBiasCalibration::State::COMPLETED)
+        {
+            apply_bias(quick.bias_rad_per_sec);
+            report_.calibrated_bias_rad_per_sec = quick.bias_rad_per_sec;
+            quick_applied_ = true;
+            report_.bias_source = BiasSource::QUICK;
+            settle(topics::imu::State::READY, now);
+        }
+        else if (quick.state == estimate::GyroBiasCalibration::State::TIMED_OUT)
+        {
+            // 上电时在动：按零偏 0 出力，VQF 的静止更新之后会自己收敛
+            quick_applied_ = true;
+            settle(topics::imu::State::DEGRADED, now);
+        }
+    }
+
+    // 后台精确标定：只改进 VQF 的零偏，不改状态、不重取 yaw 零点（正在保持的云台和 PC 的目标不会跳）
     const estimate::GyroBiasCalibration::Snapshot calibration = calibration_.snapshot();
     report_.calibration = calibration.state;
     report_.calibration_restarts = calibration.restarts;
     report_.calibration_sampling_us = calibration.sampling_us;
-    if (report_.state == topics::imu::State::SETTLING)
+    if (calibration.state == estimate::GyroBiasCalibration::State::COMPLETED && !precise_applied_)
     {
-        if (calibration.state == estimate::GyroBiasCalibration::State::COMPLETED)
+        apply_bias(calibration.bias_rad_per_sec);
+        report_.calibrated_bias_rad_per_sec = calibration.bias_rad_per_sec;
+        precise_applied_ = true;
+        report_.precise_applied = true;
+        if (!quick_applied_)
         {
-            // 旧 AttitudeEstimator 只写零偏、保留 VQF 协方差，让静止零偏更新继续跟踪；
-            // 传正的不确定度会重置协方差，实测会让静止更新变得很弱。
-            if (config_.parameters.calibrated_bias_uncertainty_rad_per_sec > 0.0F)
-            {
-                vqf_.set_bias_estimate(calibration.bias_rad_per_sec,
-                                       config_.parameters.calibrated_bias_uncertainty_rad_per_sec);
-            }
-            else
-            {
-                vqf_.set_bias_estimate(calibration.bias_rad_per_sec);
-            }
-            report_.calibrated_bias_rad_per_sec = calibration.bias_rad_per_sec;
+            // 精确标定比快速窗口还先出结果（参数极端时）：它来定 READY
+            quick_applied_ = true;
+            report_.bias_source = BiasSource::PRECISE;
             settle(topics::imu::State::READY, now);
-        }
-        else if (calibration.state == estimate::GyroBiasCalibration::State::TIMED_OUT)
-        {
-            settle(topics::imu::State::DEGRADED, now);
         }
     }
 
@@ -162,10 +178,9 @@ void Imu::handle_sample(const device::Bmi088SampleRecord &record, bool gyroscope
     const math::Vector3 vector{gimbal[0], gimbal[1], gimbal[2]};
     if (gyroscope)
     {
-        calibration_.process(vector,
-                             latest_accel_,
-                             has_temperature_ ? temperature_celsius_ : std::numeric_limits<float>::quiet_NaN(),
-                             record.drdy_us);
+        const float temperature = has_temperature_ ? temperature_celsius_ : std::numeric_limits<float>::quiet_NaN();
+        calibration_.process(vector, latest_accel_, temperature, record.drdy_us);
+        quick_calibration_.process(vector, latest_accel_, temperature, record.drdy_us);
         vqf_.update_gyroscope(vector);
         latest_gyro_ = vector;
         latest_gyro_us_ = record.drdy_us;
@@ -177,6 +192,20 @@ void Imu::handle_sample(const device::Bmi088SampleRecord &record, bool gyroscope
         vqf_.update_accelerometer(vector);
         latest_accel_ = vector;
         ++report_.accel_samples;
+    }
+}
+
+void Imu::apply_bias(const math::Vector3 &bias_rad_per_sec) noexcept
+{
+    // 旧 AttitudeEstimator 只写零偏、保留 VQF 协方差，让静止零偏更新继续跟踪；
+    // 传正的不确定度会重置协方差，实测会让静止更新变得很弱。
+    if (config_.parameters.calibrated_bias_uncertainty_rad_per_sec > 0.0F)
+    {
+        vqf_.set_bias_estimate(bias_rad_per_sec, config_.parameters.calibrated_bias_uncertainty_rad_per_sec);
+    }
+    else
+    {
+        vqf_.set_bias_estimate(bias_rad_per_sec);
     }
 }
 

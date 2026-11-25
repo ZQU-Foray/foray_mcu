@@ -17,12 +17,15 @@ inline constexpr device::Bmi088Heater::Config HEATER{control::HeaterControl::Mod
 
 // IMU 的安装方向：板子跟着 pitch 转，但水平转了 90°，BMI088 的 x 指向云台左、y 指向后、z 朝上
 // （2026-11-06 实测：低头时不改映射的话 IMU 报的是 roll）。云台系 x（枪管向前）= −y，y（向左）= x，z = z。
+// 零偏分两段：上电先用 power_on_calibration 的 0.5 s 静止窗口（不等温度，约 1 s 内进 READY，云台随即能出力），
+// 精确标定仍在 50 ℃ 恒温稳定后做（旧板实测参数），后台完成，不重取 yaw 零点。
 inline constexpr imu::Imu::Parameters IMU{
     device::Bmi088::Config{device::Bmi088Gyro::Bandwidth::ODR_2000_HZ_532_HZ},
     estimate::AxisMapping{{1U, 0U, 2U}, {-1, 1, 1}},
     1000U,
     50.0F,
     estimate::GyroBiasCalibration::Config{},
+    imu::power_on_calibration(),
     0.0F,
     0.35F,
     0.05F,

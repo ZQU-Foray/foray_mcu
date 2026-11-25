@@ -31,15 +31,16 @@ inline topic::Topic<Event> event{"imu.event"};
 /** 零偏标定的状态，取值与 RoboLink 的 imu_state 相同。 */
 enum class State : std::uint8_t
 {
-    SETTLING = 0U, // 恒温或零偏标定中：roll、pitch 可用，yaw 零偏未定
-    READY = 1U,    // 零偏已标定，yaw 零点已定
-    DEGRADED = 2U  // 标定超时（标定期间一直在动），按未标定运行
+    SETTLING = 0U, // 上电后还在取快速零偏（约 0.5 s）：roll、pitch 可用，yaw 零偏未定
+    READY = 1U,    // 已有零偏（上电快窗口），yaw 零点已定
+    DEGRADED = 2U  // 上电快窗口没拿到（上电时在动），按零偏 0 运行，后台继续标定
 };
 
 /**
  * 云台姿态。坐标系：
  * - 云台系：x 沿枪管向前、y 向左、z 向上（安装方向在 profile 里）；
- * - 世界系：z 竖直向上；yaw 零点在 READY（或 DEGRADED）之前是上电时的朝向，进入时重新取当时的朝向。
+ * - 世界系：z 竖直向上；yaw 零点在 READY（或 DEGRADED）那一刻取，之后整个上电周期不再重取
+ *   （精确标定后来完成也不动它）。
  * yaw 左转为正、pitch 低头为正（四元数的 ZYX 分解）。
  */
 struct Attitude

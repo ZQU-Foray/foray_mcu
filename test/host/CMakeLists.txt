@@ -118,7 +118,7 @@ host_test(eso
 host_test(imu NO_TEST
     SOURCES unit/imu/imu_test.cpp
     LINK app_imu platform_mock)
-foreach(scenario ready degraded reject)
+foreach(scenario ready degraded heater reject)
     add_test(NAME imu_${scenario} COMMAND test_imu ${scenario})
 endforeach()
 # 上位机链路能力：USB 替身扮演主机。

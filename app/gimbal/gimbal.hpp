@@ -58,7 +58,7 @@ class Gimbal final
     {
         NONE = 0U,
         IMU_INVALID = 1U,       // 还没有姿态，或姿态解算无效
-        IMU_SETTLING = 2U,      // 零偏标定中（yaw 零点未定）
+        IMU_SETTLING = 2U,      // 上电取零偏中（约 0.5 s，yaw 零点未定）
         IMU_STALE = 3U,         // 姿态超过 attitude_timeout_us 没更新
         JOINT_UNAVAILABLE = 4U, // 关节不可用：安全门锁住、驱动没就绪
         JOINT_FAULT = 5U,       // 关节报故障

@@ -1,10 +1,11 @@
 // imu::Imu 在 platform/mock 上：BMI088 由 SPI 替身的应答函数扮演，
 // 数据就绪中断由 GPIO 替身以 2 kHz（陀螺）/ 400 Hz（加速度计）触发，温度 50 ℃。
 // 每个 topic 只能有一个发布者，场景按参数分进程运行：
-//   ready    静止：SETTLING → 零偏标定完成 → READY；发布的角速度扣掉零偏，yaw 重新归零后保持在 0 附近；
-//            安装方向把传感器 z 轴换到云台 x 轴
-//   degraded 一直在转：标定超时 → DEGRADED，yaw 零点同样重取
-//   reject   参数检查：没有加热器、安装方向无效、发布间隔为 0
+//   ready    静止：0.5 s 快速零偏 → READY（不等恒温），精确标定随后在后台完成、只换零偏；
+//            发布的角速度扣掉零偏，yaw 归零后保持在 0 附近；安装方向把传感器 z 轴换到云台 x 轴
+//   degraded 一直在转：快速窗口超时 → DEGRADED，yaw 零点同样在这一刻取
+//   heater   温度到不了目标（加热器坏 / 没接 24 V）：仍用快速零偏进 READY，精确标定一直等温度
+//   reject   参数检查：没有加热器、安装方向无效、发布间隔为 0、快速窗口为 0
 #include "imu/imu.hpp"
 #include "mock_hal.hpp"
 #include "mock_os.hpp"
@@ -99,9 +100,11 @@ imu::Imu::Parameters fast_parameters(const estimate::AxisMapping &mounting)
     parameters.mounting = mounting;
     parameters.publish_period_us = 1000U;
     parameters.heater_target_celsius = 50.0F;
-    parameters.calibration.temperature_settle_us = 300000U; // 测试缩短：0.3 s 稳定、0.5 s 窗口、1.5 s 超时
-    parameters.calibration.window_us = 500000U;
-    parameters.calibration.timeout_us = 1500000U;
+    // 精确标定：1 s 稳定、1 s 窗口、4 s 超时（大约 2 s 后才完成，肯定晚于 0.5 s 的快速窗口）
+    parameters.calibration.temperature_settle_us = 1000000U;
+    parameters.calibration.window_us = 1000000U;
+    parameters.calibration.timeout_us = 4000000U;
+    // 快速零偏用默认值：不等温度，0.5 s 窗口、1 s 超时
     parameters.calibrated_bias_uncertainty_rad_per_sec = 0.001F;
     return parameters;
 }
@@ -186,26 +189,29 @@ int scenario_ready()
     // 零偏：z 轴 +17 LSB（约 0.018 rad/s，1.04 °/s），x 轴 -8 LSB
     const float bias_z = 17.0F * GYRO_LSB_RAD;
     const float bias_x = -8.0F * GYRO_LSB_RAD;
+    const hal::os::Microseconds first_sample = hal::os::now_us();
     set_gyro(-8, 0, 17);
+
+    // 前 0.2 s 还在快速窗口里：SETTLING，VQF 还没拿到零偏，yaw 随零偏漂移
     run(capability, 200000U, [](std::uint32_t) {});
     topics::imu::Attitude attitude{};
     assert(attitude_topic.update(attitude));
     assert(attitude.state == topics::imu::State::SETTLING && attitude.valid);
     assert(capability.report().state == topics::imu::State::SETTLING);
-    // SETTLING 时 VQF 还没拿到标定的零偏，yaw 随零偏漂移
-    run(capability, 400000U, [](std::uint32_t) {});
-    assert(attitude_topic.update(attitude));
-    assert(attitude.state == topics::imu::State::SETTLING);
-    const float drift_before = yaw_of(attitude);
-    assert(drift_before > 0.003F); // 0.6 s × 0.018 rad/s 的量级（VQF 的静止零偏估计会吃掉一部分）
+    assert(std::fabs(yaw_of(attitude)) > 0.001F);
 
-    // 0.3 s 稳定 + 0.5 s 窗口之后 READY
+    // 0.5 s 静止窗口（不等温度）之后 READY；精确标定还在后台，没有完成
     run(capability, 400000U, [](std::uint32_t) {});
     assert(capability.report().state == topics::imu::State::READY);
-    assert(capability.report().calibration == estimate::GyroBiasCalibration::State::COMPLETED);
+    assert(capability.report().bias_source == imu::Imu::BiasSource::QUICK);
+    assert(capability.report().quick_calibration == estimate::GyroBiasCalibration::State::COMPLETED);
+    assert(capability.report().calibration != estimate::GyroBiasCalibration::State::COMPLETED);
     const math::Vector3 calibrated = capability.report().calibrated_bias_rad_per_sec;
     assert(std::fabs(calibrated.z - bias_z) < 1e-4F && std::fabs(calibrated.x - bias_x) < 1e-4F);
-    assert(capability.report().yaw_zero_rad > 0.003F && capability.report().settled_us != 0U);
+    const float yaw_zero = capability.report().yaw_zero_rad;
+    assert(std::fabs(yaw_zero) > 0.001F && capability.report().settled_us != 0U);
+    // 从第一个样本到 READY 不超过 0.7 s（快速窗口 0.5 s）
+    assert(capability.report().settled_us - first_sample <= 700000U);
 
     // READY 之后：角速度扣掉零偏接近 0；yaw 归零，并且不再漂
     run(capability, 50000U, [](std::uint32_t) {});
@@ -213,9 +219,11 @@ int scenario_ready()
     assert(attitude.state == topics::imu::State::READY && attitude.valid);
     assert(std::fabs(attitude.gyro_rad_per_sec[2]) < 2e-4F && std::fabs(attitude.gyro_rad_per_sec[0]) < 2e-4F);
     assert(std::fabs(yaw_of(attitude)) < 2e-3F);
-    run(capability, 2000000U, [](std::uint32_t) {});
+    run(capability, 2500000U, [](std::uint32_t) {});
     assert(attitude_topic.update(attitude));
     assert(std::fabs(yaw_of(attitude)) < 2e-3F); // 2 s 不漂
+
+    assert(std::fabs(yaw_of(attitude)) < 2e-3F); // 精确标定换零偏不改变已发布的姿态
 
     // 真的转起来：z 轴 +100 LSB（叠加零偏）转 0.5 s，yaw 向左增加约 0.5 × 100 × LSB
     set_gyro(-8, 0, 17 + 100);
@@ -248,7 +256,8 @@ int scenario_degraded()
     topic::Subscriber<topics::imu::Attitude> attitude_topic{topics::imu::attitude};
     bring_up(capability);
 
-    // 传感器 x 轴一直来回晃（±1.2 rad/s 交替，极差超过 1 rad/s）：标定窗口一直重启，1.5 s 后超时
+    // 传感器 x 轴一直来回晃（±1.2 rad/s 交替，极差超过 1 rad/s）：快速窗口一直重启，1 s 后超时
+    const hal::os::Microseconds first_sample = hal::os::now_us();
     run(capability,
         2500000U,
         [](std::uint32_t edge)
@@ -257,14 +266,51 @@ int scenario_degraded()
             set_gyro(edge % 2U == 0U ? swing : static_cast<std::int16_t>(-swing), 0, 0);
         });
     assert(capability.report().state == topics::imu::State::DEGRADED);
-    assert(capability.report().calibration == estimate::GyroBiasCalibration::State::TIMED_OUT);
-    assert(capability.report().calibration_restarts > 10U);
+    assert(capability.report().bias_source == imu::Imu::BiasSource::NONE);
+    assert(capability.report().quick_calibration == estimate::GyroBiasCalibration::State::TIMED_OUT);
+    assert(capability.report().calibrated_bias_rad_per_sec.x == 0.0F);
+    // 1 s 超时、最多再等一拍，就进 DEGRADED
+    assert(capability.report().settled_us - first_sample <= 1200000U);
     topics::imu::Attitude attitude{};
     assert(attitude_topic.update(attitude));
     assert(attitude.state == topics::imu::State::DEGRADED && attitude.valid);
     // 传感器 x 落到云台 -y：发布的角速度在 y 轴上
     assert(std::fabs(attitude.gyro_rad_per_sec[1]) > 1.0F && std::fabs(attitude.gyro_rad_per_sec[0]) < 0.05F);
     std::puts("imu degraded: 全部通过");
+    return 0;
+}
+
+int scenario_heater()
+{
+    setup_sensor();
+    // 温度 42 ℃：加热器到不了 50 ℃ 的目标，精确标定的温度门控永远不满足（加热器坏 / 没接 24 V）
+    g_registers[ACCEL][0x22] = 152; // 23 + 152 × 0.125 = 42 ℃
+    imu::Imu capability;
+    assert(capability.init(imu::Imu::Config{&g_sensor,
+                                            &g_heater,
+                                            hal::Gpio{ACCEL_PIN},
+                                            hal::Gpio{GYRO_PIN},
+                                            fast_parameters(estimate::IDENTITY_AXIS_MAPPING)}));
+    topic::Subscriber<topics::imu::Attitude> attitude_topic{topics::imu::attitude};
+    bring_up(capability);
+
+    const float bias_z = 17.0F * GYRO_LSB_RAD;
+    set_gyro(0, 0, 17);
+    // 不接恒温也能 READY：这正是原来会永远停在 SETTLING 的情形
+    run(capability, 800000U, [](std::uint32_t) {});
+    assert(capability.report().state == topics::imu::State::READY);
+    assert(capability.report().bias_source == imu::Imu::BiasSource::QUICK);
+    assert(std::fabs(capability.report().calibrated_bias_rad_per_sec.z - bias_z) < 1e-4F);
+    assert(capability.report().calibration == estimate::GyroBiasCalibration::State::WAITING_FOR_TEMPERATURE);
+    // 再跑 10 s：精确标定还停在等温度，但姿态一直可用、零偏照样扣
+    run(capability, 10000000U, [](std::uint32_t) {});
+    assert(capability.report().state == topics::imu::State::READY);
+    assert(capability.report().calibration == estimate::GyroBiasCalibration::State::WAITING_FOR_TEMPERATURE);
+    assert(!capability.report().precise_applied);
+    topics::imu::Attitude attitude{};
+    assert(attitude_topic.update(attitude) && attitude.state == topics::imu::State::READY && attitude.valid);
+    assert(std::fabs(attitude.gyro_rad_per_sec[2]) < 2e-4F);
+    std::puts("imu heater: 全部通过");
     return 0;
 }
 
@@ -286,6 +332,10 @@ int scenario_reject()
     parameters.calibration.window_us = 0U;
     assert(!capability.init(
         imu::Imu::Config{&g_sensor, &g_heater, hal::Gpio{ACCEL_PIN}, hal::Gpio{GYRO_PIN}, parameters}));
+    parameters = fast_parameters(estimate::IDENTITY_AXIS_MAPPING);
+    parameters.quick_calibration.window_us = 0U;
+    assert(!capability.init(
+        imu::Imu::Config{&g_sensor, &g_heater, hal::Gpio{ACCEL_PIN}, hal::Gpio{GYRO_PIN}, parameters}));
     std::puts("imu reject: 全部通过");
     return 0;
 }
@@ -302,10 +352,14 @@ int main(int argc, char **argv)
     {
         return scenario_degraded();
     }
+    if (argc == 2 && std::strcmp(argv[1], "heater") == 0)
+    {
+        return scenario_heater();
+    }
     if (argc == 2 && std::strcmp(argv[1], "reject") == 0)
     {
         return scenario_reject();
     }
-    std::fprintf(stderr, "用法：%s ready|degraded|reject\n", argv[0]);
+    std::fprintf(stderr, "用法：%s ready|degraded|heater|reject\n", argv[0]);
     return 2;
 }

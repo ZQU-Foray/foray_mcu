@@ -1,5 +1,6 @@
 // estimate::GyroBiasCalibration：温度门控与稳定门控、静止窗口、
-// 被碰、缓慢转动、加速度模长、超时预算跨窗口累计、温度出带暂停预算、时间戳回绕、终态不变、参数检查。
+// 被碰、缓慢转动、加速度模长、超时预算跨窗口累计、温度出带暂停预算、时间戳回绕、终态不变、参数检查、
+// 关掉温度门控后的快速零偏（第一个样本就开窗、温度未知也能出结果）。
 #include "lib/estimate/gyro_bias_calibration.hpp"
 
 #include <cassert>
@@ -173,6 +174,39 @@ void times_out_when_never_still()
     assert(calibration.state() == State::TIMED_OUT); // 终态
 }
 
+void ungated_window_ignores_temperature()
+{
+    GyroBiasCalibration calibration;
+    GyroBiasCalibration::Config config = fast_config();
+    config.temperature_gated = false;
+    config.temperature_settle_us = 0U;
+    config.window_us = 500000U;
+    config.timeout_us = 1000000U;
+    assert(calibration.init(config));
+    Feeder feeder{calibration, 0U};
+    const float unknown = std::numeric_limits<float>::quiet_NaN();
+    // 温度还没有（NaN）：第一个样本就进采样，不受温度门控与稳定门控影响
+    feeder.feed(490000U, BIAS, unknown);
+    assert(calibration.state() == State::SAMPLING);
+    assert(calibration.snapshot().temperature_hold_us == 0U);
+    feeder.feed(20000U, BIAS, unknown);
+    assert(calibration.state() == State::COMPLETED && calibration.is_bias_valid());
+    const math::Vector3 bias = calibration.bias_rad_per_sec();
+    assert(std::fabs(bias.x - BIAS.x) < 0.02F && std::fabs(bias.z - BIAS.z) < 0.02F);
+
+    // 温度乱跳也不重启窗口；一直动时 1 s 超时
+    GyroBiasCalibration moving;
+    assert(moving.init(config));
+    Feeder fast{moving, 0U};
+    for (std::uint32_t step = 0U; step < 18U; ++step)
+    {
+        fast.feed(50000U, math::Vector3{0.0F, 0.0F, 0.2F}, step % 2U == 0U ? 40.0F : 55.0F);
+    }
+    assert(moving.state() == State::SAMPLING); // 温度不影响，预算还剩
+    fast.feed(200000U, math::Vector3{0.0F, 0.0F, 0.2F}, 55.0F);
+    assert(moving.state() == State::TIMED_OUT && !moving.is_bias_valid());
+}
+
 void rejects_bad_config_and_resets()
 {
     GyroBiasCalibration calibration;
@@ -203,6 +237,7 @@ int main()
     temperature_must_hold_still();
     motion_restarts_the_window();
     times_out_when_never_still();
+    ungated_window_ignores_temperature();
     rejects_bad_config_and_resets();
     return 0;
 }
