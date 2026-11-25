@@ -55,26 +55,26 @@ class BiasStore final
     /** 来自 profile 的参数。 */
     struct Config
     {
-        std::size_t maximum_records{8U};      // 内存里保留的最新记录数，1–MAXIMUM_POINTS
-        float temperature_span_celsius{0.5F}; // 观测温度范围小于它时按常数
-        float extrapolation_celsius{3.0F};    // 直线最多外推到观测范围外多少度
+        std::size_t maximum_records{8U};                   // 内存里保留的最新记录数，1–MAXIMUM_POINTS
+        float temperature_span_celsius{0.5F};              // 观测温度范围小于它时按常数
+        float extrapolation_celsius{3.0F};                 // 直线最多外推到观测范围外多少度
         float maximum_slope_rad_per_sec_per_celsius{0.1F}; // 超过它认为拟合不可信，退回常数
-        float minimum_temperature_celsius{-20.0F};          // 记录的温度必须在范围内
+        float minimum_temperature_celsius{-20.0F};         // 记录的温度必须在范围内
         float maximum_temperature_celsius{80.0F};
     };
 
     /** 统计与诊断，调试器可读。 */
     struct Snapshot
     {
-        bool available;             // NVS 能读写（参数、区大小、粒度都对）
-        bool has_bias;              // 至少有一条有效记录
-        bool fit_is_line;           // 当前模型是直线（否则是常数）
-        std::size_t records;        // 内存里保留的有效记录数
-        std::size_t written;        // 本次上电写进去的记录数
-        std::size_t compactions;    // 本次上电做的整区压缩次数（0 或 1）
-        std::size_t append_slot;    // 下一条写到第几个 32 B 槽
-        std::size_t capacity;       // 这一区能放多少条记录
-        std::uint32_t sequence;     // 下一条记录的序号
+        bool available;          // NVS 能读写（参数、区大小、粒度都对）
+        bool has_bias;           // 至少有一条有效记录
+        bool fit_is_line;        // 当前模型是直线（否则是常数）
+        std::size_t records;     // 内存里保留的有效记录数
+        std::size_t written;     // 本次上电写进去的记录数
+        std::size_t compactions; // 本次上电做的整区压缩次数（0 或 1）
+        std::size_t append_slot; // 下一条写到第几个 32 B 槽
+        std::size_t capacity;    // 这一区能放多少条记录
+        std::uint32_t sequence;  // 下一条记录的序号
         float newest_temperature_celsius;
         math::Vector3 newest_bias_rad_per_sec;
         math::Vector3 slope_rad_per_sec_per_celsius; // 直线模型的斜率（常数模型为 0）
@@ -117,9 +117,8 @@ class BiasStore final
      * @param window_us 窗口长度，作为拟合权重（0 按 1 计）
      * @return 设备不可用、区满（等下次启动压缩）或写入失败时返回 false，内存里的模型不变。
      */
-    [[nodiscard]] bool record(float temperature_celsius,
-                              const math::Vector3 &bias_rad_per_sec,
-                              std::uint32_t window_us) noexcept;
+    [[nodiscard]] bool
+    record(float temperature_celsius, const math::Vector3 &bias_rad_per_sec, std::uint32_t window_us) noexcept;
 
     [[nodiscard]] const Snapshot &snapshot() const noexcept
     {

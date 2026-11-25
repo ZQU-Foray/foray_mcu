@@ -20,7 +20,8 @@ constexpr std::size_t MAXIMUM_STRIDE{256U};
 
 std::uint16_t get_u16(const std::uint8_t *bytes) noexcept
 {
-    return static_cast<std::uint16_t>(bytes[0]) | static_cast<std::uint16_t>(static_cast<std::uint16_t>(bytes[1]) << 8U);
+    return static_cast<std::uint16_t>(bytes[0]) |
+           static_cast<std::uint16_t>(static_cast<std::uint16_t>(bytes[1]) << 8U);
 }
 
 std::uint32_t get_u32(const std::uint8_t *bytes) noexcept
@@ -70,8 +71,8 @@ bool BiasStore::config_valid(const Config &config) const noexcept
            std::isfinite(config.temperature_span_celsius) && config.temperature_span_celsius > 0.0F &&
            std::isfinite(config.extrapolation_celsius) && config.extrapolation_celsius >= 0.0F &&
            std::isfinite(config.maximum_slope_rad_per_sec_per_celsius) &&
-           config.maximum_slope_rad_per_sec_per_celsius > 0.0F &&
-           std::isfinite(config.minimum_temperature_celsius) && std::isfinite(config.maximum_temperature_celsius) &&
+           config.maximum_slope_rad_per_sec_per_celsius > 0.0F && std::isfinite(config.minimum_temperature_celsius) &&
+           std::isfinite(config.maximum_temperature_celsius) &&
            config.minimum_temperature_celsius < config.maximum_temperature_celsius;
 }
 
@@ -215,8 +216,7 @@ void BiasStore::fit() noexcept
                                  weighted.y + point.bias_rad_per_sec.y * weight,
                                  weighted.z + point.bias_rad_per_sec.z * weight};
     }
-    constant_bias_ = math::Vector3{
-        weighted.x / total_weight, weighted.y / total_weight, weighted.z / total_weight};
+    constant_bias_ = math::Vector3{weighted.x / total_weight, weighted.y / total_weight, weighted.z / total_weight};
     slope_ = math::Vector3{};
     snapshot_.fit_is_line = false;
     snapshot_.slope_rad_per_sec_per_celsius = math::Vector3{};
@@ -288,9 +288,8 @@ math::Vector3 BiasStore::bias_at(float temperature_celsius) const noexcept
     {
         return constant_bias_;
     }
-    return math::Vector3{slope_.x * query + constant_bias_.x,
-                         slope_.y * query + constant_bias_.y,
-                         slope_.z * query + constant_bias_.z};
+    return math::Vector3{
+        slope_.x * query + constant_bias_.x, slope_.y * query + constant_bias_.y, slope_.z * query + constant_bias_.z};
 }
 
 bool BiasStore::record(float temperature_celsius,

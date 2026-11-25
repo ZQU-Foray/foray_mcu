@@ -59,8 +59,7 @@ Nvs::Result Nvs::read(std::size_t offset, std::uint8_t *data, std::size_t length
     {
         return Result::NOT_READY;
     }
-    if (data == nullptr || length == 0U || offset > mock::nvs::REGION_SIZE ||
-        length > mock::nvs::REGION_SIZE - offset)
+    if (data == nullptr || length == 0U || offset > mock::nvs::REGION_SIZE || length > mock::nvs::REGION_SIZE - offset)
     {
         return Result::INVALID_ARGUMENT;
     }
@@ -80,8 +79,7 @@ Nvs::Result Nvs::write(std::size_t offset, const std::uint8_t *data, std::size_t
     {
         return Result::NOT_READY;
     }
-    if (data == nullptr || length == 0U || offset > mock::nvs::REGION_SIZE ||
-        length > mock::nvs::REGION_SIZE - offset)
+    if (data == nullptr || length == 0U || offset > mock::nvs::REGION_SIZE || length > mock::nvs::REGION_SIZE - offset)
     {
         return Result::INVALID_ARGUMENT;
     }

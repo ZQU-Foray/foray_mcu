@@ -50,8 +50,8 @@ bool device_read(void *context, std::size_t offset, std::uint8_t *data, std::siz
 bool device_write(void *context, std::size_t offset, const std::uint8_t *data, std::size_t length) noexcept
 {
     auto &device = *static_cast<FakeStorage *>(context);
-    if (device.fail_write || data == nullptr || length == 0U || offset > REGION_SIZE ||
-        length > REGION_SIZE - offset || (offset % GRANULARITY) != 0U || (length % GRANULARITY) != 0U)
+    if (device.fail_write || data == nullptr || length == 0U || offset > REGION_SIZE || length > REGION_SIZE - offset ||
+        (offset % GRANULARITY) != 0U || (length % GRANULARITY) != 0U)
     {
         return false;
     }
