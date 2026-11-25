@@ -22,16 +22,16 @@ foray_mcu/
 ├── src/                      框架（include 根：#include "hal/can.hpp"）
 │   ├── CMakeLists.txt        框架的全部 target：hal、hal_os、boot、utils_*、middleware_*、lib_*、driver_*（框架库带 -Wdouble-promotion）
 │   ├── README.md             迁移源 Libraries/README.md（正文为旧路径，F1 更新）
-│   ├── hal/                  硬件契约 v1（句柄类 can、gpio、pwm、spi、uart、usb_cdc，callback.hpp、init.hpp，F2 第 5 步）；os/ 为最小 OS 契约 v1（clock、critical_section、signal，F1）
+│   ├── hal/                  硬件契约（句柄类 can、gpio、nvs、pwm、spi、uart、usb_cdc，callback.hpp、init.hpp）；os/ 为最小 OS 契约（clock、critical_section、signal）。nvs 是块设备契约（Decision-20261125-03）
 │   ├── boot/                 boot.h：生成区唯一调用的启动入口（F2）
 │   ├── utils/                math、crc（F1 第 1 步由 lib 移入）、concurrency（spsc_queue、latest_value，F1 第 2 步）
 │   ├── middleware/           fsm（F1 第 1 步由 lib 移入）、topic（topic.hpp，F1 第 4 步）、robolink（上位机链路协议，阶段 A）
-│   ├── lib/                  control（pid、slope、heater_control、state_feedback）、estimate（vqf、四元数 EKF、零偏标定、eso）、filter、kinematics、component（目录名即命名空间名）
+│   ├── lib/                  control（pid、slope、heater_control、state_feedback）、estimate（vqf、四元数 EKF、零偏标定、bias_store、eso）、filter、kinematics、component（目录名即命名空间名）
 │   └── driver/               can_bus（CAN 总线分发）、motor（joint.hpp 关节；dji/、dm/ 品牌驱动与型号常量，Decision-20261102-03）、bmi088、buzzer、ws2812、protocol/{dji,dm,sbus}（构造时接收 hal 句柄，F2 第 5 步）
 ├── app/                      产品（include 根：#include "topics/bringup.hpp"）；固件与宿主构建都加入
 │   ├── CMakeLists.txt        产品的全部 target：app_topics、app_actuator、app_imu、app_pc_link、app_gimbal、app_remote、app_command、app_bringup、app_common（只在固件构建中）
 │   ├── topics/               topic 清单：bringup.hpp（heartbeat、imu_event、imu、sbus）、safety.hpp（stop）、imu.hpp（event、attitude）、pc_link.hpp（control）、operator_input.hpp（共用的操作输入类型）、remote.hpp（input）、command.hpp（gimbal）、gimbal.hpp（state）、all.hpp（topics::ALL）；约定见 README.md
-│   ├── imu/                  IMU 能力 Imu：云台姿态 imu.attitude、上电快速零偏（0.5 s）与后台精确标定、yaw 归零（Decision-20261103-01、20261125-02）
+│   ├── imu/                  IMU 能力 Imu：云台姿态 imu.attitude、上电快速零偏（0.5 s）与后台精确标定、Flash 零偏-温度记录、yaw 归零（Decision-20261103-01、20261125-02、20261125-03）
 │   ├── pc_link/              上位机链路能力 PcLink：RoboLink v0.2 经 USB，姿态上传、控制快照只记账（Decision-20261103-01）
 │   ├── actuator/             安全门 SafetyGate：按 safety.stop 集中禁止关节出力（Decision-20261102-03）；PowerOutputs：板上可控 24 V 输出，从 bringup 移入（Decision-20261105-01）
 │   ├── gimbal/               云台能力 Gimbal：IMU 闭环双轴串级、力矩模式、DISABLED/ENABLING/HOLD/TRACK、安全门（Decision-20261105-01）；axis_loop.hpp 是单轴控制律；调试接口：录制与在线调参（Decision-20261106-01）
@@ -47,14 +47,14 @@ foray_mcu/
 ├── platform/                 厂商 / 板两级（Decision-20261101-04）
 │   ├── st/dm_mc02/           DM-MC02：board.cmake（板标识 dm_mc02）+ CMakeLists.txt（mx_generated、rtos、usb、port、board、os_freertos）
 │   │   ├── cubemx/           CubeMX 生成物：Core、Drivers、Middlewares、USB_DEVICE、.ioc、启动文件、链接脚本（冻结）
-│   │   ├── port/             hal 与 hal/os 契约的 C++ 实现（每个外设一个 .cpp，F2 第 5 步）、port.hpp（外设初始化、中断通知）；os/ 是 hal/os 的实现（TIM2、BASEPRI、任务通知槽）；UsbCdc.h 被 USB 生成桩按名字 include（Q8 方案①：生成桩归板级实现）
-│   │   └── board/            board.hpp：物理资源句柄、外设个数、能力常量（只给组合根与 port，F2 第 5 步）；overlay.ld：自定义段 .axi_bss（Decision-20261106-02）
-│   ├── mock/                 platform_mock：hal 与 hal_os 的宿主替身（mock_hal.hpp、mock_os.hpp：注入输入、检查输出、测试推进时间）
+│   │   ├── port/             hal 与 hal/os 契约的 C++ 实现（每个外设一个 .cpp）、port.hpp（外设初始化、中断通知）；nvs.cpp 用最后一个 Flash 扇区（Decision-20261125-03）；os/ 是 hal/os 的实现（TIM2、BASEPRI、任务通知槽）；UsbCdc.h 被 USB 生成桩按名字 include（Q8 方案①：生成桩归板级实现）
+│   │   └── board/            board.hpp：物理资源句柄、外设个数、能力常量（只给组合根与 port）；overlay.ld：自定义段 .axi_bss 与"镜像不进 NVS 扇区"的链接期断言（Decision-20261106-02、20261125-03）
+│   ├── mock/                 platform_mock：hal 与 hal_os 的宿主替身（mock_hal.hpp、mock_os.hpp：注入输入、检查输出、测试推进时间；mock_nvs 是 2 × 4 KB 的假 Flash 区）
 │   └── host_sim/             hal 与 hal_os 的宿主真实实现（host-sim preset）：时基、递归锁临界区、条件变量信号；hal::UsbCdc 落在 PTY 上（Decision-20261113-01）
 ├── legacy/                   迁移源的 README 与既有架构图（源码已在 P2、P2.5 全部搬出）
 │   ├── .docs/images/         既有架构图
 │   └── README.md
-├── test/host/                宿主测试（由根工程 host-tests preset 引入，90 项 ctest；来源 fd1edbb 与 F1–F4 新增，见 test/host/README.md）
+├── test/host/                宿主测试（由根工程 host-tests preset 引入，96 项 ctest；来源 fd1edbb 与 F1–F4 新增，见 test/host/README.md）
 ├── test/host_sim/            宿主后端的联调测试（由 host-sim preset 引入）：自建 PTY 扮上位机，验握手、判活与断开（Decision-20261113-01）
 ├── test/framework/           框架独立构建用：template_check.cpp 显式实例化只有头文件的模板（F1，Decision-20261031-06）
 ├── test/data/imu/            真实 IMU 数据（原固件静态陀螺采集 ×2）

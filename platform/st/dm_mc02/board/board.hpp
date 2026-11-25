@@ -3,6 +3,7 @@
 
 #include "hal/can.hpp"
 #include "hal/gpio.hpp"
+#include "hal/nvs.hpp"
 #include "hal/pwm.hpp"
 #include "hal/spi.hpp"
 #include "hal/uart.hpp"
@@ -59,6 +60,11 @@ inline constexpr hal::Uart UART_SBUS{0U};
 // USART10：115200 bps 8N1，收发都可用。
 inline constexpr hal::Uart UART_10{1U};
 inline constexpr std::uint8_t UART_COUNT{2U};
+
+// ---- 非易失存储（port/nvs.cpp）：H723 的最后一个 Flash 扇区，0x080E0000 起 128 KB ----
+// 存零偏-温度记录（estimate::BiasStore）。程序镜像长不进这个扇区，由 board/overlay.ld 的链接期断言保证。
+inline constexpr hal::Nvs NVS_BIAS{0U};
+inline constexpr std::uint8_t NVS_COUNT{1U};
 
 // ---- USB CDC（port/usb_cdc.cpp）：USB OTG HS 接口上的虚拟串口 ----
 // 生成区在内核启动后的默认任务里初始化 USB（MX_USB_DEVICE_Init → UsbCdcPort_Init），之前 is_ready() 为 false。

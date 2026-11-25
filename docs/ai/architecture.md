@@ -156,7 +156,8 @@ foray_mcu/
   device::DjiMotor g_chassis_motors{board::CAN_1, device::DjiMotor::Profile::c620()};
   ```
 
-- **外设**：`hal::Gpio`、`hal::Pwm`、`hal::Can`、`hal::Spi`（设备 = 总线 + 片选）、`hal::Uart`、`hal::UsbCdc`。`Uart` 与 `UsbCdc` 的读写接口同形（`read`、`write`、`WriteResult`），处理字节流的代码可以对两者写成同一个模板。
+- **外设**：`hal::Gpio`、`hal::Pwm`、`hal::Can`、`hal::Spi`（设备 = 总线 + 片选）、`hal::Uart`、`hal::UsbCdc`、`hal::Nvs`。`Uart` 与 `UsbCdc` 的读写接口同形（`read`、`write`、`WriteResult`），处理字节流的代码可以对两者写成同一个模板。
+- **`hal::Nvs` 是块设备**（Decision-20261125-03）：一个句柄 = 一块可整区擦除的 Flash 区，语义不隐藏物理约束——`read()` 任意偏移不阻塞，`write()` 只能写在擦除态上、按 `write_granularity()` 对齐，`erase()` 是整区、任务里调用、会停 CPU。日志式记录（`estimate::BiasStore`）建在它上面；`src/lib` 不直接依赖 `hal`，记录层的存储后端是函数指针（`BiasStore::Storage`），由能力接到 `hal::Nvs`。
 - **单例用自由函数**：全板只有一份、不需要句柄的用自由函数：`hal::init()`、`hal::os::now_us()`。与 hal/os 的规律相同：多实例的用类（`Signal`），单例的用自由函数。
 - **句柄**：只含一个私有编号（`std::uint8_t`），`constexpr explicit` 构造，可以拷贝，驱动按值存进自己的成员或 `Config`。编号由 `board.hpp` 给出，是 port 外设表的下标；驱动与能力读不到也改不了。
 - **设备不进契约**：契约头不枚举"这台车有哪些设备"。`board.hpp` 给出物理资源句柄（`board::CAN_1`、`board::SPI_IMU_GYRO`）；整车用哪个资源、接哪个设备，由组合根注入驱动。
@@ -422,7 +423,7 @@ EXECUTABLE  firmware_<profile>
 - 生成区的其他变更只能通过重新生成，并先在 decision.md 登记。
 - 再生成可复现：CI 用 sha256 清单校验；有装 CubeMX 的 runner 时再加 regenerate-diff。
 - 板级 CMake 的再生成防护保留：USB OTG HS 内部 DMA 必须开启；USB port 必须含 PA11/PA12 复用配置。
-- 链接脚本：生成的 `.ld` 不改，自定义段放 `platform/<厂商>/<board>/board/overlay.ld`，作为第二个 `-T` 追加（Q9，Decision-20261106-02）；不用 `INSERT`（`INSERT` 会把它之前的全部链接脚本语句搬到目标段之后：overlay 排在生成脚本后面时，连生成脚本带 `.dma_buffer` 一起被搬走，目标段反而找不到；overlay 提前又因 `RAM_D1` 先引用后声明而告警），追加的 `SECTIONS` 按内存区域放置。现在只有 `st/dm_mc02` 一个 overlay：`.axi_bss`（大块静态缓冲，不给 DMA 用，`NOLOAD`、启动时不清零），自带 `ASSERT` 防止压到中断栈。
+- 链接脚本：生成的 `.ld` 不改，自定义段放 `platform/<厂商>/<board>/board/overlay.ld`，作为第二个 `-T` 追加（Q9，Decision-20261106-02）；不用 `INSERT`（`INSERT` 会把它之前的全部链接脚本语句搬到目标段之后：overlay 排在生成脚本后面时，连生成脚本带 `.dma_buffer` 一起被搬走，目标段反而找不到；overlay 提前又因 `RAM_D1` 先引用后声明而告警），追加的 `SECTIONS` 按内存区域放置。现在只有 `st/dm_mc02` 一个 overlay：`.axi_bss`（大块静态缓冲，不给 DMA 用，`NOLOAD`、启动时不清零），自带 `ASSERT` 防止压到中断栈；另有一条 `ASSERT` 保证程序镜像（`_sidata + SIZEOF(.data)`）不越过 `0x080E0000`——最后一个 Flash 扇区留给 `hal::Nvs`（Decision-20261125-03）。
 - vendor 生成头：`src/third_party/foray_interfaces/` 固定版本并记录 sha256，CI 校验，不手改（预留：RoboLink 没有生成器，见规则 11）。
 - 层级声明：`.foray-layer` 为 `layer: MCU`、`depends_on_layers: [X2]`，对 X2（`foray_interfaces`）只消费 vendor 的生成头。
 

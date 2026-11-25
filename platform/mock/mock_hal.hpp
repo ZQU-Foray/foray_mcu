@@ -3,6 +3,7 @@
 
 #include "hal/can.hpp"
 #include "hal/gpio.hpp"
+#include "hal/nvs.hpp"
 #include "hal/pwm.hpp"
 #include "hal/spi.hpp"
 #include "hal/uart.hpp"
@@ -83,6 +84,37 @@ void set_level(std::uint8_t pin, hal::Gpio::Level level) noexcept;
 bool trigger_interrupt(std::uint8_t pin) noexcept;
 
 } // namespace mock::gpio
+
+namespace mock::nvs
+{
+
+inline constexpr std::uint8_t REGION_COUNT{2U};
+/** 每个区的大小与最小写对齐：4 KB、32 B（128 条记录，测试里能很快写满、触发压缩）。 */
+inline constexpr std::size_t REGION_SIZE{4096U};
+inline constexpr std::size_t WRITE_GRANULARITY{32U};
+
+/** 两个区都恢复为：擦除态（0xFF）、可用、写/擦结果正常、计数清零。 */
+void reset() noexcept;
+void reset(std::uint8_t region) noexcept;
+
+/** 设置区是否可用；不可用时 read()/write()/erase() 返回 NOT_READY。 */
+void set_ready(std::uint8_t region, bool ready) noexcept;
+
+/** 强制 write()/erase() 的返回值（OK = 正常执行；NOT_ERASED 只影响写检查之前）。 */
+void set_write_result(std::uint8_t region, hal::Nvs::Result result) noexcept;
+void set_erase_result(std::uint8_t region, hal::Nvs::Result result) noexcept;
+
+[[nodiscard]] std::size_t write_count(std::uint8_t region) noexcept;
+[[nodiscard]] std::size_t erase_count(std::uint8_t region) noexcept;
+
+/** offset 起 length 字节是否都是 0xFF（越界返回 false）。 */
+[[nodiscard]] bool is_erased(std::uint8_t region, std::size_t offset, std::size_t length) noexcept;
+
+/** 直接改一个字节：模拟位翻转、写到一半掉电。 */
+void poke(std::uint8_t region, std::size_t offset, std::uint8_t value) noexcept;
+[[nodiscard]] std::uint8_t peek(std::uint8_t region, std::size_t offset) noexcept;
+
+} // namespace mock::nvs
 
 namespace mock::pwm
 {

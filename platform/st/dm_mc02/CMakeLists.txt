@@ -176,6 +176,7 @@ add_library(port_${BOARD_ID} OBJECT
     port/can.cpp
     port/gpio.cpp
     port/hal_init.cpp
+    port/nvs.cpp
     port/os/clock.cpp
     port/os/critical_section.cpp
     port/os/os.hpp

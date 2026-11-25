@@ -4,7 +4,9 @@
 #include "driver/bmi088/bmi088.hpp"
 #include "driver/bmi088/bmi088_heater.hpp"
 #include "hal/gpio.hpp"
+#include "hal/nvs.hpp"
 #include "hal/os/clock.hpp"
+#include "lib/estimate/bias_store.hpp"
 #include "lib/estimate/gyro_bias_calibration.hpp"
 #include "lib/estimate/imu_body_mapping.hpp"
 #include "lib/estimate/vqf.hpp"
@@ -41,8 +43,10 @@ constexpr estimate::GyroBiasCalibration::Config power_on_calibration() noexcept
  * - 任务（按 imu.event 触发，带约 1 ms 的超时让驱动初始化按时间推进）：
  *   1. 把事件交给驱动，收割样本，换到云台坐标系（安装方向在 profile）；
  *   2. VQF 解算姿态，加热器恒温；
- *   3. 上电零偏（power_on_calibration）：不等温度，0.5 s 静止窗口，拿到就把零偏交给 VQF 并进入 READY；
- *      1 s 还拿不到（上电时在动）就按未标定进入 DEGRADED。两种都在这一刻取世界系 yaw 零点，之后不再重取；
+ *   3. 上电零偏：Flash 里有上次的 (温度, 零偏) 记录时直接取 b(T) 进 READY（云台可能在动，不等窗口）；
+ *      否则用 power_on_calibration 的 0.5 s 静止窗口（不等温度），1 s 还拿不到就按未标定进入 DEGRADED。
+ *      三种都在这一刻取世界系 yaw 零点，之后不再重取。每条有效结果都追加进 Flash 记录（estimate::BiasStore），
+ *      下次上电就能用；温度-零偏的直线随记录增多自动学出来；
  *   4. 后台精确标定（calibration）：恒温到位并稳定后取 5 s 静止窗口，完成时只把零偏交给 VQF（改进之后的
  *      角速度与积分），不改状态、不重取 yaw 零点——正在保持的云台和 PC 的世界系目标不会跳。加热器坏或没接
  *      24 V 时它停在等温度，不影响 READY；
@@ -63,6 +67,8 @@ class Imu final
         estimate::GyroBiasCalibration::Config calibration;
         // 上电快速零偏（不等温度）；默认见 power_on_calibration()
         estimate::GyroBiasCalibration::Config quick_calibration{power_on_calibration()};
+        // 零偏-温度记录的参数（Flash 区由 Config::nvs 注入）
+        estimate::BiasStore::Config bias_store{};
         // > 0：把标定不确定度写进 VQF 零偏协方差；0：保留 VQF 现有协方差（旧 AttitudeEstimator 的行为）
         float calibrated_bias_uncertainty_rad_per_sec;
         // VQF 静止零偏更新（2026-11-03 本板实测）：静止三轴偏差 norm RMS 6.2 °/s、最大 19.3 °/s；
@@ -78,6 +84,7 @@ class Imu final
         device::Bmi088Heater *heater; // 精确标定与恒温要用；快窗口不依赖它，但恒温是长期精度的前提
         hal::Gpio accel_interrupt; // 加速度计数据就绪（外部中断）
         hal::Gpio gyro_interrupt;  // 陀螺仪数据就绪（外部中断）
+        hal::Nvs nvs; // 零偏-温度记录存这里；这块区不可用时只影响"复位后沿用标定"
         Parameters parameters;
     };
 
@@ -86,7 +93,8 @@ class Imu final
     {
         NONE = 0U,   // 上电快窗口没拿到（DEGRADED），零偏从 0 起
         QUICK = 1U,  // 上电快窗口给出的零偏（READY）
-        PRECISE = 2U // 精确标定比快窗口先出结果（参数极端时），由它定 READY
+        STORED = 2U, // Flash 里的零偏-温度记录给出的零偏（READY，不等窗口）
+        PRECISE = 3U // 精确标定比快窗口先出结果（参数极端时），由它定 READY
     };
 
     /** 统计与诊断，调试器可读（只有运行 step() 的任务写）。 */
@@ -102,6 +110,12 @@ class Imu final
         estimate::GyroBiasCalibration::State quick_calibration; // 上电快速零偏
         BiasSource bias_source;
         bool precise_applied;                          // 后台精确标定已完成并把零偏交给了 VQF
+        float bias_temperature_celsius;                // 上电零偏是在多少度上取的（DEGRADED 时为 0）
+        bool store_available;                          // Flash 记录能读写
+        bool store_has_bias;                           // 上电时 Flash 里有记录
+        std::size_t store_records;                     // 模型用到的记录条数
+        std::size_t store_written;                     // 本次上电写了几条
+        bool store_fit_is_line;                        // 模型是直线（否则是常数）
         std::uint32_t calibration_restarts;            // 标定窗口因运动、温度重启的次数
         hal::os::Microseconds calibration_sampling_us; // 累计处于采样状态的时间
         math::Vector3 calibrated_bias_rad_per_sec;     // 标定结果（DEGRADED 时为 0）
@@ -133,18 +147,34 @@ class Imu final
 
     void handle_sample(const device::Bmi088SampleRecord &record, bool gyroscope) noexcept;
     void apply_bias(const math::Vector3 &bias_rad_per_sec) noexcept;
+    void
+    store_result(float temperature_celsius, const math::Vector3 &bias_rad_per_sec, std::uint32_t window_us) noexcept;
+    void apply_stored_bias(float temperature_celsius) noexcept;
     void settle(topics::imu::State state, hal::os::Microseconds now) noexcept;
     [[nodiscard]] topics::imu::Attitude make_attitude(const estimate::Vqf::State &estimate) const noexcept;
 
-    Config config_{nullptr, nullptr, hal::Gpio{0U}, hal::Gpio{0U}, Parameters{}};
+    Config config_{nullptr, nullptr, hal::Gpio{0U}, hal::Gpio{0U}, hal::Nvs{0U}, Parameters{}};
     topic::Publisher<topics::imu::Event> event_publisher_{};
     topic::Subscriber<topics::imu::Event> event_{topics::imu::event};
     topic::Publisher<topics::imu::Attitude> attitude_publisher_{};
     estimate::Vqf vqf_{};
     estimate::GyroBiasCalibration calibration_{};
     estimate::GyroBiasCalibration quick_calibration_{};
-    bool quick_applied_{false};   // 上电零偏已经定过（READY 或 DEGRADED）
-    bool precise_applied_{false}; // 后台精确标定的结果已交给 VQF
+    estimate::BiasStore store_{};
+    bool quick_applied_{false};            // 上电零偏已经定过（READY 或 DEGRADED）
+    bool precise_applied_{false};          // 后台精确标定的结果已交给 VQF
+    bool temperature_bias_applied_{false}; // 第一条温度读数到了之后重算过 b(T)
+    bool window_bias_applied_{false}; // 快窗口或精确标定已经给过零偏（存储模型的修正不再覆盖它）
+
+    // 记录还没写出去（上电 0.5 s 时温度寄存器可能还没更新）：等温度到了再写，超过 3 s 就丢掉
+    struct PendingRecord
+    {
+        bool active{false};
+        math::Vector3 bias_rad_per_sec{};
+        std::uint32_t window_us{0U};
+        hal::os::Microseconds queued_us{0U};
+    };
+    PendingRecord pending_record_{};
 
     // 只在中断里读写：三个回调都在框架中断里，更新与取快照在临界区内
     topics::imu::Event interrupt_state_{};

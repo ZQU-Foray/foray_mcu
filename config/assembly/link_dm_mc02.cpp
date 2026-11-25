@@ -62,8 +62,12 @@ bool boot_init(void)
     return hal::init() &&
            g_power_outputs.init(actuator::PowerOutputs::Config{
                POWER_RAILS.data(), POWER_RAILS.size(), hal::Gpio::Level::HIGH, params::POWER_OUTPUTS}) &&
-           g_imu.init(imu::Imu::Config{
-               &g_bmi088, &g_heater, board::IMU_ACCEL_INTERRUPT, board::IMU_GYRO_INTERRUPT, params::IMU}) &&
+           g_imu.init(imu::Imu::Config{&g_bmi088,
+                                       &g_heater,
+                                       board::IMU_ACCEL_INTERRUPT,
+                                       board::IMU_GYRO_INTERRUPT,
+                                       board::NVS_BIAS,
+                                       params::IMU}) &&
            g_pc_link.init(params::PC_LINK) && g_runner.init();
 }
 

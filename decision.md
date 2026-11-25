@@ -2565,6 +2565,58 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 
 ---
 
+## Decision-20261125-03（零偏存储：`hal::Nvs` 契约与 DM-MC02 Flash 扇区、`estimate::BiasStore` 日志式记录，Proposed）
+
+- **Date**：2026-11-25
+- **Status**：**Proposed**（2026-11-25：宿主测试 96/96、三个 profile 构建通过、overlay 断言的负向验证通过；上板待做）
+- **Source**：负责人 2026-11-24"比赛中主控板会断电"、"肯定是越快越好"、"能接受前一段时间的临时零偏"；2026-11-25 开始实现
+- **影响范围**：新增 `src/hal/nvs.hpp`、`platform/st/dm_mc02/port/nvs.cpp`、`platform/mock/mock_nvs.cpp`、`src/lib/estimate/bias_store.{hpp,cpp}`；`app/imu`、`board.hpp`、两个 profile 与组合根、`platform/st/dm_mc02/board/overlay.ld`、`src/CMakeLists.txt`、`platform/mock/CMakeLists.txt`、`platform/st/dm_mc02/CMakeLists.txt`
+
+**Context**：
+
+- 上电快速零偏（Decision-20261125-02）解决"停着上电"的 1 s READY；但复位/复活时云台可能在动，0.5 s 静止窗口拿不到零偏（进 DEGRADED）。主控板在比赛里会断电，RAM 保持不住，所以上一次的标定必须落 Flash。
+- 协议文档一直有"复位后沿用标定、约 0.2 s READY"的约定，现在才有条件实现。
+- 零偏随温度变化：正常工作时传感器在 50 ℃（加热恒温），刚上电时可能在 40–47 ℃。存一条 (温度, 零偏) 只是常数模型；多存几次就能学出直线。
+
+**Decision**：
+
+1. **`hal::Nvs` 契约**（`src/hal/nvs.hpp`）：一个句柄 = 一块可整区擦除的 Flash 区，语义不隐藏物理约束——`read()` 任意偏移、任意长度、不阻塞；`write()` 只能写在擦除态上、偏移与长度按 `write_granularity()` 对齐；`erase()` 整区擦除、任务里调用、会停 CPU。方法都是 `const`（与 `hal::Pwm::set`、`hal::Can::send` 一致）。
+2. **DM-MC02 的实现**（`port/nvs.cpp`）：H723 的最后一个扇区 `0x080E0000–0x080FFFFF`（128 KB），写用 `HAL_FLASH_Program(FLASH_TYPEPROGRAM_FLASHWORD)`（32 B），擦除用 `HAL_FLASHEx_Erase(FLASH_SECTOR_7)`，电压范围 3（2.7–3.6 V）。`board.hpp` 给出 `board::NVS_BIAS{0}`。
+3. **链接期保证**：`board/overlay.ld` 加 `ASSERT(_sidata + SIZEOF(.data) <= 0x080E0000, "flash image overlaps the NVS sector")`。程序长进那个扇区在链接时报错，不是运行期踩坏记录。
+4. **`estimate::BiasStore`**：每条记录 32 B（正好一个 Flash word）——magic "VSNB"、版本、窗口长度（拟合权重）、序号、温度、三轴零偏、保留、CRC-16/MCRF4XX。追加写，区内的顺序就是时间顺序；扫描从 0 号槽开始，遇到擦除态停止，遇到坏记录也停止（后面的不再采用）。区满或中间有坏记录时**只在 `init()` 里压缩**（整区擦除 + 回写最新的 8 条）；运行期写不进去就返回 false，绝不擦除（擦一个扇区 CPU 停 1–2 s，会打乱 1 kHz 控制环）。4096 槽 ≈ 2000 次上电才压缩一次。
+5. **模型**：内存留最新 8 条。观测温度范围 < 0.5 ℃ 时按窗口长度加权平均（常数）；否则按窗口长度加权拟合直线，求值时温度夹在观测范围外最多 3 ℃；斜率超过 0.1 rad/s/℃ 视为不可信、退回常数。窗口长度作为权重（快窗口 500 ms、精确 5000 ms → 10:1）。
+6. **分层**：`BiasStore` 不依赖 `hal`（架构表的 `lib → lib, utils` 不允许这条边），存储后端是 `BiasStore::Storage`（5 个函数指针 + context），由 `app/imu` 接到 `hal::Nvs` 上。记录层的算法可以脱离 hal 单测。
+7. **`app/imu`**：`Config` 增加 `hal::Nvs nvs`、`Parameters` 增加 `estimate::BiasStore::Config bias_store`。上电时 `store_.init()`（必要时压缩）；有记录就在第一个样本后直接用 b(T₀) 进 READY（`bias_source = STORED`），第一条温度读数到了再按 b(T₀) 重算一次（姿态不跳，只改积分角速度）；快窗口与精确标定的结果都追加进记录；快窗口出结果时温度可能还没更新（寄存器 1.28 s 一次），这条记录最多等 3 s，等不到就丢掉。
+8. **写 Flash 的代价**：32 B 一次约几十 µs，每个上电最多写两条；压缩只在启动期（`boot_init()` 里，任务还没跑）。
+
+**Reason**：
+
+- 断电重启（比赛复活）时唯一能用的信息是 Flash 里的记录；这是"越快越好"在断电场景下的必要条件。
+- 记录格式 32 B 对齐 H7 的 Flash word，一次 `HAL_FLASH_Program` 写一条，不需要读改写；CRC 让写到一半掉电的记录被跳过而不是当成零偏用。
+- 区满时的压缩放在启动期，是因为擦除会让 CPU 停 1–2 s；运行期宁可这次不记录。
+- b(T) 的直线可以自学习：每次上电写一条（快窗口在 40–47 ℃）与一条（精确在 50 ℃），几次上电就覆盖工作温区，不需要专门做降温实验。
+
+**Alternatives / Rejected**：
+
+- **`lib_estimate` 直接依赖 `hal`**：`arch_check.py graph` 的 `lib: {lib, utils}` 不允许；加上这条边会把"算法层不碰硬件"的判据打开一个口子。否决（改成函数指针后端）。
+- **记录结构直接 memcpy 结构体**：依赖编译器布局与端序，换编译器/换板就可能读错。否决（逐字段按小端序列化）。
+- **运行期擦除压缩**：CPU 停 1–2 s，控制环会丢拍、IMU 可能溢出；比赛里更不能在出力的瞬间擦。否决。
+- **存 Backup SRAM / RTC 备份寄存器**：主控板整块断电，VBAT 也没有。否决。
+- **存到程序镜像所在扇区（免预留）**：擦除会连程序一起擦掉，而且要停 CPU 更久。否决。
+- **只存最新一条、不拟合温度**：冷启动与 50 ℃ 差 5–8 ℃，常数模型的误差不可控；拟合几乎不花代价。否决。
+
+**实现与验证（2026-11-25，第 3 步）**：
+
+- 宿主 `ctest` 96/96：新增 `hal_nvs`（对齐、擦除态、越界、可用性与强制失败）、`bias_store`（空区、常数/直线、外推夹紧、权重、斜率护栏、坏记录、区满压缩、擦到一半、跨实例持久化、参数与设备失败）、`imu_stored`（20 ms 内 READY、20 ms 内 `settled_us`）、`imu_stored_moving`（有记录时上电在动也立刻 READY）。
+- 三个 profile 的 Debug 固件构建通过、无告警；infantry FLASH 284,944 → 296,120 B。
+- overlay 断言做过负向验证：临时把边界改成 `0x08030000`，链接报 `flash image overlaps the NVS sector`；改回即恢复。
+- `format.py --check`、`naming.py --check`、`arch_check.py scan` 通过。
+- 上板：Flash 记录在重新烧录后是否还在、冷启动/断电重启的 READY 计时、b(T₀) 与精确值的差——待探针/桥接可用后补。
+
+**回退**：revert 本提交：删掉 `hal::Nvs`、port 与 mock、`BiasStore` 与 `Imu` 的接入、overlay 断言；Flash 最后一个扇区的内容不参与运行，回退后不用擦它。
+
+---
+
 ## 待登记
 
 - 分支保护的具体设置（组织规范 §6.1、§10，负责人在 GitHub 上操作后补记）。

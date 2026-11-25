@@ -3,12 +3,13 @@
 # Signal 用条件变量实现并检查误用。
 # 它是测试替身，不构成 src 对 platform 的依赖；只在宿主构建中加入，不得进入固件。
 # 也实现 hal 契约 v1 的外设：测试按编号注入输入、检查输出，接口在 mock_hal.hpp。
-# 契约 v1 的全部外设：can、gpio、pwm、spi、uart、usb_cdc。
+# 契约的全部外设：can、gpio、nvs、pwm、spi、uart、usb_cdc。
 find_package(Threads REQUIRED)
 add_library(platform_mock STATIC
     mock_can.cpp
     mock_gpio.cpp
     mock_hal.hpp
+    mock_nvs.cpp
     mock_os.cpp
     mock_os.hpp
     mock_pwm.cpp

@@ -72,6 +72,9 @@ host_test(hal_uart
 host_test(hal_usb_cdc
     SOURCES unit/hal/usb_cdc_test.cpp
     LINK platform_mock)
+host_test(hal_nvs
+    SOURCES unit/hal/nvs_test.cpp
+    LINK platform_mock)
 host_test(ws2812
     SOURCES unit/ws2812/ws2812_test.cpp
     LINK driver_ws2812 platform_mock)
@@ -110,6 +113,10 @@ host_test(state_feedback
 host_test(gyro_bias_calibration
     SOURCES unit/estimate/gyro_bias_calibration_test.cpp
     LINK lib_estimate)
+# 零偏-温度记录：存储后端用测试自己的假块设备（不经过 hal）。
+host_test(bias_store
+    SOURCES unit/estimate/bias_store_test.cpp
+    LINK lib_estimate)
 # 线性扩张状态观测器：增益对应的极点、收敛、b₀ 偏差、复位与断档、参数检查
 host_test(eso
     SOURCES unit/estimate/eso_test.cpp
@@ -118,7 +125,7 @@ host_test(eso
 host_test(imu NO_TEST
     SOURCES unit/imu/imu_test.cpp
     LINK app_imu platform_mock)
-foreach(scenario ready degraded heater reject)
+foreach(scenario ready degraded stored stored_moving heater reject)
     add_test(NAME imu_${scenario} COMMAND test_imu ${scenario})
 endforeach()
 # 上位机链路能力：USB 替身扮演主机。

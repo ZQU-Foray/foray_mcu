@@ -7,6 +7,7 @@
 //   heater   温度到不了目标（加热器坏 / 没接 24 V）：仍用快速零偏进 READY，精确标定一直等温度
 //   reject   参数检查：没有加热器、安装方向无效、发布间隔为 0、快速窗口为 0
 #include "imu/imu.hpp"
+#include "lib/estimate/bias_store.hpp"
 #include "mock_hal.hpp"
 #include "mock_os.hpp"
 #include "topics/imu.hpp"
@@ -28,6 +29,7 @@ constexpr std::uint8_t BUS{0U};
 constexpr std::uint8_t ACCEL_PIN{3U};
 constexpr std::uint8_t GYRO_PIN{4U};
 constexpr std::uint8_t HEATER{1U};
+constexpr std::uint8_t NVS_REGION{0U}; // mock 的零偏记录区
 constexpr float DEG{3.14159265F / 180.0F};
 constexpr float GYRO_LSB_RAD{2000.0F / 32768.0F * DEG}; // 量程 ±2000 °/s
 
@@ -78,6 +80,7 @@ void step_and_finish_transfers(imu::Imu &capability)
 void setup_sensor()
 {
     mock::reset();
+    mock::nvs::reset();
     mock::spi::reset();
     mock::gpio::reset();
     mock::pwm::reset();
@@ -91,6 +94,42 @@ void setup_sensor()
     put16(ACCEL, 0x14, 0);
     put16(ACCEL, 0x16, 10923);
     set_gyro(0, 0, 0);
+}
+
+// 记录层的存储后端：接到 mock 的 hal::Nvs 上（与能力里同一个适配方式）
+std::size_t nvs_size(void *context) noexcept
+{
+    return static_cast<const hal::Nvs *>(context)->size();
+}
+
+std::size_t nvs_granularity(void *context) noexcept
+{
+    return static_cast<const hal::Nvs *>(context)->write_granularity();
+}
+
+bool nvs_read(void *context, std::size_t offset, std::uint8_t *data, std::size_t length) noexcept
+{
+    return static_cast<const hal::Nvs *>(context)->read(offset, data, length) == hal::Nvs::Result::OK;
+}
+
+bool nvs_write(void *context, std::size_t offset, const std::uint8_t *data, std::size_t length) noexcept
+{
+    return static_cast<const hal::Nvs *>(context)->write(offset, data, length) == hal::Nvs::Result::OK;
+}
+
+bool nvs_erase(void *context) noexcept
+{
+    return static_cast<const hal::Nvs *>(context)->erase() == hal::Nvs::Result::OK;
+}
+
+// 模拟"上一次上电留下了一条记录"
+bool prefill_bias(float temperature_celsius, const math::Vector3 &bias_rad_per_sec)
+{
+    hal::Nvs nvs{NVS_REGION};
+    estimate::BiasStore store;
+    const estimate::BiasStore::Storage storage{&nvs, nvs_size, nvs_granularity, nvs_read, nvs_write, nvs_erase};
+    return store.init(storage, estimate::BiasStore::Config{}) &&
+           store.record(temperature_celsius, bias_rad_per_sec, 5000000U);
 }
 
 imu::Imu::Parameters fast_parameters(const estimate::AxisMapping &mounting)
@@ -182,6 +221,7 @@ int scenario_ready()
                                             &g_heater,
                                             hal::Gpio{ACCEL_PIN},
                                             hal::Gpio{GYRO_PIN},
+                                            hal::Nvs{NVS_REGION},
                                             fast_parameters(estimate::IDENTITY_AXIS_MAPPING)}));
     topic::Subscriber<topics::imu::Attitude> attitude_topic{topics::imu::attitude};
     bring_up(capability);
@@ -223,7 +263,16 @@ int scenario_ready()
     assert(attitude_topic.update(attitude));
     assert(std::fabs(yaw_of(attitude)) < 2e-3F); // 2 s 不漂
 
+    // 后台精确标定完成：只把零偏交给 VQF；状态、yaw 零点都不动（云台和 PC 的目标不会跳）
+    assert(capability.report().precise_applied);
+    assert(capability.report().calibration == estimate::GyroBiasCalibration::State::COMPLETED);
+    assert(capability.report().yaw_zero_rad == yaw_zero);
+    assert(capability.report().state == topics::imu::State::READY);
+    assert(std::fabs(capability.report().calibrated_bias_rad_per_sec.z - bias_z) < 1e-4F);
     assert(std::fabs(yaw_of(attitude)) < 2e-3F); // 精确标定换零偏不改变已发布的姿态
+    // 快窗口与精确标定各写了一条记录：Flash 里已经不是擦除态
+    assert(capability.report().store_available && capability.report().store_written >= 2U);
+    assert(!mock::nvs::is_erased(NVS_REGION, 0U, 1U));
 
     // 真的转起来：z 轴 +100 LSB（叠加零偏）转 0.5 s，yaw 向左增加约 0.5 × 100 × LSB
     set_gyro(-8, 0, 17 + 100);
@@ -251,8 +300,12 @@ int scenario_degraded()
     imu::Imu capability;
     // 安装方向：云台 x ← 传感器 y，云台 y ← 传感器 -x，云台 z ← 传感器 z（板子转了 90°）
     const estimate::AxisMapping rotated{{1U, 0U, 2U}, {1, -1, 1}};
-    assert(capability.init(
-        imu::Imu::Config{&g_sensor, &g_heater, hal::Gpio{ACCEL_PIN}, hal::Gpio{GYRO_PIN}, fast_parameters(rotated)}));
+    assert(capability.init(imu::Imu::Config{&g_sensor,
+                                            &g_heater,
+                                            hal::Gpio{ACCEL_PIN},
+                                            hal::Gpio{GYRO_PIN},
+                                            hal::Nvs{NVS_REGION},
+                                            fast_parameters(rotated)}));
     topic::Subscriber<topics::imu::Attitude> attitude_topic{topics::imu::attitude};
     bring_up(capability);
 
@@ -290,6 +343,7 @@ int scenario_heater()
                                             &g_heater,
                                             hal::Gpio{ACCEL_PIN},
                                             hal::Gpio{GYRO_PIN},
+                                            hal::Nvs{NVS_REGION},
                                             fast_parameters(estimate::IDENTITY_AXIS_MAPPING)}));
     topic::Subscriber<topics::imu::Attitude> attitude_topic{topics::imu::attitude};
     bring_up(capability);
@@ -314,28 +368,132 @@ int scenario_heater()
     return 0;
 }
 
+int scenario_stored()
+{
+    setup_sensor();
+    g_registers[ACCEL][0x22] = 19; // 这次上电在 42 ℃（11 位原始值 152 = 19 << 3）：
+                                   // 存储的记录是 40/50 ℃ 两条，要按 b(T0) 重算
+    // 上一次上电留下的两条记录：40 ℃ 与 50 ℃，斜率 0.001 rad/s/℃，b(42 ℃) 正好等于本板的零偏
+    const float bias_z = 17.0F * GYRO_LSB_RAD;
+    const float bias_x = -8.0F * GYRO_LSB_RAD;
+    const math::Vector3 actual{bias_x, 0.0F, bias_z};
+    const math::Vector3 low{bias_x - 0.002F, 0.0F, bias_z - 0.002F};
+    const math::Vector3 high{bias_x + 0.008F, 0.0F, bias_z + 0.008F};
+    assert(prefill_bias(40.0F, low));
+    {
+        hal::Nvs nvs{NVS_REGION};
+        estimate::BiasStore store;
+        const estimate::BiasStore::Storage storage{&nvs, nvs_size, nvs_granularity, nvs_read, nvs_write, nvs_erase};
+        assert(store.init(storage, estimate::BiasStore::Config{}));
+        assert(store.record(50.0F, high, 5000000U));
+    }
+
+    imu::Imu capability;
+    assert(capability.init(imu::Imu::Config{&g_sensor,
+                                            &g_heater,
+                                            hal::Gpio{ACCEL_PIN},
+                                            hal::Gpio{GYRO_PIN},
+                                            hal::Nvs{NVS_REGION},
+                                            fast_parameters(estimate::IDENTITY_AXIS_MAPPING)}));
+    topic::Subscriber<topics::imu::Attitude> attitude_topic{topics::imu::attitude};
+    bring_up(capability);
+    assert(capability.report().store_has_bias && capability.report().store_records == 2U);
+
+    const hal::os::Microseconds first_sample = hal::os::now_us();
+    set_gyro(-8, 0, 17);
+    run(capability, 20000U, [](std::uint32_t) {}); // 只跑 20 ms：不等 0.5 s 的快窗口
+    assert(capability.report().state == topics::imu::State::READY);
+    assert(capability.report().bias_source == imu::Imu::BiasSource::STORED);
+    assert(capability.report().settled_us - first_sample <= 5000U);
+    topics::imu::Attitude attitude{};
+    assert(attitude_topic.update(attitude));
+    assert(attitude.state == topics::imu::State::READY && attitude.valid);
+    assert(std::fabs(yaw_of(attitude)) < 2e-3F);
+    // 一开始用的是 50 ℃ 那条（最新记录）的 b(50)；温度读数到了以后按 b(42) 重算，角速度才扣得准
+    // 记录是 40/50 ℃ 两点，模型是直线：按这一次的温度 b(42) 扣，角速度应当接近 0（常数模型会差 0.008）
+    assert(std::fabs(capability.report().bias_temperature_celsius - 42.0F) < 1e-4F);
+    assert(std::fabs(attitude.gyro_rad_per_sec[2]) < 2e-4F && std::fabs(attitude.gyro_rad_per_sec[0]) < 2e-4F);
+    assert(std::fabs(capability.report().calibrated_bias_rad_per_sec.z - actual.z) < 5e-4F);
+    run(capability, 200000U, [](std::uint32_t) {});
+    assert(capability.report().state == topics::imu::State::READY);
+    assert(attitude_topic.update(attitude) && std::fabs(yaw_of(attitude)) < 2e-3F);
+
+    // 继续跑：快窗口在 0.5 s 完成（42 ℃），再记一条；状态与 yaw 零点都不变
+    const float yaw_zero = capability.report().yaw_zero_rad;
+    run(capability, 700000U, [](std::uint32_t) {});
+    assert(capability.report().state == topics::imu::State::READY);
+    assert(capability.report().bias_source == imu::Imu::BiasSource::STORED);
+    assert(capability.report().yaw_zero_rad == yaw_zero);
+    assert(capability.report().store_written >= 1U);
+    std::puts("imu stored: 全部通过");
+    return 0;
+}
+
+int scenario_stored_moving()
+{
+    setup_sensor();
+    // 有记录、上电时云台还在动：仍然立刻 READY（原来会退到 DEGRADED 等后台标定）
+    const float bias_z = 17.0F * GYRO_LSB_RAD;
+    assert(prefill_bias(45.0F, math::Vector3{0.0F, 0.0F, bias_z}));
+
+    imu::Imu capability;
+    assert(capability.init(imu::Imu::Config{&g_sensor,
+                                            &g_heater,
+                                            hal::Gpio{ACCEL_PIN},
+                                            hal::Gpio{GYRO_PIN},
+                                            hal::Nvs{NVS_REGION},
+                                            fast_parameters(estimate::IDENTITY_AXIS_MAPPING)}));
+    topic::Subscriber<topics::imu::Attitude> attitude_topic{topics::imu::attitude};
+    bring_up(capability);
+
+    run(capability,
+        1500000U,
+        [](std::uint32_t edge)
+        {
+            // z 轴 ±1.2 rad/s 来回晃（零偏叠在上面）：快窗口的极差一直超限，1 s 后超时
+            const std::int16_t swing = static_cast<std::int16_t>(1.2F / GYRO_LSB_RAD);
+            set_gyro(0, 0, static_cast<std::int16_t>(17 + (edge % 2U == 0U ? swing : -swing)));
+        });
+    assert(capability.report().state == topics::imu::State::READY);
+    assert(capability.report().bias_source == imu::Imu::BiasSource::STORED);
+    assert(capability.report().quick_calibration == estimate::GyroBiasCalibration::State::TIMED_OUT);
+    topics::imu::Attitude attitude{};
+    assert(attitude_topic.update(attitude));
+    assert(attitude.state == topics::imu::State::READY && attitude.valid);
+    std::puts("imu stored_moving: 全部通过");
+    return 0;
+}
+
 int scenario_reject()
 {
     setup_sensor();
     imu::Imu capability;
     imu::Imu::Parameters parameters = fast_parameters(estimate::IDENTITY_AXIS_MAPPING);
-    assert(!capability.init(
-        imu::Imu::Config{&g_sensor, nullptr, hal::Gpio{ACCEL_PIN}, hal::Gpio{GYRO_PIN}, parameters})); // 没有加热器
+    assert(!capability.init(imu::Imu::Config{&g_sensor,
+                                             nullptr,
+                                             hal::Gpio{ACCEL_PIN},
+                                             hal::Gpio{GYRO_PIN},
+                                             hal::Nvs{NVS_REGION},
+                                             parameters})); // 没有加热器
     parameters.mounting = estimate::AxisMapping{{0U, 0U, 2U}, {1, 1, 1}};
-    assert(!capability.init(imu::Imu::Config{
-        &g_sensor, &g_heater, hal::Gpio{ACCEL_PIN}, hal::Gpio{GYRO_PIN}, parameters})); // 安装方向不是旋转
+    assert(!capability.init(imu::Imu::Config{&g_sensor,
+                                             &g_heater,
+                                             hal::Gpio{ACCEL_PIN},
+                                             hal::Gpio{GYRO_PIN},
+                                             hal::Nvs{NVS_REGION},
+                                             parameters})); // 安装方向不是旋转
     parameters = fast_parameters(estimate::IDENTITY_AXIS_MAPPING);
     parameters.publish_period_us = 0U;
-    assert(!capability.init(
-        imu::Imu::Config{&g_sensor, &g_heater, hal::Gpio{ACCEL_PIN}, hal::Gpio{GYRO_PIN}, parameters}));
+    assert(!capability.init(imu::Imu::Config{
+        &g_sensor, &g_heater, hal::Gpio{ACCEL_PIN}, hal::Gpio{GYRO_PIN}, hal::Nvs{NVS_REGION}, parameters}));
     parameters = fast_parameters(estimate::IDENTITY_AXIS_MAPPING);
     parameters.calibration.window_us = 0U;
-    assert(!capability.init(
-        imu::Imu::Config{&g_sensor, &g_heater, hal::Gpio{ACCEL_PIN}, hal::Gpio{GYRO_PIN}, parameters}));
+    assert(!capability.init(imu::Imu::Config{
+        &g_sensor, &g_heater, hal::Gpio{ACCEL_PIN}, hal::Gpio{GYRO_PIN}, hal::Nvs{NVS_REGION}, parameters}));
     parameters = fast_parameters(estimate::IDENTITY_AXIS_MAPPING);
     parameters.quick_calibration.window_us = 0U;
-    assert(!capability.init(
-        imu::Imu::Config{&g_sensor, &g_heater, hal::Gpio{ACCEL_PIN}, hal::Gpio{GYRO_PIN}, parameters}));
+    assert(!capability.init(imu::Imu::Config{
+        &g_sensor, &g_heater, hal::Gpio{ACCEL_PIN}, hal::Gpio{GYRO_PIN}, hal::Nvs{NVS_REGION}, parameters}));
     std::puts("imu reject: 全部通过");
     return 0;
 }
@@ -352,6 +510,14 @@ int main(int argc, char **argv)
     {
         return scenario_degraded();
     }
+    if (argc == 2 && std::strcmp(argv[1], "stored") == 0)
+    {
+        return scenario_stored();
+    }
+    if (argc == 2 && std::strcmp(argv[1], "stored_moving") == 0)
+    {
+        return scenario_stored_moving();
+    }
     if (argc == 2 && std::strcmp(argv[1], "heater") == 0)
     {
         return scenario_heater();
@@ -360,6 +526,6 @@ int main(int argc, char **argv)
     {
         return scenario_reject();
     }
-    std::fprintf(stderr, "用法：%s ready|degraded|heater|reject\n", argv[0]);
+    std::fprintf(stderr, "用法：%s ready|degraded|stored|stored_moving|heater|reject\n", argv[0]);
     return 2;
 }

@@ -34,6 +34,7 @@ inline constexpr imu::Imu::Parameters IMU{
     50.0F,
     estimate::GyroBiasCalibration::Config{},
     imu::power_on_calibration(),
+    estimate::BiasStore::Config{},
     0.0F,
     0.35F,
     0.05F,

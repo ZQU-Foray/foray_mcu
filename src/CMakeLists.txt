@@ -31,7 +31,7 @@ endfunction()
 
 # ==== 契约：hal、hal_os、boot ====
 
-# hal：硬件资源的 C++ 契约 v1：每类外设一个句柄类（can、gpio、pwm、spi、uart、usb_cdc），
+# hal：硬件资源的 C++ 契约：每类外设一个句柄类（can、gpio、nvs、pwm、spi、uart、usb_cdc），
 # 成员函数由 platform 的 port 实现、宿主测试由 platform/mock 实现；hal::init() 是自由函数。
 # 时间参数用 hal_os 的 Microseconds；中断回调统一为 hal::Callback。
 framework_interface(hal
@@ -39,6 +39,7 @@ framework_interface(hal
     hal/can.hpp
     hal/gpio.hpp
     hal/init.hpp
+    hal/nvs.hpp
     hal/pwm.hpp
     hal/spi.hpp
     hal/uart.hpp
@@ -133,6 +134,8 @@ framework_library(lib_filter
 # imu_body_mapping 只处理三维向量（轴映射），不再依赖 BMI088 驱动（F3）。
 # gyro_bias_calibration：上电静止零偏标定，由迁移源的 GyroBiasCalibration 改写。
 framework_library(lib_estimate
+    lib/estimate/bias_store.cpp
+    lib/estimate/bias_store.hpp
     lib/estimate/eso.cpp
     lib/estimate/eso.hpp
     lib/estimate/gyro_bias_calibration.cpp
@@ -144,7 +147,7 @@ framework_library(lib_estimate
     lib/estimate/quaternion_ekf.hpp
     lib/estimate/vqf.cpp
     lib/estimate/vqf.hpp)
-target_link_libraries(lib_estimate PUBLIC utils_math lib_filter)
+target_link_libraries(lib_estimate PUBLIC utils_math utils_crc lib_filter)
 # 规则 14 的豁免（例外 X-06）：VQF 有意用 double 保精度，只在这个文件关掉 -Wdouble-promotion。
 set_source_files_properties(lib/estimate/vqf.cpp PROPERTIES COMPILE_OPTIONS "-Wno-double-promotion")
 

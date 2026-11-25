@@ -12,4 +12,8 @@ SECTIONS
   } >RAM_D1
 
   ASSERT(. <= _sstack, "RAM_D1: .axi_bss overlaps the interrupt stack")
+
+  /* 程序镜像不得长进最后一个 Flash 扇区（0x080E0000–0x080FFFFF）：hal::Nvs 的 NVS_BIAS 存在那里。
+   * 镜像末尾 = .data 的加载地址 + .data 大小（生成脚本里 .data 紧跟在 .fini_array 之后）。 */
+  ASSERT(_sidata + SIZEOF(.data) <= 0x080E0000, "flash image overlaps the NVS sector")
 }

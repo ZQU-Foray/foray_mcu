@@ -13,6 +13,34 @@ namespace
 {
 
 constexpr float ACCEL_OUTPUT_RATE_HZ{1600.0F}; // Bmi088Accel 固定配置为 1600 Hz
+// 快窗口出结果时温度寄存器可能还没更新（1.28 s 才更新一次）：等这么久还没有温度就丢掉这条记录
+constexpr hal::os::Microseconds PENDING_RECORD_TIMEOUT_US{3000000U};
+
+// estimate::BiasStore 的存储后端接到 hal::Nvs 上（记录层只管算法，不依赖 hal）
+std::size_t nvs_size(void *context) noexcept
+{
+    return static_cast<const hal::Nvs *>(context)->size();
+}
+
+std::size_t nvs_granularity(void *context) noexcept
+{
+    return static_cast<const hal::Nvs *>(context)->write_granularity();
+}
+
+bool nvs_read(void *context, std::size_t offset, std::uint8_t *data, std::size_t length) noexcept
+{
+    return static_cast<const hal::Nvs *>(context)->read(offset, data, length) == hal::Nvs::Result::OK;
+}
+
+bool nvs_write(void *context, std::size_t offset, const std::uint8_t *data, std::size_t length) noexcept
+{
+    return static_cast<const hal::Nvs *>(context)->write(offset, data, length) == hal::Nvs::Result::OK;
+}
+
+bool nvs_erase(void *context) noexcept
+{
+    return static_cast<const hal::Nvs *>(context)->erase() == hal::Nvs::Result::OK;
+}
 
 } // namespace
 
@@ -24,6 +52,7 @@ bool Imu::init(const Config &config) noexcept
     {
         return false;
     }
+    config_ = config;
     estimate::GyroBiasCalibration::Config calibration = config.parameters.calibration;
     calibration.target_celsius = config.parameters.heater_target_celsius; // 标定在恒温目标上做
     estimate::GyroBiasCalibration::Config quick = config.parameters.quick_calibration;
@@ -32,7 +61,12 @@ bool Imu::init(const Config &config) noexcept
     {
         return false;
     }
-    config_ = config;
+    // 零偏-温度记录：区满或中间有坏记录时在这里压缩（整区擦除），必须在只有启动代码跑的时候
+    const estimate::BiasStore::Storage storage{&config_.nvs, nvs_size, nvs_granularity, nvs_read, nvs_write, nvs_erase};
+    if (!store_.init(storage, config.parameters.bias_store))
+    {
+        return false;
+    }
     event_publisher_ = topics::imu::event.claim_publisher();
     attitude_publisher_ = topics::imu::attitude.claim_publisher();
     if (!event_publisher_ || !attitude_publisher_)
@@ -72,6 +106,13 @@ bool Imu::init(const Config &config) noexcept
     has_published_ = false;
     quick_applied_ = false;
     precise_applied_ = false;
+    temperature_bias_applied_ = false;
+    window_bias_applied_ = false;
+    pending_record_ = PendingRecord{};
+    report_.store_available = store_.available();
+    report_.store_has_bias = store_.has_bias();
+    report_.store_records = store_.snapshot().records;
+    report_.store_fit_is_line = store_.snapshot().fit_is_line;
     return true;
 }
 
@@ -104,7 +145,23 @@ void Imu::step(hal::os::Microseconds now) noexcept
     report_.sensor_ready = imu.is_ready();
     report_.sensor_error = imu.get_state() == device::Bmi088::State::ERROR;
 
-    // 上电快速零偏：短静止窗口，不等温度。它决定什么时候进 READY（云台从这一刻起才出力）
+    // 1) Flash 里有零偏-温度记录：不等静止窗口，第一个样本后就能 READY（复位时云台可能在动）
+    if (report_.state == topics::imu::State::SETTLING && report_.accel_samples > 0U && store_.has_bias())
+    {
+        apply_stored_bias(has_temperature_ ? temperature_celsius_ : store_.newest_temperature_celsius());
+        settle(topics::imu::State::READY, now);
+    }
+
+    // 2) 第一条温度读数到了：存储的零偏是在别的温度上记的，用 b(T0) 重算一次（姿态不跳，只改积分的角速度）。
+    //    快窗口/精确标定已经给过当前温度上的零偏时不再覆盖
+    if (!temperature_bias_applied_ && !window_bias_applied_ && has_temperature_ &&
+        report_.bias_source == BiasSource::STORED)
+    {
+        temperature_bias_applied_ = true;
+        apply_stored_bias(temperature_celsius_);
+    }
+
+    // 3) 上电快窗口：0.5 s 静止窗口，不等温度。它决定什么时候进 READY（云台从这一刻起才出力）
     const estimate::GyroBiasCalibration::Snapshot quick = quick_calibration_.snapshot();
     report_.quick_calibration = quick.state;
     if (!quick_applied_ && report_.accel_samples > 0U)
@@ -112,20 +169,31 @@ void Imu::step(hal::os::Microseconds now) noexcept
         if (quick.state == estimate::GyroBiasCalibration::State::COMPLETED)
         {
             apply_bias(quick.bias_rad_per_sec);
+            window_bias_applied_ = true;
             report_.calibrated_bias_rad_per_sec = quick.bias_rad_per_sec;
+            report_.bias_temperature_celsius = has_temperature_ ? temperature_celsius_ : 0.0F;
+            store_result(has_temperature_ ? temperature_celsius_ : 0.0F,
+                         quick.bias_rad_per_sec,
+                         config_.parameters.quick_calibration.window_us);
             quick_applied_ = true;
-            report_.bias_source = BiasSource::QUICK;
-            settle(topics::imu::State::READY, now);
+            if (report_.state == topics::imu::State::SETTLING)
+            {
+                report_.bias_source = BiasSource::QUICK;
+                settle(topics::imu::State::READY, now);
+            }
         }
         else if (quick.state == estimate::GyroBiasCalibration::State::TIMED_OUT)
         {
             // 上电时在动：按零偏 0 出力，VQF 的静止更新之后会自己收敛
             quick_applied_ = true;
-            settle(topics::imu::State::DEGRADED, now);
+            if (report_.state == topics::imu::State::SETTLING)
+            {
+                settle(topics::imu::State::DEGRADED, now);
+            }
         }
     }
 
-    // 后台精确标定：只改进 VQF 的零偏，不改状态、不重取 yaw 零点（正在保持的云台和 PC 的目标不会跳）
+    // 4) 后台精确标定：只改进 VQF 的零偏，不改状态、不重取 yaw 零点（正在保持的云台和 PC 的目标不会跳）
     const estimate::GyroBiasCalibration::Snapshot calibration = calibration_.snapshot();
     report_.calibration = calibration.state;
     report_.calibration_restarts = calibration.restarts;
@@ -133,10 +201,15 @@ void Imu::step(hal::os::Microseconds now) noexcept
     if (calibration.state == estimate::GyroBiasCalibration::State::COMPLETED && !precise_applied_)
     {
         apply_bias(calibration.bias_rad_per_sec);
+        window_bias_applied_ = true;
         report_.calibrated_bias_rad_per_sec = calibration.bias_rad_per_sec;
+        report_.bias_temperature_celsius = has_temperature_ ? temperature_celsius_ : 0.0F;
         precise_applied_ = true;
         report_.precise_applied = true;
-        if (!quick_applied_)
+        store_result(has_temperature_ ? temperature_celsius_ : 0.0F,
+                     calibration.bias_rad_per_sec,
+                     config_.parameters.calibration.window_us);
+        if (report_.state == topics::imu::State::SETTLING)
         {
             // 精确标定比快速窗口还先出结果（参数极端时）：它来定 READY
             quick_applied_ = true;
@@ -144,6 +217,23 @@ void Imu::step(hal::os::Microseconds now) noexcept
             settle(topics::imu::State::READY, now);
         }
     }
+
+    // 5) 待写的记录：温度到了就写，太久没有温度就丢掉
+    if (pending_record_.active)
+    {
+        if (has_temperature_)
+        {
+            (void)store_.record(temperature_celsius_, pending_record_.bias_rad_per_sec, pending_record_.window_us);
+            pending_record_.active = false;
+        }
+        else if (hal::os::has_elapsed(pending_record_.queued_us, PENDING_RECORD_TIMEOUT_US, now))
+        {
+            pending_record_.active = false;
+        }
+    }
+    report_.store_written = store_.snapshot().written;
+    report_.store_records = store_.snapshot().records;
+    report_.store_fit_is_line = store_.snapshot().fit_is_line;
 
     // 限频按陀螺的采样时刻、允许提前 1/4 周期：任务醒来的时刻有抖动，按 now 判"满 1 ms"会时常差一点、
     // 多等一个样本，2 kHz 陀螺下平均只有约 860 Hz（2026-11-03 上板）。按采样时刻判正好每隔一个样本发一次
@@ -207,6 +297,34 @@ void Imu::apply_bias(const math::Vector3 &bias_rad_per_sec) noexcept
     {
         vqf_.set_bias_estimate(bias_rad_per_sec);
     }
+}
+
+void Imu::apply_stored_bias(float temperature_celsius) noexcept
+{
+    const math::Vector3 bias = store_.bias_at(temperature_celsius);
+    apply_bias(bias);
+    report_.calibrated_bias_rad_per_sec = bias;
+    report_.bias_temperature_celsius = temperature_celsius;
+    report_.bias_source = BiasSource::STORED;
+}
+
+void Imu::store_result(float temperature_celsius,
+                       const math::Vector3 &bias_rad_per_sec,
+                       std::uint32_t window_us) noexcept
+{
+    if (!store_.available())
+    {
+        return;
+    }
+    if (has_temperature_ && std::isfinite(temperature_celsius))
+    {
+        (void)store_.record(temperature_celsius, bias_rad_per_sec, window_us);
+        return;
+    }
+    pending_record_.active = true;
+    pending_record_.bias_rad_per_sec = bias_rad_per_sec;
+    pending_record_.window_us = window_us;
+    pending_record_.queued_us = hal::os::now_us();
 }
 
 void Imu::settle(topics::imu::State state, hal::os::Microseconds now) noexcept
