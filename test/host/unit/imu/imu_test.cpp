@@ -425,6 +425,21 @@ int scenario_stored()
     assert(capability.report().bias_source == imu::Imu::BiasSource::STORED);
     assert(capability.report().yaw_zero_rad == yaw_zero);
     assert(capability.report().store_written >= 1U);
+
+    // 温度升到 46 ℃（模拟加热）：零偏按 b(46) 重算，模型是 40/42/50 三点共线的直线，b(46) = 实际 + 0.004
+    const std::uint32_t updates_before = capability.report().bias_updates;
+    g_registers[ACCEL][0x22] = 23; // 46 ℃：11 位原始值 184 = 23 << 3
+    run(capability, 300000U, [](std::uint32_t) {});
+    assert(capability.report().bias_updates > updates_before);
+    assert(std::fabs(capability.report().bias_temperature_celsius - 46.0F) < 1e-4F);
+    assert(std::fabs(capability.report().calibrated_bias_rad_per_sec.z - (actual.z + 0.004F)) < 1e-3F);
+    assert(attitude_topic.update(attitude));
+    assert(std::fabs(attitude.gyro_rad_per_sec[2] + 0.004F) < 1e-3F); // 扣的是 b(46)，比实际多一点
+    // 温度只变 0.5 ℃：不到阈值，不再动零偏
+    const std::uint32_t updates_after = capability.report().bias_updates;
+    g_registers[ACCEL][0x22] = 23; // 保持 46 ℃（读数刷新不会触发）
+    run(capability, 300000U, [](std::uint32_t) {});
+    assert(capability.report().bias_updates == updates_after);
     std::puts("imu stored: 全部通过");
     return 0;
 }
@@ -488,6 +503,10 @@ int scenario_reject()
         &g_sensor, &g_heater, hal::Gpio{ACCEL_PIN}, hal::Gpio{GYRO_PIN}, hal::Nvs{NVS_REGION}, parameters}));
     parameters = fast_parameters(estimate::IDENTITY_AXIS_MAPPING);
     parameters.calibration.window_us = 0U;
+    assert(!capability.init(imu::Imu::Config{
+        &g_sensor, &g_heater, hal::Gpio{ACCEL_PIN}, hal::Gpio{GYRO_PIN}, hal::Nvs{NVS_REGION}, parameters}));
+    parameters = fast_parameters(estimate::IDENTITY_AXIS_MAPPING);
+    parameters.bias_update_temperature_celsius = -1.0F;
     assert(!capability.init(imu::Imu::Config{
         &g_sensor, &g_heater, hal::Gpio{ACCEL_PIN}, hal::Gpio{GYRO_PIN}, hal::Nvs{NVS_REGION}, parameters}));
     parameters = fast_parameters(estimate::IDENTITY_AXIS_MAPPING);

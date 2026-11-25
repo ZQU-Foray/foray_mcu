@@ -75,6 +75,9 @@ class Imu final
         // 默认 2 °/s 会让 rest 永不触发。0.35 rad/s = 20.1 °/s 覆盖实测最大值。
         float rest_threshold_gyr_rad_per_sec{0.35F};
         float bias_clip_rad_per_sec{0.05F};
+        // 温度变化超过这么多就按 b(T) 重算零偏（0 = 关掉）。升温几十秒里零偏能变 0.1–0.2 °/s，
+        // 等 VQF 的静止更新追太慢；稳态下温度不变，不会去碰 VQF 的零偏。
+        float bias_update_temperature_celsius{1.0F};
     };
 
     /** 组合根注入的依赖与参数。 */
@@ -110,7 +113,8 @@ class Imu final
         estimate::GyroBiasCalibration::State quick_calibration; // 上电快速零偏
         BiasSource bias_source;
         bool precise_applied;                          // 后台精确标定已完成并把零偏交给了 VQF
-        float bias_temperature_celsius;                // 上电零偏是在多少度上取的（DEGRADED 时为 0）
+        float bias_temperature_celsius;                // 当前应用的零偏对应的温度（DEGRADED 时为 0）
+        std::uint32_t bias_updates;                    // 因温度变化重算零偏的次数
         bool store_available;                          // Flash 记录能读写
         bool store_has_bias;                           // 上电时 Flash 里有记录
         std::size_t store_records;                     // 模型用到的记录条数
@@ -149,7 +153,7 @@ class Imu final
     void apply_bias(const math::Vector3 &bias_rad_per_sec) noexcept;
     void
     store_result(float temperature_celsius, const math::Vector3 &bias_rad_per_sec, std::uint32_t window_us) noexcept;
-    void apply_stored_bias(float temperature_celsius) noexcept;
+    void apply_bias_at_temperature(float temperature_celsius) noexcept;
     void settle(topics::imu::State state, hal::os::Microseconds now) noexcept;
     [[nodiscard]] topics::imu::Attitude make_attitude(const estimate::Vqf::State &estimate) const noexcept;
 
@@ -161,10 +165,8 @@ class Imu final
     estimate::GyroBiasCalibration calibration_{};
     estimate::GyroBiasCalibration quick_calibration_{};
     estimate::BiasStore store_{};
-    bool quick_applied_{false};            // 上电零偏已经定过（READY 或 DEGRADED）
-    bool precise_applied_{false};          // 后台精确标定的结果已交给 VQF
-    bool temperature_bias_applied_{false}; // 第一条温度读数到了之后重算过 b(T)
-    bool window_bias_applied_{false}; // 快窗口或精确标定已经给过零偏（存储模型的修正不再覆盖它）
+    bool quick_applied_{false};   // 上电零偏已经定过（READY 或 DEGRADED）
+    bool precise_applied_{false}; // 后台精确标定的结果已交给 VQF
 
     // 记录还没写出去（上电 0.5 s 时温度寄存器可能还没更新）：等温度到了再写，超过 3 s 就丢掉
     struct PendingRecord

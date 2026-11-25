@@ -48,7 +48,9 @@ bool Imu::init(const Config &config) noexcept
 {
     if (config.imu == nullptr || config.heater == nullptr ||
         !estimate::is_valid_axis_mapping(config.parameters.mounting) || config.parameters.publish_period_us == 0U ||
-        !std::isfinite(config.parameters.heater_target_celsius))
+        !std::isfinite(config.parameters.heater_target_celsius) ||
+        !std::isfinite(config.parameters.bias_update_temperature_celsius) ||
+        config.parameters.bias_update_temperature_celsius < 0.0F)
     {
         return false;
     }
@@ -106,8 +108,6 @@ bool Imu::init(const Config &config) noexcept
     has_published_ = false;
     quick_applied_ = false;
     precise_applied_ = false;
-    temperature_bias_applied_ = false;
-    window_bias_applied_ = false;
     pending_record_ = PendingRecord{};
     report_.store_available = store_.available();
     report_.store_has_bias = store_.has_bias();
@@ -148,17 +148,19 @@ void Imu::step(hal::os::Microseconds now) noexcept
     // 1) Flash 里有零偏-温度记录：不等静止窗口，第一个样本后就能 READY（复位时云台可能在动）
     if (report_.state == topics::imu::State::SETTLING && report_.accel_samples > 0U && store_.has_bias())
     {
-        apply_stored_bias(has_temperature_ ? temperature_celsius_ : store_.newest_temperature_celsius());
+        apply_bias_at_temperature(has_temperature_ ? temperature_celsius_ : store_.newest_temperature_celsius());
+        report_.bias_source = BiasSource::STORED;
         settle(topics::imu::State::READY, now);
     }
 
-    // 2) 第一条温度读数到了：存储的零偏是在别的温度上记的，用 b(T0) 重算一次（姿态不跳，只改积分的角速度）。
-    //    快窗口/精确标定已经给过当前温度上的零偏时不再覆盖
-    if (!temperature_bias_applied_ && !window_bias_applied_ && has_temperature_ &&
-        report_.bias_source == BiasSource::STORED)
+    // 2) 温度变了就按 b(T) 重算零偏：升温、降温的几十秒里零偏能差 0.1–0.2 °/s，等 VQF 的静止更新追太慢。
+    //    只在变化超过阈值时动，稳态下温度不变就不会去碰 VQF；姿态不跳，只改积分用的角速度
+    if (config_.parameters.bias_update_temperature_celsius > 0.0F && store_.has_bias() && has_temperature_ &&
+        std::fabs(temperature_celsius_ - report_.bias_temperature_celsius) >=
+            config_.parameters.bias_update_temperature_celsius)
     {
-        temperature_bias_applied_ = true;
-        apply_stored_bias(temperature_celsius_);
+        apply_bias_at_temperature(temperature_celsius_);
+        ++report_.bias_updates;
     }
 
     // 3) 上电快窗口：0.5 s 静止窗口，不等温度。它决定什么时候进 READY（云台从这一刻起才出力）
@@ -169,7 +171,6 @@ void Imu::step(hal::os::Microseconds now) noexcept
         if (quick.state == estimate::GyroBiasCalibration::State::COMPLETED)
         {
             apply_bias(quick.bias_rad_per_sec);
-            window_bias_applied_ = true;
             report_.calibrated_bias_rad_per_sec = quick.bias_rad_per_sec;
             report_.bias_temperature_celsius = has_temperature_ ? temperature_celsius_ : 0.0F;
             store_result(has_temperature_ ? temperature_celsius_ : 0.0F,
@@ -201,7 +202,6 @@ void Imu::step(hal::os::Microseconds now) noexcept
     if (calibration.state == estimate::GyroBiasCalibration::State::COMPLETED && !precise_applied_)
     {
         apply_bias(calibration.bias_rad_per_sec);
-        window_bias_applied_ = true;
         report_.calibrated_bias_rad_per_sec = calibration.bias_rad_per_sec;
         report_.bias_temperature_celsius = has_temperature_ ? temperature_celsius_ : 0.0F;
         precise_applied_ = true;
@@ -299,13 +299,12 @@ void Imu::apply_bias(const math::Vector3 &bias_rad_per_sec) noexcept
     }
 }
 
-void Imu::apply_stored_bias(float temperature_celsius) noexcept
+void Imu::apply_bias_at_temperature(float temperature_celsius) noexcept
 {
     const math::Vector3 bias = store_.bias_at(temperature_celsius);
     apply_bias(bias);
     report_.calibrated_bias_rad_per_sec = bias;
     report_.bias_temperature_celsius = temperature_celsius;
-    report_.bias_source = BiasSource::STORED;
 }
 
 void Imu::store_result(float temperature_celsius,
