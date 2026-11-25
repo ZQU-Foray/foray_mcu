@@ -2477,7 +2477,7 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 
 ---
 
-## Decision-20261125-01（恢复 5 V 输出：无线烧录器供电，Proposed）
+## Decision-20261125-01（恢复 5 V 输出：无线烧录器供电，Accepted）
 
 - **Date**：2026-11-25
 - **Status**：**Accepted**（2026-11-25：三个 profile 构建通过；上板 `GPIOC_ODR = 0x0000E009`，DC5 为高，见[上板记录](docs/ai/decisions/2026-11-25-IMU快速启动上板验证/README.md)）
@@ -2516,7 +2516,7 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 
 ---
 
-## Decision-20261125-02（IMU 上电快速 READY：短静止窗口先出力，精确标定转后台，Proposed）
+## Decision-20261125-02（IMU 上电快速 READY：短静止窗口先出力，精确标定转后台，Accepted）
 
 - **Date**：2026-11-25
 - **Status**：**Accepted**（2026-11-25：宿主测试 92/92、三个 profile 构建通过；上板冷启动 0.66 s、热复位 0.16 s，见[上板记录](docs/ai/decisions/2026-11-25-IMU快速启动上板验证/README.md)）
@@ -2565,7 +2565,7 @@ F2 先做与具体外设无关的部分，每一步固件都可构建：
 
 ---
 
-## Decision-20261125-03（零偏存储：`hal::Nvs` 契约与 DM-MC02 Flash 扇区、`estimate::BiasStore` 日志式记录，Proposed）
+## Decision-20261125-03（零偏存储：`hal::Nvs` 契约与 DM-MC02 Flash 扇区、`estimate::BiasStore` 日志式记录，Accepted）
 
 - **Date**：2026-11-25
 - **Status**：**Accepted**（2026-11-25：宿主测试 96/96、三个 profile 构建通过、overlay 断言负向验证通过；上板重刷固件后记录仍在、热复位沿用标定，见[上板记录](docs/ai/decisions/2026-11-25-IMU快速启动上板验证/README.md)）
