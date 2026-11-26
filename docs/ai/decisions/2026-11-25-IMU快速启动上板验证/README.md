@@ -72,3 +72,21 @@ Decision-20261125-02 的 Context）。
 
 数据：`samples/imu_C_track.log`（50 → 34 → 50 ℃ 循环）、`samples/imu_B_cold.log`（冷启动 + 前 4 min）、
 `samples/imu_B_warmup.log` / `imu_B_warmup2.log`（接 24 V 前后的升温）、`samples/imu_A_warm50.log`（50 ℃ 稳态基线）。
+
+## 2026-11-26：关掉温度跟踪、清理记录区
+
+上板复测（板子只接烧录器、探针供电、无 24 V，芯片 17 → 30 ℃ 靠核心自热）发现 Flip 记录里有一条坏点：
+17.375 ℃ 与 19 ℃ 两条快窗口记录温度只差 1.6 ℃，z 轴零偏却差 0.2 °/s；直线模型因此自相矛盾，
+每涨 1 ℃ 重算一次零偏就把 yaw 推 0.5–0.9°，用户看到"几分钟走了六七度"。
+
+处理：
+
+- `bias_update_temperature_celsius` 默认改成 **0（关闭）**，Decision-20261125-04 改为 Rejected；
+- 擦除最后一个 Flash 扇区（`flash erase_sector 0 7 7`，0.86 s，擦完 `0x080E0000` 起 32 B 全是 0xFF），
+  让记录从干净状态重学。擦除后第一次上电没有记录：`bias_source = QUICK`、`settled_us = 661,895 µs = 0.662 s`，
+  随后在 31.875 ℃ 记下一条（z = 0.00109，与更早那条 17.375 ℃ 的 0.00111 一致，说明被清掉的 19 ℃ 那条确实是坏点）；
+- 同一时刻 `bias_updates = 0`，应用的零偏 (0.00310, 0.00059, 0.00109) 与 VQF 的 (0.00340, 0.00059, 0.00103)
+  相差 ≤ 3e-4 rad/s，`yaw_rad = −0.00002 rad`。
+
+EmberProbe 的 `firmwareConsistency` 显示 `mismatch`：它记录的最后一次烧录是 2026-11-24 的 `950bcdf`
+（这几次都是用仓库的 OpenOCD target 烧的），板上跑的就是当前 ELF 的构建（`.bin` = `d840176c…`）。
