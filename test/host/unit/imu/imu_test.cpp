@@ -388,13 +388,13 @@ int scenario_stored()
         assert(store.record(50.0F, high, 5000000U));
     }
 
+    // 温度跟踪默认是关的（Decision-20261125-04 复测后关闭），这个场景专门把它打开来测
+    assert(imu::Imu::Parameters{}.bias_update_temperature_celsius == 0.0F);
+    imu::Imu::Parameters parameters = fast_parameters(estimate::IDENTITY_AXIS_MAPPING);
+    parameters.bias_update_temperature_celsius = 1.0F;
     imu::Imu capability;
-    assert(capability.init(imu::Imu::Config{&g_sensor,
-                                            &g_heater,
-                                            hal::Gpio{ACCEL_PIN},
-                                            hal::Gpio{GYRO_PIN},
-                                            hal::Nvs{NVS_REGION},
-                                            fast_parameters(estimate::IDENTITY_AXIS_MAPPING)}));
+    assert(capability.init(imu::Imu::Config{
+        &g_sensor, &g_heater, hal::Gpio{ACCEL_PIN}, hal::Gpio{GYRO_PIN}, hal::Nvs{NVS_REGION}, parameters}));
     topic::Subscriber<topics::imu::Attitude> attitude_topic{topics::imu::attitude};
     bring_up(capability);
     assert(capability.report().store_has_bias && capability.report().store_records == 2U);

@@ -75,9 +75,10 @@ class Imu final
         // 默认 2 °/s 会让 rest 永不触发。0.35 rad/s = 20.1 °/s 覆盖实测最大值。
         float rest_threshold_gyr_rad_per_sec{0.35F};
         float bias_clip_rad_per_sec{0.05F};
-        // 温度变化超过这么多就按 b(T) 重算零偏（0 = 关掉）。升温几十秒里零偏能变 0.1–0.2 °/s，
-        // 等 VQF 的静止更新追太慢；稳态下温度不变，不会去碰 VQF 的零偏。
-        float bias_update_temperature_celsius{1.0F};
+        // 温度变化超过这么多就按 b(T) 重算零偏（0 = 关掉，默认关）。
+        // 2026-11-26 上板实测：记录里只要有一条坏点，b(T) 直线就会和 VQF 的静止估计差到
+        // 0.0014 rad/s（0.08 °/s），每次按模型重算都会把 yaw 推 0.5–0.9°。模型可信之前不要开。
+        float bias_update_temperature_celsius{0.0F};
     };
 
     /** 组合根注入的依赖与参数。 */
